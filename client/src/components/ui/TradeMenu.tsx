@@ -34,15 +34,16 @@ export default function TradeMenu() {
   
   // Update local inventory when game state inventory changes
   useEffect(() => {
-    if (gameState.inventory && gameState.inventory.length > 0) {
-      // Add good details to inventory items
-      const itemsWithGoods = gameState.inventory.map(item => ({
-        ...item,
-        good: GOODS.find(g => g.id === item.goodId)
-      }));
-      
-      setInventory(itemsWithGoods);
-    }
+    // Add good details to inventory items
+    const itemsWithGoods = gameState.inventory.map(item => ({
+      ...item,
+      good: GOODS.find(g => g.id === item.goodId)
+    }));
+    
+    setInventory(itemsWithGoods);
+    
+    // Log for debugging
+    console.log("Inventory updated from game state:", gameState.inventory);
   }, [gameState.inventory]);
   
   // Load port data
@@ -107,21 +108,18 @@ export default function TradeMenu() {
         const inventoryItems = await response.json();
         
         if (Array.isArray(inventoryItems)) {
-          // Add good details to inventory items
-          const itemsWithGoods = inventoryItems.map(item => ({
-            ...item,
-            good: GOODS.find(g => g.id === item.goodId)
-          }));
+          // Update the global game state first
+          useGameState.getState().updatePlayerInventory(inventoryItems);
           
-          setInventory(itemsWithGoods);
+          // Add good details to inventory items (will be done by the useEffect)
+          console.log("Loaded inventory from API:", inventoryItems);
         } else {
-          // Setup empty inventory as fallback
-          setInventory([]);
+          console.log("No inventory items received from API");
+          // Leave global state untouched, don't set empty inventory here
         }
       } catch (error) {
         console.error('Failed to load inventory:', error);
-        // Setup empty inventory as fallback
-        setInventory([]);
+        // Don't modify anything on error
       }
     } catch (error) {
       console.error('Error loading inventory:', error);
@@ -244,7 +242,17 @@ export default function TradeMenu() {
           </div>
         )}
         
-        <Tabs defaultValue="buy" value={tab} onValueChange={setTab} className="mt-4">
+        <Tabs 
+          defaultValue="buy" 
+          value={tab} 
+          onValueChange={(newTab) => {
+            setTab(newTab);
+            // If switching to sell tab, make sure to update inventory
+            if (newTab === 'sell') {
+              loadInventory();
+            }
+          }} 
+          className="mt-4">
           <TabsList className="grid w-full grid-cols-2 bg-amber-900 border border-amber-500">
             <TabsTrigger value="buy" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">Buy Goods</TabsTrigger>
             <TabsTrigger value="sell" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">Sell Goods</TabsTrigger>
@@ -353,7 +361,7 @@ export default function TradeMenu() {
               
               {loading ? (
                 <div className="p-8 text-center text-amber-100">Loading inventory...</div>
-              ) : inventory.length === 0 ? (
+              ) : inventory.filter(item => item.quantity > 0).length === 0 ? (
                 <div className="p-8 text-center text-amber-100">
                   <p>Your cargo hold is empty</p>
                   <p className="mt-4 text-sm">Buy goods to sell them at other ports for profit!</p>
