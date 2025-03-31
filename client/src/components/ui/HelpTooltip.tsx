@@ -1,68 +1,91 @@
 import { useState } from 'react';
-import { HelpCircle } from 'lucide-react';
-import { 
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { HelpCircle, X } from 'lucide-react';
 
 export function HelpTooltip() {
-  const [open, setOpen] = useState(false);
+  const [showControls, setShowControls] = useState(false);
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      <TooltipProvider>
-        <Tooltip open={open} onOpenChange={setOpen}>
-          <TooltipTrigger asChild>
-            <button 
-              className="p-2 bg-amber-700 text-white rounded-full shadow-lg hover:bg-amber-600 transition-colors"
-              aria-label="Game controls help"
-            >
-              <HelpCircle className="h-6 w-6" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" align="end" className="w-80 p-4 bg-gray-900 text-white border-amber-500">
-            <div>
-              <h3 className="font-bold text-amber-400 mb-2">Game Controls</h3>
-              <ul className="space-y-2 text-sm">
-                <li className="flex justify-between">
-                  <span>Move Forward:</span>
-                  <span className="font-mono bg-gray-800 px-2 rounded">W or ↑</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>Move Backward:</span>
-                  <span className="font-mono bg-gray-800 px-2 rounded">S or ↓</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>Turn Left:</span>
-                  <span className="font-mono bg-gray-800 px-2 rounded">A or ←</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>Turn Right:</span>
-                  <span className="font-mono bg-gray-800 px-2 rounded">D or →</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>Fire Cannons:</span>
-                  <span className="font-mono bg-gray-800 px-2 rounded">Space</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>Increase Speed:</span>
-                  <span className="font-mono bg-gray-800 px-2 rounded">Shift</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>Decrease Speed:</span>
-                  <span className="font-mono bg-gray-800 px-2 rounded">Ctrl</span>
-                </li>
-                <li className="flex justify-between">
-                  <span>Trade at Port:</span>
-                  <span className="font-mono bg-gray-800 px-2 rounded">T</span>
-                </li>
-              </ul>
+    <>
+      {/* Help button */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <button 
+          className="p-3 bg-amber-700 text-white rounded-full shadow-lg hover:bg-amber-600 transition-colors"
+          aria-label="Game controls help"
+          onClick={() => setShowControls(true)}
+        >
+          <HelpCircle className="h-6 w-6" />
+        </button>
+      </div>
+      
+      {/* Controls help modal */}
+      {showControls && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-gray-900 text-white p-6 rounded-lg shadow-xl border-2 border-amber-500 max-w-md w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-amber-400">Game Controls</h2>
+              <button 
+                onClick={() => setShowControls(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="col-span-2 pb-2 border-b border-amber-800">
+                <h3 className="text-sm font-semibold text-amber-300">Ship Movement</h3>
+              </div>
+              
+              <div className="text-sm">Move Forward</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">W / ↑</div>
+              
+              <div className="text-sm">Move Backward</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">S / ↓</div>
+              
+              <div className="text-sm">Turn Left</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">A / ←</div>
+              
+              <div className="text-sm">Turn Right</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">D / →</div>
+              
+              <div className="col-span-2 pb-2 mt-2 border-b border-amber-800">
+                <h3 className="text-sm font-semibold text-amber-300">Combat & Speed</h3>
+              </div>
+              
+              <div className="text-sm">Fire Cannons</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">Space</div>
+              
+              <div className="text-sm">Increase Speed</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">Shift</div>
+              
+              <div className="text-sm">Decrease Speed</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">Ctrl</div>
+              
+              <div className="col-span-2 pb-2 mt-2 border-b border-amber-800">
+                <h3 className="text-sm font-semibold text-amber-300">Game Interface</h3>
+              </div>
+              
+              <div className="text-sm">Trade at Port</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">T</div>
+              
+              <div className="text-sm">View Leaderboard</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">Tab</div>
+              
+              <div className="text-sm">Toggle Controls Panel</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">H</div>
+            </div>
+            
+            <div className="mt-4 text-center">
+              <button 
+                onClick={() => setShowControls(false)}
+                className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
