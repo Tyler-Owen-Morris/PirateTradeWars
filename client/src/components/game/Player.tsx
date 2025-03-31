@@ -20,10 +20,6 @@ interface PlayerProps {
   controls: PlayerControls;
 }
 
-// Maps from shared constants
-const MAP_WIDTH = 5000;
-const MAP_HEIGHT = 5000;
-
 export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
   { player, controls }, 
   ref

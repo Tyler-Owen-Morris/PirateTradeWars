@@ -150,9 +150,31 @@ export interface SocketErrorMessage {
   timestamp: number;
 }
 
+export interface SocketWelcomeMessage {
+  type: 'welcome';
+  message: string;
+  timestamp: number;
+}
+
+export interface SocketRegisteredMessage {
+  type: 'registered';
+  playerId: string;
+  timestamp: number;
+}
+
+export interface SocketTradeSuccessMessage {
+  type: 'tradeSuccess';
+  gold: number;
+  inventory: InventoryItem[];
+  timestamp: number;
+}
+
 export type SocketMessage = 
   | SocketRegisterMessage 
   | SocketInputMessage 
   | SocketTradeMessage 
   | SocketGameUpdateMessage 
-  | SocketErrorMessage;
+  | SocketErrorMessage
+  | SocketWelcomeMessage
+  | SocketRegisteredMessage
+  | SocketTradeSuccessMessage;

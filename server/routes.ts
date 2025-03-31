@@ -90,12 +90,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
 
-  // Initialize WebSocket server
-  const wss = new WebSocketServer({ server: httpServer });
+  // Initialize WebSocket server without direct server integration
+  const wss = new WebSocketServer({ 
+    noServer: true
+  });
   
   // Handle WebSocket connections
   wss.on('connection', (ws) => {
+    console.log('New WebSocket connection to game server');
     handleSocketConnection(ws);
+  });
+  
+  // Handle upgrade requests manually via HTTP server
+  httpServer.on('upgrade', (request, socket, head) => {
+    // Only handle upgrades to our specific game WebSocket path
+    if (request.url === '/game-ws') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
   });
 
   return httpServer;

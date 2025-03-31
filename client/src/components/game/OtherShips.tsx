@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { Ship } from './Ship';
 import { PlayerState } from '@/types';
 import * as THREE from 'three';
+import { MAP_WIDTH, MAP_HEIGHT } from '@/lib/constants';
 
 interface OtherShipsProps {
   players: Record<string, PlayerState>;
@@ -28,8 +29,8 @@ export function OtherShips({ players }: OtherShipsProps) {
         // Calculate direct and wrapped distances for x
         const directDx = targetX - currentX;
         const wrappedDx = targetX > currentX 
-          ? targetX - 5000 - currentX 
-          : targetX + 5000 - currentX;
+          ? targetX - MAP_WIDTH - currentX 
+          : targetX + MAP_WIDTH - currentX;
         
         // Use the shortest path
         const dx = Math.abs(directDx) < Math.abs(wrappedDx) ? directDx : wrappedDx;
@@ -37,8 +38,8 @@ export function OtherShips({ players }: OtherShipsProps) {
         // Calculate direct and wrapped distances for z
         const directDz = targetZ - currentZ;
         const wrappedDz = targetZ > currentZ 
-          ? targetZ - 5000 - currentZ 
-          : targetZ + 5000 - currentZ;
+          ? targetZ - MAP_HEIGHT - currentZ 
+          : targetZ + MAP_HEIGHT - currentZ;
         
         // Use the shortest path
         const dz = Math.abs(directDz) < Math.abs(wrappedDz) ? directDz : wrappedDz;
@@ -48,8 +49,8 @@ export function OtherShips({ players }: OtherShipsProps) {
         ship.position.z += dz * 5 * delta;
         
         // Wrap around map edges
-        ship.position.x = (ship.position.x % 5000 + 5000) % 5000;
-        ship.position.z = (ship.position.z % 5000 + 5000) % 5000;
+        ship.position.x = (ship.position.x % MAP_WIDTH + MAP_WIDTH) % MAP_WIDTH;
+        ship.position.z = (ship.position.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
         
         // Interpolate rotation (smoother turning)
         const currentAngle = ship.rotation.y;

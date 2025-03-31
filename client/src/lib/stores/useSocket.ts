@@ -37,7 +37,9 @@ export const useSocket = create<SocketState>((set, get) => ({
       
       // Create new WebSocket connection
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      // Use a specific game WebSocket path to avoid conflicts with Vite's websocket
+      const wsUrl = `${protocol}//${window.location.host}/game-ws`;
+      console.log('Connecting to WebSocket URL:', wsUrl);
       
       const socket = new WebSocket(wsUrl);
       
