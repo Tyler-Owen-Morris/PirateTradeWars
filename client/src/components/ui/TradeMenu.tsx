@@ -199,50 +199,50 @@ export default function TradeMenu() {
   
   return (
     <Dialog open={isTrading} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center">
+      <DialogContent className="max-w-2xl max-h-screen overflow-y-auto bg-slate-800 text-white border-amber-500">
+        <DialogHeader className="bg-amber-900 rounded-t-md p-4">
+          <DialogTitle className="flex items-center text-amber-100">
             <Tag className="mr-2 h-5 w-5" />
             {currentPort ? currentPort.name : 'Port'} Trading Post
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-amber-200">
             Buy and sell goods to increase your wealth
           </DialogDescription>
         </DialogHeader>
         
         {(error || socketError) && (
-          <Alert variant="destructive" className="mb-4">
+          <Alert variant="destructive" className="mb-4 mt-4 border border-red-500 bg-red-900/50">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
+            <AlertDescription className="text-white">
               {error || socketError}
             </AlertDescription>
           </Alert>
         )}
         
         {gameState.player && (
-          <div className="flex items-center justify-between mb-4 p-2 bg-muted/20 rounded-md">
+          <div className="flex items-center justify-between mb-4 p-3 bg-amber-800/40 rounded-md border border-amber-500/50">
             <div className="flex items-center">
               <Coins className="h-5 w-5 mr-2 text-yellow-500" />
-              <span className="font-bold">{gameState.player.gold}</span>
-              <span className="ml-1 text-sm">gold</span>
+              <span className="font-bold text-amber-200">{gameState.player.gold}</span>
+              <span className="ml-1 text-sm text-amber-100">gold</span>
             </div>
             <div className="flex items-center">
-              <Package className="h-5 w-5 mr-2" />
-              <span>{gameState.player.cargoUsed} / {gameState.player.cargoCapacity}</span>
-              <span className="ml-1 text-sm">cargo</span>
+              <Package className="h-5 w-5 mr-2 text-amber-300" />
+              <span className="text-amber-200">{gameState.player.cargoUsed} / {gameState.player.cargoCapacity}</span>
+              <span className="ml-1 text-sm text-amber-100">cargo</span>
             </div>
           </div>
         )}
         
-        <Tabs defaultValue="buy" value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="buy">Buy Goods</TabsTrigger>
-            <TabsTrigger value="sell">Sell Goods</TabsTrigger>
+        <Tabs defaultValue="buy" value={tab} onValueChange={setTab} className="mt-4">
+          <TabsList className="grid w-full grid-cols-2 bg-amber-900 border border-amber-500">
+            <TabsTrigger value="buy" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">Buy Goods</TabsTrigger>
+            <TabsTrigger value="sell" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">Sell Goods</TabsTrigger>
           </TabsList>
           
           <TabsContent value="buy" className="space-y-4">
-            <div className="rounded-md border">
-              <div className="flex items-center p-2 bg-muted/50 font-medium">
+            <div className="rounded-md border border-amber-500/50 overflow-hidden">
+              <div className="flex items-center p-3 bg-amber-900/70 text-amber-100 font-medium">
                 <div className="w-1/4">Good</div>
                 <div className="w-1/4 text-center">Price</div>
                 <div className="w-1/4 text-center">Stock</div>
@@ -250,9 +250,12 @@ export default function TradeMenu() {
               </div>
               
               {loading ? (
-                <div className="p-8 text-center">Loading goods...</div>
+                <div className="p-8 text-center text-amber-100">Loading goods...</div>
               ) : portGoods.length === 0 ? (
-                <div className="p-8 text-center">No goods available at this port</div>
+                <div className="p-8 text-center text-amber-100">
+                  <p>No goods available at this port</p>
+                  <p className="mt-4 text-sm">This is a new port - goods will be restocked on your next visit!</p>
+                </div>
               ) : (
                 portGoods.map((portGood) => {
                   const good = findGood(portGood.goodId);
@@ -261,10 +264,16 @@ export default function TradeMenu() {
                   return (
                     <div 
                       key={portGood.id} 
-                      className={`flex items-center p-3 border-t ${selectedGoodId === portGood.goodId ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                      className={`flex items-center p-3 border-t border-amber-500/20 ${
+                        selectedGoodId === portGood.goodId 
+                          ? 'bg-amber-700/50 text-amber-50' 
+                          : 'hover:bg-amber-800/30'
+                      }`}
                     >
                       <div className="w-1/4 font-medium">{good.name}</div>
-                      <div className="w-1/4 text-center">{portGood.currentPrice} gold</div>
+                      <div className="w-1/4 text-center">
+                        <span className="text-yellow-300">{portGood.currentPrice}</span> gold
+                      </div>
                       <div className="w-1/4 text-center">{portGood.stock} units</div>
                       <div className="w-1/4 text-center">
                         <Button 
@@ -272,6 +281,9 @@ export default function TradeMenu() {
                           size="sm"
                           onClick={() => setSelectedGoodId(portGood.goodId)}
                           disabled={portGood.stock === 0}
+                          className={selectedGoodId === portGood.goodId 
+                            ? "bg-amber-500 hover:bg-amber-600 text-white" 
+                            : "border-amber-400 text-amber-200 hover:bg-amber-800"}
                         >
                           {selectedGoodId === portGood.goodId ? 'Selected' : 'Select'}
                         </Button>
@@ -283,28 +295,36 @@ export default function TradeMenu() {
             </div>
             
             {selectedGoodId && (
-              <div className="p-4 rounded-md border">
-                <h3 className="font-bold mb-2">Purchase Details</h3>
+              <div className="p-4 rounded-md border border-amber-500/50 bg-amber-900/30">
+                <h3 className="font-bold mb-3 text-amber-200 flex items-center">
+                  <ShoppingCart className="mr-2 h-5 w-5 text-amber-300" />
+                  Purchase Details
+                </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium mb-1 block">Quantity</label>
+                    <label className="text-sm font-medium mb-1 block text-amber-100">Quantity</label>
                     <Input 
                       type="number" 
                       min="1" 
                       max={portGoods.find(pg => pg.goodId === selectedGoodId)?.stock || 1}
                       value={quantity}
                       onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                      className="bg-amber-950 border-amber-500/50 text-amber-100"
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium mb-1 block">Total Cost</label>
-                    <div className="text-xl font-bold">
+                    <label className="text-sm font-medium mb-1 block text-amber-100">Total Cost</label>
+                    <div className="text-xl font-bold text-yellow-400 flex items-center">
+                      <Coins className="mr-2 h-5 w-5 text-yellow-500" />
                       {(portGoods.find(pg => pg.goodId === selectedGoodId)?.currentPrice || 0) * quantity} gold
                     </div>
                   </div>
                 </div>
                 
-                <Button className="w-full mt-4" onClick={handleTrade}>
+                <Button 
+                  className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={handleTrade}
+                >
                   <ShoppingCart className="mr-2 h-4 w-4" />
                   Buy Goods
                 </Button>
@@ -313,8 +333,8 @@ export default function TradeMenu() {
           </TabsContent>
           
           <TabsContent value="sell" className="space-y-4">
-            <div className="rounded-md border">
-              <div className="flex items-center p-2 bg-muted/50 font-medium">
+            <div className="rounded-md border border-amber-500/50 overflow-hidden">
+              <div className="flex items-center p-3 bg-amber-900/70 text-amber-100 font-medium">
                 <div className="w-1/4">Good</div>
                 <div className="w-1/4 text-center">Price</div>
                 <div className="w-1/4 text-center">Owned</div>
@@ -322,9 +342,12 @@ export default function TradeMenu() {
               </div>
               
               {loading ? (
-                <div className="p-8 text-center">Loading inventory...</div>
+                <div className="p-8 text-center text-amber-100">Loading inventory...</div>
               ) : inventory.length === 0 ? (
-                <div className="p-8 text-center">Your cargo hold is empty</div>
+                <div className="p-8 text-center text-amber-100">
+                  <p>Your cargo hold is empty</p>
+                  <p className="mt-4 text-sm">Buy goods to sell them at other ports for profit!</p>
+                </div>
               ) : (
                 inventory
                   .filter(item => item.quantity > 0)
@@ -338,16 +361,25 @@ export default function TradeMenu() {
                     return (
                       <div 
                         key={item.goodId} 
-                        className={`flex items-center p-3 border-t ${selectedGoodId === item.goodId ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
+                        className={`flex items-center p-3 border-t border-amber-500/20 ${
+                          selectedGoodId === item.goodId 
+                            ? 'bg-amber-700/50 text-amber-50' 
+                            : 'hover:bg-amber-800/30'
+                        }`}
                       >
                         <div className="w-1/4 font-medium">{good.name}</div>
-                        <div className="w-1/4 text-center">{price} gold</div>
+                        <div className="w-1/4 text-center">
+                          <span className="text-yellow-300">{price}</span> gold
+                        </div>
                         <div className="w-1/4 text-center">{item.quantity} units</div>
                         <div className="w-1/4 text-center">
                           <Button 
                             variant={selectedGoodId === item.goodId ? "default" : "outline"}
                             size="sm"
                             onClick={() => setSelectedGoodId(item.goodId)}
+                            className={selectedGoodId === item.goodId 
+                              ? "bg-amber-500 hover:bg-amber-600 text-white" 
+                              : "border-amber-400 text-amber-200 hover:bg-amber-800"}
                           >
                             {selectedGoodId === item.goodId ? 'Selected' : 'Select'}
                           </Button>
@@ -359,29 +391,37 @@ export default function TradeMenu() {
             </div>
             
             {selectedGoodId && (
-              <div className="p-4 rounded-md border">
-                <h3 className="font-bold mb-2">Sale Details</h3>
+              <div className="p-4 rounded-md border border-amber-500/50 bg-amber-900/30">
+                <h3 className="font-bold mb-3 text-amber-200 flex items-center">
+                  <Tag className="mr-2 h-5 w-5 text-amber-300" />
+                  Sale Details
+                </h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium mb-1 block">Quantity</label>
+                    <label className="text-sm font-medium mb-1 block text-amber-100">Quantity</label>
                     <Input 
                       type="number" 
                       min="1" 
                       max={getInventoryQuantity(selectedGoodId)}
                       value={quantity}
                       onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                      className="bg-amber-950 border-amber-500/50 text-amber-100"
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium mb-1 block">Total Earnings</label>
-                    <div className="text-xl font-bold text-green-600">
+                    <label className="text-sm font-medium mb-1 block text-amber-100">Total Earnings</label>
+                    <div className="text-xl font-bold text-green-400 flex items-center">
+                      <Coins className="mr-2 h-5 w-5 text-green-500" />
                       {(portGoods.find(pg => pg.goodId === selectedGoodId)?.currentPrice || 0) * quantity} gold
                     </div>
                   </div>
                 </div>
                 
-                <Button className="w-full mt-4" onClick={handleTrade}>
-                  <ShoppingCart className="mr-2 h-4 w-4" />
+                <Button 
+                  className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={handleTrade}
+                >
+                  <Tag className="mr-2 h-4 w-4" />
                   Sell Goods
                 </Button>
               </div>
@@ -389,14 +429,14 @@ export default function TradeMenu() {
           </TabsContent>
         </Tabs>
         
-        <DialogFooter className="flex justify-between items-center">
+        <DialogFooter className="flex justify-between items-center mt-4 pt-4 border-t border-amber-500/30">
           <div className="flex items-center">
-            <Info className="h-4 w-4 mr-1 text-blue-500" />
-            <span className="text-xs text-muted-foreground">
+            <Info className="h-4 w-4 mr-1 text-amber-300" />
+            <span className="text-xs text-amber-200">
               Prices change over time. Buy low, sell high!
             </span>
           </div>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} className="border-amber-400 text-amber-200 hover:bg-amber-800">
             <X className="mr-2 h-4 w-4" />
             Close
           </Button>
