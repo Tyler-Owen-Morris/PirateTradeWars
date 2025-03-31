@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { WebSocketServer } from "ws";
 import { handleSocketConnection } from "./game/socketHandler";
-import { initializeGameState } from "./game/gameState";
+import { initializeGameState, gameState } from "./game/gameState";
 import { setupShipTypes } from "./game/shipTypes";
 import crypto from "crypto";
 
@@ -120,10 +120,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       const portGoods = await storage.getPortGoods(portId);
-      res.json(portGoods);
+      
+      // If the port has no goods, trigger an update
+      if (portGoods.length === 0) {
+        console.log(`Port ${portId} has no goods, triggering price update`);
+        await gameState.updatePrices();
+        // Fetch updated goods after regeneration
+        const updatedGoods = await storage.getPortGoods(portId);
+        res.json(updatedGoods);
+      } else {
+        res.json(portGoods);
+      }
     } catch (error) {
       console.error('Error fetching port goods:', error);
       res.status(500).json({ message: 'Failed to fetch port goods' });
+    }
+  });
+  
+  // Endpoint to manually trigger price and stock updates
+  app.post('/api/update-prices', async (req, res) => {
+    try {
+      await gameState.updatePrices();
+      res.json({ success: true, message: 'Port prices and stock updated successfully' });
+    } catch (error) {
+      console.error('Error updating prices:', error);
+      res.status(500).json({ message: 'Failed to update prices and stock' });
     }
   });
 

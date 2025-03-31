@@ -52,7 +52,9 @@ export interface IStorage {
   
   // Port goods operations
   getPortGoods(portId: number): Promise<PortGood[]>;
+  createPortGood(portGood: Omit<PortGood, 'id'>): Promise<PortGood>;
   updatePortGoodPrice(id: number, price: number): Promise<PortGood | undefined>;
+  updatePortGoodStock(id: number, stock: number): Promise<PortGood | undefined>;
   
   // Player inventory operations
   getPlayerInventory(playerId: number): Promise<PlayerInventory[]>;
@@ -134,13 +136,18 @@ export class MemStorage implements IStorage {
   async createPlayer(insertPlayer: InsertPlayer): Promise<Player> {
     const id = this.playerId++;
     const now = new Date();
+    
+    // Create player with required fields and defaults
     const player: Player = { 
-      ...insertPlayer, 
       id, 
+      name: insertPlayer.name,
+      shipType: insertPlayer.shipType || 'sloop', // Default ship type 
+      userId: insertPlayer.userId || null,
       gold: 500, 
       isActive: true, 
       lastSeen: now 
     };
+    
     this.playersMap.set(id, player);
     
     // Initialize empty inventory for the player
@@ -237,11 +244,46 @@ export class MemStorage implements IStorage {
     return this.portGoodsMap.get(portId) || [];
   }
 
+  async createPortGood(portGood: Omit<PortGood, 'id'>): Promise<PortGood> {
+    const id = this.portGoodId++;
+    const newPortGood: PortGood = { ...portGood, id };
+    
+    // Get or initialize the port's goods array
+    let portGoods = this.portGoodsMap.get(portGood.portId);
+    if (!portGoods) {
+      portGoods = [];
+      this.portGoodsMap.set(portGood.portId, portGoods);
+    }
+    
+    // Add the good to the port
+    portGoods.push(newPortGood);
+    
+    return newPortGood;
+  }
+
   async updatePortGoodPrice(id: number, price: number): Promise<PortGood | undefined> {
-    for (const [portId, goods] of this.portGoodsMap.entries()) {
-      const goodIndex = goods.findIndex(good => good.id === id);
+    // Using Array.from to avoid TypeScript iterator issues
+    const portEntries = Array.from(this.portGoodsMap.entries());
+    
+    for (const [portId, goods] of portEntries) {
+      const goodIndex = goods.findIndex((goodItem: PortGood) => goodItem.id === id);
       if (goodIndex !== -1) {
         goods[goodIndex].currentPrice = price;
+        goods[goodIndex].updatedAt = new Date();
+        return goods[goodIndex];
+      }
+    }
+    return undefined;
+  }
+  
+  async updatePortGoodStock(id: number, stock: number): Promise<PortGood | undefined> {
+    // Using Array.from to avoid TypeScript iterator issues
+    const portEntries = Array.from(this.portGoodsMap.entries());
+    
+    for (const [portId, goods] of portEntries) {
+      const goodIndex = goods.findIndex((goodItem: PortGood) => goodItem.id === id);
+      if (goodIndex !== -1) {
+        goods[goodIndex].stock = stock;
         goods[goodIndex].updatedAt = new Date();
         return goods[goodIndex];
       }
@@ -282,7 +324,13 @@ export class MemStorage implements IStorage {
   async addToLeaderboard(entry: InsertLeaderboard): Promise<Leaderboard> {
     const id = this.leaderboardId++;
     const now = new Date();
-    const newEntry: Leaderboard = { ...entry, id, achievedAt: now };
+    const newEntry: Leaderboard = { 
+      id, 
+      playerId: entry.playerId || null,
+      playerName: entry.playerName,
+      score: entry.score,
+      achievedAt: now 
+    };
     this.leaderboardList.push(newEntry);
     return newEntry;
   }

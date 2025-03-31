@@ -333,7 +333,10 @@ class GameState {
 
   broadcast() {
     // Prepare the broadcast message
-    for (const [playerId, ws] of this.connectedClients.entries()) {
+    // Using Array.from to avoid TypeScript iterator issues
+    const clientEntries = Array.from(this.connectedClients.entries());
+    
+    for (const [playerId, ws] of clientEntries) {
       if (ws.readyState !== 1) continue; // Skip if not open
       
       const player = this.state.players[playerId];
@@ -390,10 +393,36 @@ class GameState {
       // Get all goods
       const goods = await storage.getGoods();
       
-      // Update prices at each port
+      // Update prices and stock at each port
       for (const port of ports) {
         const portGoods = await storage.getPortGoods(port.id);
         
+        // Create goods if port has none
+        if (portGoods.length === 0) {
+          console.log(`Port ${port.name} has no goods. Initializing...`);
+          
+          // Each port gets all goods with slightly randomized prices
+          for (const good of goods) {
+            const basePrice = good.basePrice;
+            const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
+            const initialPrice = Math.round(basePrice * (1 + fluctPercent));
+            const initialStock = Math.floor(Math.random() * 50) + 50; // 50-100 initial stock
+            
+            // Add good to port with initial price and stock
+            await storage.createPortGood({
+              portId: port.id,
+              goodId: good.id,
+              currentPrice: initialPrice,
+              stock: initialStock,
+              updatedAt: new Date()
+            });
+          }
+          
+          console.log(`Port ${port.name} goods initialized with ${goods.length} goods`);
+          continue;
+        }
+        
+        // Update existing port goods
         for (const portGood of portGoods) {
           // Get base price and fluctuation for this good
           const good = goods.find(g => g.id === portGood.goodId);
@@ -405,12 +434,42 @@ class GameState {
           
           // Update the price
           await storage.updatePortGoodPrice(portGood.id, newPrice);
+          
+          // Replenish stock if it's low
+          if (portGood.stock < 10) {
+            const newStock = Math.floor(Math.random() * 30) + 20; // 20-50 new stock
+            await storage.updatePortGoodStock(portGood.id, newStock);
+            console.log(`Replenished stock of good ${good.name} at port ${port.name} to ${newStock} units`);
+          }
+        }
+        
+        // Make sure all goods are available at each port
+        for (const good of goods) {
+          const hasGood = portGoods.some(pg => pg.goodId === good.id);
+          
+          if (!hasGood) {
+            console.log(`Adding missing good ${good.name} to port ${port.name}`);
+            
+            // Calculate initial price and stock
+            const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
+            const initialPrice = Math.round(good.basePrice * (1 + fluctPercent));
+            const initialStock = Math.floor(Math.random() * 50) + 50; // 50-100 initial stock
+            
+            // Add missing good to port
+            await storage.createPortGood({
+              portId: port.id,
+              goodId: good.id,
+              currentPrice: initialPrice,
+              stock: initialStock,
+              updatedAt: new Date()
+            });
+          }
         }
       }
       
-      console.log('Port prices updated');
+      console.log('Port prices and stock updated');
     } catch (err) {
-      console.error('Error updating prices:', err);
+      console.error('Error updating prices and stock:', err);
     }
   }
 
@@ -492,19 +551,30 @@ export async function initializeGameState() {
           const initialPrice = Math.round(basePrice * (1 + fluctPercent));
           const initialStock = Math.floor(Math.random() * 50) + 50; // 50-100 initial stock
           
-          // Add good to port
-          const portGood = {
+          // Add good to port with initial price and stock
+          await storage.createPortGood({
             portId: port.id,
             goodId: good.id,
             currentPrice: initialPrice,
             stock: initialStock,
             updatedAt: new Date()
-          };
-          
-          // This is simplified for in-memory storage
-          // In a real DB, we'd use a proper insert method
-          const id = (await storage.getPortGoods(port.id)).length + 1;
-          await storage.updatePortGoodPrice(id, initialPrice);
+          });
+        }
+        
+        console.log(`Port ${port.name} goods initialized with ${(await storage.getGoods()).length} goods`);
+      }
+      
+      // Ensure ports always have some stock of each good
+      // This prevents empty ports during trading
+      else {
+        // Check each good at this port
+        for (const portGood of portGoods) {
+          // If stock is low or zero, replenish it
+          if (portGood.stock < 10) {
+            const newStock = Math.floor(Math.random() * 30) + 20; // 20-50 new stock
+            await storage.updatePortGoodStock(portGood.id, newStock);
+            console.log(`Replenished stock of good ${portGood.goodId} at port ${port.id} to ${newStock} units`);
+          }
         }
       }
     }
