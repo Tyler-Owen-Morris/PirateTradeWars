@@ -17,6 +17,7 @@ interface GameStateStore {
   isPlaying: boolean;
   isSunk: boolean;
   isTrading: boolean;
+  isNearPort: boolean;
   nearPortId: number | null;
   currentPortGoods: PortGood[];
 
@@ -65,6 +66,7 @@ export const useGameState = create<GameStateStore>()(
     isPlaying: false,
     isSunk: false,
     isTrading: false,
+    isNearPort: false,
     nearPortId: null,
     currentPortGoods: [],
     
@@ -162,6 +164,20 @@ export const useGameState = create<GameStateStore>()(
             ports
           }
         }));
+        
+        // After loading ports, check if player is near any port
+        setTimeout(() => {
+          const player = get().gameState.player;
+          if (player) {
+            const nearestPort = get().getNearestPort();
+            if (nearestPort) {
+              const distance = get().calculateDistance(player.x, player.z, nearestPort.x, nearestPort.z);
+              if (distance <= nearestPort.safeRadius) {
+                get().setNearPort(nearestPort.id);
+              }
+            }
+          }
+        }, 500);
       } catch (error) {
         console.error('Failed to load ports:', error);
       }
@@ -183,7 +199,7 @@ export const useGameState = create<GameStateStore>()(
       }
     },
     
-    loadPortGoods: async (portId) => {
+    loadPortGoods: async (portId: number) => {
       try {
         const response = await apiRequest('GET', `/api/ports/${portId}/goods`, undefined);
         const portGoods = await response.json();
@@ -194,12 +210,52 @@ export const useGameState = create<GameStateStore>()(
       }
     },
     
-    setNearPort: (portId) => {
-      set({ nearPortId: portId });
+    setNearPort: (portId: number | null) => {
+      if (portId === null) {
+        // Clear port
+        console.log("Clearing nearest port");
+        set({ 
+          nearPortId: null,
+          gameState: {
+            ...get().gameState,
+            nearestPort: null,
+            isNearPort: false
+          }
+        });
+        return;
+      }
+      
+      // Find the port with this ID
+      const ports = get().gameState.ports;
+      const nearestPort = ports.find(p => p.id === portId) || null;
+      
+      console.log(`Setting near port: ${nearestPort?.name} (ID: ${portId})`);
+      
+      set({ 
+        nearPortId: portId,
+        gameState: {
+          ...get().gameState,
+          nearestPort,
+          isNearPort: true
+        }
+      });
+      
+      // Load the port goods if we're near a port
+      get().loadPortGoods(portId);
     },
+    
+    // clearNearPort is now handled by setNearPort(null)
     
     setIsTrading: (isTrading) => {
       set({ isTrading });
+      
+      // If starting to trade, make sure we load port goods
+      if (isTrading && get().nearPortId !== null) {
+        const portId = get().nearPortId;
+        if (portId !== null) {
+          get().loadPortGoods(portId);
+        }
+      }
     },
     
     // Leaderboard
@@ -247,7 +303,9 @@ export const useGameState = create<GameStateStore>()(
       if (!player || !nearestPort) return false;
       
       const distance = get().calculateDistance(player.x, player.z, nearestPort.x, nearestPort.z);
-      return distance <= nearestPort.safeRadius;
+      // Use the same PORT_INTERACTION_RADIUS from constants for consistency
+      const { PORT_INTERACTION_RADIUS } = require('../../lib/constants');
+      return distance <= PORT_INTERACTION_RADIUS;
     },
     
     calculateDistance: (x1, z1, x2, z2) => {

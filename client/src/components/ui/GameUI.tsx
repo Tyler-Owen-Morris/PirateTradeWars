@@ -8,6 +8,7 @@ import { Button } from './button';
 import { Volume2, VolumeX, HelpCircle, Map } from 'lucide-react';
 import { HelpTooltip } from './HelpTooltip';
 import { Minimap } from './Minimap';
+import { ToastContainer } from './TradingToast';
 
 export default function GameUI() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -29,8 +30,23 @@ export default function GameUI() {
       
       if (e.key === 't' || e.key === 'T') {
         // Open trade menu if near port
-        if (gameState.nearestPort && useGameState.getState().isPlayerNearPort()) {
+        if (gameState.nearestPort && gameState.isNearPort) {
           useGameState.setState({ isTrading: true });
+          console.log(`Trading at ${gameState.nearestPort.name}`);
+        } else {
+          // Provide feedback to the player about why trading isn't available
+          const nearestPort = useGameState.getState().getNearestPort();
+          if (nearestPort) {
+            const player = gameState.player;
+            if (player) {
+              const distance = useGameState.getState().calculateDistance(
+                player.x, player.z, nearestPort.x, nearestPort.z
+              );
+              console.log(`Too far from ${nearestPort.name} (${Math.round(distance)} units away). Sail closer to trade!`);
+            }
+          } else {
+            console.log("No ports nearby. Find a port to trade!");
+          }
         }
       }
     };
@@ -64,6 +80,9 @@ export default function GameUI() {
       
       {/* Leaderboard (shown on Tab key) */}
       {showLeaderboard && <Leaderboard />}
+      
+      {/* Toast notifications for trading */}
+      <ToastContainer />
       
       {/* Sound and minimap controls */}
       <div className="absolute top-4 right-4 z-50 flex gap-2">
@@ -114,8 +133,8 @@ export default function GameUI() {
       )}
       
       {/* Port notification */}
-      {gameState.nearestPort && useGameState.getState().isPlayerNearPort() && !isSunk && (
-        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white p-3 rounded-md border border-amber-500">
+      {gameState.nearestPort && gameState.isNearPort && !isSunk && (
+        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white p-3 rounded-md border border-amber-500 shadow-lg animate-pulse">
           <p className="text-center">
             <span className="font-bold text-amber-400">{gameState.nearestPort.name}</span> - Press <span className="font-mono bg-black px-2 rounded">T</span> to trade
           </p>

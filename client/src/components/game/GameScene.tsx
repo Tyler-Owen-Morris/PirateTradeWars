@@ -4,6 +4,7 @@ import { Sky, Stars } from "@react-three/drei";
 import { useKeyboardControls } from "@react-three/drei";
 import { useSocket } from "@/lib/stores/useSocket";
 import { useGameState } from "@/lib/stores/useGameState";
+import { useAudio } from "@/lib/stores/useAudio";
 import { Ocean } from "./Ocean";
 import { Player } from "./Player";
 import { Ports } from "./Ports";
@@ -95,11 +96,36 @@ export function GameScene() {
         const nearestPort = useGameState.getState().getNearestPort();
         if (nearestPort) {
           const isNearPort = useGameState.getState().isPlayerNearPort();
+          const player = gameState.player;
           
           if (isNearPort) {
-            useGameState.getState().setNearPort(nearestPort.id);
-          } else {
+            if (!gameState.isNearPort) {
+              useGameState.getState().setNearPort(nearestPort.id);
+              
+              // Play sound effect when entering port range
+              const { playSound } = useAudio.getState();
+              if (typeof playSound === 'function') {
+                playSound('bell', 0.4);
+              }
+              
+              // Calculate distance for debug purposes
+              if (player) {
+                const distance = useGameState.getState().calculateDistance(
+                  player.x, player.z, nearestPort.x, nearestPort.z
+                );
+                console.log(`Approaching ${nearestPort.name} port! Distance: ${Math.round(distance)} units`);
+              }
+            }
+          } else if (gameState.isNearPort) {
             useGameState.getState().setNearPort(null);
+            
+            // Calculate distance for debug purposes
+            if (player) {
+              const distance = useGameState.getState().calculateDistance(
+                player.x, player.z, nearestPort.x, nearestPort.z
+              );
+              console.log(`Leaving ${nearestPort.name} port area. Distance: ${Math.round(distance)} units`);
+            }
           }
         }
       }
