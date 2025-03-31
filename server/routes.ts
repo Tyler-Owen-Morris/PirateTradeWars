@@ -87,6 +87,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to fetch leaderboard' });
     }
   });
+  
+  // Get ports
+  app.get('/api/ports', async (req, res) => {
+    try {
+      const ports = await storage.getPorts();
+      res.json(ports);
+    } catch (error) {
+      console.error('Error fetching ports:', error);
+      res.status(500).json({ message: 'Failed to fetch ports' });
+    }
+  });
+  
+  // Get goods
+  app.get('/api/goods', async (req, res) => {
+    try {
+      const goods = await storage.getGoods();
+      res.json(goods);
+    } catch (error) {
+      console.error('Error fetching goods:', error);
+      res.status(500).json({ message: 'Failed to fetch goods' });
+    }
+  });
+  
+  // Get port goods
+  app.get('/api/ports/:portId/goods', async (req, res) => {
+    const portId = parseInt(req.params.portId);
+    
+    if (isNaN(portId)) {
+      return res.status(400).json({ message: 'Invalid port ID' });
+    }
+    
+    try {
+      const portGoods = await storage.getPortGoods(portId);
+      res.json(portGoods);
+    } catch (error) {
+      console.error('Error fetching port goods:', error);
+      res.status(500).json({ message: 'Failed to fetch port goods' });
+    }
+  });
 
   const httpServer = createServer(app);
 
