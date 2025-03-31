@@ -36,10 +36,10 @@ export function HelpTooltip() {
                 <h3 className="text-sm font-semibold text-amber-300">Ship Movement</h3>
               </div>
               
-              <div className="text-sm">Move Forward</div>
+              <div className="text-sm">Move Forward (Ship Direction)</div>
               <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">W / ↑</div>
               
-              <div className="text-sm">Move Backward</div>
+              <div className="text-sm">Move Backward (Reverse)</div>
               <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">S / ↓</div>
               
               <div className="text-sm">Turn Left</div>

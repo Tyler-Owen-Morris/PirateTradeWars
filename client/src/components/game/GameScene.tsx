@@ -61,10 +61,11 @@ export function GameScene() {
       if (now - lastInputTime.current > 100) {
         lastInputTime.current = now;
         
+        // FIX: Swap controls to match the expected behavior
         // Calculate speed based on inputs
         let speed = 0;
-        if (forward) speed = accelerate ? gameState.player.speed * 1.5 : gameState.player.speed;
-        if (backward) speed = -gameState.player.speed * 0.5;
+        if (backward) speed = accelerate ? gameState.player.speed * 1.5 : gameState.player.speed; // W key should go forward
+        if (forward) speed = -gameState.player.speed * 0.5; // S key should go backward
         
         // Calculate rotation
         const rotationY = playerRef.current.rotation.y;
@@ -79,6 +80,11 @@ export function GameScene() {
           y: dirVector.y,
           z: dirVector.z
         };
+        
+        // Debug movement
+        if (forward || backward) {
+          console.log("Server input - Speed:", speed, "Direction:", direction.current);
+        }
         
         // Send input to server
         socket.sendInput(rotationY, speed, direction.current, fire);

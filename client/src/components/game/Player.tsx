@@ -45,7 +45,12 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     const groupRef = ref.current;
     const { forward, backward, left, right, accelerate, decelerate } = controls;
     
-    // Handle rotation
+    // Debug movement
+    if (forward || backward || left || right) {
+      console.log("Movement inputs:", { forward, backward, left, right });
+    }
+    
+    // Handle rotation (keep the same logic)
     if (left) {
       rotationRef.current += 1.2 * delta;
       groupRef.rotation.y = rotationRef.current;
@@ -61,13 +66,15 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     const acceleration = 2 * delta; // Acceleration rate
     const deceleration = 1 * delta; // Deceleration rate
     
-    if (forward) {
+    // FIX: Swap forward/backward logic to match expected behavior
+    // Forward should move ship in the direction it's facing
+    if (backward) { // Using W or Up Arrow (backward was forward)
       if (accelerate) {
         speedRef.current = Math.min(maxSpeed * 1.5, speedRef.current + acceleration * 1.5);
       } else {
         speedRef.current = Math.min(maxSpeed, speedRef.current + acceleration);
       }
-    } else if (backward) {
+    } else if (forward) { // Using S or Down Arrow (forward was backward)
       speedRef.current = Math.max(-maxSpeed * 0.5, speedRef.current - acceleration);
     } else {
       // Gradually slow down if no input
@@ -89,7 +96,7 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     
     // Apply movement to group position
     if (speedRef.current !== 0) {
-      // Calculate forward vector
+      // Calculate forward vector (in the direction the ship is facing)
       const directionVector = new THREE.Vector3(0, 0, 1).applyAxisAngle(
         new THREE.Vector3(0, 1, 0),
         groupRef.rotation.y
