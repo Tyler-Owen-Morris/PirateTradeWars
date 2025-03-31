@@ -5,8 +5,9 @@ import { useAudio } from '@/lib/stores/useAudio';
 import HUD from './HUD';
 import Leaderboard from './Leaderboard';
 import { Button } from './button';
-import { Volume2, VolumeX, HelpCircle } from 'lucide-react';
+import { Volume2, VolumeX, HelpCircle, Map } from 'lucide-react';
 import { HelpTooltip } from './HelpTooltip';
+import { Minimap } from './Minimap';
 
 export default function GameUI() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -49,6 +50,13 @@ export default function GameUI() {
     };
   }, [gameState.nearestPort]);
   
+  const [showMinimap, setShowMinimap] = useState(true);
+  
+  // Toggle minimap visibility
+  const toggleMinimap = () => {
+    setShowMinimap(!showMinimap);
+  };
+  
   return (
     <>
       {/* HUD with player stats */}
@@ -57,17 +65,31 @@ export default function GameUI() {
       {/* Leaderboard (shown on Tab key) */}
       {showLeaderboard && <Leaderboard />}
       
-      {/* Sound controls */}
-      <div className="absolute top-4 right-4 z-50">
+      {/* Sound and minimap controls */}
+      <div className="absolute top-4 right-4 z-50 flex gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={toggleMinimap}
+          className="bg-black/50 border-0 text-white hover:bg-black/70"
+          title="Toggle Navigation Map"
+        >
+          <Map />
+        </Button>
+        
         <Button
           variant="outline"
           size="icon"
           onClick={toggleMute}
           className="bg-black/50 border-0 text-white hover:bg-black/70"
+          title={isMuted ? "Unmute Sound" : "Mute Sound"}
         >
           {isMuted ? <VolumeX /> : <Volume2 />}
         </Button>
       </div>
+      
+      {/* Minimap component */}
+      {showMinimap && gameState.player && <Minimap />}
       
       {/* Help tooltip button - always visible */}
       <HelpTooltip />

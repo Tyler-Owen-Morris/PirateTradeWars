@@ -106,9 +106,21 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
       groupRef.position.x += directionVector.x * speedRef.current * delta * 60; // 60 FPS normalization
       groupRef.position.z += directionVector.z * speedRef.current * delta * 60;
       
-      // Handle map wrapping
-      groupRef.position.x = (groupRef.position.x % MAP_WIDTH + MAP_WIDTH) % MAP_WIDTH;
-      groupRef.position.z = (groupRef.position.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
+      // Improved map wrapping for smoother transitions
+      // If the player crosses the boundary, we need to reposition them on the other side
+      // Apply the modulo operation for X coordinate
+      if (groupRef.position.x < 0) {
+        groupRef.position.x += MAP_WIDTH;
+      } else if (groupRef.position.x > MAP_WIDTH) {
+        groupRef.position.x -= MAP_WIDTH;
+      }
+      
+      // Apply the modulo operation for Z coordinate
+      if (groupRef.position.z < 0) {
+        groupRef.position.z += MAP_HEIGHT;
+      } else if (groupRef.position.z > MAP_HEIGHT) {
+        groupRef.position.z -= MAP_HEIGHT;
+      }
     }
   });
   

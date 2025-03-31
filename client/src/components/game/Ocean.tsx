@@ -97,16 +97,100 @@ export function Ocean() {
     }
   });
   
-  // Create a large ocean plane (5000x5000 as specified in the GDD)
+  // Create multiple overlapping ocean tiles to smooth the transitions at boundaries
   return (
-    <mesh 
-      ref={oceanRef} 
-      rotation={[-Math.PI / 2, 0, 0]} 
-      position={[2500, -10, 2500]}
-      receiveShadow
-    >
-      <planeGeometry args={[5000, 5000, 100, 100]} /> {/* Increased resolution for better waves */}
-      <primitive object={waterMaterial} attach="material" />
-    </mesh>
+    <group>
+      {/* Center tile (main ocean) */}
+      <mesh 
+        ref={oceanRef} 
+        rotation={[-Math.PI / 2, 0, 0]} 
+        position={[2500, -10, 2500]}
+        receiveShadow
+      >
+        <planeGeometry args={[5000, 5000, 100, 100]} />
+        <primitive object={waterMaterial} attach="material" />
+      </mesh>
+      
+      {/* Create 8 additional ocean tiles around the main one to create seamless wrapping */}
+      {/* Top tile */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[2500, -10, -2500]}
+        receiveShadow
+      >
+        <planeGeometry args={[5000, 5000, 100, 100]} />
+        <primitive object={waterMaterial} attach="material" />
+      </mesh>
+      
+      {/* Bottom tile */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[2500, -10, 7500]}
+        receiveShadow
+      >
+        <planeGeometry args={[5000, 5000, 100, 100]} />
+        <primitive object={waterMaterial} attach="material" />
+      </mesh>
+      
+      {/* Left tile */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[-2500, -10, 2500]}
+        receiveShadow
+      >
+        <planeGeometry args={[5000, 5000, 100, 100]} />
+        <primitive object={waterMaterial} attach="material" />
+      </mesh>
+      
+      {/* Right tile */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[7500, -10, 2500]}
+        receiveShadow
+      >
+        <planeGeometry args={[5000, 5000, 100, 100]} />
+        <primitive object={waterMaterial} attach="material" />
+      </mesh>
+      
+      {/* Top-Left tile */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[-2500, -10, -2500]}
+        receiveShadow
+      >
+        <planeGeometry args={[5000, 5000, 100, 100]} />
+        <primitive object={waterMaterial} attach="material" />
+      </mesh>
+      
+      {/* Top-Right tile */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[7500, -10, -2500]}
+        receiveShadow
+      >
+        <planeGeometry args={[5000, 5000, 100, 100]} />
+        <primitive object={waterMaterial} attach="material" />
+      </mesh>
+      
+      {/* Bottom-Left tile */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[-2500, -10, 7500]}
+        receiveShadow
+      >
+        <planeGeometry args={[5000, 5000, 100, 100]} />
+        <primitive object={waterMaterial} attach="material" />
+      </mesh>
+      
+      {/* Bottom-Right tile */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[7500, -10, 7500]}
+        receiveShadow
+      >
+        <planeGeometry args={[5000, 5000, 100, 100]} />
+        <primitive object={waterMaterial} attach="material" />
+      </mesh>
+    </group>
   );
 }

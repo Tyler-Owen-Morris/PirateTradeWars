@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Vector3 } from '@/types';
+import { MAP_WIDTH, MAP_HEIGHT } from '@/lib/constants';
 
 interface CannonBallProps {
   position: [number, number, number];
@@ -19,8 +20,28 @@ export function CannonBall({ position, direction }: CannonBallProps) {
   // Create particles for trail effect
   const particles = new Float32Array(particleCount * 3);
   
-  useFrame(() => {
+  // Movement and trail animation
+  useFrame((_, delta) => {
     if (ballRef.current && trailRef.current) {
+      // Move the cannon ball based on direction
+      const moveSpeed = 15 * delta * 60; // Same as CANNON_SPEED in constants
+      ballRef.current.position.x += direction.x * moveSpeed;
+      ballRef.current.position.y += direction.y * moveSpeed;
+      ballRef.current.position.z += direction.z * moveSpeed;
+      
+      // Apply the same wrapping logic as player for smooth edge transitions
+      if (ballRef.current.position.x < 0) {
+        ballRef.current.position.x += MAP_WIDTH;
+      } else if (ballRef.current.position.x > MAP_WIDTH) {
+        ballRef.current.position.x -= MAP_WIDTH;
+      }
+      
+      if (ballRef.current.position.z < 0) {
+        ballRef.current.position.z += MAP_HEIGHT;
+      } else if (ballRef.current.position.z > MAP_HEIGHT) {
+        ballRef.current.position.z -= MAP_HEIGHT;
+      }
+      
       // Update trail particles
       if (!particlesRef.current) {
         const positions = trailRef.current.geometry.attributes.position;
