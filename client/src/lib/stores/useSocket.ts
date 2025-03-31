@@ -82,6 +82,21 @@ export const useSocket = create<SocketState>((set, get) => {
               case 'tradeSuccess':
                 // Play success sound
                 useAudio.getState().playSuccess();
+                
+                // Update player gold and inventory if present in the message
+                if (message.gold !== undefined) {
+                  // Update player's gold in the game state
+                  const gameState = useGameState.getState();
+                  if (gameState.gameState.player) {
+                    gameState.gameState.player.gold = message.gold;
+                  }
+                }
+                
+                // Update inventory if present
+                if (message.inventory && Array.isArray(message.inventory)) {
+                  // Update inventory in game state
+                  useGameState.getState().updatePlayerInventory(message.inventory);
+                }
                 break;
                 
               case 'error':

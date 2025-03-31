@@ -32,6 +32,19 @@ export default function TradeMenu() {
     }
   }, [nearPortId, isTrading]);
   
+  // Update local inventory when game state inventory changes
+  useEffect(() => {
+    if (gameState.inventory && gameState.inventory.length > 0) {
+      // Add good details to inventory items
+      const itemsWithGoods = gameState.inventory.map(item => ({
+        ...item,
+        good: GOODS.find(g => g.id === item.goodId)
+      }));
+      
+      setInventory(itemsWithGoods);
+    }
+  }, [gameState.inventory]);
+  
   // Load port data
   const loadPortData = async () => {
     try {
@@ -185,11 +198,8 @@ export default function TradeMenu() {
     setSelectedGoodId(null);
     setQuantity(1);
     
-    // Reload data
-    setTimeout(() => {
-      loadPortData();
-      loadInventory();
-    }, 1000);
+    // Note: We don't need to reload data here anymore
+    // The inventory will be updated via socket message
   };
   
   // Close dialog

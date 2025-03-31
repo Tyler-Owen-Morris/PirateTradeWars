@@ -212,6 +212,9 @@ export function handleSocketConnection(ws: WebSocket) {
           currentQuantity + data.quantity
         );
         
+        // Get updated inventory to send with response
+        const updatedInventory = await storage.getPlayerInventory(player.playerId);
+        
         // Send success response
         ws.send(JSON.stringify({
           type: 'tradeSuccess',
@@ -222,6 +225,8 @@ export function handleSocketConnection(ws: WebSocket) {
           totalCost,
           newGold: player.gold,
           cargoUsed: player.cargoUsed,
+          gold: player.gold,
+          inventory: updatedInventory,
           timestamp: Date.now()
         }));
       } else if (data.action === 'sell') {
@@ -244,6 +249,9 @@ export function handleSocketConnection(ws: WebSocket) {
           currentQuantity - data.quantity
         );
         
+        // Get updated inventory to send with response
+        const updatedInventory = await storage.getPlayerInventory(player.playerId);
+        
         // Send success response
         ws.send(JSON.stringify({
           type: 'tradeSuccess',
@@ -254,6 +262,8 @@ export function handleSocketConnection(ws: WebSocket) {
           totalEarnings,
           newGold: player.gold,
           cargoUsed: player.cargoUsed,
+          gold: player.gold,
+          inventory: updatedInventory,
           timestamp: Date.now()
         }));
       }
