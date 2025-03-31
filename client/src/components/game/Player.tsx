@@ -65,9 +65,9 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     const deceleration = 1 * delta; // Deceleration rate
     
     // Forward/backward controls speed directly
-    if (backward) { // W or Up Arrow - Move forward in the direction ship is facing
+    if (forward) { // W or Up Arrow - Move forward in the direction ship is facing
       speedRef.current = Math.min(maxSpeed, speedRef.current + acceleration);
-    } else if (forward) { // S or Down Arrow - Move backward (reverse)
+    } else if (backward) { // S or Down Arrow - Move backward (reverse)
       speedRef.current = Math.max(-maxSpeed * 0.5, speedRef.current - acceleration);
     } else {
       // Gradually slow down if no input

@@ -61,8 +61,8 @@ export function GameScene() {
         
         // Simplified controls - forward/backward directly control speed
         let speed = 0;
-        if (backward) speed = gameState.player.speed; // W key goes forward
-        if (forward) speed = -gameState.player.speed * 0.5; // S key goes backward
+        if (forward) speed = 5; // W key goes forward at max speed
+        if (backward) speed = -2.5; // S key goes backward at half speed
         
         // Calculate rotation
         const rotationY = playerRef.current.rotation.y;
