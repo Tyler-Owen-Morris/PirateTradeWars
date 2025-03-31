@@ -27,14 +27,12 @@ export function GameScene() {
   // Camera
   const { camera } = useThree();
   
-  // Keyboard controls
+  // Keyboard controls - simplified
   const forward = useKeyboardControls((state) => state.forward);
   const backward = useKeyboardControls((state) => state.backward);
   const left = useKeyboardControls((state) => state.left);
   const right = useKeyboardControls((state) => state.right);
   const fire = useKeyboardControls((state) => state.fire);
-  const accelerate = useKeyboardControls((state) => state.accelerate);
-  const decelerate = useKeyboardControls((state) => state.decelerate);
   
   // Load initial game data
   useEffect(() => {
@@ -61,11 +59,10 @@ export function GameScene() {
       if (now - lastInputTime.current > 100) {
         lastInputTime.current = now;
         
-        // FIX: Swap controls to match the expected behavior
-        // Calculate speed based on inputs
+        // Simplified controls - forward/backward directly control speed
         let speed = 0;
-        if (backward) speed = accelerate ? gameState.player.speed * 1.5 : gameState.player.speed; // W key should go forward
-        if (forward) speed = -gameState.player.speed * 0.5; // S key should go backward
+        if (backward) speed = gameState.player.speed; // W key goes forward
+        if (forward) speed = -gameState.player.speed * 0.5; // S key goes backward
         
         // Calculate rotation
         const rotationY = playerRef.current.rotation.y;
@@ -128,9 +125,7 @@ export function GameScene() {
             backward,
             left,
             right,
-            fire,
-            accelerate,
-            decelerate
+            fire
           }}
         />
       )}

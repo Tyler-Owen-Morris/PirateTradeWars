@@ -11,8 +11,6 @@ interface PlayerControls {
   left: boolean;
   right: boolean;
   fire: boolean;
-  accelerate: boolean;
-  decelerate: boolean;
 }
 
 interface PlayerProps {
@@ -43,7 +41,7 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     if (!ref || !('current' in ref) || !ref.current) return;
     
     const groupRef = ref.current;
-    const { forward, backward, left, right, accelerate, decelerate } = controls;
+    const { forward, backward, left, right, fire } = controls;
     
     // Debug movement
     if (forward || backward || left || right) {
@@ -61,20 +59,15 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
       groupRef.rotation.y = rotationRef.current;
     }
     
-    // Handle speed
+    // Handle speed - simplified controls
     const maxSpeed = getMaxSpeed();
     const acceleration = 2 * delta; // Acceleration rate
     const deceleration = 1 * delta; // Deceleration rate
     
-    // FIX: Swap forward/backward logic to match expected behavior
-    // Forward should move ship in the direction it's facing
-    if (backward) { // Using W or Up Arrow (backward was forward)
-      if (accelerate) {
-        speedRef.current = Math.min(maxSpeed * 1.5, speedRef.current + acceleration * 1.5);
-      } else {
-        speedRef.current = Math.min(maxSpeed, speedRef.current + acceleration);
-      }
-    } else if (forward) { // Using S or Down Arrow (forward was backward)
+    // Forward/backward controls speed directly
+    if (backward) { // W or Up Arrow - Move forward in the direction ship is facing
+      speedRef.current = Math.min(maxSpeed, speedRef.current + acceleration);
+    } else if (forward) { // S or Down Arrow - Move backward (reverse)
       speedRef.current = Math.max(-maxSpeed * 0.5, speedRef.current - acceleration);
     } else {
       // Gradually slow down if no input
@@ -82,15 +75,6 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
         speedRef.current = Math.max(0, speedRef.current - deceleration);
       } else if (speedRef.current < 0) {
         speedRef.current = Math.min(0, speedRef.current + deceleration);
-      }
-    }
-    
-    // Apply manual deceleration
-    if (decelerate) {
-      if (speedRef.current > 0) {
-        speedRef.current = Math.max(0, speedRef.current - deceleration * 2);
-      } else if (speedRef.current < 0) {
-        speedRef.current = Math.min(0, speedRef.current + deceleration * 2);
       }
     }
     

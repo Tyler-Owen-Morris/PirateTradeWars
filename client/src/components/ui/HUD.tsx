@@ -70,17 +70,17 @@ export default function HUD() {
         </div>
       </div>
       
-      {/* Speed indicator */}
-      <div className="absolute top-4 right-4 bg-black/50 p-3 rounded-md text-white">
+      {/* Speed indicator - moved down to avoid overlap with toggle buttons */}
+      <div className="absolute top-20 right-4 bg-black/50 p-3 rounded-md text-white">
         <div className="flex items-center justify-between mb-1">
-          <ChevronsRight className={`h-5 w-5 ${player.speed > 0 ? 'text-green-400' : 'text-gray-400'}`} />
-          <span className="ml-2 font-bold">{Math.abs(player.speed)}</span>
+          <ChevronsRight className={`h-5 w-5 ${Math.abs(player.speed) > 0 ? 'text-green-400' : 'text-gray-400'}`} />
+          <span className="ml-2 font-bold">{Math.abs(player.speed).toFixed(1)}</span>
           <span className="ml-1 text-xs">knots</span>
         </div>
       </div>
       
-      {/* Compass and navigation */}
-      <div className="absolute bottom-4 right-4 bg-black/50 p-3 rounded-md text-white">
+      {/* Compass and navigation - moved above help tooltip */}
+      <div className="absolute bottom-20 right-4 bg-black/50 p-3 rounded-md text-white">
         <div className="flex items-center">
           <Compass className="h-5 w-5 mr-2" />
           <div>
