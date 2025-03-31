@@ -133,6 +133,24 @@ export default function ShipSelection() {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 {shipError || socketError}
+                {socketError && socketError.includes("Name already taken") && (
+                  <div className="mt-2">
+                    <p>Please try a different name or:</p>
+                    <Button 
+                      onClick={() => {
+                        // Reset error and generate a random name
+                        useSocket.getState().resetError();
+                        const randomName = `pirate${Math.floor(Math.random() * 10000)}`;
+                        setPlayerName(randomName);
+                        localStorage.setItem('playerName', randomName);
+                      }}
+                      className="mt-2 bg-amber-700 hover:bg-amber-600 text-white py-1 px-3 rounded-md transition"
+                      size="sm"
+                    >
+                      Generate Random Name
+                    </Button>
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           )}

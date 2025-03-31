@@ -32,7 +32,15 @@ export default function GameUI() {
         // Open trade menu if near port
         if (gameState.nearestPort && gameState.isNearPort) {
           useGameState.setState({ isTrading: true });
+          
+          // Feedback that trading is available
           console.log(`Trading at ${gameState.nearestPort.name}`);
+          
+          // Play success sound
+          const { playSound } = useAudio.getState();
+          if (typeof playSound === 'function' && !isMuted) {
+            playSound('success', 0.5);
+          }
         } else {
           // Provide feedback to the player about why trading isn't available
           const nearestPort = useGameState.getState().getNearestPort();
@@ -42,7 +50,8 @@ export default function GameUI() {
               const distance = useGameState.getState().calculateDistance(
                 player.x, player.z, nearestPort.x, nearestPort.z
               );
-              console.log(`Too far from ${nearestPort.name} (${Math.round(distance)} units away). Sail closer to trade!`);
+              const message = `Too far from ${nearestPort.name} (${Math.round(distance)} units away). Sail closer to trade!`;
+              console.log(message);
             }
           } else {
             console.log("No ports nearby. Find a port to trade!");
@@ -64,7 +73,7 @@ export default function GameUI() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [gameState.nearestPort]);
+  }, [gameState.nearestPort, gameState.isNearPort, gameState.player, isMuted]);
   
   const [showMinimap, setShowMinimap] = useState(true);
   

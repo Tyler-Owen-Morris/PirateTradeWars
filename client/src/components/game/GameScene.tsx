@@ -22,7 +22,7 @@ export function GameScene() {
   const direction = useRef<Vector3>({ x: 0, y: 0, z: 1 });
   
   // Game state
-  const { gameState } = useGameState();
+  const { gameState, isNearPort } = useGameState();
   const socket = useSocket();
   
   // Camera

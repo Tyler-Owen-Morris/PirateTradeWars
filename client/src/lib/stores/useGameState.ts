@@ -303,8 +303,9 @@ export const useGameState = create<GameStateStore>()(
       if (!player || !nearestPort) return false;
       
       const distance = get().calculateDistance(player.x, player.z, nearestPort.x, nearestPort.z);
-      // Use the same PORT_INTERACTION_RADIUS from constants for consistency
-      const { PORT_INTERACTION_RADIUS } = require('../../lib/constants');
+      // Use the same PORT_INTERACTION_RADIUS constant for consistency
+      // Using a hardcoded value of 200 to match what's in constants.ts
+      const PORT_INTERACTION_RADIUS = 200;
       return distance <= PORT_INTERACTION_RADIUS;
     },
     
