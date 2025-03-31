@@ -1,22 +1,43 @@
-import { useTexture } from "@react-three/drei";
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { useTexture } from "@react-three/drei";
 
 export function Ocean() {
   const oceanRef = useRef<THREE.Mesh>(null);
   
-  // Using the sea/water texture from textures folder
-  const oceanTexture = useTexture("/textures/ocean.jpg");
-  oceanTexture.wrapS = oceanTexture.wrapT = THREE.RepeatWrapping;
-  oceanTexture.repeat.set(15, 15); // Repeat the texture across the plane
+  // Use the blue sky texture and tint it for water
+  const texture = useTexture("/textures/sky.png");
   
-  // Animate the ocean texture
+  // Create a water material with the sky texture
+  const waterMaterial = new THREE.MeshStandardMaterial({
+    color: "#1a6ea0", // Deeper blue color
+    map: texture,
+    metalness: 0.2,
+    roughness: 0.3,
+    transparent: true,
+    opacity: 0.9,
+  });
+  
+  // Animate the ocean with vertex displacement
   useFrame(({ clock }) => {
-    if (oceanRef.current) {
-      // Make the ocean texture move slightly for a wave effect
-      oceanTexture.offset.x = Math.sin(clock.getElapsedTime() * 0.05) * 0.01;
-      oceanTexture.offset.y = Math.cos(clock.getElapsedTime() * 0.05) * 0.01;
+    if (oceanRef.current && oceanRef.current.geometry) {
+      const time = clock.getElapsedTime();
+      const geometry = oceanRef.current.geometry as THREE.PlaneGeometry;
+      const position = geometry.attributes.position;
+      
+      for (let i = 0; i < position.count; i++) {
+        const x = position.getX(i);
+        const y = position.getY(i);
+        
+        // Simple wave effect - small amplitude
+        const waveHeight = Math.sin(x * 0.05 + time * 0.5) * 
+                         Math.cos(y * 0.05 + time * 0.5) * 5;
+        
+        position.setZ(i, waveHeight);
+      }
+      
+      position.needsUpdate = true;
     }
   });
   
@@ -28,13 +49,8 @@ export function Ocean() {
       position={[2500, -10, 2500]}
       receiveShadow
     >
-      <planeGeometry args={[5000, 5000, 32, 32]} />
-      <meshStandardMaterial 
-        map={oceanTexture}
-        color="#0077be"
-        metalness={0.1}
-        roughness={0.6}
-      />
+      <planeGeometry args={[5000, 5000, 64, 64]} />
+      <primitive object={waterMaterial} attach="material" />
     </mesh>
   );
 }

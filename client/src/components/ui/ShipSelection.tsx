@@ -100,24 +100,24 @@ export default function ShipSelection() {
   };
   
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-blue-900 to-blue-700 p-4">
-      <Card className="w-full max-w-4xl">
-        <CardHeader>
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4">
+      <Card className="w-full max-w-4xl border-amber-500 border">
+        <CardHeader className="bg-amber-900 text-white">
           <CardTitle className="text-2xl text-center">Choose Your Ship</CardTitle>
-          <CardDescription className="text-center">
+          <CardDescription className="text-center text-amber-100">
             Select your vessel for your pirate adventure{playerName ? `, Captain ${playerName}` : ''}
           </CardDescription>
         </CardHeader>
         
-        <CardContent>
+        <CardContent className="mt-4">
           {/* Always show player name input field */}
-          <div className="mb-4">
+          <div className="mb-6">
             <label htmlFor="playerName" className="block text-sm font-medium mb-1">Your Captain's Name:</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 id="playerName"
-                className="px-3 py-2 bg-background border border-input rounded-md w-full"
+                className="px-3 py-2 bg-gray-100 border border-amber-300 rounded-md w-full"
                 value={playerName}
                 onChange={(e) => {
                   setPlayerName(e.target.value);
@@ -140,16 +140,16 @@ export default function ShipSelection() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Free Ship: Sloop */}
             <Card 
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.SLOOP ? 'border-blue-500 border-2' : ''}`}
+              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.SLOOP ? 'border-amber-500 border-2 bg-amber-50' : 'bg-gray-50'}`}
               onClick={() => handleShipSelect(SHIP_TYPES.SLOOP)}
             >
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-lg">The Sloop</CardTitle>
+              <CardHeader className="p-4 pb-2 bg-amber-100">
+                <CardTitle className="text-lg text-amber-900">The Sloop</CardTitle>
                 <CardDescription className="text-xs">Free</CardDescription>
               </CardHeader>
               <CardContent className="px-4 pb-2">
-                <div className="h-40 bg-blue-200 rounded-md flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-blue-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                <div className="h-40 bg-blue-100 rounded-md flex items-center justify-center border border-amber-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-amber-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 10h18M9 16H6M12 16h-2M12 13l-2-3h9l-2 3M3 17l9-4 9 4M12 7V3" />
                   </svg>
                 </div>
@@ -168,16 +168,16 @@ export default function ShipSelection() {
             
             {/* Paid Ship: Brigantine */}
             <Card 
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.BRIGANTINE ? 'border-blue-500 border-2' : ''}`}
+              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.BRIGANTINE ? 'border-amber-500 border-2 bg-amber-50' : 'bg-gray-50'}`}
               onClick={() => handleShipSelect(SHIP_TYPES.BRIGANTINE)}
             >
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-lg">The Brigantine</CardTitle>
+              <CardHeader className="p-4 pb-2 bg-amber-100">
+                <CardTitle className="text-lg text-amber-900">The Brigantine</CardTitle>
                 <CardDescription className="text-xs">Premium Tier 1</CardDescription>
               </CardHeader>
               <CardContent className="px-4 pb-2">
-                <div className="h-40 bg-green-200 rounded-md flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-green-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                <div className="h-40 bg-green-100 rounded-md flex items-center justify-center border border-amber-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-amber-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 11h18M9 17H6M12 17h-2M12 14l-2-3h9l-2 3M3 18l9-4 9 4M18 9l-3-6M12 7V3" />
                   </svg>
                 </div>
@@ -196,16 +196,16 @@ export default function ShipSelection() {
             
             {/* Paid Ship: Galleon */}
             <Card 
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.GALLEON ? 'border-blue-500 border-2' : ''}`}
+              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.GALLEON ? 'border-amber-500 border-2 bg-amber-50' : 'bg-gray-50'}`}
               onClick={() => handleShipSelect(SHIP_TYPES.GALLEON)}
             >
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-lg">The Galleon</CardTitle>
+              <CardHeader className="p-4 pb-2 bg-amber-100">
+                <CardTitle className="text-lg text-amber-900">The Galleon</CardTitle>
                 <CardDescription className="text-xs">Premium Tier 2</CardDescription>
               </CardHeader>
               <CardContent className="px-4 pb-2">
-                <div className="h-40 bg-yellow-200 rounded-md flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 text-yellow-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                <div className="h-40 bg-yellow-100 rounded-md flex items-center justify-center border border-amber-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-24 w-24 text-amber-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 11h18M9 17H5M14 17h-4M12 14l-3-3h12l-3 3M3 18l9-4 9 4M18 8l-3-5M12 7V2M6 8l3-5" />
                   </svg>
                 </div>
@@ -224,16 +224,16 @@ export default function ShipSelection() {
             
             {/* Paid Ship: Man-o'-War */}
             <Card 
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.MAN_O_WAR ? 'border-blue-500 border-2' : ''}`}
+              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.MAN_O_WAR ? 'border-amber-500 border-2 bg-amber-50' : 'bg-gray-50'}`}
               onClick={() => handleShipSelect(SHIP_TYPES.MAN_O_WAR)}
             >
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-lg">The Man-o'-War</CardTitle>
+              <CardHeader className="p-4 pb-2 bg-amber-100">
+                <CardTitle className="text-lg text-amber-900">The Man-o'-War</CardTitle>
                 <CardDescription className="text-xs">Premium Tier 3</CardDescription>
               </CardHeader>
               <CardContent className="px-4 pb-2">
-                <div className="h-40 bg-red-200 rounded-md flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-28 w-28 text-red-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                <div className="h-40 bg-red-100 rounded-md flex items-center justify-center border border-amber-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-28 w-28 text-amber-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 11h18M9 18H4M16 18H9M12 15l-4-4h14l-4 4M3 19l9-4 9 4M19 7l-4-4M12 7V1M5 7l4-4" />
                   </svg>
                 </div>
@@ -252,17 +252,17 @@ export default function ShipSelection() {
           </div>
         </CardContent>
         
-        <CardFooter className="flex justify-center p-4">
+        <CardFooter className="flex justify-center p-6 bg-amber-900 rounded-b-lg">
           <Button 
             onClick={handleStartGame} 
             disabled={!selectedShip || !playerName || playerName.length < 3 || loading}
-            className="w-1/2"
+            className="w-1/2 bg-amber-600 hover:bg-amber-700 text-white font-bold border-2 border-amber-200"
             size="lg"
           >
             {loading ? "Preparing Ship..." : "Set Sail!"}
           </Button>
-          {!playerName && <p className="ml-4 text-sm text-red-500">Enter your name first!</p>}
-          {playerName && playerName.length < 3 && <p className="ml-4 text-sm text-red-500">Name must be at least 3 characters</p>}
+          {!playerName && <p className="ml-4 text-sm text-amber-200">Enter your name first!</p>}
+          {playerName && playerName.length < 3 && <p className="ml-4 text-sm text-amber-200">Name must be at least 3 characters</p>}
         </CardFooter>
       </Card>
     </div>

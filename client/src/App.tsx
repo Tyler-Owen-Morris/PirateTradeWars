@@ -80,6 +80,11 @@ function App() {
       socketState.connect();
     }
     
+    // Always set isRegistered to true since we're bypassing the name registration screen
+    if (!isRegistered) {
+      useGameState.setState({ isRegistered: true });
+    }
+    
     // Debug logging
     console.log("App mounting, game state:", { isRegistered, isPlaying, isSunk, isTrading });
     
@@ -93,9 +98,7 @@ function App() {
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
       {showCanvas && (
         <KeyboardControls map={controls}>
-          {!isRegistered && <NameRegistration />}
-          
-          {isRegistered && !isPlaying && <ShipSelection />}
+          {!isPlaying && <ShipSelection />}
 
           {isPlaying && (
             <>
@@ -111,7 +114,7 @@ function App() {
                   antialias: true,
                   powerPreference: "default"
                 }}
-                style={{ backgroundColor: "#1e3a8a" }}
+                style={{ backgroundColor: "#1a334d" }} 
               >
                 <Suspense fallback={null}>
                   <GameScene />
