@@ -10,17 +10,39 @@ import { SHIP_TYPES, SHIP_DESCRIPTIONS } from '@/lib/constants';
 
 export default function ShipSelection() {
   const { ships, selectedShip, fetchShips, selectShip, error: shipError } = useShip();
-  const { startGame } = useGameState();
-  const { register, error: socketError } = useSocket();
+  const { startGame, isRegistered } = useGameState();
+  const { register, error: socketError, connected } = useSocket();
   const [loading, setLoading] = useState(false);
   const [playerName, setPlayerName] = useState('');
   
-  // Get player name from URL parameter (temporary for demo)
+  // Log current state for debugging
   useEffect(() => {
+    console.log("ShipSelection component state:", { 
+      selectedShip, 
+      playerName, 
+      connected, 
+      isRegistered, 
+      socketError, 
+      shipError 
+    });
+  }, [selectedShip, playerName, connected, isRegistered, socketError, shipError]);
+  
+  // Get player name from URL parameter or local storage
+  useEffect(() => {
+    // Try to get from URL first
     const params = new URLSearchParams(window.location.search);
     const name = params.get('name');
+    
     if (name) {
+      console.log("Found name in URL:", name);
       setPlayerName(name);
+    } else {
+      // Try to get from localStorage
+      const storedName = localStorage.getItem('playerName');
+      if (storedName) {
+        console.log("Found name in localStorage:", storedName);
+        setPlayerName(storedName);
+      }
     }
   }, []);
   
@@ -36,15 +58,45 @@ export default function ShipSelection() {
   
   // Start game with selected ship
   const handleStartGame = () => {
-    if (!selectedShip || !playerName) return;
+    if (!selectedShip || !playerName || playerName.length < 3) {
+      console.log("Cannot start game: missing requirements", { 
+        hasShip: !!selectedShip, 
+        playerName, 
+        nameLength: playerName?.length 
+      });
+      return;
+    }
     
+    console.log("Starting game with ship:", selectedShip.name, "and player name:", playerName);
     setLoading(true);
     
-    // Register player with server through WebSocket
-    register(playerName, selectedShip.name);
-    
-    // Start the game
-    startGame();
+    try {
+      // First connect to WebSocket if not connected
+      if (!connected) {
+        console.log("Connecting to WebSocket...");
+        useSocket.getState().connect();
+      }
+      
+      // Wait a moment for connection to establish if needed
+      setTimeout(() => {
+        try {
+          // Register player with server through WebSocket
+          console.log("Registering player with WebSocket...");
+          register(playerName, selectedShip.name);
+          
+          console.log("Player registered, starting game");
+          
+          // Start the game
+          startGame();
+        } catch (innerError) {
+          console.error("Error during game start sequence:", innerError);
+          setLoading(false);
+        }
+      }, connected ? 0 : 500);
+    } catch (error) {
+      console.error("Error starting game:", error);
+      setLoading(false);
+    }
   };
   
   return (
@@ -53,11 +105,29 @@ export default function ShipSelection() {
         <CardHeader>
           <CardTitle className="text-2xl text-center">Choose Your Ship</CardTitle>
           <CardDescription className="text-center">
-            Select your vessel for your pirate adventure
+            Select your vessel for your pirate adventure{playerName ? `, Captain ${playerName}` : ''}
           </CardDescription>
         </CardHeader>
         
         <CardContent>
+          {/* Always show player name input field */}
+          <div className="mb-4">
+            <label htmlFor="playerName" className="block text-sm font-medium mb-1">Your Captain's Name:</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                id="playerName"
+                className="px-3 py-2 bg-background border border-input rounded-md w-full"
+                value={playerName}
+                onChange={(e) => {
+                  setPlayerName(e.target.value);
+                  // Save to localStorage for persistence
+                  localStorage.setItem('playerName', e.target.value);
+                }}
+                placeholder="Enter your name (min. 3 characters)"
+              />
+            </div>
+          </div>
           {(shipError || socketError) && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
@@ -185,12 +255,14 @@ export default function ShipSelection() {
         <CardFooter className="flex justify-center p-4">
           <Button 
             onClick={handleStartGame} 
-            disabled={!selectedShip || loading}
+            disabled={!selectedShip || !playerName || playerName.length < 3 || loading}
             className="w-1/2"
             size="lg"
           >
             {loading ? "Preparing Ship..." : "Set Sail!"}
           </Button>
+          {!playerName && <p className="ml-4 text-sm text-red-500">Enter your name first!</p>}
+          {playerName && playerName.length < 3 && <p className="ml-4 text-sm text-red-500">Name must be at least 3 characters</p>}
         </CardFooter>
       </Card>
     </div>

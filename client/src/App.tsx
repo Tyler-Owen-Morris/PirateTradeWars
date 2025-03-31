@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { Suspense, useEffect, useState } from "react";
 import { KeyboardControls } from "@react-three/drei";
 import { useAudio } from "./lib/stores/useAudio";
+import { useSocket } from "./lib/stores/useSocket";
 import { GameScene } from "./components/game/GameScene";
 import NameRegistration from "./components/ui/NameRegistration";
 import GameUI from "./components/ui/GameUI";
@@ -68,10 +69,24 @@ function SoundManager() {
 function App() {
   const { gameState, isRegistered, isPlaying, isSunk, isTrading } = useGameState();
   const [showCanvas, setShowCanvas] = useState(false);
+  const socketState = useSocket.getState();
 
   // Show the canvas once everything is loaded
   useEffect(() => {
     setShowCanvas(true);
+    
+    // Connect to socket when the app loads
+    if (!socketState.connected) {
+      socketState.connect();
+    }
+    
+    // Debug logging
+    console.log("App mounting, game state:", { isRegistered, isPlaying, isSunk, isTrading });
+    
+    return () => {
+      // Disconnect socket when unmounting
+      socketState.disconnect();
+    };
   }, []);
 
   return (
