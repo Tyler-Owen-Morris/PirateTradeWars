@@ -61,8 +61,8 @@ export function GameScene() {
         
         // Simplified controls - forward/backward directly control speed
         let speed = 0;
-        if (forward) speed = 5; // W key goes forward at max speed
-        if (backward) speed = -2.5; // S key goes backward at half speed
+        if (backward) speed = 5; // S key goes forward at max speed
+        if (forward) speed = -2.5; // W key goes backward at half speed
         
         // Calculate rotation
         const rotationY = playerRef.current.rotation.y;
@@ -83,8 +83,13 @@ export function GameScene() {
           console.log("Server input - Speed:", speed, "Direction:", direction.current);
         }
         
-        // Send input to server
+        // Send input to server with more frequent updates
         socket.sendInput(rotationY, speed, direction.current, fire);
+        
+        // Update the player's rotation in the game state directly
+        if (gameState.player) {
+          gameState.player.rotationY = rotationY;
+        }
         
         // Check if near port
         const nearestPort = useGameState.getState().getNearestPort();

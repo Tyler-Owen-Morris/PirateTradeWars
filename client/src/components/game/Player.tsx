@@ -65,16 +65,16 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     const deceleration = 1 * delta; // Deceleration rate
     
     // Forward/backward controls speed directly
-    if (forward) { // W or Up Arrow - Move forward in the direction ship is facing
+    if (backward) { // S or Down Arrow - Move forward 
       speedRef.current = Math.min(maxSpeed, speedRef.current + acceleration);
-    } else if (backward) { // S or Down Arrow - Move backward (reverse)
+    } else if (forward) { // W or Up Arrow - Move backward (reverse)
       speedRef.current = Math.max(-maxSpeed * 0.5, speedRef.current - acceleration);
     } else {
       // Gradually slow down if no input
       if (speedRef.current > 0) {
-        speedRef.current = Math.max(0, speedRef.current - deceleration);
+        speedRef.current = Math.max(0, speedRef.current - deceleration * 0.5); // Slower deceleration
       } else if (speedRef.current < 0) {
-        speedRef.current = Math.min(0, speedRef.current + deceleration);
+        speedRef.current = Math.min(0, speedRef.current + deceleration * 0.5); // Slower deceleration
       }
     }
     
@@ -86,24 +86,36 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
         groupRef.rotation.y
       );
       
-      // Move the ship
-      groupRef.position.x += directionVector.x * speedRef.current * delta * 60; // 60 FPS normalization
-      groupRef.position.z += directionVector.z * speedRef.current * delta * 60;
+      // Calculate new position
+      const newX = groupRef.position.x + directionVector.x * speedRef.current * delta * 60;
+      const newZ = groupRef.position.z + directionVector.z * speedRef.current * delta * 60;
       
-      // Improved map wrapping for smoother transitions
-      // If the player crosses the boundary, we need to reposition them on the other side
-      // Apply the modulo operation for X coordinate
-      if (groupRef.position.x < 0) {
-        groupRef.position.x += MAP_WIDTH;
-      } else if (groupRef.position.x > MAP_WIDTH) {
-        groupRef.position.x -= MAP_WIDTH;
+      // Apply map wrapping for smoother transitions
+      let wrappedX = newX;
+      let wrappedZ = newZ;
+      
+      // Apply wrapping for X coordinate
+      if (wrappedX < 0) {
+        wrappedX += MAP_WIDTH;
+      } else if (wrappedX > MAP_WIDTH) {
+        wrappedX -= MAP_WIDTH;
       }
       
-      // Apply the modulo operation for Z coordinate
-      if (groupRef.position.z < 0) {
-        groupRef.position.z += MAP_HEIGHT;
-      } else if (groupRef.position.z > MAP_HEIGHT) {
-        groupRef.position.z -= MAP_HEIGHT;
+      // Apply wrapping for Z coordinate
+      if (wrappedZ < 0) {
+        wrappedZ += MAP_HEIGHT;
+      } else if (wrappedZ > MAP_HEIGHT) {
+        wrappedZ -= MAP_HEIGHT;
+      }
+      
+      // Update position
+      groupRef.position.x = wrappedX;
+      groupRef.position.z = wrappedZ;
+      
+      // Update player's coordinates in the game state - this is critical!
+      if (player && 'x' in player && 'z' in player) {
+        player.x = wrappedX;
+        player.z = wrappedZ;
       }
     }
   });

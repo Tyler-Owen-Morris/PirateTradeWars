@@ -260,14 +260,19 @@ class GameState {
         return;
       }
       
-      // Update position based on speed and direction
-      if (player.speed > 0) {
+      // Update position based on speed and direction (works for both positive and negative speed)
+      if (player.speed !== 0) {
         player.x += player.direction.x * player.speed * deltaTime * 60; // Pixels per frame at 60 FPS
         player.z += player.direction.z * player.speed * deltaTime * 60;
         
         // Wrap around map edges
         player.x = (player.x % MAP_WIDTH + MAP_WIDTH) % MAP_WIDTH;
         player.z = (player.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
+        
+        // Log movement for debugging
+        if (Math.random() < 0.05) { // Only log 5% of updates to avoid spam
+          console.log(`Player ${player.name} moved to (${Math.round(player.x)}, ${Math.round(player.z)}) with speed ${player.speed}`);
+        }
       }
     });
     
