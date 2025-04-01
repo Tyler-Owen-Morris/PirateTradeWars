@@ -133,11 +133,10 @@ export function Minimap() {
     
     // Draw player direction indicator
     const dirLength = PLAYER_DOT_SIZE * 2;
-    // Calculate direction based on the player's rotation
-    // In Three.js, rotation of 0 points along the positive Z axis (away from camera)
-    // We need to convert this to match our minimap coordinate system where up is negative Z
-    const dirX = MINIMAP_SIZE / 2 + Math.sin(gameState.player.rotationY) * dirLength;
-    const dirY = MINIMAP_SIZE / 2 - Math.cos(gameState.player.rotationY) * dirLength;
+    // Apply a complete inversion to match the ship's actual turning direction
+    // The negative sign before gameState.player.rotationY inverts the rotation direction
+    const dirX = MINIMAP_SIZE / 2 - Math.sin(gameState.player.rotationY) * dirLength;
+    const dirY = MINIMAP_SIZE / 2 + Math.cos(gameState.player.rotationY) * dirLength;
     
     ctx.strokeStyle = '#4caf50';
     ctx.lineWidth = 2;
