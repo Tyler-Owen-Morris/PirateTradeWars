@@ -44,17 +44,22 @@ export function GameScene() {
     useGameState.getState().loadLeaderboard();
   }, []);
   
-  // Handle camera following player
-  useFrame(() => {
+  // Handle camera following player with smooth interpolation
+  useFrame((_, delta) => {
     if (playerRef.current && gameState.player) {
+      // Ensure consistent physics step for better stability
+      const physicsDelta = Math.min(delta, 0.1);
+      
       // Get player position
       const playerPosition = playerRef.current.position;
       
-      // Update camera position
+      // Calculate camera target position
       const cameraOffset = new THREE.Vector3(0, 250, 400);
       cameraOffset.applyQuaternion(playerRef.current.quaternion);
+      const targetCameraPosition = new THREE.Vector3().copy(playerPosition).add(cameraOffset);
       
-      camera.position.copy(playerPosition).add(cameraOffset);
+      // Smoothly interpolate camera position (lerp) for smoother camera movement
+      camera.position.lerp(targetCameraPosition, 0.1);
       camera.lookAt(playerPosition);
       
       // Send input updates to server (throttled to 10 times per second)

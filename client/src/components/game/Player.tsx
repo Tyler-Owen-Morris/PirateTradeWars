@@ -24,6 +24,8 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
 ) {
   const speedRef = useRef(player.speed);
   const rotationRef = useRef(player.rotationY);
+  const visualRotationRef = useRef(player.rotationY); // Visual rotation for rendering
+  
   // Add angular velocity to implement momentum-based turning
   const angularVelocityRef = useRef(0);
   
@@ -32,6 +34,7 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
   const ANGULAR_ACCELERATION = 4.0; // How quickly turning builds up
   const ANGULAR_DAMPING = 3.0;     // How quickly turning slows down
   const COUNTER_STEER_MULTIPLIER = 2.0; // Extra force when turning the opposite way
+  const VISUAL_SMOOTH_FACTOR = 0.15; // How quickly visual rotation follows actual rotation (0-1)
   
   // Get max speed based on ship type
   const getMaxSpeed = () => {
@@ -44,14 +47,18 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     }
   };
   
-  // Handle player movement
+  // Handle player movement with physics steps for consistent timing
   useFrame((_, delta) => {
     if (!ref || !('current' in ref) || !ref.current) return;
+    
+    // Ensure consistent physics step for better stability
+    // Cap max delta to prevent large jumps with frame drops
+    const physicsDelta = Math.min(delta, 0.1);
     
     const groupRef = ref.current;
     const { forward, backward, left, right, fire } = controls;
     
-    // Debug movement
+    // Debug movement (only log when needed)
     if (forward || backward || left || right) {
       console.log("Movement inputs:", { forward, backward, left, right });
     }
@@ -85,8 +92,8 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
       }
     }
     
-    // Update angular velocity based on acceleration
-    angularVelocityRef.current += angularAcceleration * delta;
+    // Update angular velocity based on acceleration with consistent time step
+    angularVelocityRef.current += angularAcceleration * physicsDelta;
     
     // Clamp angular velocity to maximum value
     if (angularVelocityRef.current > MAX_ANGULAR_VELOCITY) {
@@ -95,21 +102,26 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
       angularVelocityRef.current = -MAX_ANGULAR_VELOCITY;
     }
     
-    // Apply damping when not actively turning
+    // Apply damping when not actively turning and below threshold
     if (!left && !right && Math.abs(angularVelocityRef.current) < 0.1) {
       angularVelocityRef.current = 0; // Stop completely below threshold
     }
     
-    // Apply angular velocity to rotation
-    rotationRef.current += angularVelocityRef.current * delta;
+    // Apply angular velocity to physics rotation
+    rotationRef.current += angularVelocityRef.current * physicsDelta;
     
-    // Apply rotation to the 3D model
-    groupRef.rotation.y = rotationRef.current;
+    // Smoothly interpolate visual rotation to follow physics rotation
+    // This creates a smoother visual appearance while maintaining accurate physics
+    const rotationDiff = rotationRef.current - visualRotationRef.current;
+    visualRotationRef.current += rotationDiff * VISUAL_SMOOTH_FACTOR;
     
-    // Handle speed - simplified controls
+    // Apply smooth visual rotation to the 3D model
+    groupRef.rotation.y = visualRotationRef.current;
+    
+    // Handle speed - simplified controls with frame-rate independence
     const maxSpeed = getMaxSpeed();
-    const acceleration = 2 * delta; // Acceleration rate
-    const deceleration = 1 * delta; // Deceleration rate
+    const acceleration = 2 * physicsDelta; // Acceleration rate
+    const deceleration = 1 * physicsDelta; // Deceleration rate
     
     // Forward/backward controls speed directly
     if (backward) { // S or Down Arrow - Move forward 
@@ -127,15 +139,16 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     
     // Apply movement to group position
     if (speedRef.current !== 0) {
-      // Calculate forward vector (in the direction the ship is facing)
+      // Calculate forward vector based on the VISUAL rotation (for consistent appearance)
+      // This is important so the ship appears to move in the direction it's visually pointing
       const directionVector = new THREE.Vector3(0, 0, 1).applyAxisAngle(
         new THREE.Vector3(0, 1, 0),
-        groupRef.rotation.y
+        visualRotationRef.current
       );
       
-      // Calculate new position
-      const newX = groupRef.position.x + directionVector.x * speedRef.current * delta * 60;
-      const newZ = groupRef.position.z + directionVector.z * speedRef.current * delta * 60;
+      // Calculate new position with consistent physics timestep
+      const newX = groupRef.position.x + directionVector.x * speedRef.current * physicsDelta * 60;
+      const newZ = groupRef.position.z + directionVector.z * speedRef.current * physicsDelta * 60;
       
       // Apply map wrapping for smoother transitions
       let wrappedX = newX;
@@ -171,9 +184,15 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
   useEffect(() => {
     if (ref && 'current' in ref && ref.current) {
       ref.current.position.set(player.x, player.y, player.z);
-      ref.current.rotation.y = player.rotationY;
-      speedRef.current = player.speed;
+      
+      // Update both physics and visual rotation references when server data changes
       rotationRef.current = player.rotationY;
+      visualRotationRef.current = player.rotationY;
+      
+      // Also directly set the rotation for immediate feedback when teleporting
+      ref.current.rotation.y = player.rotationY;
+      
+      speedRef.current = player.speed;
     }
   }, [player.x, player.y, player.z, player.rotationY, player.speed, ref]);
   
