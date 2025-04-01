@@ -134,8 +134,8 @@ export function Minimap() {
     // Draw player direction indicator
     const dirLength = PLAYER_DOT_SIZE * 2;
     // Fix the direction indicator by reversing the sign
-    const dirX = MINIMAP_SIZE / 2 + Math.sin(-gameState.player.rotationY) * dirLength;
-    const dirY = MINIMAP_SIZE / 2 + Math.cos(-gameState.player.rotationY) * dirLength;
+    const dirX = MINIMAP_SIZE / 2 + Math.cos(gameState.player.rotationY) * dirLength;
+    const dirY = MINIMAP_SIZE / 2 - Math.sin(gameState.player.rotationY) * dirLength;
     
     ctx.strokeStyle = '#4caf50';
     ctx.lineWidth = 2;
