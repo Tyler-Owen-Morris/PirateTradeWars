@@ -29,12 +29,13 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
   // Add angular velocity to implement momentum-based turning
   const angularVelocityRef = useRef(0);
   
-  // Tuning parameters for ship turning
+  // Tuning parameters for ship turning and movement
   const MAX_ANGULAR_VELOCITY = 2.5; // Maximum turning rate
   const ANGULAR_ACCELERATION = 4.0; // How quickly turning builds up
   const ANGULAR_DAMPING = 3.0;     // How quickly turning slows down
   const COUNTER_STEER_MULTIPLIER = 2.0; // Extra force when turning the opposite way
   const VISUAL_SMOOTH_FACTOR = 0.15; // How quickly visual rotation follows actual rotation (0-1)
+  const MOMENTUM_DAMPING = 0.95;    // How quickly ship slows down (1.0 = no slowdown, 0.0 = instant stop)
   
   // Get max speed based on ship type
   const getMaxSpeed = () => {
@@ -118,26 +119,41 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     // Apply smooth visual rotation to the 3D model
     groupRef.rotation.y = visualRotationRef.current;
     
-    // Handle speed - simplified controls with frame-rate independence
-    const maxSpeed = getMaxSpeed();
-    const acceleration = 2 * physicsDelta; // Acceleration rate
-    const deceleration = 1 * physicsDelta; // Deceleration rate
+    // Decoupled turning and movement physics - turning rate is the same regardless of speed
+    // This ensures consistent turning regardless of forward/backward movement
     
-    // Forward/backward controls speed directly
-    if (backward) { // S or Down Arrow - Move forward 
-      speedRef.current = Math.min(maxSpeed, speedRef.current + acceleration);
-    } else if (forward) { // W or Up Arrow - Move backward (reverse)
-      speedRef.current = Math.max(-maxSpeed * 0.5, speedRef.current - acceleration);
+    // Forward momentum variables
+    const maxSpeed = getMaxSpeed();
+    const forwardAcceleration = 2 * physicsDelta; // How quickly the ship accelerates
+    const forwardDeceleration = 0.3 * physicsDelta; // How quickly the ship naturally slows down
+    
+    // Apply momentum-based movement
+    if (backward) { // S key - Move forward
+      // Accelerate forward
+      speedRef.current = Math.min(maxSpeed, speedRef.current + forwardAcceleration);
+    } else if (forward) { // W key - Move backward (reverse)
+      // Accelerate backward, but limit reverse speed to half of forward
+      speedRef.current = Math.max(-maxSpeed * 0.5, speedRef.current - forwardAcceleration);
     } else {
-      // Gradually slow down if no input
-      if (speedRef.current > 0) {
-        speedRef.current = Math.max(0, speedRef.current - deceleration * 0.5); // Slower deceleration
+      // No input - apply momentum and gradual slowdown
+      // This creates a more realistic sailing feel - the ship continues moving
+      // with gradually decreasing speed rather than stopping immediately
+      speedRef.current *= MOMENTUM_DAMPING; // Apply momentum damping
+      
+      // Apply additional deceleration
+      if (Math.abs(speedRef.current) < 0.1) {
+        // Stop completely when very slow to prevent endless tiny movement
+        speedRef.current = 0;
+      } else if (speedRef.current > 0) {
+        // Forward movement - slow down
+        speedRef.current = Math.max(0, speedRef.current - forwardDeceleration);
       } else if (speedRef.current < 0) {
-        speedRef.current = Math.min(0, speedRef.current + deceleration * 0.5); // Slower deceleration
+        // Backward movement - slow down
+        speedRef.current = Math.min(0, speedRef.current + forwardDeceleration);
       }
     }
     
-    // Apply movement to group position
+    // Apply movement to group position if we have any speed
     if (speedRef.current !== 0) {
       // Calculate forward vector based on the VISUAL rotation (for consistent appearance)
       // This is important so the ship appears to move in the direction it's visually pointing
@@ -146,9 +162,10 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
         visualRotationRef.current
       );
       
-      // Calculate new position with consistent physics timestep
-      const newX = groupRef.position.x + directionVector.x * speedRef.current * physicsDelta * 60;
-      const newZ = groupRef.position.z + directionVector.z * speedRef.current * physicsDelta * 60;
+      // Apply movement with consistent physics timestep
+      const velocity = speedRef.current * physicsDelta * 60;
+      const newX = groupRef.position.x + directionVector.x * velocity;
+      const newZ = groupRef.position.z + directionVector.z * velocity;
       
       // Apply map wrapping for smoother transitions
       let wrappedX = newX;

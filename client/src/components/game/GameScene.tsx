@@ -72,41 +72,44 @@ export function GameScene() {
         if (backward) speed = 5; // S key goes forward at max speed
         if (forward) speed = -2.5; // W key goes backward at half speed
         
-        // Calculate rotation
+        // Get the current visual rotation from the player model
         const currentRotation = playerRef.current.rotation.y;
         
-        // Get current direction vector
+        // Calculate the forward direction vector based on this rotation
         const dirVector = new THREE.Vector3(0, 0, 1);
-        dirVector.applyQuaternion(playerRef.current.quaternion);
+        dirVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), currentRotation);
         dirVector.normalize();
         
+        // Store the current direction for server updates
         direction.current = {
           x: dirVector.x,
           y: dirVector.y,
           z: dirVector.z
         };
         
-        // Only send rotation to server if it's changed significantly or enough time has passed
-        // This reduces jitter by preventing constant back-and-forth updates
+        // Determine if we need to send a rotation update to the server
+        // Only send when rotation changes significantly or periodically
+        // This reduces network traffic while maintaining accuracy
         const rotationDiff = Math.abs(currentRotation - lastSentRotation.current);
         const shouldUpdateRotation = rotationDiff > 0.05 || (now - lastRotationUpdateTime.current > 250);
         
-        // Debug movement
-        if (forward || backward) {
+        // Debug when moving to help diagnose issues
+        if (forward || backward || left || right) {
           console.log("Server input - Speed:", speed, "Direction:", direction.current);
         }
         
         if (shouldUpdateRotation) {
-          // Send full input with rotation update
+          // Send complete input including rotation
           lastRotationUpdateTime.current = now;
           lastSentRotation.current = currentRotation;
           socket.sendInput(speed, direction.current, fire, currentRotation);
         } else {
-          // Send input without rotation update (undefined keeps the server using the old rotation)
+          // Send just speed and direction updates without rotation
+          // This keeps the rotation on the server until we need to change it
           socket.sendInput(speed, direction.current, fire);
         }
         
-        // Always update the player's rotation in the client-side game state for smooth rendering
+        // Update client-side game state for smooth local rendering
         if (gameState.player) {
           gameState.player.rotationY = currentRotation;
         }
