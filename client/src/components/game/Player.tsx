@@ -24,6 +24,14 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
 ) {
   const speedRef = useRef(player.speed);
   const rotationRef = useRef(player.rotationY);
+  // Add angular velocity to implement momentum-based turning
+  const angularVelocityRef = useRef(0);
+  
+  // Tuning parameters for ship turning
+  const MAX_ANGULAR_VELOCITY = 2.5; // Maximum turning rate
+  const ANGULAR_ACCELERATION = 4.0; // How quickly turning builds up
+  const ANGULAR_DAMPING = 3.0;     // How quickly turning slows down
+  const COUNTER_STEER_MULTIPLIER = 2.0; // Extra force when turning the opposite way
   
   // Get max speed based on ship type
   const getMaxSpeed = () => {
@@ -48,20 +56,54 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
       console.log("Movement inputs:", { forward, backward, left, right });
     }
     
-    // Handle rotation with improved smoothness
-    // Store last rotation value for interpolation
-    const lastRotation = rotationRef.current;
+    // Momentum-based rotation handling
+    let angularAcceleration = 0;
     
-    // Apply rotation directly based on input
+    // Calculate angular acceleration based on input
     if (left) {
-      rotationRef.current += 1.2 * delta;
+      // Turning left (positive angular velocity)
+      if (angularVelocityRef.current < 0) {
+        // Currently turning right, apply counter-steer for quicker response
+        angularAcceleration = ANGULAR_ACCELERATION * COUNTER_STEER_MULTIPLIER;
+      } else {
+        angularAcceleration = ANGULAR_ACCELERATION;
+      }
+    } else if (right) {
+      // Turning right (negative angular velocity)
+      if (angularVelocityRef.current > 0) {
+        // Currently turning left, apply counter-steer for quicker response
+        angularAcceleration = -ANGULAR_ACCELERATION * COUNTER_STEER_MULTIPLIER;
+      } else {
+        angularAcceleration = -ANGULAR_ACCELERATION;
+      }
+    } else {
+      // No input, apply damping
+      if (angularVelocityRef.current > 0) {
+        angularAcceleration = -ANGULAR_DAMPING;
+      } else if (angularVelocityRef.current < 0) {
+        angularAcceleration = ANGULAR_DAMPING;
+      }
     }
     
-    if (right) {
-      rotationRef.current -= 1.2 * delta;
+    // Update angular velocity based on acceleration
+    angularVelocityRef.current += angularAcceleration * delta;
+    
+    // Clamp angular velocity to maximum value
+    if (angularVelocityRef.current > MAX_ANGULAR_VELOCITY) {
+      angularVelocityRef.current = MAX_ANGULAR_VELOCITY;
+    } else if (angularVelocityRef.current < -MAX_ANGULAR_VELOCITY) {
+      angularVelocityRef.current = -MAX_ANGULAR_VELOCITY;
     }
     
-    // Apply rotation to the 3D model with smoothing
+    // Apply damping when not actively turning
+    if (!left && !right && Math.abs(angularVelocityRef.current) < 0.1) {
+      angularVelocityRef.current = 0; // Stop completely below threshold
+    }
+    
+    // Apply angular velocity to rotation
+    rotationRef.current += angularVelocityRef.current * delta;
+    
+    // Apply rotation to the 3D model
     groupRef.rotation.y = rotationRef.current;
     
     // Handle speed - simplified controls

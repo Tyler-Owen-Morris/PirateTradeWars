@@ -95,10 +95,10 @@ export function GameScene() {
           // Send full input with rotation update
           lastRotationUpdateTime.current = now;
           lastSentRotation.current = currentRotation;
-          socket.sendInput(currentRotation, speed, direction.current, fire);
+          socket.sendInput(speed, direction.current, fire, currentRotation);
         } else {
           // Send input without rotation update (undefined keeps the server using the old rotation)
-          socket.sendInput(undefined, speed, direction.current, fire);
+          socket.sendInput(speed, direction.current, fire);
         }
         
         // Always update the player's rotation in the client-side game state for smooth rendering

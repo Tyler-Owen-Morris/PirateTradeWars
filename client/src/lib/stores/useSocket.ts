@@ -16,7 +16,7 @@ interface SocketState {
   
   // Message sending
   register: (name: string, shipType: string) => void;
-  sendInput: (rotationY?: number, speed: number, direction: Vector3, firing: boolean) => void;
+  sendInput: (speed: number, direction: Vector3, firing: boolean, rotationY?: number) => void;
   sendTrade: (portId: number, action: 'buy' | 'sell', goodId: number, quantity: number) => void;
   
   // Receive handlers
@@ -148,7 +148,7 @@ export const useSocket = create<SocketState>((set, get) => {
       socket.send(JSON.stringify(message));
     },
     
-    sendInput: (rotationY, speed, direction, firing) => {
+    sendInput: (speed, direction, firing, rotationY) => {
       const { socket, connected } = get();
       if (!socket || !connected) return;
       
