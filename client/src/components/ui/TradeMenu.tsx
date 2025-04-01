@@ -200,6 +200,64 @@ export default function TradeMenu() {
     // The inventory will be updated via socket message
   };
   
+  // Handle buying maximum possible quantity
+  const handleBuyMax = () => {
+    if (!currentPort || !selectedGoodId || !gameState.player) {
+      setError('Unable to complete trade');
+      return;
+    }
+    
+    // Get port good
+    const portGood = portGoods.find(pg => pg.goodId === selectedGoodId);
+    if (!portGood) {
+      setError('Good not available at this port');
+      return;
+    }
+    
+    // Calculate max quantity based on three constraints:
+    // 1. Available stock at port
+    // 2. Player's gold
+    // 3. Available cargo space
+    
+    const pricePerUnit = portGood.currentPrice;
+    const availableStock = portGood.stock;
+    const playerGold = gameState.player.gold;
+    const availableCargoSpace = gameState.player.cargoCapacity - gameState.player.cargoUsed;
+    
+    // Max based on player's gold
+    const maxByGold = Math.floor(playerGold / pricePerUnit);
+    
+    // Find the minimum of all constraints
+    const maxQuantity = Math.min(
+      availableStock,
+      maxByGold,
+      availableCargoSpace
+    );
+    
+    if (maxQuantity <= 0) {
+      if (availableStock <= 0) {
+        setError('No stock available at this port.');
+      } else if (maxByGold <= 0) {
+        setError('You don\'t have enough gold to buy any units.');
+      } else if (availableCargoSpace <= 0) {
+        setError('Your cargo hold is full.');
+      } else {
+        setError('Unable to buy any units.');
+      }
+      return;
+    }
+    
+    // Set the quantity to max and execute the trade
+    setQuantity(maxQuantity);
+    
+    // Execute trade with max quantity
+    sendTrade(currentPort.id, 'buy', selectedGoodId, maxQuantity);
+    
+    // Reset form
+    setSelectedGoodId(null);
+    setQuantity(1);
+  };
+  
   // Close dialog
   const handleClose = () => {
     setIsTrading(false);
@@ -339,13 +397,22 @@ export default function TradeMenu() {
                   </div>
                 </div>
                 
-                <Button 
-                  className="w-full mt-4 bg-amber-600 hover:bg-amber-700 text-white"
-                  onClick={handleTrade}
-                >
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  Buy Goods
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                  <Button 
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={handleTrade}
+                  >
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                    Buy Goods
+                  </Button>
+                  <Button 
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
+                    onClick={handleBuyMax}
+                  >
+                    <Coins className="mr-2 h-4 w-4" />
+                    Buy Max
+                  </Button>
+                </div>
               </div>
             )}
           </TabsContent>
