@@ -71,7 +71,9 @@ export const useSocket = create<SocketState>((set, get) => {
                 
               case 'registered':
                 console.log('Successfully registered:', message);
-                set({ playerId: message.playerId });
+                set({ playerId: message.playerId, error: null });
+                // Set the player as registered in game state
+                useGameState.setState({ isRegistered: true });
                 break;
                 
               case 'gameUpdate':

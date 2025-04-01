@@ -56,6 +56,15 @@ export default function ShipSelection() {
     selectShip(shipType);
   };
   
+  // Listen for successful registration
+  useEffect(() => {
+    // When isRegistered becomes true, it means registration was successful
+    if (isRegistered && !socketError) {
+      console.log("Registration confirmed successful, starting game");
+      startGame();
+    }
+  }, [isRegistered, socketError, startGame]);
+
   // Start game with selected ship
   const handleStartGame = () => {
     if (!selectedShip || !playerName || playerName.length < 3) {
@@ -66,6 +75,9 @@ export default function ShipSelection() {
       });
       return;
     }
+    
+    // Clear any previous errors
+    useSocket.getState().resetError();
     
     console.log("Starting game with ship:", selectedShip.name, "and player name:", playerName);
     setLoading(true);
@@ -84,10 +96,11 @@ export default function ShipSelection() {
           console.log("Registering player with WebSocket...");
           register(playerName, selectedShip.name);
           
-          console.log("Player registered, starting game");
+          // We don't immediately call startGame() here anymore
+          // Instead, we wait for the registered event to be confirmed by the server
+          // The useEffect above will handle starting the game when registration is successful
           
-          // Start the game
-          startGame();
+          // If there's an error, the loading state will be reset in the useEffect below
         } catch (innerError) {
           console.error("Error during game start sequence:", innerError);
           setLoading(false);
@@ -98,6 +111,13 @@ export default function ShipSelection() {
       setLoading(false);
     }
   };
+  
+  // Reset loading state if there's an error
+  useEffect(() => {
+    if (socketError) {
+      setLoading(false);
+    }
+  }, [socketError]);
   
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4">
