@@ -16,7 +16,7 @@ interface SocketState {
   
   // Message sending
   register: (name: string, shipType: string) => void;
-  sendInput: (rotationY: number, speed: number, direction: Vector3, firing: boolean) => void;
+  sendInput: (rotationY?: number, speed: number, direction: Vector3, firing: boolean) => void;
   sendTrade: (portId: number, action: 'buy' | 'sell', goodId: number, quantity: number) => void;
   
   // Receive handlers

@@ -129,13 +129,21 @@ export function handleSocketConnection(ws: WebSocket) {
   
   // Handle player input
   function handleInput(playerId: string, data: InputMessage) {
-    // Update player in game state
-    gameState.updatePlayer(playerId, {
-      rotationY: data.rotationY,
-      speed: data.speed,
-      direction: data.direction,
-      firing: data.firing
-    });
+    // Create update object with only defined properties
+    const updateData: any = {};
+    
+    // Only include rotationY if it's defined (allows client to skip sending rotation)
+    if (data.rotationY !== undefined) {
+      updateData.rotationY = data.rotationY;
+    }
+    
+    // Always include these properties
+    if (data.speed !== undefined) updateData.speed = data.speed;
+    if (data.direction) updateData.direction = data.direction;
+    if (data.firing !== undefined) updateData.firing = data.firing;
+    
+    // Update player in game state with only the changed properties
+    gameState.updatePlayer(playerId, updateData);
     
     // Handle firing separately
     if (data.firing) {

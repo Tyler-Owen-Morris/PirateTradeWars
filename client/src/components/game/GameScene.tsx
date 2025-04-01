@@ -18,6 +18,8 @@ export function GameScene() {
   // Refs
   const playerRef = useRef<THREE.Group>(null);
   const lastInputTime = useRef<number>(0);
+  const lastRotationUpdateTime = useRef<number>(0);
+  const lastSentRotation = useRef<number>(0);
   const lastPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const direction = useRef<Vector3>({ x: 0, y: 0, z: 1 });
   
@@ -66,7 +68,7 @@ export function GameScene() {
         if (forward) speed = -2.5; // W key goes backward at half speed
         
         // Calculate rotation
-        const rotationY = playerRef.current.rotation.y;
+        const currentRotation = playerRef.current.rotation.y;
         
         // Get current direction vector
         const dirVector = new THREE.Vector3(0, 0, 1);
@@ -79,17 +81,29 @@ export function GameScene() {
           z: dirVector.z
         };
         
+        // Only send rotation to server if it's changed significantly or enough time has passed
+        // This reduces jitter by preventing constant back-and-forth updates
+        const rotationDiff = Math.abs(currentRotation - lastSentRotation.current);
+        const shouldUpdateRotation = rotationDiff > 0.05 || (now - lastRotationUpdateTime.current > 250);
+        
         // Debug movement
         if (forward || backward) {
           console.log("Server input - Speed:", speed, "Direction:", direction.current);
         }
         
-        // Send input to server with more frequent updates
-        socket.sendInput(rotationY, speed, direction.current, fire);
+        if (shouldUpdateRotation) {
+          // Send full input with rotation update
+          lastRotationUpdateTime.current = now;
+          lastSentRotation.current = currentRotation;
+          socket.sendInput(currentRotation, speed, direction.current, fire);
+        } else {
+          // Send input without rotation update (undefined keeps the server using the old rotation)
+          socket.sendInput(undefined, speed, direction.current, fire);
+        }
         
-        // Update the player's rotation in the game state directly
+        // Always update the player's rotation in the client-side game state for smooth rendering
         if (gameState.player) {
-          gameState.player.rotationY = rotationY;
+          gameState.player.rotationY = currentRotation;
         }
         
         // Check if near port

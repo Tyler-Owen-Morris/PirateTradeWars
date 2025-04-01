@@ -48,16 +48,21 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
       console.log("Movement inputs:", { forward, backward, left, right });
     }
     
-    // Handle rotation (keep the same logic)
+    // Handle rotation with improved smoothness
+    // Store last rotation value for interpolation
+    const lastRotation = rotationRef.current;
+    
+    // Apply rotation directly based on input
     if (left) {
       rotationRef.current += 1.2 * delta;
-      groupRef.rotation.y = rotationRef.current;
     }
     
     if (right) {
       rotationRef.current -= 1.2 * delta;
-      groupRef.rotation.y = rotationRef.current;
     }
+    
+    // Apply rotation to the 3D model with smoothing
+    groupRef.rotation.y = rotationRef.current;
     
     // Handle speed - simplified controls
     const maxSpeed = getMaxSpeed();
