@@ -258,6 +258,31 @@ export default function TradeMenu() {
     setQuantity(1);
   };
   
+  // Handle selling maximum possible quantity
+  const handleSellMax = () => {
+    if (!currentPort || !selectedGoodId || !gameState.player) {
+      setError('Unable to complete trade');
+      return;
+    }
+    
+    // Get the inventory quantity of the selected good
+    const inventoryQuantity = getInventoryQuantity(selectedGoodId);
+    if (inventoryQuantity <= 0) {
+      setError('You don\'t have any of this good to sell.');
+      return;
+    }
+    
+    // For selling, we only need to consider how much the player owns
+    const maxQuantity = inventoryQuantity;
+    
+    // Execute trade with max quantity
+    sendTrade(currentPort.id, 'sell', selectedGoodId, maxQuantity);
+    
+    // Reset form
+    setSelectedGoodId(null);
+    setQuantity(1);
+  };
+  
   // Close dialog
   const handleClose = () => {
     setIsTrading(false);
@@ -502,13 +527,22 @@ export default function TradeMenu() {
                   </div>
                 </div>
                 
-                <Button 
-                  className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={handleTrade}
-                >
-                  <Tag className="mr-2 h-4 w-4" />
-                  Sell Goods
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                  <Button 
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={handleTrade}
+                  >
+                    <Tag className="mr-2 h-4 w-4" />
+                    Sell Goods
+                  </Button>
+                  <Button 
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    onClick={handleSellMax}
+                  >
+                    <Coins className="mr-2 h-4 w-4" />
+                    Sell Max
+                  </Button>
+                </div>
               </div>
             )}
           </TabsContent>
