@@ -13,7 +13,7 @@ interface PortProps {
 
 export function Port({ port }: PortProps) {
   const portRef = useRef<THREE.Group>(null);
-  const beaconRef = useRef<THREE.Mesh>(null);
+  const beaconRef = useRef<THREE.Group>(null);
   const isNearPort = useRef(false);
   const { gameState } = useGameState();
   

@@ -53,8 +53,8 @@ export function GameScene() {
       // Get player position
       const playerPosition = playerRef.current.position;
       
-      // Calculate camera target position
-      const cameraOffset = new THREE.Vector3(0, 250, 400);
+      // Calculate camera target position - pulled back further for a wider view
+      const cameraOffset = new THREE.Vector3(0, 350, 600); // Increased height and distance
       cameraOffset.applyQuaternion(playerRef.current.quaternion);
       const targetCameraPosition = new THREE.Vector3().copy(playerPosition).add(cameraOffset);
       
