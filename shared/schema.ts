@@ -45,6 +45,7 @@ export const insertLeaderboardSchema = createInsertSchema(leaderboard).pick({
   playerId: true,
   playerName: true,
   score: true,
+  achievedAt: true,
 });
 
 // Ship types reference table

@@ -15,7 +15,8 @@ interface AudioState {
   toggleMute: () => void;
   playHit: () => void;
   playSuccess: () => void;
-  playSound: (type: 'hit' | 'success' | 'bell', volume?: number) => void;
+  playExplosion: () => void;
+  playSound: (type: 'hit' | 'success' | 'bell' | 'explosion', volume?: number) => void;
 }
 
 export const useAudio = create<AudioState>((set, get) => ({
@@ -73,6 +74,34 @@ export const useAudio = create<AudioState>((set, get) => ({
     }
   },
   
+  playExplosion: () => {
+    // Use the hit sound at higher volume for explosion effect
+    const { hitSound, isMuted } = get();
+    if (hitSound) {
+      // If sound is muted, don't play anything
+      if (isMuted) {
+        console.log("Explosion sound skipped (muted)");
+        return;
+      }
+      
+      // Play multiple hit sounds with different volumes and slight delays
+      const explosionSound1 = hitSound.cloneNode() as HTMLAudioElement;
+      explosionSound1.volume = 0.7;
+      explosionSound1.play().catch(error => {
+        console.log("Explosion sound play prevented:", error);
+      });
+      
+      // Add a slight delay for the second sound
+      setTimeout(() => {
+        const explosionSound2 = hitSound.cloneNode() as HTMLAudioElement;
+        explosionSound2.volume = 0.6;
+        explosionSound2.play().catch(error => {
+          console.log("Explosion sound 2 play prevented:", error);
+        });
+      }, 150);
+    }
+  },
+  
   playSound: (type, volume = 0.3) => {
     const { hitSound, successSound, isMuted } = get();
     if (isMuted) {
@@ -93,6 +122,10 @@ export const useAudio = create<AudioState>((set, get) => ({
         // Use success sound for bell sound
         sound = successSound;
         break;
+      case 'explosion':
+        // For explosion, use the playExplosion method directly
+        get().playExplosion();
+        return; // Early return since we're handling it specially
       default:
         console.error(`Unknown sound type: ${type}`);
         return;

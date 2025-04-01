@@ -169,6 +169,15 @@ export interface SocketTradeSuccessMessage {
   timestamp: number;
 }
 
+export interface SocketGameEndMessage {
+  type: 'gameEnd';
+  reason: 'scuttle' | 'sunk';
+  score: number;
+  message: string;
+  leaderboard: LeaderboardEntry[];
+  timestamp: number;
+}
+
 export type SocketMessage = 
   | SocketRegisterMessage 
   | SocketInputMessage 
@@ -177,4 +186,5 @@ export type SocketMessage =
   | SocketErrorMessage
   | SocketWelcomeMessage
   | SocketRegisteredMessage
-  | SocketTradeSuccessMessage;
+  | SocketTradeSuccessMessage
+  | SocketGameEndMessage;

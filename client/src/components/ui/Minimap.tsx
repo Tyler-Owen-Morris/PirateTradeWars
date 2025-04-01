@@ -135,8 +135,8 @@ export function Minimap() {
     const dirLength = PLAYER_DOT_SIZE * 2;
     // Apply a complete inversion to match the ship's actual turning direction
     // The negative sign before gameState.player.rotationY inverts the rotation direction
-    const dirX = MINIMAP_SIZE / 2 - Math.sin(gameState.player.rotationY) * dirLength;
-    const dirY = MINIMAP_SIZE / 2 + Math.cos(gameState.player.rotationY) * dirLength;
+    const dirX = MINIMAP_SIZE / 2 - Math.cos(gameState.player.rotationY - Math.PI / 2) * dirLength;
+    const dirY = MINIMAP_SIZE / 2 + Math.sin(gameState.player.rotationY - Math.PI / 2) * dirLength;
     
     ctx.strokeStyle = '#4caf50';
     ctx.lineWidth = 2;

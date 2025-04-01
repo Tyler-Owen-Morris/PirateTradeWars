@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { useKeyboardControls } from '@react-three/drei';
 import { useGameState } from '@/lib/stores/useGameState';
 import { useAudio } from '@/lib/stores/useAudio';
+import { useSocket } from '@/lib/stores/useSocket';
 import HUD from './HUD';
 import Leaderboard from './Leaderboard';
 import { Button } from './button';
-import { Volume2, VolumeX, HelpCircle, Map } from 'lucide-react';
+import { Volume2, VolumeX, HelpCircle, Map, Skull } from 'lucide-react';
 import { HelpTooltip } from './HelpTooltip';
 import { Minimap } from './Minimap';
 import { ToastContainer } from './TradingToast';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './dialog';
 
 export default function GameUI() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -121,6 +123,43 @@ export default function GameUI() {
       
       {/* Help tooltip button - always visible */}
       <HelpTooltip />
+      
+      {/* Scuttle Ship button - only show when playing and not sunk */}
+      {gameState.player && !isSunk && (
+        <div className="absolute left-4 bottom-4 z-50">
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="destructive" className="flex items-center gap-2">
+                <Skull size={16} />
+                <span>Scuttle Ship</span>
+              </Button>
+            </DialogTrigger>
+          <DialogContent className="bg-black/90 border-amber-500 text-white">
+            <DialogHeader>
+              <DialogTitle className="text-amber-400">Scuttle Your Ship?</DialogTitle>
+              <DialogDescription className="text-gray-300">
+                This will end your current game and register your score on the leaderboard. Your ship and all cargo will be lost forever. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex gap-2 justify-end mt-4">
+              <Button variant="outline" className="border-gray-500 text-gray-300 hover:bg-gray-800">
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                className="bg-red-700 hover:bg-red-800"
+                onClick={() => {
+                  useSocket.getState().scuttleShip();
+                  useAudio.getState().playExplosion();
+                }}
+              >
+                Scuttle Ship
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+      )}
       
       {/* Controls help */}
       {showControls && (

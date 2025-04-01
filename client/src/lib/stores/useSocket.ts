@@ -18,6 +18,7 @@ interface SocketState {
   register: (name: string, shipType: string) => void;
   sendInput: (speed: number, direction: Vector3, firing: boolean, rotationY?: number) => void;
   sendTrade: (portId: number, action: 'buy' | 'sell', goodId: number, quantity: number) => void;
+  scuttleShip: () => void;
   
   // Receive handlers
   onGameUpdate: (players: Record<string, PlayerState>, cannonBalls: any[]) => void;
@@ -101,6 +102,18 @@ export const useSocket = create<SocketState>((set, get) => {
                 }
                 break;
                 
+              case 'gameEnd':
+                console.log('Game ended:', message);
+                // Update game state with the reason for game ending
+                const gameState = useGameState.getState();
+                // Update leaderboard data
+                if (message.leaderboard && Array.isArray(message.leaderboard)) {
+                  gameState.gameState.leaderboard = message.leaderboard;
+                }
+                // Set player as sunk to show game over screen
+                gameState.isSunk = true;
+                break;
+                
               case 'error':
                 console.error('Server error:', message.message);
                 set({ error: message.message });
@@ -178,6 +191,20 @@ export const useSocket = create<SocketState>((set, get) => {
         action,
         goodId,
         quantity
+      };
+      
+      socket.send(JSON.stringify(message));
+    },
+    
+    scuttleShip: () => {
+      const { socket, connected } = get();
+      if (!socket || !connected) {
+        set({ error: 'Not connected. Please refresh and try again.' });
+        return;
+      }
+      
+      const message = {
+        type: 'scuttle'
       };
       
       socket.send(JSON.stringify(message));

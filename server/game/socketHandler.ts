@@ -25,7 +25,11 @@ interface TradeMessage {
   quantity: number;
 }
 
-type ClientMessage = RegisterMessage | InputMessage | TradeMessage;
+interface ScuttleMessage {
+  type: 'scuttle';
+}
+
+type ClientMessage = RegisterMessage | InputMessage | TradeMessage | ScuttleMessage;
 
 // Handle new WebSocket connections
 export function handleSocketConnection(ws: WebSocket) {
@@ -48,6 +52,11 @@ export function handleSocketConnection(ws: WebSocket) {
         case 'trade':
           if (playerId) {
             await handleTrade(playerId, data);
+          }
+          break;
+        case 'scuttle':
+          if (playerId) {
+            await handleScuttle(playerId, ws);
           }
           break;
         default:
@@ -282,6 +291,49 @@ export function handleSocketConnection(ws: WebSocket) {
     } catch (error) {
       console.error('Error trading:', error);
       sendError(ws, 'Failed to complete trade');
+    }
+  }
+  
+  // Handle scuttle ship (voluntary retirement)
+  async function handleScuttle(playerId: string, ws: WebSocket) {
+    try {
+      const player = gameState.state.players[playerId];
+      if (!player) {
+        return sendError(ws, 'Player not found');
+      }
+      
+      console.log(`Player ${player.name} is scuttling their ship and registering score of ${player.gold}`);
+      
+      // Add player to leaderboard with current gold as score
+      await storage.addToLeaderboard({
+        playerId: player.playerId,
+        playerName: player.name,
+        score: player.gold,
+        achievedAt: new Date()
+      });
+      
+      // Get updated leaderboard
+      const leaderboard = await storage.getLeaderboard(10);
+      
+      // Send game end message
+      ws.send(JSON.stringify({
+        type: 'gameEnd',
+        reason: 'scuttle',
+        score: player.gold,
+        message: 'You scuttled your ship and joined the leaderboard!',
+        leaderboard,
+        timestamp: Date.now()
+      }));
+      
+      // Remove player from game
+      gameState.removeClient(playerId);
+      
+      // Set player as inactive in database
+      await storage.setPlayerActive(player.playerId, false);
+      
+    } catch (error) {
+      console.error('Error scuttling ship:', error);
+      sendError(ws, 'Failed to scuttle ship');
     }
   }
 }
