@@ -8,31 +8,21 @@ import { MAP_WIDTH, MAP_HEIGHT } from "../../lib/constants";
 export function Ocean() {
   const oceanRef = useRef<THREE.Mesh>(null);
   
-  // Load textures for water (much simpler)
-  const waterTexture = useTexture("/textures/sky.png");
-  
-  // Configure texture for better performance
-  waterTexture.wrapS = THREE.RepeatWrapping;
-  waterTexture.wrapT = THREE.RepeatWrapping;
-  waterTexture.repeat.set(20, 20);
-  
-  // Create a simple material with minimal processing
+  // Create a simple material without using a texture for better performance and reliability
   const waterMaterial = useMemo(() => {
     return new THREE.MeshStandardMaterial({
       color: "#1a6ea0", // Deeper blue color
-      map: waterTexture,
       roughness: 0.6,
       metalness: 0.2,
     });
-  }, [waterTexture]);
+  }, []);
   
   // Simple animation that doesn't require vertex manipulation
   useFrame(({ clock }) => {
     if (oceanRef.current) {
       const time = clock.getElapsedTime();
-      // Only animate texture coordinates for performance
-      waterTexture.offset.y = time * 0.02;
-      waterTexture.offset.x = time * 0.01;
+      // Apply a gentle wave motion to the ocean
+      oceanRef.current.position.y = -10 + Math.sin(time * 0.2) * 0.5;
     }
   });
   
