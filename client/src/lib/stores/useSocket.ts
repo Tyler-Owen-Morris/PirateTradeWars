@@ -106,12 +106,21 @@ export const useSocket = create<SocketState>((set, get) => {
                 console.log('Game ended:', message);
                 // Update game state with the reason for game ending
                 const gameState = useGameState.getState();
+                
                 // Update leaderboard data
                 if (message.leaderboard && Array.isArray(message.leaderboard)) {
+                  console.log('Updating leaderboard with', message.leaderboard.length, 'entries');
                   gameState.gameState.leaderboard = message.leaderboard;
+                } else {
+                  console.warn('Received gameEnd without valid leaderboard data');
                 }
+                
                 // Set player as sunk to show game over screen
+                console.log('Setting isSunk to true to show game over screen');
                 gameState.isSunk = true;
+                
+                // Play explosion sound
+                useAudio.getState().playExplosion();
                 break;
                 
               case 'error':

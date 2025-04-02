@@ -124,12 +124,12 @@ export default function GameUI() {
       {/* Help tooltip button - always visible */}
       <HelpTooltip />
       
-      {/* Scuttle Ship button - only show when playing and not sunk */}
+      {/* Scuttle Ship button - only show when playing and not sunk, positioned on right side */}
       {gameState.player && !isSunk && (
-        <div className="absolute left-4 bottom-4 z-50">
+        <div className="absolute right-4 bottom-20 z-50">
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="destructive" className="flex items-center gap-2">
+              <Button variant="destructive" className="flex items-center gap-2 shadow-lg">
                 <Skull size={16} />
                 <span>Scuttle Ship</span>
               </Button>

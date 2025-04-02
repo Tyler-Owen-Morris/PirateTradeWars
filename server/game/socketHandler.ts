@@ -304,26 +304,44 @@ export function handleSocketConnection(ws: WebSocket) {
       
       console.log(`Player ${player.name} is scuttling their ship and registering score of ${player.gold}`);
       
-      // Add player to leaderboard with current gold as score
-      await storage.addToLeaderboard({
-        playerId: player.playerId,
-        playerName: player.name,
-        score: player.gold,
-        achievedAt: new Date()
-      });
+      try {
+        // Add player to leaderboard with current gold as score
+        await storage.addToLeaderboard({
+          playerId: player.playerId,
+          playerName: player.name,
+          score: player.gold
+          // achievedAt is handled by the storage implementation
+        });
+        console.log('Successfully added player to leaderboard');
+      } catch (leaderboardError) {
+        console.error('Error adding to leaderboard:', leaderboardError);
+      }
       
       // Get updated leaderboard
       const leaderboard = await storage.getLeaderboard(10);
       
       // Send game end message
-      ws.send(JSON.stringify({
-        type: 'gameEnd',
-        reason: 'scuttle',
-        score: player.gold,
-        message: 'You scuttled your ship and joined the leaderboard!',
-        leaderboard,
-        timestamp: Date.now()
-      }));
+      try {
+        const gameEndMessage = {
+          type: 'gameEnd',
+          reason: 'scuttle',
+          score: player.gold,
+          message: 'You scuttled your ship and joined the leaderboard!',
+          leaderboard,
+          timestamp: Date.now()
+        };
+        console.log('Sending gameEnd message:', JSON.stringify(gameEndMessage));
+        
+        // Only send if the WebSocket is open
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(gameEndMessage));
+          console.log('gameEnd message sent successfully');
+        } else {
+          console.warn('WebSocket not open, could not send gameEnd message');
+        }
+      } catch (sendError) {
+        console.error('Error sending gameEnd message:', sendError);
+      }
       
       // Remove player from game
       gameState.removeClient(playerId);
