@@ -1,4 +1,5 @@
 import { storage } from "../storage";
+import { WebSocket } from "ws";
 import { defaultPorts, goodTypes } from "./shipTypes";
 
 // Game state constants
@@ -253,10 +254,25 @@ class GameState {
     for (const playerId in this.state.players) {
       const player = this.state.players[playerId];
       
-      // Remove sunk players after 10 seconds to prevent "ghost ships" accumulating
-      if (player.sunk && now - player.lastSeen > 10000) {
+      // Remove sunk players after 10 seconds to allow for sinking animation
+      // This has been increased from 5 seconds to ensure the animation completes
+      if (player.sunk && now - player.lastSeen > 15000) {
         console.log(`Removing sunk player ${player.name} (${playerId}) from game state after timeout`);
         delete this.state.players[playerId];
+        continue;
+      }
+      
+      // Mark players as sunk if they've been disconnected for more than 5 seconds
+      if (!player.connected && !player.sunk && now - player.lastSeen > 5000) {
+        console.log(`Player ${player.name} (${playerId}) has been disconnected for >5 seconds, marking as sunk`);
+        player.sunk = true;
+        player.hp = 0; // Ensure HP is set to 0 to trigger proper sinking animation
+        
+        // Add to leaderboard
+        this.handlePlayerSunk(player);
+        
+        // Update lastSeen to ensure proper timeout for removal
+        player.lastSeen = now;
         continue;
       }
       
@@ -519,6 +535,31 @@ class GameState {
         });
         
         console.log(`Player ${player.name} sunk with score ${player.gold}`);
+        
+        // Get leaderboard to include in game end message
+        const leaderboard = await storage.getLeaderboard(10);
+        
+        // Find client connection to send game end message
+        const clientEntries = Array.from(this.connectedClients.entries());
+        for (const [pid, ws] of clientEntries) {
+          if (pid === player.id && ws.readyState === WebSocket.OPEN) {
+            // Send game end message to the client
+            ws.send(JSON.stringify({
+              type: 'gameEnd',
+              reason: 'sunk',
+              score: player.gold,
+              message: 'Your ship was sunk in battle!',
+              leaderboard,
+              timestamp: Date.now()
+            }));
+            console.log(`Sent gameEnd message to sunk player ${player.name}`);
+            break;
+          }
+        }
+        
+        // Mark the player as inactive in the database
+        // But keep the player in the game state for animation
+        await storage.setPlayerActive(player.playerId, false);
       }
     } catch (err) {
       console.error('Error handling sunk player:', err);

@@ -39,6 +39,12 @@ export default function GameOver({ score }: GameOverProps) {
     
     // Clear game state and restart
     restartGame();
+    
+    // Hard reload the page after a short delay to ensure a complete reset
+    setTimeout(() => {
+      console.log("Performing full page reload for a fresh start");
+      window.location.reload();
+    }, 300);
   };
   
   return (
