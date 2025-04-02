@@ -320,11 +320,6 @@ export function handleSocketConnection(ws: WebSocket) {
       // Get updated leaderboard
       const leaderboard = await storage.getLeaderboard(10);
       
-      // Mark the player as sunk to trigger animation
-      player.hp = 0;
-      player.sunk = true;
-      player.lastSeen = Date.now(); // Update to reset the removal timer
-      
       // Send game end message
       try {
         const gameEndMessage = {
@@ -348,12 +343,11 @@ export function handleSocketConnection(ws: WebSocket) {
         console.error('Error sending gameEnd message:', sendError);
       }
       
-      // Set player as inactive in database right away
-      await storage.setPlayerActive(player.playerId, false);
-      
-      // Remove the client connection (but leave the player object for animation)
-      // The player object will be cleaned up automatically after the timeout in tick()
+      // Remove player from game
       gameState.removeClient(playerId);
+      
+      // Set player as inactive in database
+      await storage.setPlayerActive(player.playerId, false);
       
     } catch (error) {
       console.error('Error scuttling ship:', error);
