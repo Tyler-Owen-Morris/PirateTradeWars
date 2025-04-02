@@ -249,16 +249,26 @@ class GameState {
     const deltaTime = (now - this.state.lastUpdate) / 1000; // Convert to seconds
     this.state.lastUpdate = now;
     
-    // Update player positions
-    Object.values(this.state.players).forEach(player => {
-      // Skip sunk or disconnected players
-      if (player.sunk) return;
+    // Update player positions and handle cleanup
+    for (const playerId in this.state.players) {
+      const player = this.state.players[playerId];
+      
+      // Remove sunk players after 10 seconds to prevent "ghost ships" accumulating
+      if (player.sunk && now - player.lastSeen > 10000) {
+        console.log(`Removing sunk player ${player.name} (${playerId}) from game state after timeout`);
+        delete this.state.players[playerId];
+        continue;
+      }
       
       // Remove players that have been disconnected for too long (30 seconds)
       if (!player.connected && now - player.lastSeen > 30000) {
-        delete this.state.players[player.id];
-        return;
+        console.log(`Removing disconnected player ${player.name} (${playerId}) from game state after timeout`);
+        delete this.state.players[playerId];
+        continue;
       }
+      
+      // Skip position updates for sunk players
+      if (player.sunk) continue;
       
       // Update position based on speed and direction (works for both positive and negative speed)
       if (player.speed !== 0) {
@@ -274,7 +284,7 @@ class GameState {
           console.log(`Player ${player.name} moved to (${Math.round(player.x)}, ${Math.round(player.z)}) with speed ${player.speed}`);
         }
       }
-    });
+    }
     
     // Update cannon balls
     for (let i = this.state.cannonBalls.length - 1; i >= 0; i--) {

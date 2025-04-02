@@ -11,17 +11,29 @@ interface GameOverProps {
 }
 
 export default function GameOver({ score }: GameOverProps) {
-  const { restartGame } = useGameState();
+  const { restartGame, gameState } = useGameState();
   const { disconnect } = useSocket();
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [playerRank, setPlayerRank] = useState<number | null>(null);
   
-  // Load leaderboard when game over screen appears
+  // Automatically show leaderboard in game over screen
   useEffect(() => {
-    useGameState.getState().loadLeaderboard();
-  }, []);
+    // Add a short delay to ensure the leaderboard in state is updated with recent entry
+    const timer = setTimeout(() => {
+      if (gameState.leaderboard && gameState.leaderboard.length > 0) {
+        // Find the player's position on the leaderboard
+        const playerEntry = gameState.leaderboard.findIndex(entry => 
+          entry.score === score && entry.achievedAt === gameState.leaderboard[gameState.leaderboard.length - 1].achievedAt
+        );
+        setPlayerRank(playerEntry !== -1 ? playerEntry + 1 : null);
+      }
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [gameState.leaderboard, score]);
   
   // Handle restart
   const handleRestart = () => {
+    console.log("Restarting game, clearing state and disconnecting...");
     // Disconnect current socket
     disconnect();
     
@@ -58,30 +70,61 @@ export default function GameOver({ score }: GameOverProps) {
               <span className="ml-2 text-lg">gold</span>
             </div>
             
-            <Button 
-              variant="outline" 
-              className="mt-4"
-              onClick={() => setShowLeaderboard(prev => !prev)}
-            >
-              {showLeaderboard ? "Hide Leaderboard" : "View Leaderboard"}
-            </Button>
-            
-            {showLeaderboard && (
-              <div className="w-full mt-4">
-                <Leaderboard compact={true} />
+            {playerRank && (
+              <div className="text-center mt-2 text-amber-400">
+                Your rank: #{playerRank} on the leaderboard!
               </div>
             )}
+            
+            <div className="w-full mt-4 border border-gray-700 rounded-md overflow-hidden">
+              <div className="bg-gray-800 p-2 text-center font-bold">
+                <Trophy className="h-5 w-5 text-yellow-500 inline-block mr-2" />
+                Pirate Leaderboard
+              </div>
+              <div className="p-2 max-h-[200px] overflow-y-auto">
+                {gameState.leaderboard && gameState.leaderboard.length > 0 ? (
+                  <table className="w-full">
+                    <thead className="bg-gray-800 text-xs">
+                      <tr>
+                        <th className="p-2 text-left">#</th>
+                        <th className="p-2 text-left">Pirate</th>
+                        <th className="p-2 text-right">Gold</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gameState.leaderboard.map((entry, index) => (
+                        <tr 
+                          key={entry.id}
+                          className={`border-t border-gray-700 ${
+                            // Highlight the row if it's the player's score
+                            playerRank !== null && index === playerRank - 1 
+                              ? 'bg-amber-900/30' 
+                              : ''
+                          }`}
+                        >
+                          <td className="p-2">{index + 1}</td>
+                          <td className="p-2">{entry.playerName}</td>
+                          <td className="p-2 text-right">{entry.score}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="text-center py-4">Loading leaderboard...</div>
+                )}
+              </div>
+            </div>
           </div>
         </CardContent>
         
-        <CardFooter className="flex justify-center relative">
+        <CardFooter className="flex justify-center relative pt-4">
           <Button 
-            className="w-full"
+            className="w-full bg-amber-600 hover:bg-amber-700"
             size="lg"
             onClick={handleRestart}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
-            Try Again
+            Start Again
           </Button>
         </CardFooter>
       </Card>
