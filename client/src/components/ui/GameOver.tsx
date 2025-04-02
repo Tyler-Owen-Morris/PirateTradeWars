@@ -34,11 +34,12 @@ export default function GameOver({ score }: GameOverProps) {
   // Handle restart
   const handleRestart = () => {
     console.log("Restarting game, clearing state and disconnecting...");
-    // Disconnect current socket
-    disconnect();
-    
-    // Clear game state and restart
+    // First clear game state to prevent UI flicker
     restartGame();
+    // Then disconnect socket - this will trigger a clean reconnect
+    disconnect();
+    // Reset leaderboard view
+    setPlayerRank(null);
   };
   
   return (

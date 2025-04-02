@@ -90,11 +90,15 @@ export const useGameState = create<GameStateStore>()(
         isSunk: false,
         isTrading: false,
         gameState: {
-          ...get().gameState,
           player: null,
           otherPlayers: {},
           cannonBalls: [],
-          inventory: []
+          ports: [],
+          goods: [],
+          inventory: [],
+          nearestPort: null,
+          isNearPort: false,
+          leaderboard: []
         }
       });
     },
