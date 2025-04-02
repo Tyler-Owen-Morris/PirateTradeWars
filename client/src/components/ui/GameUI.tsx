@@ -124,41 +124,41 @@ export default function GameUI() {
       {/* Help tooltip button - always visible */}
       <HelpTooltip />
       
-      {/* Scuttle Ship button - only show when playing and not sunk, positioned on right side */}
+      {/* Scuttle Ship button - positioned above the port info */}
       {gameState.player && !isSunk && (
-        <div className="absolute right-4 bottom-20 z-50">
+        <div className="absolute bottom-20 right-4 z-50 flex flex-col gap-3">
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="destructive" className="flex items-center gap-2 shadow-lg">
+              <Button variant="destructive" className="flex items-center gap-2 shadow-lg bg-red-700 hover:bg-red-800 text-white font-bold border-2 border-red-900">
                 <Skull size={16} />
                 <span>Scuttle Ship</span>
               </Button>
             </DialogTrigger>
-          <DialogContent className="bg-black/90 border-amber-500 text-white">
-            <DialogHeader>
-              <DialogTitle className="text-amber-400">Scuttle Your Ship?</DialogTitle>
-              <DialogDescription className="text-gray-300">
-                This will end your current game and register your score on the leaderboard. Your ship and all cargo will be lost forever. This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="flex gap-2 justify-end mt-4">
-              <Button variant="outline" className="border-gray-500 text-gray-300 hover:bg-gray-800">
-                Cancel
-              </Button>
-              <Button 
-                variant="destructive" 
-                className="bg-red-700 hover:bg-red-800"
-                onClick={() => {
-                  useSocket.getState().scuttleShip();
-                  useAudio.getState().playExplosion();
-                }}
-              >
-                Scuttle Ship
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            <DialogContent className="bg-black/90 border-amber-500 text-white">
+              <DialogHeader>
+                <DialogTitle className="text-amber-400">Scuttle Your Ship?</DialogTitle>
+                <DialogDescription className="text-gray-300">
+                  This will end your current game and register your score on the leaderboard. Your ship and all cargo will be lost forever. This action cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="flex gap-2 justify-end mt-4">
+                <Button variant="outline" className="border-gray-500 text-gray-300 hover:bg-gray-800">
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  className="bg-red-700 hover:bg-red-800"
+                  onClick={() => {
+                    useSocket.getState().scuttleShip();
+                    useAudio.getState().playExplosion();
+                  }}
+                >
+                  Scuttle Ship
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       )}
       
       {/* Controls help */}
