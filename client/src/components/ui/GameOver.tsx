@@ -37,6 +37,9 @@ export default function GameOver({ score }: GameOverProps) {
     // Disconnect current socket
     disconnect();
     
+    // Clear persisted state
+    clearGameState();
+    
     // Clear game state and restart
     restartGame();
   };
