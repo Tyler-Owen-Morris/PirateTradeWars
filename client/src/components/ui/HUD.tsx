@@ -80,7 +80,7 @@ export default function HUD() {
       </div>
       
       {/* Compass and navigation - moved above help tooltip */}
-      <div className="absolute bottom-20 right-4 bg-black/50 p-3 rounded-md text-white">
+      <div className="absolute bottom-4 right-4 bg-black/50 p-3 rounded-md text-white">
         <div className="flex items-center">
           <Compass className="h-5 w-5 mr-2" />
           <div>
