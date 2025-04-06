@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { useGameState } from "./useGameState";
 import { PlayerState, SocketMessage, Vector3 } from "@/types";
 import { useAudio } from "./useAudio";
-import { useShip } from "./useShip"; // Import useShip hook
 
 interface SocketState {
   socket: WebSocket | null;
@@ -11,7 +10,7 @@ interface SocketState {
   error: string | null;
 
   // Connection management
-  connect: (playerId?: string) => void;
+  connect: () => void;
   disconnect: () => void;
   resetError: () => void;
 
@@ -38,15 +37,6 @@ interface SocketState {
   ) => void;
 }
 
-// Function to persist game state (Implementation needed)
-const persistGameState = (gameState: any, playerId: string, shipType: string) => {
-  localStorage.setItem(
-    `gameState-${playerId}`,
-    JSON.stringify({ gameState, shipType })
-  );
-};
-
-
 export const useSocket = create<SocketState>((set, get) => {
   return {
     socket: null,
@@ -54,7 +44,7 @@ export const useSocket = create<SocketState>((set, get) => {
     playerId: null,
     error: null,
 
-    connect: (playerId?: string) => {
+    connect: () => {
       try {
         // Close existing connection if any
         if (get().socket) {
@@ -65,26 +55,13 @@ export const useSocket = create<SocketState>((set, get) => {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         // Use a specific game WebSocket path to avoid conflicts with Vite's websocket
         const wsUrl = `${protocol}//${window.location.host}/game-ws`;
-        console.log("Connecting to WebSocket URL:", wsUrl, playerId ? "(with reconnect)" : "");
+        console.log("Connecting to WebSocket URL:", wsUrl);
 
         const socket = new WebSocket(wsUrl);
 
         socket.onopen = () => {
           console.log("WebSocket connection established");
           set({ connected: true, error: null });
-          // Attempt to resume game on connection if playerId is provided
-          if (playerId) {
-            const persistedState = localStorage.getItem(`gameState-${playerId}`);
-            if (persistedState) {
-              try {
-                const { gameState, shipType } = JSON.parse(persistedState);
-                useGameState.setState({ gameState, shipType }); // Update the game state
-              } catch (error) {
-                console.error("Error resuming game:", error);
-              }
-            }
-          }
-
         };
 
         socket.onclose = () => {
@@ -116,15 +93,6 @@ export const useSocket = create<SocketState>((set, get) => {
               case "gameUpdate":
                 // Update game state with received data
                 get().onGameUpdate(message.players, message.cannonBalls);
-
-                // Persist state after each update
-                const gameState = useGameState.getState().gameState;
-                const { playerId } = get();
-                const shipType = useShip.getState().selectedShip?.name;
-
-                if (gameState && playerId && shipType) {
-                  persistGameState(gameState, playerId, shipType);
-                }
                 break;
 
               case "tradeSuccess":
