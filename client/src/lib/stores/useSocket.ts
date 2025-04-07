@@ -7,264 +7,234 @@ interface SocketState {
   socket: WebSocket | null;
   connected: boolean;
   playerId: string | null;
+  playerName: string | null;
   error: string | null;
 
-  // Connection management
   connect: () => void;
   disconnect: () => void;
   resetError: () => void;
 
-  // Message sending
   register: (name: string, shipType: string) => void;
-  sendInput: (
-    speed: number,
-    direction: Vector3,
-    firing: boolean,
-    rotationY?: number,
-  ) => void;
-  sendTrade: (
-    portId: number,
-    action: "buy" | "sell",
-    goodId: number,
-    quantity: number,
-  ) => void;
+  sendInput: (speed: number, direction: Vector3, firing: boolean, rotationY?: number) => void;
+  sendTrade: (portId: number, action: "buy" | "sell", goodId: number, quantity: number) => void;
   scuttleShip: () => void;
 
-  // Receive handlers
-  onGameUpdate: (
-    players: Record<string, PlayerState>,
-    cannonBalls: any[],
-  ) => void;
+  onGameUpdate: (players: Record<string, PlayerState>, cannonBalls: any[]) => void;
 }
 
-export const useSocket = create<SocketState>((set, get) => {
-  return {
-    socket: null,
-    connected: false,
-    playerId: null,
-    error: null,
+export const useSocket = create<SocketState>((set, get) => ({
+  socket: null,
+  connected: false,
+  playerId: null,
+  playerName: null,
+  error: null,
 
-    connect: () => {
-      try {
-        // Close existing connection if any
-        if (get().socket) {
-          get().socket?.close();
+  connect: () => {
+    try {
+      if (get().socket) {
+        get().socket?.close();
+      }
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}/game-ws`;
+      console.log("Connecting to WebSocket URL:", wsUrl);
+
+      const socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log("WebSocket connection established");
+        set({ connected: true, error: null });
+
+        // Check localStorage for existing player data
+        const storedPlayerId = localStorage.getItem("playerId");
+        const storedName = localStorage.getItem("playerName");
+
+        if (storedPlayerId && storedName) {
+          // Reconnect with existing ID and name
+          socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name: storedName }));
+        } else {
+          // New player, prompt for name elsewhere and call register
+          set({ error: "Please provide a name to join the game" });
         }
+      };
 
-        // Create new WebSocket connection
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        // Use a specific game WebSocket path to avoid conflicts with Vite's websocket
-        const wsUrl = `${protocol}//${window.location.host}/game-ws`;
-        console.log("Connecting to WebSocket URL:", wsUrl);
+      socket.onclose = () => {
+        console.log("WebSocket connection closed");
+        set({ connected: false });
+      };
 
-        const socket = new WebSocket(wsUrl);
+      socket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        set({ error: "Connection error. Please try again." });
+      };
 
-        socket.onopen = () => {
-          console.log("WebSocket connection established");
-          set({ connected: true, error: null });
-        };
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as SocketMessage;
 
-        socket.onclose = () => {
-          console.log("WebSocket connection closed");
-          set({ connected: false, playerId: null });
-        };
+          switch (message.type) {
+            case "welcome":
+              console.log("Received welcome message:", message);
+              break;
 
-        socket.onerror = (error) => {
-          console.error("WebSocket error:", error);
-          set({ error: "Connection error. Please try again." });
-        };
+            case "connected":
+              console.log("Successfully connected:", message);
+              set({ playerId: message.playerId, playerName: message.name, error: null });
+              localStorage.setItem("playerId", message.playerId);
+              localStorage.setItem("playerName", message.name);
+              useGameState.setState({ isRegistered: true });
+              if (message.players) {
+                get().onGameUpdate(message.players, message.cannonBalls || []);
+              }
+              break;
 
-        socket.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data) as SocketMessage;
+            case "reconnected":
+              console.log("Successfully reconnected:", message);
+              set({ playerId: message.playerId, playerName: message.name, error: null });
+              useGameState.setState({ isPlaying: true });
+              if (message.players) {
+                get().onGameUpdate(message.players, message.cannonBalls || []);
+              }
+              break;
 
-            switch (message.type) {
-              case "welcome":
-                console.log("Received welcome message:", message);
-                break;
+            case "fullSync":
+              get().onGameUpdate(message.players, message.cannonBalls || []);
+              break;
 
-              case "registered":
-                console.log("Successfully registered:", message);
-                set({ playerId: message.playerId, error: null });
-                // Set the player as registered in game state
-                useGameState.setState({ isRegistered: true });
-                break;
+            case "registered":
+              console.log("Successfully registered:", message);
+              set({ playerId: message.playerId, error: null });
+              useGameState.setState({ isRegistered: true });
+              break;
 
-              case "gameUpdate":
-                // Update game state with received data
-                get().onGameUpdate(message.players, message.cannonBalls);
-                break;
+            case "gameUpdate":
+              get().onGameUpdate(message.players, message.cannonBalls);
+              break;
 
-              case "tradeSuccess":
-                // Play success sound
-                useAudio.getState().playSuccess();
+            case "playerDead":
+              console.log("Player dead:", message.id);
+              useGameState.getState().updateOtherPlayers(message.players);
+              break;
 
-                // Update player gold and inventory if present in the message
-                if (message.gold !== undefined) {
-                  // Update player's gold in the game state
-                  const gameState = useGameState.getState();
-                  if (gameState.gameState.player) {
-                    gameState.gameState.player.gold = message.gold;
-                  }
-                }
+            case "nameError":
+              console.error("Name error:", message.message);
+              set({ error: message.message });
+              localStorage.removeItem("playerName"); // Clear invalid name
+              break;
 
-                // Update inventory if present
-                if (message.inventory && Array.isArray(message.inventory)) {
-                  // Update inventory in game state
-                  useGameState
-                    .getState()
-                    .updatePlayerInventory(message.inventory);
-                }
-                break;
-
-              case "gameEnd":
-                console.log("Game ended:", message);
-                // Update game state with the reason for game ending
+            case "tradeSuccess":
+              useAudio.getState().playSuccess();
+              if (message.gold !== undefined) {
                 const gameState = useGameState.getState();
-
-                // Update leaderboard data
-                if (message.leaderboard && Array.isArray(message.leaderboard)) {
-                  console.log(
-                    "Updating leaderboard with",
-                    message.leaderboard.length,
-                    "entries",
-                  );
-                  gameState.gameState.leaderboard = message.leaderboard;
-                } else {
-                  console.warn(
-                    "Received gameEnd without valid leaderboard data",
-                  );
+                if (gameState.gameState.player) {
+                  gameState.gameState.player.gold = message.gold;
                 }
+              }
+              if (message.inventory && Array.isArray(message.inventory)) {
+                useGameState.getState().updatePlayerInventory(message.inventory);
+              }
+              break;
 
-                // Set player as sunk to show game over screen
-                console.log("Setting isSunk to true to show game over screen");
-                // gameState.isSunk = true;
-                useGameState.setState({ isSunk: true });
+            case "gameEnd":
+              console.log("Game ended:", message);
+              if (message.leaderboard && Array.isArray(message.leaderboard)) {
+                useGameState.setState((state) => ({
+                  gameState: { ...state.gameState, leaderboard: message.leaderboard },
+                }));
+              }
+              useGameState.setState({ isSunk: true });
+              useAudio.getState().playExplosion();
+              break;
 
-                // Play explosion sound
-                useAudio.getState().playExplosion();
-                break;
+            case "error":
+              console.error("Server error:", message.message);
+              set({ error: message.message });
+              break;
 
-              case "error":
-                console.error("Server error:", message.message);
-                set({ error: message.message });
-                break;
-
-              default:
-                console.log("Unknown message type:", message);
-            }
-          } catch (error) {
-            console.error("Error parsing WebSocket message:", error);
+            default:
+              console.log("Unknown message type:", message);
           }
-        };
-
-        set({ socket });
-      } catch (error) {
-        console.error("Failed to connect WebSocket:", error);
-        set({
-          error:
-            "Failed to establish connection. Please refresh and try again.",
-        });
-      }
-    },
-
-    disconnect: () => {
-      const { socket } = get();
-      if (socket) {
-        socket.close();
-        set({ socket: null, connected: false, playerId: null });
-      }
-    },
-
-    resetError: () => {
-      set({ error: null });
-    },
-
-    register: (name, shipType) => {
-      const { socket, connected } = get();
-      if (!socket || !connected) {
-        set({ error: "Not connected. Please refresh and try again." });
-        return;
-      }
-
-      const message = {
-        type: "register",
-        name,
-        shipType,
-      };
-
-      socket.send(JSON.stringify(message));
-    },
-
-    sendInput: (speed, direction, firing, rotationY) => {
-      const { socket, connected } = get();
-      if (!socket || !connected) return;
-
-      const message = {
-        type: "input",
-        rotationY,
-        speed,
-        direction,
-        firing,
-      };
-
-      socket.send(JSON.stringify(message));
-    },
-
-    sendTrade: (portId, action, goodId, quantity) => {
-      const { socket, connected } = get();
-      if (!socket || !connected) {
-        set({ error: "Not connected. Please refresh and try again." });
-        return;
-      }
-
-      const message = {
-        type: "trade",
-        portId,
-        action,
-        goodId,
-        quantity,
-      };
-
-      socket.send(JSON.stringify(message));
-    },
-
-    scuttleShip: () => {
-      const { socket, connected } = get();
-      if (!socket || !connected) {
-        set({ error: "Not connected. Please refresh and try again." });
-        return;
-      }
-
-      const message = {
-        type: "scuttle",
-      };
-
-      socket.send(JSON.stringify(message));
-    },
-
-    onGameUpdate: (players, cannonBalls) => {
-      // Update game state with received data
-      useGameState.getState().updateOtherPlayers(players);
-      useGameState.getState().updateCannonBalls(cannonBalls);
-
-      // Check for hits (play sound if player was hit)
-      const playerId = get().playerId;
-      if (playerId && players[playerId]) {
-        const player = players[playerId];
-        const gameState = useGameState.getState();
-
-        // Check if player HP decreased
-        if (
-          gameState.gameState.player &&
-          player.hp < gameState.gameState.player.hp
-        ) {
-          useAudio.getState().playHit();
+        } catch (error) {
+          console.error("Error parsing WebSocket message:", error);
         }
+      };
 
-        // Update player state
-        gameState.updatePlayer(player);
+      set({ socket });
+    } catch (error) {
+      console.error("Failed to connect WebSocket:", error);
+      set({ error: "Failed to establish connection. Please refresh and try again." });
+    }
+  },
+
+  disconnect: () => {
+    const { socket } = get();
+    if (socket) {
+      socket.close();
+      set({ socket: null, connected: false });
+    }
+  },
+
+  resetError: () => {
+    set({ error: null });
+  },
+
+  register: (name, shipType) => {
+    const { socket, connected } = get();
+    if (!socket || !connected) {
+      set({ error: "Not connected. Please refresh and try again." });
+      return;
+    }
+
+    const storedPlayerId = localStorage.getItem("playerId");
+    if (storedPlayerId) {
+      socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name }));
+    } else {
+      socket.send(JSON.stringify({ type: "connect", name, shipType }));
+    }
+  },
+
+  sendInput: (speed, direction, firing, rotationY) => {
+    const { socket, connected } = get();
+    if (!socket || !connected) return;
+
+    const message = { type: "input", rotationY, speed, direction, firing };
+    socket.send(JSON.stringify(message));
+  },
+
+  sendTrade: (portId, action, goodId, quantity) => {
+    const { socket, connected } = get();
+    if (!socket || !connected) {
+      set({ error: "Not connected. Please refresh and try again." });
+      return;
+    }
+
+    const message = { type: "trade", portId, action, goodId, quantity };
+    socket.send(JSON.stringify(message));
+  },
+
+  scuttleShip: () => {
+    const { socket, connected } = get();
+    if (!socket || !connected) {
+      set({ error: "Not connected. Please refresh and try again." });
+      return;
+    }
+
+    const message = { type: "scuttle" };
+    socket.send(JSON.stringify(message));
+  },
+
+  onGameUpdate: (players, cannonBalls) => {
+    useGameState.getState().updateOtherPlayers(players);
+    useGameState.getState().updateCannonBalls(cannonBalls);
+
+    const playerId = get().playerId;
+    if (playerId && players[playerId]) {
+      const player = players[playerId];
+      const gameState = useGameState.getState();
+      if (gameState.gameState.player && player.hp < gameState.gameState.player.hp) {
+        useAudio.getState().playHit();
       }
-    },
-  };
-});
+      gameState.updatePlayer(player);
+    }
+  },
+}));

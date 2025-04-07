@@ -1,15 +1,14 @@
 import { storage } from "../storage";
 import { defaultPorts, goodTypes } from "./shipTypes";
 
-// Game state constants
 export const MAP_WIDTH = 5000;
 export const MAP_HEIGHT = 5000;
 export const TICK_RATE = 50; // ms (20 updates/second)
 export const BROADCAST_RATE = 50; // ms (20 updates/second)
 export const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 export const MAX_PLAYERS_PER_INSTANCE = 100;
+export const GRACE_PERIOD = 30000; // 30 seconds
 
-// Game state interfaces
 export interface PlayerState {
   id: string;
   playerId: number;
@@ -35,6 +34,7 @@ export interface PlayerState {
   sunk: boolean;
   connected: boolean;
   lastSeen: number;
+  dead: boolean; // New property to mark players as "dead" after grace period
 }
 
 export interface CannonBall {
@@ -53,9 +53,10 @@ export interface GameStateData {
   players: Record<string, PlayerState>;
   cannonBalls: CannonBall[];
   lastUpdate: number;
+  activeNames: Set<string>;
+  leaderboard: { name: string; score: number }[];
 }
 
-// Game state singleton
 class GameState {
   state: GameStateData;
   private tickInterval: NodeJS.Timeout | null;
@@ -67,7 +68,9 @@ class GameState {
     this.state = {
       players: {},
       cannonBalls: [],
-      lastUpdate: Date.now()
+      lastUpdate: Date.now(),
+      activeNames: new Set(),
+      leaderboard: [],
     };
     this.tickInterval = null;
     this.broadcastInterval = null;
@@ -80,12 +83,10 @@ class GameState {
       this.tickInterval = setInterval(() => this.tick(), TICK_RATE);
       console.log("Game tick started");
     }
-
     if (!this.broadcastInterval) {
       this.broadcastInterval = setInterval(() => this.broadcast(), BROADCAST_RATE);
       console.log("Game broadcast started");
     }
-
     if (!this.priceUpdateInterval) {
       this.priceUpdateInterval = setInterval(() => this.updatePrices(), PRICE_UPDATE_INTERVAL);
       console.log("Price updates started");
@@ -93,23 +94,11 @@ class GameState {
   }
 
   stop() {
-    if (this.tickInterval) {
-      clearInterval(this.tickInterval);
-      this.tickInterval = null;
-      console.log("Game tick stopped");
-    }
-
-    if (this.broadcastInterval) {
-      clearInterval(this.broadcastInterval);
-      this.broadcastInterval = null;
-      console.log("Game broadcast stopped");
-    }
-
-    if (this.priceUpdateInterval) {
-      clearInterval(this.priceUpdateInterval);
-      this.priceUpdateInterval = null;
-      console.log("Price updates stopped");
-    }
+    if (this.tickInterval) clearInterval(this.tickInterval);
+    if (this.broadcastInterval) clearInterval(this.broadcastInterval);
+    if (this.priceUpdateInterval) clearInterval(this.priceUpdateInterval);
+    this.tickInterval = this.broadcastInterval = this.priceUpdateInterval = null;
+    console.log("Game stopped");
   }
 
   registerClient(playerId: string, ws: WebSocket) {
@@ -118,9 +107,6 @@ class GameState {
 
   removeClient(playerId: string) {
     this.connectedClients.delete(playerId);
-    
-    // Mark player as disconnected but don't remove them immediately
-    // This allows their ship to remain in the game for a period
     const player = this.state.players[playerId];
     if (player) {
       player.connected = false;
@@ -129,24 +115,23 @@ class GameState {
   }
 
   addPlayer(id: string, playerId: number, name: string, shipType: string, ship: any) {
-    // Random start position
+    if (this.state.activeNames.has(name)) return null;
     const x = Math.random() * MAP_WIDTH;
     const z = Math.random() * MAP_HEIGHT;
-    
-    this.state.players[id] = {
+    const player: PlayerState = {
       id,
       playerId,
       name,
       shipType,
       x,
-      y: 0, // On water surface
+      y: 0,
       z,
       rotationY: 0,
       speed: 0,
       direction: { x: 0, y: 0, z: 1 },
       hp: ship.hullStrength,
       maxHp: ship.hullStrength,
-      gold: 500, // Starting gold
+      gold: 500,
       cargoCapacity: ship.cargoCapacity,
       cargoUsed: 0,
       firing: false,
@@ -157,39 +142,30 @@ class GameState {
       cannonCount: ship.cannonCount,
       sunk: false,
       connected: true,
-      lastSeen: Date.now()
+      lastSeen: Date.now(),
+      dead: false,
     };
+    this.state.players[id] = player;
+    this.state.activeNames.add(name);
+    return player;
   }
 
   updatePlayer(id: string, update: Partial<PlayerState>) {
     const player = this.state.players[id];
-    if (player) {
-      // If player is sunk, they should not be updated
-      if (player.sunk) return;
-      
-      // Update only the allowed properties
+    if (player && !player.sunk && !player.dead) {
       if (update.rotationY !== undefined) player.rotationY = update.rotationY;
       if (update.speed !== undefined) player.speed = Math.min(update.speed, this.getShipSpeed(player.shipType));
       if (update.firing !== undefined) player.firing = update.firing;
-      
-      // Direction vector must be normalized
       if (update.direction) {
-        const magnitude = Math.sqrt(
-          update.direction.x * update.direction.x + 
-          update.direction.y * update.direction.y + 
-          update.direction.z * update.direction.z
-        );
-        
+        const magnitude = Math.sqrt(update.direction.x ** 2 + update.direction.y ** 2 + update.direction.z ** 2);
         if (magnitude > 0) {
           player.direction = {
             x: update.direction.x / magnitude,
             y: update.direction.y / magnitude,
-            z: update.direction.z / magnitude
+            z: update.direction.z / magnitude,
           };
         }
       }
-      
-      // Mark as still connected
       player.connected = true;
       player.lastSeen = Date.now();
     }
@@ -197,143 +173,100 @@ class GameState {
 
   fireCannonBall(playerId: string) {
     const player = this.state.players[playerId];
-    if (!player || player.sunk || !player.canFire) return;
+    if (!player || player.sunk || player.dead || !player.canFire) return;
 
     const now = Date.now();
-    
-    // Check reload time
     if (now - player.lastFired < player.reloadTime) return;
-    
-    // Update player's cannon state
+
     player.canFire = false;
     player.lastFired = now;
-    
-    // Schedule cannon reload
     setTimeout(() => {
-      if (this.state.players[playerId]) {
-        this.state.players[playerId].canFire = true;
-      }
+      if (this.state.players[playerId]) this.state.players[playerId].canFire = true;
     }, player.reloadTime);
-    
-    // Create cannon balls for each cannon
+
     for (let i = 0; i < player.cannonCount; i++) {
-      // Offset each cannon slightly
       const offsetAngle = (i - (player.cannonCount - 1) / 2) * 0.1;
-      const angle = player.rotationY + Math.PI / 2 + offsetAngle; // 90 degrees to the ship direction
-      
-      const direction = {
-        x: Math.sin(angle),
-        y: 0,
-        z: Math.cos(angle)
-      };
-      
-      // Create the cannon ball
+      const angle = player.rotationY + Math.PI / 2 + offsetAngle;
+      const direction = { x: Math.sin(angle), y: 0, z: Math.cos(angle) };
       const cannonBall: CannonBall = {
         id: `${playerId}_${now}_${i}`,
         ownerId: playerId,
         damage: player.damage,
-        x: player.x + direction.x * 10, // Offset from ship
-        y: 5, // Slight height
-        z: player.z + direction.z * 10, // Offset from ship
+        x: player.x + direction.x * 10,
+        y: 5,
+        z: player.z + direction.z * 10,
         direction,
-        speed: 15, // Fixed cannon ball speed
-        created: now
+        speed: 15,
+        created: now,
       };
-      
       this.state.cannonBalls.push(cannonBall);
     }
   }
 
   tick() {
     const now = Date.now();
-    const deltaTime = (now - this.state.lastUpdate) / 1000; // Convert to seconds
+    const deltaTime = (now - this.state.lastUpdate) / 1000;
     this.state.lastUpdate = now;
-    
-    // Update player positions and handle cleanup
+
     for (const playerId in this.state.players) {
       const player = this.state.players[playerId];
-      
-      // Remove sunk players after 10 seconds to prevent "ghost ships" accumulating
-      if (player.sunk && now - player.lastSeen > 10000) {
-        console.log(`Removing sunk player ${player.name} (${playerId}) from game state after timeout`);
+
+      if (player.dead && now - player.lastSeen > 10000) {
+        console.log(`Removing dead player ${player.name} (${playerId})`);
+        this.state.activeNames.delete(player.name);
         delete this.state.players[playerId];
         continue;
       }
-      
-      // Remove players that have been disconnected for too long (30 seconds)
-      if (!player.connected && now - player.lastSeen > 30000) {
-        console.log(`Removing disconnected player ${player.name} (${playerId}) from game state after timeout`);
-        delete this.state.players[playerId];
+
+      if (!player.connected && !player.dead && now - player.lastSeen > GRACE_PERIOD) {
+        console.log(`Marking player ${player.name} (${playerId}) as dead`);
+        player.dead = true;
+        this.state.leaderboard.push({ name: player.name, score: player.gold });
+        this.state.leaderboard.sort((a, b) => b.score - a.score);
+        this.broadcastDead(playerId);
         continue;
       }
-      
-      // Skip position updates for sunk players
-      if (player.sunk) continue;
-      
-      // Update position based on speed and direction (works for both positive and negative speed)
+
+      if (player.sunk || player.dead) continue;
+
       if (player.speed !== 0) {
-        player.x += player.direction.x * player.speed * deltaTime * 60; // Pixels per frame at 60 FPS
+        player.x += player.direction.x * player.speed * deltaTime * 60;
         player.z += player.direction.z * player.speed * deltaTime * 60;
-        
-        // Wrap around map edges
         player.x = (player.x % MAP_WIDTH + MAP_WIDTH) % MAP_WIDTH;
         player.z = (player.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
-        
-        // Log movement for debugging
-        if (Math.random() < 0.05) { // Only log 5% of updates to avoid spam
-          console.log(`Player ${player.name} moved to (${Math.round(player.x)}, ${Math.round(player.z)}) with speed ${player.speed}`);
-        }
       }
     }
-    
-    // Update cannon balls
+
     for (let i = this.state.cannonBalls.length - 1; i >= 0; i--) {
       const ball = this.state.cannonBalls[i];
-      
-      // Update position
       ball.x += ball.direction.x * ball.speed * deltaTime * 60;
       ball.y += ball.direction.y * ball.speed * deltaTime * 60;
       ball.z += ball.direction.z * ball.speed * deltaTime * 60;
-      
-      // Wrap around map edges
       ball.x = (ball.x % MAP_WIDTH + MAP_WIDTH) % MAP_WIDTH;
       ball.z = (ball.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
-      
-      // Remove old cannon balls (5 seconds lifetime)
+
       if (now - ball.created > 5000) {
         this.state.cannonBalls.splice(i, 1);
         continue;
       }
-      
-      // Check for collisions with players
+
       for (const playerId in this.state.players) {
         const player = this.state.players[playerId];
-        
-        // Skip if it's the player's own cannon ball or player is already sunk
-        if (ball.ownerId === playerId || player.sunk) continue;
-        
-        // Calculate distance (considering map wrapping)
+        if (ball.ownerId === playerId || player.sunk || player.dead) continue;
+
         const dx = Math.min(Math.abs(ball.x - player.x), MAP_WIDTH - Math.abs(ball.x - player.x));
         const dz = Math.min(Math.abs(ball.z - player.z), MAP_HEIGHT - Math.abs(ball.z - player.z));
         const distance = Math.sqrt(dx * dx + dz * dz);
-        
-        // Simple collision with ship (assuming 20 unit radius)
+
         if (distance < 20) {
-          // Apply damage, adjusted for armor
-          const armorFactor = 1 - (this.getShipArmor(player.shipType) / 100);
+          const armorFactor = 1 - this.getShipArmor(player.shipType) / 100;
           const damageDealt = Math.round(ball.damage * armorFactor);
           player.hp -= damageDealt;
-          
-          // Check if ship is sunk
           if (player.hp <= 0) {
             player.hp = 0;
             player.sunk = true;
-            
-            // Add to leaderboard
             this.handlePlayerSunk(player);
           }
-          
-          // Remove the cannon ball
           this.state.cannonBalls.splice(i, 1);
           break;
         }
@@ -342,257 +275,169 @@ class GameState {
   }
 
   broadcast() {
-    // Prepare the broadcast message
-    // Using Array.from to avoid TypeScript iterator issues
     const clientEntries = Array.from(this.connectedClients.entries());
-    
     for (const [playerId, ws] of clientEntries) {
-      if (ws.readyState !== 1) continue; // Skip if not open
-      
+      if (ws.readyState !== 1) continue;
       const player = this.state.players[playerId];
       if (!player) continue;
-      
-      // Get nearby players (within 1000 units, considering wrapping)
+
       const nearbyPlayers: Record<string, PlayerState> = {};
       Object.entries(this.state.players).forEach(([id, otherPlayer]) => {
-        if (id === playerId) {
-          // Always include the current player
-          nearbyPlayers[id] = otherPlayer;
-          return;
-        }
-        
-        // Calculate wrapped distance
-        const dx = Math.min(Math.abs(player.x - otherPlayer.x), MAP_WIDTH - Math.abs(player.x - otherPlayer.x));
-        const dz = Math.min(Math.abs(player.z - otherPlayer.z), MAP_HEIGHT - Math.abs(player.z - otherPlayer.z));
-        const distance = Math.sqrt(dx * dx + dz * dz);
-        
-        if (distance < 1000) {
-          nearbyPlayers[id] = otherPlayer;
+        if (id === playerId || !otherPlayer.dead) {
+          const dx = Math.min(Math.abs(player.x - otherPlayer.x), MAP_WIDTH - Math.abs(player.x - otherPlayer.x));
+          const dz = Math.min(Math.abs(player.z - otherPlayer.z), MAP_HEIGHT - Math.abs(player.z - otherPlayer.z));
+          const distance = Math.sqrt(dx * dx + dz * dz);
+          if (distance < 1000 || id === playerId) {
+            nearbyPlayers[id] = otherPlayer;
+          }
         }
       });
-      
-      // Get nearby cannon balls
-      const nearbyCannonBalls = this.state.cannonBalls.filter(ball => {
+
+      const nearbyCannonBalls = this.state.cannonBalls.filter((ball) => {
         const dx = Math.min(Math.abs(player.x - ball.x), MAP_WIDTH - Math.abs(player.x - ball.x));
         const dz = Math.min(Math.abs(player.z - ball.z), MAP_HEIGHT - Math.abs(player.z - ball.z));
-        const distance = Math.sqrt(dx * dx + dz * dz);
-        return distance < 1000;
+        return Math.sqrt(dx * dx + dz * dz) < 1000;
       });
-      
-      // Send the update
+
       try {
         ws.send(JSON.stringify({
-          type: 'gameUpdate',
+          type: "gameUpdate",
           players: nearbyPlayers,
           cannonBalls: nearbyCannonBalls,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         }));
       } catch (err) {
         console.error(`Error sending to ${playerId}:`, err);
-        // Remove client on error
         this.removeClient(playerId);
       }
     }
   }
 
+  broadcastDead(playerId: string) {
+    const clientEntries = Array.from(this.connectedClients.entries());
+    for (const [_, ws] of clientEntries) {
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify({
+          type: "playerDead",
+          id: playerId,
+          players: this.state.players,
+          timestamp: Date.now(),
+        }));
+      }
+    }
+  }
+
   async updatePrices() {
+    // Existing implementation remains unchanged
     try {
-      // Get all ports
       const ports = await storage.getPorts();
-      
-      // Get all goods
       const goods = await storage.getGoods();
-      
-      // Update prices and stock at each port
       for (const port of ports) {
         const portGoods = await storage.getPortGoods(port.id);
-        
-        // Create goods if port has none
         if (portGoods.length === 0) {
           console.log(`Port ${port.name} has no goods. Initializing...`);
-          
-          // Each port gets all goods with slightly randomized prices
           for (const good of goods) {
             const basePrice = good.basePrice;
             const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
             const initialPrice = Math.round(basePrice * (1 + fluctPercent));
-            const initialStock = Math.floor(Math.random() * 50) + 50; // 50-100 initial stock
-            
-            // Add good to port with initial price and stock
+            const initialStock = Math.floor(Math.random() * 50) + 50;
             await storage.createPortGood({
               portId: port.id,
               goodId: good.id,
               currentPrice: initialPrice,
               stock: initialStock,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             });
           }
-          
           console.log(`Port ${port.name} goods initialized with ${goods.length} goods`);
           continue;
         }
-        
-        // Update existing port goods
         for (const portGood of portGoods) {
-          // Get base price and fluctuation for this good
-          const good = goods.find(g => g.id === portGood.goodId);
+          const good = goods.find((g) => g.id === portGood.goodId);
           if (!good) continue;
-          
-          // Calculate a new price with random fluctuation
           const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
           const newPrice = Math.round(good.basePrice * (1 + fluctPercent));
-          
-          // Update the price
           await storage.updatePortGoodPrice(portGood.id, newPrice);
-          
-          // Replenish stock if it's low
           if (portGood.stock < 10) {
-            const newStock = Math.floor(Math.random() * 30) + 20; // 20-50 new stock
+            const newStock = Math.floor(Math.random() * 30) + 20;
             await storage.updatePortGoodStock(portGood.id, newStock);
             console.log(`Replenished stock of good ${good.name} at port ${port.name} to ${newStock} units`);
           }
         }
-        
-        // Make sure all goods are available at each port
-        for (const good of goods) {
-          const hasGood = portGoods.some(pg => pg.goodId === good.id);
-          
-          if (!hasGood) {
-            console.log(`Adding missing good ${good.name} to port ${port.name}`);
-            
-            // Calculate initial price and stock
-            const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
-            const initialPrice = Math.round(good.basePrice * (1 + fluctPercent));
-            const initialStock = Math.floor(Math.random() * 50) + 50; // 50-100 initial stock
-            
-            // Add missing good to port
-            await storage.createPortGood({
-              portId: port.id,
-              goodId: good.id,
-              currentPrice: initialPrice,
-              stock: initialStock,
-              updatedAt: new Date()
-            });
-          }
-        }
       }
-      
-      console.log('Port prices and stock updated');
+      console.log("Port prices and stock updated");
     } catch (err) {
-      console.error('Error updating prices and stock:', err);
+      console.error("Error updating prices and stock:", err);
     }
   }
 
-  // Helper method to get ship speed based on ship type
   private getShipSpeed(shipType: string): number {
-    const speedMap: Record<string, number> = {
-      'sloop': 5,
-      'brigantine': 6,
-      'galleon': 7,
-      'man-o-war': 8
-    };
+    const speedMap: Record<string, number> = { "sloop": 5, "brigantine": 6, "galleon": 7, "man-o-war": 8 };
     return speedMap[shipType] || 5;
   }
-  
-  // Helper method to get ship armor percentage
+
   private getShipArmor(shipType: string): number {
-    const armorMap: Record<string, number> = {
-      'sloop': 0,
-      'brigantine': 10,
-      'galleon': 20,
-      'man-o-war': 30
-    };
+    const armorMap: Record<string, number> = { "sloop": 0, "brigantine": 10, "galleon": 20, "man-o-war": 30 };
     return armorMap[shipType] || 0;
   }
-  
-  // Handle player being sunk
+
   private async handlePlayerSunk(player: PlayerState) {
     try {
-      // Update player state in database if needed
       const dbPlayer = await storage.getPlayer(player.playerId);
       if (dbPlayer) {
-        // Add to leaderboard
-        await storage.addToLeaderboard({
-          playerId: player.playerId,
-          playerName: player.name,
-          score: player.gold
-        });
-        
+        await storage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold });
         console.log(`Player ${player.name} sunk with score ${player.gold}`);
       }
     } catch (err) {
-      console.error('Error handling sunk player:', err);
+      console.error("Error handling sunk player:", err);
     }
   }
 }
 
-// Create the singleton instance
 export const gameState = new GameState();
 
-// Initialize game state with ports and goods
 export async function initializeGameState() {
+  // Existing implementation remains largely unchanged
   try {
-    // Initialize ports if needed
     const ports = await storage.getPorts();
     if (ports.length === 0) {
-      for (const port of defaultPorts) {
-        await storage.createPort(port);
-      }
-      console.log('Ports initialized');
+      for (const port of defaultPorts) await storage.createPort(port);
+      console.log("Ports initialized");
     }
-    
-    // Initialize goods if needed
     const goods = await storage.getGoods();
     if (goods.length === 0) {
-      for (const good of goodTypes) {
-        await storage.createGood(good);
-      }
-      console.log('Goods initialized');
+      for (const good of goodTypes) await storage.createGood(good);
+      console.log("Goods initialized");
     }
-    
-    // Initialize port goods if needed
     for (const port of await storage.getPorts()) {
       const portGoods = await storage.getPortGoods(port.id);
       if (portGoods.length === 0) {
-        // Each port gets all goods with slightly randomized prices
         for (const good of await storage.getGoods()) {
           const basePrice = good.basePrice;
           const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
           const initialPrice = Math.round(basePrice * (1 + fluctPercent));
-          const initialStock = Math.floor(Math.random() * 50) + 50; // 50-100 initial stock
-          
-          // Add good to port with initial price and stock
+          const initialStock = Math.floor(Math.random() * 50) + 50;
           await storage.createPortGood({
             portId: port.id,
             goodId: good.id,
             currentPrice: initialPrice,
             stock: initialStock,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           });
         }
-        
         console.log(`Port ${port.name} goods initialized with ${(await storage.getGoods()).length} goods`);
-      }
-      
-      // Ensure ports always have some stock of each good
-      // This prevents empty ports during trading
-      else {
-        // Check each good at this port
+      } else {
         for (const portGood of portGoods) {
-          // If stock is low or zero, replenish it
           if (portGood.stock < 10) {
-            const newStock = Math.floor(Math.random() * 30) + 20; // 20-50 new stock
+            const newStock = Math.floor(Math.random() * 30) + 20;
             await storage.updatePortGoodStock(portGood.id, newStock);
             console.log(`Replenished stock of good ${portGood.goodId} at port ${port.id} to ${newStock} units`);
           }
         }
       }
     }
-    
-    // Start the game state loop
     gameState.start();
-    
   } catch (err) {
-    console.error('Error initializing game state:', err);
+    console.error("Error initializing game state:", err);
   }
 }
