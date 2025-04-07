@@ -3,10 +3,16 @@ import { gameState } from "./gameState";
 import { WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
 
-interface RegisterMessage {
-  type: "register";
+interface ConnectMessage {
+  type: "connect";
   name: string;
   shipType: string;
+}
+
+interface ReconnectMessage {
+  type: "reconnect";
+  id: string;
+  name: string;
 }
 
 interface InputMessage {
@@ -29,39 +35,30 @@ interface ScuttleMessage {
   type: "scuttle";
 }
 
-type ClientMessage =
-  | RegisterMessage
-  | InputMessage
-  | TradeMessage
-  | ScuttleMessage;
+type ClientMessage = ConnectMessage | ReconnectMessage | InputMessage | TradeMessage | ScuttleMessage;
 
-// Handle new WebSocket connections
 export function handleSocketConnection(ws: WebSocket) {
   let playerId: string | null = null;
 
-  // Set up message handling
   ws.on("message", async (message) => {
     try {
       const data: ClientMessage = JSON.parse(message.toString());
 
       switch (data.type) {
-        case "register":
-          await handleRegister(ws, data);
+        case "connect":
+          await handleConnect(ws, data);
+          break;
+        case "reconnect":
+          await handleReconnect(ws, data);
           break;
         case "input":
-          if (playerId) {
-            handleInput(playerId, data);
-          }
+          if (playerId) handleInput(playerId, data);
           break;
         case "trade":
-          if (playerId) {
-            await handleTrade(playerId, data);
-          }
+          if (playerId) await handleTrade(playerId, data);
           break;
         case "scuttle":
-          if (playerId) {
-            await handleScuttle(playerId, ws);
-          }
+          if (playerId) await handleScuttle(playerId, ws);
           break;
         default:
           sendError(ws, "Unknown message type");
@@ -72,334 +69,193 @@ export function handleSocketConnection(ws: WebSocket) {
     }
   });
 
-  // Handle disconnection
   ws.on("close", () => {
     if (playerId) {
-      // Mark player as disconnected
       gameState.removeClient(playerId);
       console.log(`Player ${playerId} disconnected`);
     }
   });
 
-  // Send initial message
-  ws.send(
-    JSON.stringify({
-      type: "welcome",
-      message: "Welcome to Pirate Odyssey!",
-      timestamp: Date.now(),
-    }),
-  );
+  ws.send(JSON.stringify({ type: "welcome", message: "Welcome to Pirate Odyssey!", timestamp: Date.now() }));
 
-  // Handle player registration
-  async function handleRegister(ws: WebSocket, data: RegisterMessage) {
-    try {
-      // Check if name is valid
-      if (!data.name || data.name.trim().length < 3) {
-        return sendError(ws, "Name must be at least 3 characters");
-      }
-
-      // Check if name is available
-      const existingPlayer = await storage.getPlayerByName(data.name);
-      if (existingPlayer) {
-        return sendError(ws, "Name already taken");
-      }
-
-      // Get ship type
-      const shipType = await storage.getShipType(data.shipType);
-      if (!shipType) {
-        return sendError(ws, "Invalid ship type");
-      }
-
-      // Create player in database
-      const player = await storage.createPlayer({
-        userId: 0, // Anonymous player
-        name: data.name,
-        shipType: data.shipType,
-      });
-
-      // Generate unique session ID
-      playerId = uuidv4();
-
-      // Register the player in game state
-      gameState.addPlayer(
-        playerId,
-        player.id,
-        player.name,
-        player.shipType,
-        shipType,
-      );
-
-      // Register client for updates
-      gameState.registerClient(playerId, ws);
-
-      // Send success response
-      ws.send(
-        JSON.stringify({
-          type: "registered",
-          playerId,
-          ship: shipType,
-          gold: player.gold,
-          timestamp: Date.now(),
-        }),
-      );
-
-      console.log(`Player ${player.name} registered with ID ${playerId}`);
-    } catch (error) {
-      console.error("Error registering player:", error);
-      sendError(ws, "Failed to register player");
+  async function handleConnect(ws: WebSocket, data: ConnectMessage) {
+    if (!data.name || data.name.trim().length < 3) {
+      return sendError(ws, "Name must be at least 3 characters");
     }
+    if (gameState.state.activeNames.has(data.name)) {
+      return sendError(ws, "Name already in use by an active player", "nameError");
+    }
+    const shipType = await storage.getShipType(data.shipType);
+    if (!shipType) {
+      return sendError(ws, "Invalid ship type");
+    }
+
+    const player = await storage.createPlayer({
+      userId: 0,
+      name: data.name,
+      shipType: data.shipType,
+    });
+    playerId = uuidv4();
+
+    const addedPlayer = gameState.addPlayer(playerId, player.id, player.name, player.shipType, shipType);
+    if (!addedPlayer) {
+      return sendError(ws, "Failed to add player due to name conflict");
+    }
+    gameState.registerClient(playerId, ws);
+
+    ws.send(JSON.stringify({
+      type: "connected",
+      playerId,
+      name: data.name,
+      ship: shipType,
+      gold: player.gold,
+      players: gameState.state.players,
+      cannonBalls: gameState.state.cannonBalls,
+      timestamp: Date.now(),
+    }));
+    console.log(`Player ${player.name} connected with ID ${playerId}`);
   }
 
-  // Handle player input
-  function handleInput(playerId: string, data: InputMessage) {
-    // Create update object with only defined properties
-    const updateData: any = {};
-
-    // Only include rotationY if it's defined (allows client to skip sending rotation)
-    if (data.rotationY !== undefined) {
-      updateData.rotationY = data.rotationY;
+  async function handleReconnect(ws: WebSocket, data: ReconnectMessage) {
+    const existingPlayer = gameState.state.players[data.id];
+    if (!existingPlayer) {
+      return sendError(ws, "Player ID not found");
+    }
+    if (data.name !== existingPlayer.name && gameState.state.activeNames.has(data.name)) {
+      return sendError(ws, "Name already in use by an active player", "nameError");
     }
 
-    // Always include these properties
+    playerId = data.id;
+    if (data.name !== existingPlayer.name) {
+      gameState.state.activeNames.delete(existingPlayer.name);
+      existingPlayer.name = data.name;
+      gameState.state.activeNames.add(data.name);
+    }
+    existingPlayer.connected = true;
+    existingPlayer.lastSeen = Date.now();
+    gameState.registerClient(playerId, ws);
+
+    ws.send(JSON.stringify({
+      type: "reconnected",
+      playerId,
+      name: existingPlayer.name,
+      ship: await storage.getShipType(existingPlayer.shipType),
+      gold: existingPlayer.gold,
+      players: gameState.state.players,
+      cannonBalls: gameState.state.cannonBalls,
+      timestamp: Date.now(),
+    }));
+    console.log(`Player ${existingPlayer.name} reconnected with ID ${playerId}`);
+  }
+
+  function handleInput(playerId: string, data: InputMessage) {
+    const updateData: Partial<PlayerState> = {};
+    if (data.rotationY !== undefined) updateData.rotationY = data.rotationY;
     if (data.speed !== undefined) updateData.speed = data.speed;
     if (data.direction) updateData.direction = data.direction;
     if (data.firing !== undefined) updateData.firing = data.firing;
-
-    // Update player in game state with only the changed properties
     gameState.updatePlayer(playerId, updateData);
-
-    // Handle firing separately
-    if (data.firing) {
-      gameState.fireCannonBall(playerId);
-    }
+    if (data.firing) gameState.fireCannonBall(playerId);
   }
 
-  // Handle trading
   async function handleTrade(playerId: string, data: TradeMessage) {
-    try {
-      const player = gameState.state.players[playerId];
-      if (!player) {
-        return;
-      }
+    const player = gameState.state.players[playerId];
+    if (!player || player.dead) return;
 
-      // Get the port
-      const port = await storage.getPort(data.portId);
-      if (!port) {
-        return sendError(ws, "Port not found");
-      }
+    const port = await storage.getPort(data.portId);
+    if (!port) return sendError(ws, "Port not found");
 
-      // Check if player is near the port
-      const dx = Math.min(
-        Math.abs(player.x - port.x),
-        5000 - Math.abs(player.x - port.x),
-      );
-      const dz = Math.min(
-        Math.abs(player.z - port.z),
-        5000 - Math.abs(player.z - port.z),
-      );
-      const distance = Math.sqrt(dx * dx + dz * dz);
+    const dx = Math.min(Math.abs(player.x - port.x), 5000 - Math.abs(player.x - port.x));
+    const dz = Math.min(Math.abs(player.z - port.z), 5000 - Math.abs(player.z - port.z));
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    if (distance > port.safeRadius) return sendError(ws, "Too far from port");
 
-      if (distance > port.safeRadius) {
-        return sendError(ws, "Too far from port");
-      }
+    const good = await storage.getGood(data.goodId);
+    if (!good) return sendError(ws, "Good not found");
 
-      // Get the good
-      const good = await storage.getGood(data.goodId);
-      if (!good) {
-        return sendError(ws, "Good not found");
-      }
+    const portGoods = await storage.getPortGoods(port.id);
+    const portGood = portGoods.find((pg) => pg.goodId === data.goodId);
+    if (!portGood) return sendError(ws, "Good not available at this port");
 
-      // Get port goods
-      const portGoods = await storage.getPortGoods(port.id);
-      const portGood = portGoods.find((pg) => pg.goodId === data.goodId);
-      if (!portGood) {
-        return sendError(ws, "Good not available at this port");
-      }
+    const inventory = await storage.getPlayerInventory(player.playerId);
+    const inventoryItem = inventory.find((item) => item.goodId === data.goodId);
+    const currentQuantity = inventoryItem ? inventoryItem.quantity : 0;
 
-      // Get player inventory
-      const inventory = await storage.getPlayerInventory(player.playerId);
-      const inventoryItem = inventory.find(
-        (item) => item.goodId === data.goodId,
-      );
-      const currentQuantity = inventoryItem ? inventoryItem.quantity : 0;
+    if (data.action === "buy") {
+      if (portGood.stock < data.quantity) return sendError(ws, "Not enough stock available");
+      const totalCost = portGood.currentPrice * data.quantity;
+      if (player.gold < totalCost) return sendError(ws, "Not enough gold");
+      if (player.cargoUsed + data.quantity > player.cargoCapacity) return sendError(ws, "Not enough cargo space");
 
-      if (data.action === "buy") {
-        // Check if port has enough stock
-        if (portGood.stock < data.quantity) {
-          return sendError(ws, "Not enough stock available");
-        }
+      player.gold -= totalCost;
+      player.cargoUsed += data.quantity;
+      await storage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity + data.quantity);
+      const updatedInventory = await storage.getPlayerInventory(player.playerId);
 
-        // Check if player has enough gold
-        const totalCost = portGood.currentPrice * data.quantity;
-        if (player.gold < totalCost) {
-          return sendError(ws, "Not enough gold");
-        }
+      ws.send(JSON.stringify({
+        type: "tradeSuccess",
+        action: "buy",
+        good: good.name,
+        quantity: data.quantity,
+        price: portGood.currentPrice,
+        totalCost,
+        gold: player.gold,
+        inventory: updatedInventory,
+        timestamp: Date.now(),
+      }));
+    } else if (data.action === "sell") {
+      if (currentQuantity < data.quantity) return sendError(ws, "Not enough goods to sell");
+      const totalEarnings = portGood.currentPrice * data.quantity;
 
-        // Check if player has enough cargo space
-        if (player.cargoUsed + data.quantity > player.cargoCapacity) {
-          return sendError(ws, "Not enough cargo space");
-        }
+      player.gold += totalEarnings;
+      player.cargoUsed -= data.quantity;
+      await storage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity - data.quantity);
+      const updatedInventory = await storage.getPlayerInventory(player.playerId);
 
-        // Update player gold
-        player.gold -= totalCost;
-        player.cargoUsed += data.quantity;
-
-        // Update player inventory
-        await storage.updatePlayerInventory(
-          player.playerId,
-          data.goodId,
-          currentQuantity + data.quantity,
-        );
-
-        // Get updated inventory to send with response
-        const updatedInventory = await storage.getPlayerInventory(
-          player.playerId,
-        );
-
-        // Send success response
-        ws.send(
-          JSON.stringify({
-            type: "tradeSuccess",
-            action: "buy",
-            good: good.name,
-            quantity: data.quantity,
-            price: portGood.currentPrice,
-            totalCost,
-            newGold: player.gold,
-            cargoUsed: player.cargoUsed,
-            gold: player.gold,
-            inventory: updatedInventory,
-            timestamp: Date.now(),
-          }),
-        );
-      } else if (data.action === "sell") {
-        // Check if player has enough of the good
-        if (currentQuantity < data.quantity) {
-          return sendError(ws, "Not enough goods to sell");
-        }
-
-        // Calculate sell price (can be different from buy price)
-        const totalEarnings = portGood.currentPrice * data.quantity;
-
-        // Update player gold
-        player.gold += totalEarnings;
-        player.cargoUsed -= data.quantity;
-
-        // Update player inventory
-        await storage.updatePlayerInventory(
-          player.playerId,
-          data.goodId,
-          currentQuantity - data.quantity,
-        );
-
-        // Get updated inventory to send with response
-        const updatedInventory = await storage.getPlayerInventory(
-          player.playerId,
-        );
-
-        // Send success response
-        ws.send(
-          JSON.stringify({
-            type: "tradeSuccess",
-            action: "sell",
-            good: good.name,
-            quantity: data.quantity,
-            price: portGood.currentPrice,
-            totalEarnings,
-            newGold: player.gold,
-            cargoUsed: player.cargoUsed,
-            gold: player.gold,
-            inventory: updatedInventory,
-            timestamp: Date.now(),
-          }),
-        );
-      }
-
-      // Update database
-      await storage.updatePlayerGold(player.playerId, player.gold);
-    } catch (error) {
-      console.error("Error trading:", error);
-      sendError(ws, "Failed to complete trade");
+      ws.send(JSON.stringify({
+        type: "tradeSuccess",
+        action: "sell",
+        good: good.name,
+        quantity: data.quantity,
+        price: portGood.currentPrice,
+        totalEarnings,
+        gold: player.gold,
+        inventory: updatedInventory,
+        timestamp: Date.now(),
+      }));
     }
+    await storage.updatePlayerGold(player.playerId, player.gold);
   }
 
-  // Handle scuttle ship (voluntary retirement)
   async function handleScuttle(playerId: string, ws: WebSocket) {
-    try {
-      const player = gameState.state.players[playerId];
-      if (!player) {
-        return sendError(ws, "Player not found");
-      }
+    const player = gameState.state.players[playerId];
+    if (!player) return sendError(ws, "Player not found");
 
-      console.log(
-        `Player ${player.name} is scuttling their ship and registering score of ${player.gold}`,
-      );
+    console.log(`Player ${player.name} scuttled their ship with score ${player.gold}`);
+    await storage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold });
+    const leaderboard = await storage.getLeaderboard(10);
 
-      try {
-        // Add player to leaderboard with current gold as score
-        await storage.addToLeaderboard({
-          playerId: player.playerId,
-          playerName: player.name,
-          score: player.gold,
-          // achievedAt is handled by the storage implementation
-        });
-        console.log("Successfully added player to leaderboard");
-      } catch (leaderboardError) {
-        console.error("Error adding to leaderboard:", leaderboardError);
-      }
-
-      // Get updated leaderboard
-      const leaderboard = await storage.getLeaderboard(10);
-
-      // Send game end message
-      try {
-        const gameEndMessage = {
-          type: "gameEnd",
-          reason: "scuttle",
-          score: player.gold,
-          message: "You scuttled your ship and joined the leaderboard!",
-          leaderboard,
-          timestamp: Date.now(),
-        };
-        console.log("Sending gameEnd message:", JSON.stringify(gameEndMessage));
-
-        // Only send if the WebSocket is open
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(gameEndMessage));
-          console.log("gameEnd message sent successfully");
-        } else {
-          console.warn("WebSocket not open, could not send gameEnd message");
-        }
-      } catch (sendError) {
-        console.error("Error sending gameEnd message:", sendError);
-      }
-
-      // Remove player from game
-      delete gameState.state.players[playerId];
-      gameState.removeClient(playerId);
-
-      // Set player as inactive in database
-      await storage.setPlayerActive(player.playerId, false);
-
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-    } catch (error) {
-      console.error("Error scuttling ship:", error);
-      sendError(ws, "Failed to scuttle ship");
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: "gameEnd",
+        reason: "scuttle",
+        score: player.gold,
+        message: "You scuttled your ship and joined the leaderboard!",
+        leaderboard,
+        timestamp: Date.now(),
+      }));
     }
+
+    gameState.state.activeNames.delete(player.name);
+    delete gameState.state.players[playerId];
+    gameState.removeClient(playerId);
+    await storage.setPlayerActive(player.playerId, false);
+    if (ws.readyState === WebSocket.OPEN) ws.close();
   }
 }
 
-// Helper function to send error messages
-function sendError(ws: WebSocket, message: string) {
+function sendError(ws: WebSocket, message: string, type: string = "error") {
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(
-      JSON.stringify({
-        type: "error",
-        message,
-        timestamp: Date.now(),
-      }),
-    );
+    ws.send(JSON.stringify({ type, message, timestamp: Date.now() }));
   }
 }

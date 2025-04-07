@@ -104,35 +104,8 @@ function App() {
   useEffect(() => {
     setShowCanvas(true);
 
-    // Try to restore saved game state
-    const { savedState, playerId, shipType } = loadGameState();
-    
-    if (savedState && playerId && shipType) {
-      console.log("Attempting to restore game state");
-      
-      // If the game was already over, clear state and start fresh
-      if (savedState.isSunk) {
-        console.log("Found completed game, clearing state");
-        clearGameState();
-        socketState.connect();
-      } else {
-        // Attempt to reconnect with existing game
-        console.log("Reconnecting to existing game");
-        socketState.connect(playerId);
-        
-        // Restore game state
-        useGameState.setState({
-          isRegistered: true,
-          isPlaying: true,
-          gameState: {
-            ...gameState,
-            player: savedState.player
-          }
-        });
-      }
-    } else {
-      // No saved state, start fresh
-      console.log("Starting fresh game");
+    // Connect to socket when the app loads
+    if (!socketState.connected) {
       socketState.connect();
     }
 
