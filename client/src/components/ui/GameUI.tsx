@@ -227,6 +227,13 @@ export default function GameUI() {
           </p>
         </div>
       )}
+
+      {/* Help text at bottom center */}
+      {!isSunk && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40 text-white text-sm opacity-70">
+          Press <span className="font-mono bg-black/60 px-1 rounded">H</span> for help
+        </div>
+      )}
     </>
   );
 }
