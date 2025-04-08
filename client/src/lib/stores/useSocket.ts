@@ -45,15 +45,12 @@ export const useSocket = create<SocketState>((set, get) => ({
         console.log("WebSocket connection established");
         set({ connected: true, error: null });
 
-        // Check localStorage for existing player data
         const storedPlayerId = localStorage.getItem("playerId");
         const storedName = localStorage.getItem("playerName");
 
         if (storedPlayerId && storedName) {
-          // Reconnect with existing ID and name
           socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name: storedName }));
         } else {
-          // New player, prompt for name elsewhere and call register
           set({ error: "Please provide a name to join the game" });
         }
       };
@@ -119,7 +116,20 @@ export const useSocket = create<SocketState>((set, get) => ({
             case "nameError":
               console.error("Name error:", message.message);
               set({ error: message.message });
-              localStorage.removeItem("playerName"); // Clear invalid name
+              localStorage.removeItem("playerName");
+              break;
+
+            case "error":
+              console.error("Server error:", message.message);
+              if (message.message === "Player ID not found") {
+                // Clear invalid player data and reset
+                localStorage.removeItem("playerId");
+                localStorage.removeItem("playerName");
+                set({ playerId: null, playerName: null, error: "Invalid player ID. Please provide a new name to join." });
+                useGameState.getState().restartGame(); // Reset game state
+              } else {
+                set({ error: message.message });
+              }
               break;
 
             case "tradeSuccess":
@@ -144,11 +154,6 @@ export const useSocket = create<SocketState>((set, get) => ({
               }
               useGameState.setState({ isSunk: true });
               useAudio.getState().playExplosion();
-              break;
-
-            case "error":
-              console.error("Server error:", message.message);
-              set({ error: message.message });
               break;
 
             default:

@@ -75,12 +75,19 @@ export const useGameState = create<GameStateStore>()(
         isPlaying: false,
         isSunk: false,
         isTrading: false,
+        isNearPort: false,
+        nearPortId: null,
+        currentPortGoods: [],
         gameState: {
-          ...get().gameState,
           player: null,
           otherPlayers: {},
           cannonBalls: [],
+          ports: get().gameState.ports, // Preserve ports
+          goods: get().gameState.goods, // Preserve goods
           inventory: [],
+          nearestPort: null,
+          isNearPort: false,
+          leaderboard: get().gameState.leaderboard, // Preserve leaderboard
         },
       });
       localStorage.removeItem("playerId");
