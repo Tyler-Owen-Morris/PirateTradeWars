@@ -164,12 +164,11 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
       
       {/* Ship name and health bar */}
       <Billboard
-        position={[0, dims.height + 45, 0]}
+        position={[0, dims.height + 30, 0]}
         follow={true}
         lockX={false}
         lockY={false}
         lockZ={false}
-        renderOrder={2} // Ensure this renders after other objects
       >
         {/* Ship name */}
         <Text
@@ -179,30 +178,20 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
           anchorY="bottom"
           outlineWidth={0.5}
           outlineColor="#000000"
-          renderOrder={2}
-          material-depthTest={false} // Make sure text renders on top
         >
           {name} {isPlayer ? "(You)" : ""}
         </Text>
         
         {/* Health bar background */}
-        <mesh position={[0, -5, 0]} renderOrder={2}>
+        <mesh position={[0, -5, 0]}>
           <planeGeometry args={[40, 5]} />
-          <meshBasicMaterial 
-            color="#333333" 
-            transparent 
-            opacity={0.7} 
-            depthTest={false} // Disable depth testing so it always renders on top
-          />
+          <meshBasicMaterial color="#333333" transparent opacity={0.7} />
         </mesh>
         
         {/* Health bar foreground */}
-        <mesh position={[-20 + 20 * (hp / maxHp), -5, 0.1]} ref={healthBarRef} renderOrder={3}>
+        <mesh position={[-20 + 20 * (hp / maxHp), -5, 0.1]} ref={healthBarRef}>
           <planeGeometry args={[40, 5]} />
-          <meshBasicMaterial 
-            color="#4CAF50" 
-            depthTest={false} // Disable depth testing so it always renders on top
-          />
+          <meshBasicMaterial color="#4CAF50" />
         </mesh>
       </Billboard>
     </group>
