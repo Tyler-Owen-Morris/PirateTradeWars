@@ -1,7 +1,7 @@
-# Pirate Odyssey - Project Overview
+# Pirate Trade Wars - Project Overview
 
 ## Introduction
-Pirate Odyssey is a browser-based multiplayer 3D pirate ship game where players explore a procedurally generated maritime world, engage in naval combat, trade goods between ports, and compete for positions on the leaderboard. The game ends when a player's ship is sunk, with their final gold amount determining their leaderboard position.
+Pirate Trade Wars is a browser-based multiplayer 3D pirate ship game where players explore a procedurally generated maritime world, engage in naval combat, trade goods between ports, and compete for positions on the leaderboard. The game ends when a player's ship is sunk, with their final gold amount determining their leaderboard position.
 
 ## Core Technologies
 - **Frontend**: React, Three.js (@react-three/fiber), TypeScript

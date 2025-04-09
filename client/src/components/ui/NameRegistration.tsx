@@ -69,7 +69,7 @@ export default function NameRegistration() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-900 to-blue-700 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl text-center">Pirate Odyssey</CardTitle>
+          <CardTitle className="text-2xl text-center">Pirate Trade Wars</CardTitle>
         </CardHeader>
         
         <CardContent>

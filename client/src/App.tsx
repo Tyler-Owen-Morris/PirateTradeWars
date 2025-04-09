@@ -55,15 +55,16 @@ function App() {
   const { gameState, isRegistered, isPlaying, isSunk, isTrading } = useGameState();
   const [showCanvas, setShowCanvas] = useState(false);
   const socketState = useSocket.getState();
-  const { initializeAudio, cleanupAudio, playBackgroundMusic } = useAudio();
+  const { initializeAudio, playBackgroundMusic } = useAudio();
 
   // Initialize audio and handle cleanup
   useEffect(() => {
     initializeAudio();
     return () => {
-      cleanupAudio();
+      //cleanupAudio();
+      console.log("were we supposed to expose this in the hook?")
     };
-  }, [initializeAudio, cleanupAudio]);
+  }, [initializeAudio]);
 
   // Start background music on first user interaction due to browser audio policies
   useEffect(() => {

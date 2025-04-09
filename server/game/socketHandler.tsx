@@ -2,6 +2,7 @@ import { storage } from "../storage";
 import { gameState } from "./gameState";
 import { WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
+import { Or } from "drizzle-orm";
 
 interface ConnectMessage {
   type: "connect";
@@ -76,7 +77,7 @@ export function handleSocketConnection(ws: WebSocket) {
     }
   });
 
-  ws.send(JSON.stringify({ type: "welcome", message: "Welcome to Pirate Odyssey!", timestamp: Date.now() }));
+  ws.send(JSON.stringify({ type: "welcome", message: "Welcome to Pirate Trade Wars!", timestamp: Date.now() }));
 
   async function handleConnect(ws: WebSocket, data: ConnectMessage) {
     if (!data.name || data.name.trim().length < 3) {
@@ -101,7 +102,7 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
     }
-    gameState.registerClient(playerId, ws);
+    gameState.registerClient(playerId, ws as any);
 
     ws.send(JSON.stringify({
       type: "connected",
@@ -133,7 +134,7 @@ export function handleSocketConnection(ws: WebSocket) {
     }
     existingPlayer.connected = true;
     existingPlayer.lastSeen = Date.now();
-    gameState.registerClient(playerId, ws);
+    gameState.registerClient(playerId, ws as any);
 
     ws.send(JSON.stringify({
       type: "reconnected",

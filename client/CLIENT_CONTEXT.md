@@ -1,4 +1,4 @@
-# Client Architecture - Pirate Odyssey
+# Client Architecture - Pirate Trade Wars
 
 ## Overview
 The client is a React application using Three.js for 3D rendering. It handles game rendering, user input, UI components, and WebSocket communication with the server.

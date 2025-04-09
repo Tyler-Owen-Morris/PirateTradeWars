@@ -1,4 +1,4 @@
-# Shared Code Architecture - Pirate Odyssey
+# Shared Code Architecture - Pirate Trade Wars
 
 ## Overview
 The shared directory contains code and types that are used by both the client and server. This ensures consistency in data structures and prevents duplication of code.

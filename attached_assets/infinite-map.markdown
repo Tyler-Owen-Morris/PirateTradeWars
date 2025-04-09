@@ -1,4 +1,4 @@
-# Pirate Odyssey - Game Design Document (Infinite Map Instructions)
+# Pirate Trade Wars - Game Design Document (Infinite Map Instructions)
 
 ## Infinite Map Generation and Wrapping Mechanics
 The game features an infinite 2D map where players can sail endlessly, wrapping around edges to create a seamless open-world experience. This section provides detailed instructions for implementing the map generation and wrapping logic in a browser-based environment using HTML5 and JavaScript.

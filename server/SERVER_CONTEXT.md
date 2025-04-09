@@ -1,4 +1,4 @@
-# Server Architecture - Pirate Odyssey
+# Server Architecture - Pirate Trade Wars
 
 ## Overview
 The server is a Node.js application using Express for HTTP endpoints and WebSockets for real-time game communication. It manages game state, player interactions, trading mechanics, and data persistence.

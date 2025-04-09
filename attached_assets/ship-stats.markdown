@@ -1,7 +1,7 @@
-# Pirate Odyssey - Game Design Document (Ship Stats)
+# Pirate Trade Wars - Game Design Document (Ship Stats)
 
 ## Player Ships
-Ships are the heart of *Pirate Odyssey*, defining a player’s trading capacity, combat prowess, and survivability. Stats are designed to balance free-to-play accessibility with premium incentives, while allowing progression through upgrades. Below are the starting ships, their stats, and how those stats integrate into gameplay mechanics.
+Ships are the heart of *Pirate Trade Wars*, defining a player’s trading capacity, combat prowess, and survivability. Stats are designed to balance free-to-play accessibility with premium incentives, while allowing progression through upgrades. Below are the starting ships, their stats, and how those stats integrate into gameplay mechanics.
 
 ### Stat Definitions
 - **Hull Strength (HP)**: Total health points. When reduced to 0, the ship sinks, losing all cargo and respawning at the nearest port with a gold penalty (10% of current gold, min 50 gold).

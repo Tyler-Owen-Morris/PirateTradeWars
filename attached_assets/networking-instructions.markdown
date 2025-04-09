@@ -1,7 +1,7 @@
-# Pirate Odyssey - Game Design Document (Networking Instructions for Three.js)
+# Pirate Trade Wars - Game Design Document (Networking Instructions for Three.js)
 
 ## Networking for Real-Time Multiplayer with Three.js
-*Pirate Odyssey* is a browser-based, real-time, massively multiplayer game built with a Three.js frontend, where players sail an infinite 3D ocean, trade at ports, and engage in PvP combat. The networking system must support 50-100+ concurrent players per server instance, ensure low-latency updates, and handle disconnections and lag. These instructions adapt the networking architecture for a 3D environment using Three.js.
+*Pirate Trade Wars* is a browser-based, real-time, massively multiplayer game built with a Three.js frontend, where players sail an infinite 3D ocean, trade at ports, and engage in PvP combat. The networking system must support 50-100+ concurrent players per server instance, ensure low-latency updates, and handle disconnections and lag. These instructions adapt the networking architecture for a 3D environment using Three.js.
 
 ### Architecture Overview
 - **Model**: Client-server with authoritative server.
