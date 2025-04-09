@@ -4,141 +4,162 @@ interface AudioState {
   backgroundMusic: HTMLAudioElement | null;
   hitSound: HTMLAudioElement | null;
   successSound: HTMLAudioElement | null;
+  explosionSound: HTMLAudioElement | null;
+  cannonBangSound: HTMLAudioElement | null;
   isMuted: boolean;
-  
-  // Setter functions
+  isAudioInitialized: boolean;
+
   setBackgroundMusic: (music: HTMLAudioElement) => void;
   setHitSound: (sound: HTMLAudioElement) => void;
   setSuccessSound: (sound: HTMLAudioElement) => void;
-  
-  // Control functions
+  setExplosionSound: (sound: HTMLAudioElement) => void;
+  setCannonBangSound: (sound: HTMLAudioElement) => void;
+
+  initializeAudio: () => void;
   toggleMute: () => void;
   playHit: () => void;
   playSuccess: () => void;
   playExplosion: () => void;
-  playSound: (type: 'hit' | 'success' | 'bell' | 'explosion', volume?: number) => void;
+  playCannonBang: () => void;
+  playSound: (type: 'hit' | 'success' | 'bell' | 'explosion' | 'cannonBang', volume?: number) => void;
 }
+
+// Helper function to play audio and handle Promise/non-Promise cases
+const playAudio = (audio: HTMLAudioElement, onError: (error: any) => void) => {
+  const playPromise = audio.play();
+  console.log("playPromise:", playPromise); // Debug: Log what play() returns
+
+  // Check if playPromise is a Promise by checking for .then
+  if (playPromise && typeof playPromise.then === 'function') {
+    // Modern browsers: play() returns a Promise
+    playPromise.catch(onError);
+  } else {
+    // Older browsers or unexpected return value: play() does not return a Promise
+    setTimeout(() => {
+      if (audio.paused) {
+        onError(new Error("Audio playback failed (possibly blocked, unsupported, or invalid audio element)"));
+      }
+    }, 100);
+  }
+};
 
 export const useAudio = create<AudioState>((set, get) => ({
   backgroundMusic: null,
   hitSound: null,
   successSound: null,
-  isMuted: true, // Start muted by default
-  
+  explosionSound: null,
+  cannonBangSound: null,
+  isMuted: true,
+  isAudioInitialized: false,
+
   setBackgroundMusic: (music) => set({ backgroundMusic: music }),
   setHitSound: (sound) => set({ hitSound: sound }),
   setSuccessSound: (sound) => set({ successSound: sound }),
-  
+  setExplosionSound: (sound) => set({ explosionSound: sound }),
+  setCannonBangSound: (sound) => set({ cannonBangSound: sound }),
+
+  initializeAudio: () => {
+    if (get().isAudioInitialized) return;
+
+    const backgroundMusic = new Audio("/audio/background-music.mp3");
+    backgroundMusic.loop = true;
+    backgroundMusic.volume = 0.2;
+    backgroundMusic.onerror = () => {
+      console.error("Failed to load background music");
+    };
+
+    const hitSound = new Audio("/audio/hit.mp3");
+    const successSound = new Audio("/audio/success.mp3");
+    const explosionSound = new Audio("/audio/explosion.mp3");
+    const cannonBangSound = new Audio("/audio/cannon-bang.mp3");
+
+    set({
+      backgroundMusic,
+      hitSound,
+      successSound,
+      explosionSound,
+      cannonBangSound,
+      isAudioInitialized: true,
+    });
+
+    console.log("Audio initialized");
+  },
+
   toggleMute: () => {
-    const { isMuted } = get();
+    const { isMuted, backgroundMusic } = get();
     const newMutedState = !isMuted;
-    
-    // Just update the muted state
+
     set({ isMuted: newMutedState });
-    
-    // Log the change
+
+    if (backgroundMusic) {
+      if (newMutedState) {
+        backgroundMusic.pause();
+      } else {
+        playAudio(backgroundMusic, (error) => {
+          console.error("Failed to play background music:", error);
+          set({ isMuted: true });
+          console.log("Background music playback blocked. Please interact with the page to enable audio.");
+        });
+      }
+    }
+
     console.log(`Sound ${newMutedState ? 'muted' : 'unmuted'}`);
   },
-  
+
   playHit: () => {
-    const { hitSound, isMuted } = get();
-    if (hitSound) {
-      // If sound is muted, don't play anything
-      if (isMuted) {
-        console.log("Hit sound skipped (muted)");
-        return;
-      }
-      
-      // Clone the sound to allow overlapping playback
-      const soundClone = hitSound.cloneNode() as HTMLAudioElement;
-      soundClone.volume = 0.3;
-      soundClone.play().catch(error => {
-        console.log("Hit sound play prevented:", error);
-      });
-    }
+    get().playSound('hit', 0.3);
   },
-  
+
   playSuccess: () => {
-    const { successSound, isMuted } = get();
-    if (successSound) {
-      // If sound is muted, don't play anything
-      if (isMuted) {
-        console.log("Success sound skipped (muted)");
-        return;
-      }
-      
-      successSound.currentTime = 0;
-      successSound.play().catch(error => {
-        console.log("Success sound play prevented:", error);
-      });
-    }
+    get().playSound('success', 0.5);
   },
-  
+
   playExplosion: () => {
-    // Use the hit sound at higher volume for explosion effect
-    const { hitSound, isMuted } = get();
-    if (hitSound) {
-      // If sound is muted, don't play anything
-      if (isMuted) {
-        console.log("Explosion sound skipped (muted)");
-        return;
-      }
-      
-      // Play multiple hit sounds with different volumes and slight delays
-      const explosionSound1 = hitSound.cloneNode() as HTMLAudioElement;
-      explosionSound1.volume = 0.7;
-      explosionSound1.play().catch(error => {
-        console.log("Explosion sound play prevented:", error);
-      });
-      
-      // Add a slight delay for the second sound
-      setTimeout(() => {
-        const explosionSound2 = hitSound.cloneNode() as HTMLAudioElement;
-        explosionSound2.volume = 0.6;
-        explosionSound2.play().catch(error => {
-          console.log("Explosion sound 2 play prevented:", error);
-        });
-      }, 150);
-    }
+    get().playSound('explosion', 0.7);
   },
-  
+
+  playCannonBang: () => {
+    get().playSound('cannonBang', 1.5);
+  },
+
   playSound: (type, volume = 0.3) => {
-    const { hitSound, successSound, isMuted } = get();
+    const { isMuted, hitSound, successSound, explosionSound, cannonBangSound } = get();
     if (isMuted) {
       console.log(`Sound (${type}) skipped (muted)`);
       return;
     }
-    
+
     let sound: HTMLAudioElement | null = null;
-    
+
     switch (type) {
       case 'hit':
         sound = hitSound;
         break;
       case 'success':
-        sound = successSound;
-        break;
       case 'bell':
-        // Use success sound for bell sound
         sound = successSound;
         break;
       case 'explosion':
-        // For explosion, use the playExplosion method directly
-        get().playExplosion();
-        return; // Early return since we're handling it specially
+        sound = explosionSound;
+        break;
+      case 'cannonBang':
+        sound = cannonBangSound;
+        break;
       default:
         console.error(`Unknown sound type: ${type}`);
         return;
     }
-    
+
     if (sound) {
       const soundClone = sound.cloneNode() as HTMLAudioElement;
       soundClone.volume = volume;
-      soundClone.play().catch(error => {
-        console.log(`${type} sound play prevented:`, error);
+      playAudio(soundClone, (error) => {
+        console.error(`${type} sound play prevented:`, error);
+        set({ isMuted: true });
+        console.log("Sound playback blocked. Please interact with the page to enable audio.");
       });
     } else {
       console.warn(`Sound of type ${type} not loaded yet`);
     }
-  }
+  },
 }));
