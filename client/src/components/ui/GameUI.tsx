@@ -123,7 +123,10 @@ export default function GameUI() {
         <Button
           variant="outline"
           size="icon"
-          onClick={toggleMute}
+          onClick={(event) =>{
+            toggleMute();
+            (event.currentTarget as HTMLButtonElement).blur();
+          }}
           className="bg-black/50 border-0 text-white hover:bg-black/70"
           title={isMuted ? "Unmute Sound" : "Mute Sound"}
         >
