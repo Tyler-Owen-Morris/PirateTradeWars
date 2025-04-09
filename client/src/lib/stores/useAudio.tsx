@@ -47,7 +47,8 @@ export const useAudio = create<AudioState>((set, get) => ({
     if (get().isAudioInitialized) return;
 
     const backgroundMusic = new Howl({
-      src: ["/sounds/background.mp3"],
+      // src: ["/sounds/background.mp3"],
+      src: ["/sounds/The Salty Horizon.mp3","/sounds/background.mp3"],
       loop: true,
       volume: get().musicVolume,
       autoplay: false,
