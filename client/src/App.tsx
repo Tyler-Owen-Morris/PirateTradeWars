@@ -10,7 +10,6 @@ import ShipSelection from "./components/ui/ShipSelection";
 import GameOver from "./components/ui/GameOver";
 import { useGameState } from "./lib/stores/useGameState";
 import TradeMenu from "./components/ui/TradeMenu";
-import { Howl } from "howler";
 
 // Define control keys for the game
 const controls = [
@@ -22,48 +21,6 @@ const controls = [
   { name: "accelerate", keys: ["ShiftLeft", "ShiftRight"] },
   { name: "decelerate", keys: ["ControlLeft", "ControlRight"] },
 ];
-
-// Sound manager component to load audio
-function SoundManager() {
-  const { setBackgroundMusic, setHitSound, setSuccessSound , initializeAudio} = useAudio();
-
-  useEffect(() => {
-    // Load background music
-    const backgroundMusic = new Howl({
-      src: ["/sounds/background.mp3"],
-      loop: true,
-      volume: 0.3,
-      autoplay: false,
-    });
-    setBackgroundMusic(backgroundMusic as unknown as HTMLAudioElement);
-
-    // Load hit sound
-    const hitSound = new Howl({
-      src: ["/sounds/hit.mp3"],
-      volume: 0.5,
-      autoplay: false,
-    });
-    setHitSound(hitSound as unknown as HTMLAudioElement);
-
-    // Load success sound
-    const successSound = new Howl({
-      src: ["/sounds/success.mp3"],
-      volume: 0.5,
-      autoplay: false,
-    });
-    setSuccessSound(successSound as unknown as HTMLAudioElement);
-
-    return () => {
-      // Cleanup
-      backgroundMusic.stop();
-      backgroundMusic.unload();
-      hitSound.unload();
-      successSound.unload();
-    };
-  }, [setBackgroundMusic, setHitSound, setSuccessSound]);
-
-  return null;
-}
 
 // Error Boundary Component
 class ErrorBoundary extends Component<
@@ -95,10 +52,30 @@ class ErrorBoundary extends Component<
 
 // Main App component
 function App() {
-  const { gameState, isRegistered, isPlaying, isSunk, isTrading } =
-    useGameState();
+  const { gameState, isRegistered, isPlaying, isSunk, isTrading } = useGameState();
   const [showCanvas, setShowCanvas] = useState(false);
   const socketState = useSocket.getState();
+  const { initializeAudio, cleanupAudio, playBackgroundMusic } = useAudio();
+
+  // Initialize audio and handle cleanup
+  useEffect(() => {
+    initializeAudio();
+    return () => {
+      cleanupAudio();
+    };
+  }, [initializeAudio, cleanupAudio]);
+
+  // Start background music on first user interaction due to browser audio policies
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      playBackgroundMusic();
+      document.removeEventListener("click", handleFirstInteraction);
+    };
+    document.addEventListener("click", handleFirstInteraction);
+    return () => {
+      document.removeEventListener("click", handleFirstInteraction);
+    };
+  }, [playBackgroundMusic]);
 
   // Show the canvas once everything is loaded
   useEffect(() => {
@@ -165,8 +142,6 @@ function App() {
                 {isSunk && <GameOver score={gameState.player?.gold || 0} />}
               </>
             )}
-
-            <SoundManager />
           </KeyboardControls>
         )}
       </div>

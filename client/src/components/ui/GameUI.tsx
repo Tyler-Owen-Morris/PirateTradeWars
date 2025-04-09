@@ -171,14 +171,14 @@ export default function GameUI() {
                   {isMusicMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                 </Button>
               </div>
-              {/* <Slider
+              <Slider
                 value={[musicVolume * 100]}
                 onValueChange={(value) => setMusicVolume(value[0] / 100)}
                 min={0}
                 max={100}
                 step={1}
                 className="w-full"
-              /> */}
+              />
             </div>
 
             <div className="mt-2">
@@ -196,14 +196,14 @@ export default function GameUI() {
                   {isSfxMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
                 </Button>
               </div>
-              {/* <Slider
+              <Slider
                 value={[sfxVolume * 100]}
                 onValueChange={(value) => setSfxVolume(value[0] / 100)}
                 min={0}
                 max={100}
                 step={1}
                 className="w-full"
-              /> */}
+              />
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
