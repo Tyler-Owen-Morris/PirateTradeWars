@@ -187,7 +187,7 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
         {/* Health bar background */}
         <mesh position={[0, -5, 0]}>
           <planeGeometry args={[40, 5]} />
-          <meshBasicMaterial color="#333333" transparent opacity={1} />
+          <meshBasicMaterial color="#333333" transparent={false} opacity={0.9} />
         </mesh>
         
         {/* Health bar foreground */}
@@ -196,7 +196,7 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
           ref={healthBarRef}
           renderOrder={4}>
           <planeGeometry args={[40, 5]} />
-          <meshBasicMaterial opacity={1} color="#4CAF50" />
+          <meshBasicMaterial transparent={false} opacity={1} color="#4CAF50" />
         </mesh>
       </Billboard>
     </group>
