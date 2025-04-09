@@ -25,7 +25,7 @@ const controls = [
 
 // Sound manager component to load audio
 function SoundManager() {
-  const { setBackgroundMusic, setHitSound, setSuccessSound } = useAudio();
+  const { setBackgroundMusic, setHitSound, setSuccessSound , initializeAudio} = useAudio();
 
   useEffect(() => {
     // Load background music

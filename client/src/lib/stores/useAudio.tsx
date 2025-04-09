@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import {Howl} from 'howler'
 
 interface AudioState {
   backgroundMusic: HTMLAudioElement | null;
@@ -7,6 +8,10 @@ interface AudioState {
   explosionSound: HTMLAudioElement | null;
   cannonBangSound: HTMLAudioElement | null;
   isMuted: boolean;
+  isMusicMuted: boolean;
+  isSfxMuted: boolean;
+  musicVolume: number;
+  sfxVolume: number;
   isAudioInitialized: boolean;
 
   setBackgroundMusic: (music: HTMLAudioElement) => void;
@@ -17,6 +22,10 @@ interface AudioState {
 
   initializeAudio: () => void;
   toggleMute: () => void;
+  toggleMusicMute: () => void;
+  toggleSfxMute: () => void;
+  setMusicVolume: (volume: number) => void;
+  setSfxVolume: (volume: number) => void;
   playHit: () => void;
   playSuccess: () => void;
   playExplosion: () => void;
@@ -24,17 +33,14 @@ interface AudioState {
   playSound: (type: 'hit' | 'success' | 'bell' | 'explosion' | 'cannonBang', volume?: number) => void;
 }
 
-// Helper function to play audio and handle Promise/non-Promise cases
 const playAudio = (audio: HTMLAudioElement, onError: (error: any) => void) => {
   const playPromise = audio.play();
-  console.log("playPromise:", playPromise); // Debug: Log what play() returns
+  console.log("audio-level:", audio.volume)
+  console.log("playPromise:", playPromise);
 
-  // Check if playPromise is a Promise by checking for .then
   if (playPromise && typeof playPromise.then === 'function') {
-    // Modern browsers: play() returns a Promise
     playPromise.catch(onError);
   } else {
-    // Older browsers or unexpected return value: play() does not return a Promise
     setTimeout(() => {
       if (audio.paused) {
         onError(new Error("Audio playback failed (possibly blocked, unsupported, or invalid audio element)"));
@@ -49,7 +55,11 @@ export const useAudio = create<AudioState>((set, get) => ({
   successSound: null,
   explosionSound: null,
   cannonBangSound: null,
-  isMuted: true,
+  isMuted: false,
+  isMusicMuted: true,
+  isSfxMuted: true,
+  musicVolume: 0.02,
+  sfxVolume: 0.5,
   isAudioInitialized: false,
 
   setBackgroundMusic: (music) => set({ backgroundMusic: music }),
@@ -61,12 +71,21 @@ export const useAudio = create<AudioState>((set, get) => ({
   initializeAudio: () => {
     if (get().isAudioInitialized) return;
 
-    const backgroundMusic = new Audio("/audio/background-music.mp3");
-    backgroundMusic.loop = true;
-    backgroundMusic.volume = 0.2;
-    backgroundMusic.onerror = () => {
-      console.error("Failed to load background music");
-    };
+    let { musicVolume, isMusicMuted, isMuted} = get() 
+    // const backgroundMusic = new Audio("/audio/background-music.mp3");
+    
+    if (!isMusicMuted && !isMuted ) {
+      document.addEventListener(
+        "click",
+        () => {
+          playAudio(backgroundMusic, (error) => {
+            console.error("Failed to play background music:", error);
+            set({ isMuted: true, isMusicMuted: true });
+          });
+        },
+        { once: true }
+      );
+    }
 
     const hitSound = new Audio("/audio/hit.mp3");
     const successSound = new Audio("/audio/success.mp3");
@@ -86,18 +105,25 @@ export const useAudio = create<AudioState>((set, get) => ({
   },
 
   toggleMute: () => {
-    const { isMuted, backgroundMusic } = get();
+    const { isMuted, backgroundMusic, musicVolume, isMusicMuted} = get();
     const newMutedState = !isMuted;
 
-    set({ isMuted: newMutedState });
+    console.log("toggleMute called", { isMuted, newMutedState, caller: new Error().stack });
+
+    set({
+      isMuted: newMutedState
+      
+    });
 
     if (backgroundMusic) {
-      if (newMutedState) {
+      if (isMusicMuted || newMutedState) {
         backgroundMusic.pause();
       } else {
+        backgroundMusic.volume = musicVolume; // Ensure volume is set before playing
+        console.log("Playing background music with volume:", backgroundMusic.volume);
         playAudio(backgroundMusic, (error) => {
           console.error("Failed to play background music:", error);
-          set({ isMuted: true });
+          set({ isMuted: true, isMusicMuted: true });
           console.log("Background music playback blocked. Please interact with the page to enable audio.");
         });
       }
@@ -106,25 +132,75 @@ export const useAudio = create<AudioState>((set, get) => ({
     console.log(`Sound ${newMutedState ? 'muted' : 'unmuted'}`);
   },
 
+  toggleMusicMute: () => {
+    const { isMusicMuted, backgroundMusic, musicVolume } = get();
+    const newMusicMutedState = !isMusicMuted;
+
+    set({ isMusicMuted: newMusicMutedState });
+
+    if (backgroundMusic) {
+      if (newMusicMutedState) {
+        backgroundMusic.pause();
+      } else {
+        backgroundMusic.volume = musicVolume; // Ensure volume is set before playing
+        console.log("Playing background music with volume:", backgroundMusic.volume);
+        playAudio(backgroundMusic, (error) => {
+          console.error("Failed to play background music:", error);
+          set({ isMusicMuted: true });
+          console.log("Background music playback blocked. Please interact with the page to enable audio.");
+        });
+      }
+    }
+
+    console.log(`Music ${newMusicMutedState ? 'muted' : 'unmuted'}`);
+  },
+
+  toggleSfxMute: () => {
+    const { isSfxMuted } = get();
+    set({ isSfxMuted: !isSfxMuted });
+    console.log(`SFX ${!isSfxMuted ? 'muted' : 'unmuted'}`);
+  },
+
+  setMusicVolume: (volume: number) => {
+    console.log("Current state - on music vol change:", get());
+    const { backgroundMusic  } = get();
+    //console.log(typeof backgroundMusic)
+    const clampedVolume = Math.max(0, Math.min(1, volume));
+    set({ musicVolume: clampedVolume });
+
+    if (backgroundMusic) {
+      backgroundMusic.volume = clampedVolume;
+      console.log("setMusicVolume called", { volume: clampedVolume });
+    }
+  },
+
+  setSfxVolume: (volume: number) => {
+    const clampedVolume = Math.max(0, Math.min(1, volume));
+    set({ sfxVolume: clampedVolume });
+    console.log("setSfxVolume called", { volume: clampedVolume, newState: get().sfxVolume });
+  },
+
   playHit: () => {
-    get().playSound('hit', 0.3);
+    get().playSound('hit');
   },
 
   playSuccess: () => {
-    get().playSound('success', 0.5);
+    get().playSound('success');
   },
 
   playExplosion: () => {
-    get().playSound('explosion', 0.7);
+    get().playSound('explosion');
   },
 
   playCannonBang: () => {
-    get().playSound('cannonBang', 1.5);
+    get().playSound('cannonBang');
   },
 
-  playSound: (type, volume = 0.3) => {
-    const { isMuted, hitSound, successSound, explosionSound, cannonBangSound } = get();
-    if (isMuted) {
+  playSound: (type: 'hit' | 'success' | 'bell' | 'explosion' | 'cannonBang', volume?: number) => {
+    const { isMuted, isSfxMuted, sfxVolume, hitSound, successSound, explosionSound, cannonBangSound } = get();
+    const effectiveVolume = volume !== undefined ? volume : sfxVolume;
+    console.log("playSound called", { type, volume: effectiveVolume, isMuted, isSfxMuted, sfxVolume });
+    if (isMuted || isSfxMuted) {
       console.log(`Sound (${type}) skipped (muted)`);
       return;
     }
@@ -136,6 +212,8 @@ export const useAudio = create<AudioState>((set, get) => ({
         sound = hitSound;
         break;
       case 'success':
+        sound = successSound;
+        break;
       case 'bell':
         sound = successSound;
         break;
@@ -152,10 +230,11 @@ export const useAudio = create<AudioState>((set, get) => ({
 
     if (sound) {
       const soundClone = sound.cloneNode() as HTMLAudioElement;
-      soundClone.volume = volume;
+      soundClone.volume = effectiveVolume;
+      console.log("Playing sound with volume:", soundClone.volume);
       playAudio(soundClone, (error) => {
         console.error(`${type} sound play prevented:`, error);
-        set({ isMuted: true });
+        // set({ isMuted: true, isSfxMuted: true });
         console.log("Sound playback blocked. Please interact with the page to enable audio.");
       });
     } else {

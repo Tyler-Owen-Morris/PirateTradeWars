@@ -13,7 +13,7 @@ interface IslandProps {
 export function Island({ position, size = 300, seed = 1, lowTide = false }: IslandProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   
-  console.log(`Island component rendering at position [${position[0]}, ${position[1]}, ${position[2]}]`);
+  //console.log(`Island component rendering at position [${position[0]}, ${position[1]}, ${position[2]}]`);
 
   // Load textures
   const sandTexture = useTexture('/textures/sand.jpg');

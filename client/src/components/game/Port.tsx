@@ -59,7 +59,7 @@ export function Port({ port }: PortProps) {
   // Generate a consistent seed for this port's island
   const islandSeed = port.id * 100 + port.x + port.z;
   
-  console.log(`Rendering port ${port.name} with island at position [${port.x}, -15, ${port.z}]`);
+  //console.log(`Rendering port ${port.name} with island at position [${port.x}, -15, ${port.z}]`);
   
   return (
     <group>

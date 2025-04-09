@@ -6,7 +6,7 @@ import { useSocket } from "@/lib/stores/useSocket";
 import HUD from "./HUD";
 import Leaderboard from "./Leaderboard";
 import { Button } from "./button";
-import { Volume2, VolumeX, HelpCircle, Map, Skull } from "lucide-react";
+import { Volume2, VolumeX, HelpCircle, Map, Skull, Sliders } from "lucide-react";
 import { HelpTooltip } from "./HelpTooltip";
 import { Minimap } from "./Minimap";
 import { ToastContainer } from "./TradingToast";
@@ -19,14 +19,37 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./dialog";
+import { Slider } from "./slider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./dropdown-menu";
 
 export default function GameUI() {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const { isSunk, gameState } = useGameState();
-  const { isMuted, toggleMute } = useAudio();
+  const {
+    isMuted,
+    isMusicMuted,
+    isSfxMuted,
+    musicVolume,
+    sfxVolume,
+    toggleMute,
+    toggleMusicMute,
+    toggleSfxMute,
+    setMusicVolume,
+    setSfxVolume,
+  } = useAudio();
 
-  // Handle keyboard controls to show/hide UI elements
+  useEffect(() => {
+    console.log("sfxVolume changed:", sfxVolume);
+  }, [sfxVolume]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Tab") {
@@ -39,20 +62,14 @@ export default function GameUI() {
       }
 
       if (e.key === "t" || e.key === "T") {
-        // Open trade menu if near port
         if (gameState.nearestPort && gameState.isNearPort) {
           useGameState.setState({ isTrading: true });
-
-          // Feedback that trading is available
           console.log(`Trading at ${gameState.nearestPort.name}`);
-
-          // Play success sound
           const { playSound } = useAudio.getState();
-          if (typeof playSound === "function" && !isMuted) {
-            playSound("success", 0.5);
+          if (typeof playSound === "function" && !isMuted && !isSfxMuted) {
+            playSound("success", sfxVolume);
           }
         } else {
-          // Provide feedback to the player about why trading isn't available
           const nearestPort = useGameState.getState().getNearestPort();
           if (nearestPort) {
             const player = gameState.player;
@@ -88,27 +105,20 @@ export default function GameUI() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [gameState.nearestPort, gameState.isNearPort, gameState.player, isMuted]);
+  }, [gameState.nearestPort, gameState.isNearPort, gameState.player, isMuted, isSfxMuted, sfxVolume]);
 
   const [showMinimap, setShowMinimap] = useState(true);
 
-  // Toggle minimap visibility
   const toggleMinimap = () => {
     setShowMinimap(!showMinimap);
   };
 
   return (
     <>
-      {/* HUD with player stats */}
       <HUD />
-
-      {/* Leaderboard (shown on Tab key) */}
       {showLeaderboard && <Leaderboard />}
-
-      {/* Toast notifications for trading */}
       <ToastContainer />
 
-      {/* Sound and minimap controls */}
       <div className="absolute top-4 right-4 z-50 flex gap-2">
         <Button
           variant="outline"
@@ -120,27 +130,87 @@ export default function GameUI() {
           <Map />
         </Button>
 
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={(event) =>{
-            toggleMute();
-            (event.currentTarget as HTMLButtonElement).blur();
-          }}
-          className="bg-black/50 border-0 text-white hover:bg-black/70"
-          title={isMuted ? "Unmute Sound" : "Mute Sound"}
-        >
-          {isMuted ? <VolumeX /> : <Volume2 />}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="bg-black/50 border-0 text-white hover:bg-black/70"
+              title={isMuted ? "Unmute Sound" : "Mute Sound"}
+            >
+              {isMuted ? <VolumeX /> : <Volume2 />}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="bg-black/90 border-amber-500 text-white p-4 rounded-md shadow-lg">
+            <DropdownMenuLabel className="text-amber-400">Audio Settings</DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-amber-500" />
+
+            {/* <DropdownMenuItem
+              onClick={(event) => {
+                toggleMute();
+                (event.currentTarget as HTMLElement).blur();
+              }}
+              className="flex justify-between items-center cursor-pointer hover:bg-amber-500/20"
+            >
+              <span>{isMuted ? "Unmute All" : "Mute All"}</span>
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </DropdownMenuItem> */}
+
+            <div className="mt-2">
+              <div className="flex justify-between items-center mb-1">
+                <span>Music </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={(event) => {
+                    toggleMusicMute();
+                    (event.currentTarget as HTMLButtonElement).blur();
+                  }}
+                  className="bg-black/50 border-0 text-white hover:bg-amber-500/20"
+                >
+                  {isMusicMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                </Button>
+              </div>
+              {/* <Slider
+                value={[musicVolume * 100]}
+                onValueChange={(value) => setMusicVolume(value[0] / 100)}
+                min={0}
+                max={100}
+                step={1}
+                className="w-full"
+              /> */}
+            </div>
+
+            <div className="mt-2">
+              <div className="flex justify-between items-center mb-1">
+                <span>SFX </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={(event) => {
+                    toggleSfxMute();
+                    (event.currentTarget as HTMLButtonElement).blur();
+                  }}
+                  className="bg-black/50 border-0 text-white hover:bg-amber-500/20"
+                >
+                  {isSfxMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                </Button>
+              </div>
+              {/* <Slider
+                value={[sfxVolume * 100]}
+                onValueChange={(value) => setSfxVolume(value[0] / 100)}
+                min={0}
+                max={100}
+                step={1}
+                className="w-full"
+              /> */}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* Minimap component */}
       {showMinimap && gameState.player && <Minimap />}
 
-      {/* Help tooltip button - always visible */}
-      {/* <HelpTooltip /> */}
-
-      {/* Scuttle Ship button - positioned above the port info */}
       {gameState.player && !isSunk && (
         <div className="absolute bottom-20 right-4 z-50 flex flex-col gap-3">
           <Dialog>
@@ -187,7 +257,24 @@ export default function GameUI() {
         </div>
       )}
 
-      {/* Controls help */}
+      {gameState.nearestPort && gameState.isNearPort && !isSunk && (
+        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white p-3 rounded-md border border-amber-500 shadow-lg animate-pulse">
+          <p className="text-center">
+            <span className="font-bold text-amber-400">
+              {gameState.nearestPort.name}
+            </span>{" "}
+            - Press <span className="font-mono bg-black px-2 rounded">T</span>{" "}
+            to trade
+          </p>
+        </div>
+      )}
+
+      {!isSunk && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40 text-white text-sm opacity-70">
+          Press <span className="font-mono bg-black/60 px-1 rounded">H</span> for help
+        </div>
+      )}
+
       {showControls && (
         <div className="absolute left-1/2 bottom-4 transform -translate-x-1/2 z-50 bg-black/80 text-white p-4 rounded-md border border-amber-500 shadow-lg">
           <h3 className="text-center font-bold mb-2 text-amber-400">
@@ -215,26 +302,6 @@ export default function GameUI() {
             <div className="font-mono bg-black/60 px-2 rounded">H</div>
             <div>Toggle Controls</div>
           </div>
-        </div>
-      )}
-
-      {/* Port notification */}
-      {gameState.nearestPort && gameState.isNearPort && !isSunk && (
-        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white p-3 rounded-md border border-amber-500 shadow-lg animate-pulse">
-          <p className="text-center">
-            <span className="font-bold text-amber-400">
-              {gameState.nearestPort.name}
-            </span>{" "}
-            - Press <span className="font-mono bg-black px-2 rounded">T</span>{" "}
-            to trade
-          </p>
-        </div>
-      )}
-
-      {/* Help text at bottom center */}
-      {!isSunk && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40 text-white text-sm opacity-70">
-          Press <span className="font-mono bg-black/60 px-1 rounded">H</span> for help
         </div>
       )}
     </>
