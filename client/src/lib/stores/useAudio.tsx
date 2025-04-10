@@ -197,7 +197,7 @@ export const useAudio = create<AudioState>((set, get) => {
         cannonBangSound.play();
         //console.log("cannonBangSound", cannonBangSound)
       } else {
-        console.warn("cannon bang failed to fire")
+        //console.warn("cannon bang failed to fire")
       }
     },
 

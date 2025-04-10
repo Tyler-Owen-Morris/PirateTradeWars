@@ -35,7 +35,7 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
       useAudio.getState().playCannonFire();
       //playCannonFire();
     } else {
-      console.warn("cannon bang failed to play!", isSfxMuted, cannonBangSound)
+      //console.warn("cannon bang failed to play!", isSfxMuted, cannonBangSound)
     }
   }, [cannonBangSound, isSfxMuted, sfxVolume, allCannonBalls]);
 
@@ -64,6 +64,8 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
           ballPosition.y < shipDims.height + ballRadius
         ) {
           if (!isSfxMuted) {
+            useAudio.getState().playPlayerHit();
+
             hitSound?.play(); // General hit sound for all collisions
 
             if (ownerId === localPlayerId && ship.playerId !== localPlayerId) {
