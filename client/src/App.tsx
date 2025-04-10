@@ -55,7 +55,7 @@ function App() {
   const { gameState, isRegistered, isPlaying, isSunk, isTrading } = useGameState();
   const [showCanvas, setShowCanvas] = useState(false);
   const socketState = useSocket.getState();
-  const { initializeAudio, playBackgroundMusic } = useAudio();
+  const { initializeAudio, playBackgroundMusic, playBackgroundSfx } = useAudio();
 
   // Initialize audio and handle cleanup
   useEffect(() => {
@@ -70,6 +70,7 @@ function App() {
   useEffect(() => {
     const handleFirstInteraction = () => {
       playBackgroundMusic();
+      playBackgroundSfx();
       document.removeEventListener("click", handleFirstInteraction);
     };
     document.addEventListener("click", handleFirstInteraction);

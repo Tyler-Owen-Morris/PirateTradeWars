@@ -3,6 +3,7 @@ import { Howl } from "howler";
 
 interface AudioState {
   backgroundMusic: Howl | null;
+  backgroundSfx: Howl | null;
   hitSound: Howl | null;
   successSound: Howl | null;
   explosionSound: Howl | null;
@@ -20,6 +21,7 @@ interface AudioState {
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
   playBackgroundMusic: () => void;
+  playBackgroundSfx: () => void;
   pauseBackgroundMusic: () => void;
   playCannonFire: () => void;
   playPlayerHit: () => void;
@@ -77,6 +79,7 @@ export const useAudio = create<AudioState>((set, get) => {
 
   return {
     backgroundMusic: null,
+    backgroundSfx: null,
     hitSound: null,
     successSound: null,
     explosionSound: null,
@@ -90,9 +93,16 @@ export const useAudio = create<AudioState>((set, get) => {
       const backgroundMusic = new Howl({
         src: ["/sounds/The Salty Horizon.mp3", "/sounds/background.mp3"],
         loop: true,
-        volume: get().musicVolume,
+        volume: (get().musicVolume * 0.20),
         autoplay: false,
       });
+
+      const backgroundSfx = new Howl({
+        src: ["/sounds/At-Sea-Sailing-a-wooden-ship.mp3"],
+        loop: true,
+        volume: (get().sfxVolume * 0.10),
+        autoplay: false
+      })
 
       const hitSound = new Howl({
         src: ["/sounds/hit.mp3"],
@@ -116,6 +126,7 @@ export const useAudio = create<AudioState>((set, get) => {
 
       set({
         backgroundMusic,
+        backgroundSfx,
         hitSound,
         successSound,
         explosionSound,
@@ -153,6 +164,15 @@ export const useAudio = create<AudioState>((set, get) => {
     toggleSfxMute: () => {
       set((state) => ({ isSfxMuted: !state.isSfxMuted }));
       saveAudioSettings();
+      const { isMuted, isSfxMuted, backgroundSfx } = get();
+
+      if (backgroundSfx) {
+        if (isMuted || isSfxMuted) {
+          backgroundSfx.pause();
+        } else {
+          backgroundSfx.play();
+        }
+      }
     },
 
     setMusicVolume: (volume: number) => {
@@ -161,7 +181,7 @@ export const useAudio = create<AudioState>((set, get) => {
       saveAudioSettings();
       const { backgroundMusic } = get();
       if (backgroundMusic) {
-        backgroundMusic.volume(clampedVolume);
+        backgroundMusic.volume((clampedVolume * 0.20));
       }
     },
 
@@ -169,7 +189,8 @@ export const useAudio = create<AudioState>((set, get) => {
       const clampedVolume = Math.max(0, Math.min(1, volume));
       set({ sfxVolume: clampedVolume });
       saveAudioSettings();
-      const { hitSound, successSound, explosionSound, cannonBangSound } = get();
+      const { backgroundSfx, hitSound, successSound, explosionSound, cannonBangSound } = get();
+      if (backgroundSfx) backgroundSfx.volume((clampedVolume * 0.10))
       if (hitSound) hitSound.volume(clampedVolume);
       if (successSound) successSound.volume(clampedVolume);
       if (explosionSound) explosionSound.volume(clampedVolume);
@@ -180,6 +201,13 @@ export const useAudio = create<AudioState>((set, get) => {
       const { backgroundMusic, isMuted, isMusicMuted } = get();
       if (backgroundMusic && !isMuted && !isMusicMuted) {
         backgroundMusic.play();
+      }
+    },
+
+    playBackgroundSfx: () => {
+      const { backgroundSfx, isMuted, isSfxMuted } = get();
+      if (backgroundSfx && !isMuted && !isSfxMuted) {
+        backgroundSfx.play();
       }
     },
 

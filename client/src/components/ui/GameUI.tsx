@@ -46,9 +46,9 @@ export default function GameUI() {
     setSfxVolume,
   } = useAudio();
 
-  useEffect(() => {
-    console.log("sfxVolume changed:", sfxVolume);
-  }, [sfxVolume]);
+  // useEffect(() => {
+  //   console.log("sfxVolume changed:", sfxVolume);
+  // }, [sfxVolume]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
