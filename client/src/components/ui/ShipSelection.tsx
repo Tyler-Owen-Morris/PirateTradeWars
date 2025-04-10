@@ -148,8 +148,8 @@ export default function ShipSelection() {
   }, [socketError]);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4">
-      <Card className="w-full max-w-4xl border-amber-500 border">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4 overflow-y-auto">
+      <Card className="w-full max-w-4xl border-amber-500 border flex flex-col" style={{ maxHeight: '90vh' }}>
         <CardHeader className="bg-amber-900 text-white">
           <CardTitle className="text-2xl text-center">
             Choose Your Ship
@@ -160,7 +160,7 @@ export default function ShipSelection() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="mt-4">
+        <CardContent className="mt-4 overflow-y-auto flex-1">
           {/* Always show player name input field */}
           <div className="mb-6">
             <label
@@ -391,7 +391,7 @@ export default function ShipSelection() {
           </div>
         </CardContent>
 
-        <CardFooter className="flex justify-center p-6 bg-amber-900 rounded-b-lg">
+        <CardFooter className="flex justify-center p-6 bg-amber-900 rounded-b-lg sticky bottom-0">
           <Button
             onClick={handleStartGame}
             disabled={

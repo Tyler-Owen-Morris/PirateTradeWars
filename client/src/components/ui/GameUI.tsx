@@ -291,10 +291,6 @@ export default function GameUI() {
             <div>Turn Right</div>
             <div className="font-mono bg-black/60 px-2 rounded">Space</div>
             <div>Fire Cannons</div>
-            <div className="font-mono bg-black/60 px-2 rounded">Shift</div>
-            <div>Accelerate</div>
-            <div className="font-mono bg-black/60 px-2 rounded">Ctrl</div>
-            <div>Decelerate</div>
             <div className="font-mono bg-black/60 px-2 rounded">T</div>
             <div>Trade at Port</div>
             <div className="font-mono bg-black/60 px-2 rounded">Tab</div>
