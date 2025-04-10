@@ -48,6 +48,7 @@ export interface CannonBall {
   z: number;
   direction: Vector3;
   speed: number;
+  range: number;
   created: number;
 }
 
@@ -178,11 +179,11 @@ export interface SocketGameEndMessage {
   timestamp: number;
 }
 
-export type SocketMessage = 
-  | SocketRegisterMessage 
-  | SocketInputMessage 
-  | SocketTradeMessage 
-  | SocketGameUpdateMessage 
+export type SocketMessage =
+  | SocketRegisterMessage
+  | SocketInputMessage
+  | SocketTradeMessage
+  | SocketGameUpdateMessage
   | SocketErrorMessage
   | SocketWelcomeMessage
   | SocketRegisteredMessage

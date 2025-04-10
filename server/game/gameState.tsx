@@ -46,6 +46,7 @@ export interface CannonBall {
   z: number;
   direction: { x: number, y: number, z: number };
   speed: number;
+  range: number;
   created: number;
 }
 
@@ -184,6 +185,9 @@ class GameState {
       if (this.state.players[playerId]) this.state.players[playerId].canFire = true;
     }, player.reloadTime);
 
+    const shipType = this.state.players[playerId].shipType;
+    const cannonRange = this.getShipCannonRange(shipType);
+
     for (let i = 0; i < player.cannonCount; i++) {
       const offsetAngle = (i - (player.cannonCount - 1) / 2) * 0.1;
       const angle = player.rotationY + Math.PI / 2 + offsetAngle;
@@ -197,6 +201,7 @@ class GameState {
         z: player.z + direction.z * 10,
         direction,
         speed: 15,
+        range: cannonRange,
         created: now,
       };
       this.state.cannonBalls.push(cannonBall);
@@ -379,6 +384,16 @@ class GameState {
   private getShipArmor(shipType: string): number {
     const armorMap: Record<string, number> = { "sloop": 0, "brigantine": 10, "galleon": 20, "man-o-war": 30 };
     return armorMap[shipType] || 0;
+  }
+
+  private getShipCannonRange(shipType: string): number {
+    const rangeMap: Record<string, number> = {
+      "sloop": 300,
+      "brigantine": 250,
+      "galleon": 200,
+      "man-o-war": 150
+    };
+    return rangeMap[shipType] || 200;
   }
 
   private async handlePlayerSunk(player: PlayerState) {

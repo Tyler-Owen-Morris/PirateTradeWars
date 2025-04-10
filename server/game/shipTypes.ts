@@ -14,6 +14,7 @@ export async function setupShipTypes() {
       cannonCount: 1,
       cannonDamage: 5,
       cannonReload: 2.0,
+      cannonRange: 300,
       repairCost: 100,
       isPaid: false
     },
@@ -28,6 +29,7 @@ export async function setupShipTypes() {
       cannonCount: 2,
       cannonDamage: 8,
       cannonReload: 1.8,
+      cannonRange: 250,
       repairCost: 300,
       isPaid: true
     },
@@ -42,6 +44,7 @@ export async function setupShipTypes() {
       cannonCount: 3,
       cannonDamage: 12,
       cannonReload: 1.5,
+      cannonRange: 200,
       repairCost: 600,
       isPaid: true
     },
@@ -56,6 +59,7 @@ export async function setupShipTypes() {
       cannonCount: 4,
       cannonDamage: 15,
       cannonReload: 1.2,
+      cannonRange: 150,
       repairCost: 1000,
       isPaid: true
     }

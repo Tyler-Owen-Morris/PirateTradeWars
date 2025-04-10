@@ -13,11 +13,13 @@ interface ShipProps {
   maxHp: number;
   sunk: boolean;
   isPlayer?: boolean;
-  playerId?: string; // Added for collision detection
+  playerId?: string;
 }
 
+export type { ShipProps };
+
 export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
-  { position, rotation, type, name, hp, maxHp, sunk, isPlayer = false, playerId }, 
+  { position, rotation, type, name, hp, maxHp, sunk, isPlayer = false, playerId },
   ref
 ) {
   const healthBarRef = useRef<THREE.Mesh>(null);
@@ -78,7 +80,7 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
         (healthBarRef.current.material as THREE.MeshBasicMaterial).color.set('#F44336');
       }
     }
-    
+
     if (sunk && shipRef.current) {
       shipRef.current.position.y = Math.max(-40, shipRef.current.position.y - 0.2);
       shipRef.current.rotation.z = Math.min(Math.PI / 4, shipRef.current.rotation.z + 0.005);
