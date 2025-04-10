@@ -110,7 +110,7 @@ export const useAudio = create<AudioState>((set, get) => {
       });
 
       const cannonBangSound = new Howl({
-        src: ["/sounds/cannon-bang.mp3"],
+        src: ["/sounds/bang1.mp3"],
         volume: get().sfxVolume,
       });
 
@@ -195,7 +195,7 @@ export const useAudio = create<AudioState>((set, get) => {
       if (cannonBangSound && !isMuted && !isSfxMuted) {
         cannonBangSound.volume(sfxVolume); // Full volume for cannon fire
         cannonBangSound.play();
-        //console.log(cannonBangSound)
+        //console.log("cannonBangSound", cannonBangSound)
       } else {
         console.warn("cannon bang failed to fire")
       }

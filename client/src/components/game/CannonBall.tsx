@@ -26,15 +26,16 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
   const { playCannonFire, cannonBangSound, hitSound, successSound, explosionSound, isSfxMuted, sfxVolume } = useAudio();
 
   useEffect(() => {
-    playCannonFire()
+
     if (cannonBangSound && !isSfxMuted) {
       const scaledVolume = Math.min(1.0, sfxVolume * (1 + (allCannonBalls - 1) * 0.2));
-      //console.log("CANON GO BOOM~",scaledVolume)
-      cannonBangSound.volume(scaledVolume);
-      cannonBangSound.play();
+      //console.log("CANON GO BOOM~", scaledVolume)
+      // cannonBangSound.volume(scaledVolume);
+      // cannonBangSound.play();
+      useAudio.getState().playCannonFire();
       //playCannonFire();
     } else {
-      console.warn("cannon bang failed to play!", isSfxMuted, cannonBangSound )
+      console.warn("cannon bang failed to play!", isSfxMuted, cannonBangSound)
     }
   }, [cannonBangSound, isSfxMuted, sfxVolume, allCannonBalls]);
 
@@ -44,7 +45,7 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
     const ballPosition = ballRef.current.position;
     const ballRadius = 3;
 
-    if (ships != undefined && ships.length > 0 ){
+    if (ships != undefined && ships.length > 0) {
       ships.forEach((ship, index) => {
         if (ship.sunk) return;
 
@@ -75,9 +76,9 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
           }
           onHit(index, 10);
         }
-    });
+      });
     }
-    
+
   };
 
   const getShipDimensions = (type: string) => {

@@ -207,7 +207,7 @@ export default function TradeMenu() {
     }
 
     // Get port good
-    const portGood = portGoods.find(pg => pg.goodId === selectedGoodId);
+    const portGood = portGoods.find(pg => pg.goodwdId === selectedGoodId);
     if (!portGood) {
       setError('Good not available at this port');
       return;
