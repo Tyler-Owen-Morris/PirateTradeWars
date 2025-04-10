@@ -191,25 +191,34 @@ export default function ShipSelection() {
                 {shipError || socketError}
                 {socketError && socketError.includes("Name already taken") && (
                   <div className="mt-2">
-                    <p>Please try a different name or:</p>
-                    <Button
-                      onClick={() => {
-                        // Reset error and generate a random name
-                        useSocket.getState().resetError();
-                        const randomName = `pirate${Math.floor(Math.random() * 10000)}`;
-                        setPlayerName(randomName);
-                        localStorage.setItem("playerName", randomName);
-                      }}
-                      className="mt-2 bg-amber-700 hover:bg-amber-600 text-white py-1 px-3 rounded-md transition"
-                      size="sm"
-                    >
-                      Generate Random Name
-                    </Button>
+                    <p>Please try a different name</p>
+                    
                   </div>
                 )}
               </AlertDescription>
             </Alert>
           )}
+          <Alert variant="default" className="mb-4">
+
+            <AlertDescription>
+              <p>
+                <strong>Note:</strong> you may generate a random name if you're not feeling creative.
+              </p>
+            </AlertDescription>
+            <Button
+              onClick={() => {
+                // Reset error and generate a random name
+                useSocket.getState().resetError();
+                const randomName = `pirate${Math.floor(Math.random() * 10000)}`;
+                setPlayerName(randomName);
+                localStorage.setItem("playerName", randomName);
+              }}
+              className="mt-2 bg-amber-700 hover:bg-amber-600 text-white py-1 px-3 rounded-md transition"
+              size="sm"
+            >
+              Generate Random Name
+            </Button>
+          </Alert>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Free Ship: Sloop */}
