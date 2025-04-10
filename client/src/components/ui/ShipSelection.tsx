@@ -165,7 +165,7 @@ export default function ShipSelection() {
           <div className="mb-6">
             <label
               htmlFor="playerName"
-              className="block text-sm font-medium mb-1"
+              className="block text-sm font-medium mb-1 text-white"
             >
               Your Captain's Name:
             </label>
@@ -185,14 +185,14 @@ export default function ShipSelection() {
             </div>
           </div>
           {(shipError || socketError) && (
-            <Alert variant="destructive" className="mb-4">
+            <Alert variant="destructive" className="mb-4 text-white">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 {shipError || socketError}
                 {socketError && socketError.includes("Name already taken") && (
                   <div className="mt-2">
                     <p>Please try a different name</p>
-                    
+
                   </div>
                 )}
               </AlertDescription>
@@ -200,7 +200,7 @@ export default function ShipSelection() {
           )}
           <Alert variant="default" className="mb-4">
 
-            <AlertDescription>
+            <AlertDescription className="text-white">
               <p>
                 <strong>Note:</strong> you may generate a random name if you're not feeling creative.
               </p>
