@@ -133,7 +133,7 @@ export const useSocket = create<SocketState>((set, get) => ({
               break;
 
             case "tradeSuccess":
-              useAudio.getState().playSuccess();
+              useAudio.getState().playPlayerHit();
               if (message.gold !== undefined) {
                 const gameState = useGameState.getState();
                 if (gameState.gameState.player) {
@@ -153,7 +153,7 @@ export const useSocket = create<SocketState>((set, get) => ({
                 }));
               }
               useGameState.setState({ isSunk: true });
-              useAudio.getState().playExplosion();
+              useAudio.getState().playPlayerSinks();
               break;
 
             default:
@@ -237,7 +237,7 @@ export const useSocket = create<SocketState>((set, get) => ({
       const player = players[playerId];
       const gameState = useGameState.getState();
       if (gameState.gameState.player && player.hp < gameState.gameState.player.hp) {
-        useAudio.getState().playHit();
+        useAudio.getState().playPlayerGetsHit();
       }
       gameState.updatePlayer(player);
     }

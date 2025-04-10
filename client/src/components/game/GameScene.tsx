@@ -95,7 +95,7 @@ export function GameScene() {
         
         // Debug when moving to help diagnose issues
         if (forward || backward || left || right) {
-          console.log("Server input - Speed:", speed, "Direction:", direction.current);
+          //console.log("Server input - Speed:", speed, "Direction:", direction.current);
         }
         
         if (shouldUpdateRotation) {

@@ -246,7 +246,7 @@ export default function GameUI() {
                   className="bg-red-700 hover:bg-red-800"
                   onClick={() => {
                     useSocket.getState().scuttleShip();
-                    useAudio.getState().playExplosion();
+                    //useAudio.getState().playExplosion();
                   }}
                 >
                   Scuttle Ship

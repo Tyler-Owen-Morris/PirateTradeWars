@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from './alert';
 export default function TradeMenu() {
   const { gameState, isTrading, setIsTrading, nearPortId } = useGameState();
   const { sendTrade, error: socketError } = useSocket();
-  
+
   const [currentPort, setCurrentPort] = useState<Port | null>(null);
   const [portGoods, setPortGoods] = useState<PortGood[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -23,7 +23,7 @@ export default function TradeMenu() {
   const [selectedGoodId, setSelectedGoodId] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [tab, setTab] = useState('buy');
-  
+
   // Get current port and its goods
   useEffect(() => {
     if (nearPortId && isTrading) {
@@ -31,7 +31,7 @@ export default function TradeMenu() {
       loadInventory();
     }
   }, [nearPortId, isTrading]);
-  
+
   // Update local inventory when game state inventory changes
   useEffect(() => {
     // Add good details to inventory items
@@ -39,29 +39,29 @@ export default function TradeMenu() {
       ...item,
       good: GOODS.find(g => g.id === item.goodId)
     }));
-    
+
     setInventory(itemsWithGoods);
-    
+
     // Log for debugging
     console.log("Inventory updated from game state:", gameState.inventory);
   }, [gameState.inventory]);
-  
+
   // Load port data
   const loadPortData = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Find port in game state
       const port = gameState.ports.find(p => p.id === nearPortId);
       if (port) {
         setCurrentPort(port);
-        
+
         // Load port goods from API
         try {
           const response = await apiRequest('GET', `/api/ports/${port.id}/goods`, undefined);
           const goods = await response.json();
-          
+
           if (Array.isArray(goods)) {
             setPortGoods(goods);
           } else {
@@ -95,69 +95,68 @@ export default function TradeMenu() {
       setLoading(false);
     }
   };
-  
+
   // Load player inventory
   const loadInventory = async () => {
     try {
       setLoading(true);
-      
+
       if (!gameState.player) return;
-      
-      try {
-        const response = await apiRequest('GET', `/api/players/${gameState.player.id}/inventory`, undefined);
-        const inventoryItems = await response.json();
-        
-        if (Array.isArray(inventoryItems)) {
-          // Update the global game state first
-          useGameState.getState().updatePlayerInventory(inventoryItems);
-          
-          // Add good details to inventory items (will be done by the useEffect)
-          console.log("Loaded inventory from API:", inventoryItems);
-        } else {
-          console.log("No inventory items received from API");
-          // Leave global state untouched, don't set empty inventory here
-        }
-      } catch (error) {
-        console.error('Failed to load inventory:', error);
-        // Don't modify anything on error
+
+      // Use the inventory from game state instead of making an API call
+      const inventoryItems = gameState.inventory;
+
+      if (Array.isArray(inventoryItems)) {
+        // Add good details to inventory items
+        const itemsWithGoods = inventoryItems.map(item => ({
+          ...item,
+          good: GOODS.find(g => g.id === item.goodId)
+        }));
+
+        setInventory(itemsWithGoods);
+        console.log("Loaded inventory from game state:", inventoryItems);
+      } else {
+        console.log("No inventory items in game state");
+        setInventory([]);
       }
     } catch (error) {
       console.error('Error loading inventory:', error);
+      setInventory([]);
     } finally {
       setLoading(false);
     }
   };
-  
+
   // Find good by ID
   const findGood = (id: number): Good | undefined => {
     return GOODS.find(g => g.id === id);
   };
-  
+
   // Get inventory quantity for a good
   const getInventoryQuantity = (goodId: number): number => {
     const item = inventory.find(i => i.goodId === goodId);
     return item ? item.quantity : 0;
   };
-  
+
   // Handle trade
   const handleTrade = () => {
     if (!currentPort || !selectedGoodId || !gameState.player) {
       setError('Unable to complete trade');
       return;
     }
-    
+
     if (quantity <= 0) {
       setError('Quantity must be greater than 0');
       return;
     }
-    
+
     // Get port good
     const portGood = portGoods.find(pg => pg.goodId === selectedGoodId);
     if (!portGood) {
       setError('Good not available at this port');
       return;
     }
-    
+
     // Check if buying or selling
     if (tab === 'buy') {
       // Check if port has enough stock
@@ -165,14 +164,14 @@ export default function TradeMenu() {
         setError(`Not enough stock available. Only ${portGood.stock} units left.`);
         return;
       }
-      
+
       // Check if player has enough gold
       const totalCost = portGood.currentPrice * quantity;
       if (gameState.player.gold < totalCost) {
         setError(`Not enough gold. You need ${totalCost} gold.`);
         return;
       }
-      
+
       // Check if player has enough cargo space
       const spaceNeeded = quantity;
       const spaceAvailable = gameState.player.cargoCapacity - gameState.player.cargoUsed;
@@ -188,52 +187,52 @@ export default function TradeMenu() {
         return;
       }
     }
-    
+
     // Send trade to server
     sendTrade(currentPort.id, tab === 'buy' ? 'buy' : 'sell', selectedGoodId, quantity);
-    
+
     // Reset form
     setSelectedGoodId(null);
     setQuantity(1);
-    
+
     // Note: We don't need to reload data here anymore
     // The inventory will be updated via socket message
   };
-  
+
   // Handle buying maximum possible quantity
   const handleBuyMax = () => {
     if (!currentPort || !selectedGoodId || !gameState.player) {
       setError('Unable to complete trade');
       return;
     }
-    
+
     // Get port good
     const portGood = portGoods.find(pg => pg.goodId === selectedGoodId);
     if (!portGood) {
       setError('Good not available at this port');
       return;
     }
-    
+
     // Calculate max quantity based on three constraints:
     // 1. Available stock at port
     // 2. Player's gold
     // 3. Available cargo space
-    
+
     const pricePerUnit = portGood.currentPrice;
     const availableStock = portGood.stock;
     const playerGold = gameState.player.gold;
     const availableCargoSpace = gameState.player.cargoCapacity - gameState.player.cargoUsed;
-    
+
     // Max based on player's gold
     const maxByGold = Math.floor(playerGold / pricePerUnit);
-    
+
     // Find the minimum of all constraints
     const maxQuantity = Math.min(
       availableStock,
       maxByGold,
       availableCargoSpace
     );
-    
+
     if (maxQuantity <= 0) {
       if (availableStock <= 0) {
         setError('No stock available at this port.');
@@ -246,48 +245,48 @@ export default function TradeMenu() {
       }
       return;
     }
-    
+
     // Set the quantity to max and execute the trade
     setQuantity(maxQuantity);
-    
+
     // Execute trade with max quantity
     sendTrade(currentPort.id, 'buy', selectedGoodId, maxQuantity);
-    
+
     // Reset form
     setSelectedGoodId(null);
     setQuantity(1);
   };
-  
+
   // Handle selling maximum possible quantity
   const handleSellMax = () => {
     if (!currentPort || !selectedGoodId || !gameState.player) {
       setError('Unable to complete trade');
       return;
     }
-    
+
     // Get the inventory quantity of the selected good
     const inventoryQuantity = getInventoryQuantity(selectedGoodId);
     if (inventoryQuantity <= 0) {
       setError('You don\'t have any of this good to sell.');
       return;
     }
-    
+
     // For selling, we only need to consider how much the player owns
     const maxQuantity = inventoryQuantity;
-    
+
     // Execute trade with max quantity
     sendTrade(currentPort.id, 'sell', selectedGoodId, maxQuantity);
-    
+
     // Reset form
     setSelectedGoodId(null);
     setQuantity(1);
   };
-  
+
   // Close dialog
   const handleClose = () => {
     setIsTrading(false);
   };
-  
+
   return (
     <Dialog open={isTrading} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-screen overflow-y-auto bg-slate-800 text-white border-amber-500">
@@ -300,7 +299,7 @@ export default function TradeMenu() {
             Buy and sell goods to increase your wealth
           </DialogDescription>
         </DialogHeader>
-        
+
         {(error || socketError) && (
           <Alert variant="destructive" className="mb-4 mt-4 border border-red-500 bg-red-900/50">
             <AlertCircle className="h-4 w-4" />
@@ -309,7 +308,7 @@ export default function TradeMenu() {
             </AlertDescription>
           </Alert>
         )}
-        
+
         {gameState.player && (
           <div className="flex items-center justify-between mb-4 p-3 bg-amber-800/40 rounded-md border border-amber-500/50">
             <div className="flex items-center">
@@ -324,23 +323,23 @@ export default function TradeMenu() {
             </div>
           </div>
         )}
-        
-        <Tabs 
-          defaultValue="buy" 
-          value={tab} 
+
+        <Tabs
+          defaultValue="buy"
+          value={tab}
           onValueChange={(newTab) => {
             setTab(newTab);
             // If switching to sell tab, make sure to update inventory
             if (newTab === 'sell') {
               loadInventory();
             }
-          }} 
+          }}
           className="mt-4">
           <TabsList className="grid w-full grid-cols-2 bg-amber-900 border border-amber-500">
             <TabsTrigger value="buy" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">Buy Goods</TabsTrigger>
             <TabsTrigger value="sell" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">Sell Goods</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="buy" className="space-y-4">
             <div className="rounded-md border border-amber-500/50 overflow-hidden">
               <div className="flex items-center p-3 bg-amber-900/70 text-amber-100 font-medium">
@@ -349,7 +348,7 @@ export default function TradeMenu() {
                 <div className="w-1/4 text-center">Stock</div>
                 <div className="w-1/4 text-center">Action</div>
               </div>
-              
+
               {loading ? (
                 <div className="p-8 text-center text-amber-100">Loading goods...</div>
               ) : portGoods.length === 0 ? (
@@ -361,15 +360,14 @@ export default function TradeMenu() {
                 portGoods.map((portGood) => {
                   const good = findGood(portGood.goodId);
                   if (!good) return null;
-                  
+
                   return (
-                    <div 
-                      key={portGood.id} 
-                      className={`flex items-center p-3 border-t border-amber-500/20 ${
-                        selectedGoodId === portGood.goodId 
-                          ? 'bg-amber-700/50 text-amber-50' 
-                          : 'hover:bg-amber-800/30'
-                      }`}
+                    <div
+                      key={portGood.id}
+                      className={`flex items-center p-3 border-t border-amber-500/20 ${selectedGoodId === portGood.goodId
+                        ? 'bg-amber-700/50 text-amber-50'
+                        : 'hover:bg-amber-800/30'
+                        }`}
                     >
                       <div className="w-1/4 font-medium">{good.name}</div>
                       <div className="w-1/4 text-center">
@@ -377,13 +375,13 @@ export default function TradeMenu() {
                       </div>
                       <div className="w-1/4 text-center">{portGood.stock} units</div>
                       <div className="w-1/4 text-center">
-                        <Button 
+                        <Button
                           variant={selectedGoodId === portGood.goodId ? "default" : "outline"}
                           size="sm"
                           onClick={() => setSelectedGoodId(portGood.goodId)}
                           disabled={portGood.stock === 0}
-                          className={selectedGoodId === portGood.goodId 
-                            ? "bg-amber-500 hover:bg-amber-600 text-white" 
+                          className={selectedGoodId === portGood.goodId
+                            ? "bg-amber-500 hover:bg-amber-600 text-white"
                             : "border-amber-400 text-amber-200 hover:bg-amber-800"}
                         >
                           {selectedGoodId === portGood.goodId ? 'Selected' : 'Select'}
@@ -394,7 +392,7 @@ export default function TradeMenu() {
                 })
               )}
             </div>
-            
+
             {selectedGoodId && (
               <div className="p-4 rounded-md border border-amber-500/50 bg-amber-900/30">
                 <h3 className="font-bold mb-3 text-amber-200 flex items-center">
@@ -404,9 +402,9 @@ export default function TradeMenu() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium mb-1 block text-amber-100">Quantity</label>
-                    <Input 
-                      type="number" 
-                      min="1" 
+                    <Input
+                      type="number"
+                      min="1"
                       max={portGoods.find(pg => pg.goodId === selectedGoodId)?.stock || 1}
                       value={quantity}
                       onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
@@ -421,16 +419,16 @@ export default function TradeMenu() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex flex-col sm:flex-row gap-2 mt-4">
-                  <Button 
+                  <Button
                     className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
                     onClick={handleTrade}
                   >
                     <ShoppingCart className="mr-2 h-4 w-4" />
                     Buy Goods
                   </Button>
-                  <Button 
+                  <Button
                     className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white"
                     onClick={handleBuyMax}
                   >
@@ -441,7 +439,7 @@ export default function TradeMenu() {
               </div>
             )}
           </TabsContent>
-          
+
           <TabsContent value="sell" className="space-y-4">
             <div className="rounded-md border border-amber-500/50 overflow-hidden">
               <div className="flex items-center p-3 bg-amber-900/70 text-amber-100 font-medium">
@@ -450,7 +448,7 @@ export default function TradeMenu() {
                 <div className="w-1/4 text-center">Owned</div>
                 <div className="w-1/4 text-center">Action</div>
               </div>
-              
+
               {loading ? (
                 <div className="p-8 text-center text-amber-100">Loading inventory...</div>
               ) : inventory.filter(item => item.quantity > 0).length === 0 ? (
@@ -464,18 +462,17 @@ export default function TradeMenu() {
                   .map((item) => {
                     const good = findGood(item.goodId);
                     if (!good) return null;
-                    
+
                     const portGood = portGoods.find(pg => pg.goodId === item.goodId);
                     const price = portGood ? portGood.currentPrice : 0;
-                    
+
                     return (
-                      <div 
-                        key={item.goodId} 
-                        className={`flex items-center p-3 border-t border-amber-500/20 ${
-                          selectedGoodId === item.goodId 
-                            ? 'bg-amber-700/50 text-amber-50' 
-                            : 'hover:bg-amber-800/30'
-                        }`}
+                      <div
+                        key={item.goodId}
+                        className={`flex items-center p-3 border-t border-amber-500/20 ${selectedGoodId === item.goodId
+                          ? 'bg-amber-700/50 text-amber-50'
+                          : 'hover:bg-amber-800/30'
+                          }`}
                       >
                         <div className="w-1/4 font-medium">{good.name}</div>
                         <div className="w-1/4 text-center">
@@ -483,12 +480,12 @@ export default function TradeMenu() {
                         </div>
                         <div className="w-1/4 text-center">{item.quantity} units</div>
                         <div className="w-1/4 text-center">
-                          <Button 
+                          <Button
                             variant={selectedGoodId === item.goodId ? "default" : "outline"}
                             size="sm"
                             onClick={() => setSelectedGoodId(item.goodId)}
-                            className={selectedGoodId === item.goodId 
-                              ? "bg-amber-500 hover:bg-amber-600 text-white" 
+                            className={selectedGoodId === item.goodId
+                              ? "bg-amber-500 hover:bg-amber-600 text-white"
                               : "border-amber-400 text-amber-200 hover:bg-amber-800"}
                           >
                             {selectedGoodId === item.goodId ? 'Selected' : 'Select'}
@@ -499,7 +496,7 @@ export default function TradeMenu() {
                   })
               )}
             </div>
-            
+
             {selectedGoodId && (
               <div className="p-4 rounded-md border border-amber-500/50 bg-amber-900/30">
                 <h3 className="font-bold mb-3 text-amber-200 flex items-center">
@@ -509,9 +506,9 @@ export default function TradeMenu() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium mb-1 block text-amber-100">Quantity</label>
-                    <Input 
-                      type="number" 
-                      min="1" 
+                    <Input
+                      type="number"
+                      min="1"
                       max={getInventoryQuantity(selectedGoodId)}
                       value={quantity}
                       onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
@@ -526,16 +523,16 @@ export default function TradeMenu() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex flex-col sm:flex-row gap-2 mt-4">
-                  <Button 
+                  <Button
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                     onClick={handleTrade}
                   >
                     <Tag className="mr-2 h-4 w-4" />
                     Sell Goods
                   </Button>
-                  <Button 
+                  <Button
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                     onClick={handleSellMax}
                   >
@@ -547,7 +544,7 @@ export default function TradeMenu() {
             )}
           </TabsContent>
         </Tabs>
-        
+
         <DialogFooter className="flex justify-between items-center mt-4 pt-4 border-t border-amber-500/30">
           <div className="flex items-center">
             <Info className="h-4 w-4 mr-1 text-amber-300" />

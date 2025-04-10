@@ -57,7 +57,7 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
     
     // Debug movement (only log when needed)
     if (forward || backward || left || right) {
-      console.log("Movement inputs:", { forward, backward, left, right });
+      //console.log("Movement inputs:", { forward, backward, left, right });
     }
     
     // --------- SIMPLE, DIRECT TURNING SYSTEM ---------

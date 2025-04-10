@@ -21,7 +21,10 @@ interface AudioState {
   setSfxVolume: (volume: number) => void;
   playBackgroundMusic: () => void;
   pauseBackgroundMusic: () => void;
-  // Other methods omitted for brevity
+  playCannonFire: () => void;
+  playPlayerHit: () => void;
+  playPlayerGetsHit: () => void;
+  playPlayerSinks: () => void;
 }
 
 export const useAudio = create<AudioState>((set, get) => {
@@ -85,109 +88,141 @@ export const useAudio = create<AudioState>((set, get) => {
       if (get().isAudioInitialized) return;
 
       const backgroundMusic = new Howl({
-      // src: ["/sounds/background.mp3"],
-      src: ["/sounds/The Salty Horizon.mp3","/sounds/background.mp3"],
-      loop: true,
-      volume: get().musicVolume,
-      autoplay: false,
-    });
+        src: ["/sounds/The Salty Horizon.mp3", "/sounds/background.mp3"],
+        loop: true,
+        volume: get().musicVolume,
+        autoplay: false,
+      });
 
-    const hitSound = new Howl({
-      src: ["/sounds/hit.mp3"],
-      volume: get().sfxVolume,
-    });
+      const hitSound = new Howl({
+        src: ["/sounds/hit.mp3"],
+        volume: get().sfxVolume,
+      });
 
-    const successSound = new Howl({
-      src: ["/sounds/success.mp3"],
-      volume: get().sfxVolume,
-    });
+      const successSound = new Howl({
+        src: ["/sounds/success.mp3"],
+        volume: get().sfxVolume,
+      });
 
-    const explosionSound = new Howl({
-      src: ["/audio/explosion.mp3"],
-      volume: get().sfxVolume,
-    });
+      const explosionSound = new Howl({
+        src: ["/sounds/explosion.mp3"],
+        volume: get().sfxVolume,
+      });
 
-    const cannonBangSound = new Howl({
-      src: ["/audio/cannon-bang.mp3"],
-      volume: get().sfxVolume,
-    });
+      const cannonBangSound = new Howl({
+        src: ["/sounds/cannon-bang.mp3"],
+        volume: get().sfxVolume,
+      });
 
-    set({
-      backgroundMusic,
-      hitSound,
-      successSound,
-      explosionSound,
-      cannonBangSound,
-      isAudioInitialized: true,
-    });
-  },
+      set({
+        backgroundMusic,
+        hitSound,
+        successSound,
+        explosionSound,
+        cannonBangSound,
+        isAudioInitialized: true,
+      });
+    },
 
-  toggleMute: () => {
-    set((state) => ({ isMuted: !state.isMuted }));
-    saveAudioSettings();
-    const { isMuted, isMusicMuted, backgroundMusic } = get();
-    if (backgroundMusic) {
-      if (isMuted || isMusicMuted) {
-        backgroundMusic.pause();
-      } else {
+    toggleMute: () => {
+      set((state) => ({ isMuted: !state.isMuted }));
+      saveAudioSettings();
+      const { isMuted, isMusicMuted, backgroundMusic } = get();
+      if (backgroundMusic) {
+        if (isMuted || isMusicMuted) {
+          backgroundMusic.pause();
+        } else {
+          backgroundMusic.play();
+        }
+      }
+    },
+
+    toggleMusicMute: () => {
+      set((state) => ({ isMusicMuted: !state.isMusicMuted }));
+      saveAudioSettings();
+      const { isMuted, isMusicMuted, backgroundMusic } = get();
+      if (backgroundMusic) {
+        if (isMuted || isMusicMuted) {
+          backgroundMusic.pause();
+        } else {
+          backgroundMusic.play();
+        }
+      }
+    },
+
+    toggleSfxMute: () => {
+      set((state) => ({ isSfxMuted: !state.isSfxMuted }));
+      saveAudioSettings();
+    },
+
+    setMusicVolume: (volume: number) => {
+      const clampedVolume = Math.max(0, Math.min(1, volume));
+      set({ musicVolume: clampedVolume });
+      saveAudioSettings();
+      const { backgroundMusic } = get();
+      if (backgroundMusic) {
+        backgroundMusic.volume(clampedVolume);
+      }
+    },
+
+    setSfxVolume: (volume: number) => {
+      const clampedVolume = Math.max(0, Math.min(1, volume));
+      set({ sfxVolume: clampedVolume });
+      saveAudioSettings();
+      const { hitSound, successSound, explosionSound, cannonBangSound } = get();
+      if (hitSound) hitSound.volume(clampedVolume);
+      if (successSound) successSound.volume(clampedVolume);
+      if (explosionSound) explosionSound.volume(clampedVolume);
+      if (cannonBangSound) cannonBangSound.volume(clampedVolume);
+    },
+
+    playBackgroundMusic: () => {
+      const { backgroundMusic, isMuted, isMusicMuted } = get();
+      if (backgroundMusic && !isMuted && !isMusicMuted) {
         backgroundMusic.play();
       }
-    }
-  },
+    },
 
-  toggleMusicMute: () => {
-    set((state) => ({ isMusicMuted: !state.isMusicMuted }));
-    saveAudioSettings();
-    const { isMuted, isMusicMuted, backgroundMusic } = get();
-    if (backgroundMusic) {
-      if (isMuted || isMusicMuted) {
+    pauseBackgroundMusic: () => {
+      const { backgroundMusic } = get();
+      if (backgroundMusic) {
         backgroundMusic.pause();
-      } else {
-        backgroundMusic.play();
       }
-    }
-  },
+    },
 
-  toggleSfxMute: () => {
-    set((state) => ({ isSfxMuted: !state.isSfxMuted }));
-    saveAudioSettings();
-  },
+    playCannonFire: () => {
+      const { cannonBangSound, isMuted, isSfxMuted, sfxVolume } = get();
+      if (cannonBangSound && !isMuted && !isSfxMuted) {
+        cannonBangSound.volume(sfxVolume); // Full volume for cannon fire
+        cannonBangSound.play();
+        //console.log(cannonBangSound)
+      } else {
+        console.warn("cannon bang failed to fire")
+      }
+    },
 
-  setMusicVolume: (volume: number) => {
-    const clampedVolume = Math.max(0, Math.min(1, volume));
-    set({ musicVolume: clampedVolume });
-    saveAudioSettings();
-    const { backgroundMusic } = get();
-    if (backgroundMusic) {
-      backgroundMusic.volume(clampedVolume);
-    }
-  },
+    playPlayerHit: () => {
+      const { successSound, isMuted, isSfxMuted, sfxVolume } = get();
+      if (successSound && !isMuted && !isSfxMuted) {
+        successSound.volume(sfxVolume * 0.5); // Half volume for hitting another player
+        successSound.play();
+      }
+    },
 
-  setSfxVolume: (volume: number) => {
-    const clampedVolume = Math.max(0, Math.min(1, volume));
-    set({ sfxVolume: clampedVolume });
-    saveAudioSettings();
-    const { hitSound, successSound, explosionSound, cannonBangSound } = get();
-    if (hitSound) hitSound.volume(clampedVolume);
-    if (successSound) successSound.volume(clampedVolume);
-    if (explosionSound) explosionSound.volume(clampedVolume);
-    if (cannonBangSound) cannonBangSound.volume(clampedVolume);
-  },
+    playPlayerGetsHit: () => {
+      const { explosionSound, isMuted, isSfxMuted, sfxVolume } = get();
+      if (explosionSound && !isMuted && !isSfxMuted) {
+        explosionSound.volume(sfxVolume * 0.7); // Slightly reduced volume for getting hit
+        explosionSound.play();
+      }
+    },
 
-  playBackgroundMusic: () => {
-    const { backgroundMusic, isMuted, isMusicMuted } = get();
-    if (backgroundMusic && !isMuted && !isMusicMuted) {
-      backgroundMusic.play();
-    }
-  },
-
-  pauseBackgroundMusic: () => {
-    const { backgroundMusic } = get();
-    if (backgroundMusic) {
-      backgroundMusic.pause();
-    }
-  },
-
-  // Other methods omitted for brevity
-};
+    playPlayerSinks: () => {
+      const { explosionSound, isMuted, isSfxMuted, sfxVolume } = get();
+      if (explosionSound && !isMuted && !isSfxMuted) {
+        explosionSound.volume(sfxVolume); // Full volume for sinking
+        explosionSound.play();
+      }
+    },
+  };
 });
