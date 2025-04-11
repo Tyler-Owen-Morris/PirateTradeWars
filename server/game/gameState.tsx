@@ -1,4 +1,4 @@
-import { storage } from "../storage";
+import { redisStorage } from "../redisStorage";
 import { defaultPorts, goodTypes } from "./shipTypes";
 
 export const MAP_WIDTH = 5000;
@@ -34,7 +34,7 @@ export interface PlayerState {
   sunk: boolean;
   connected: boolean;
   lastSeen: number;
-  dead: boolean; // New property to mark players as "dead" after grace period
+  dead: boolean;
 }
 
 export interface CannonBall {
@@ -55,7 +55,7 @@ export interface GameStateData {
   cannonBalls: CannonBall[];
   lastUpdate: number;
   activeNames: Set<string>;
-  leaderboard: { name: string; score: number }[];
+  leaderboard: { id: number; playerId: number | null; playerName: string; score: number; achievedAt: Date }[];
 }
 
 class GameState {
@@ -115,8 +115,8 @@ class GameState {
     }
   }
 
-  addPlayer(id: string, playerId: number, name: string, shipType: string, ship: any) {
-    if (this.state.activeNames.has(name)) return null;
+  async addPlayer(id: string, playerId: number, name: string, shipType: string, ship: any) {
+    if (await redisStorage.getActiveNames().then(names => names.has(name))) return null;
     const x = Math.random() * MAP_WIDTH;
     const z = Math.random() * MAP_HEIGHT;
     const player: PlayerState = {
@@ -147,7 +147,7 @@ class GameState {
       dead: false,
     };
     this.state.players[id] = player;
-    this.state.activeNames.add(name);
+    await redisStorage.addActiveName(name);
     return player;
   }
 
@@ -205,10 +205,11 @@ class GameState {
         created: now,
       };
       this.state.cannonBalls.push(cannonBall);
+      redisStorage.addCannonball(cannonBall);
     }
   }
 
-  tick() {
+  async tick() {
     const now = Date.now();
     const deltaTime = (now - this.state.lastUpdate) / 1000;
     this.state.lastUpdate = now;
@@ -218,7 +219,7 @@ class GameState {
 
       if (player.dead && now - player.lastSeen > 10000) {
         console.log(`Removing dead player ${player.name} (${playerId})`);
-        this.state.activeNames.delete(player.name);
+        await redisStorage.removeActiveName(player.name);
         delete this.state.players[playerId];
         continue;
       }
@@ -226,8 +227,8 @@ class GameState {
       if (!player.connected && !player.dead && now - player.lastSeen > GRACE_PERIOD) {
         console.log(`Marking player ${player.name} (${playerId}) as dead`);
         player.dead = true;
-        this.state.leaderboard.push({ name: player.name, score: player.gold });
-        this.state.leaderboard.sort((a, b) => b.score - a.score);
+        await redisStorage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold, achievedAt: new Date() });
+        this.state.leaderboard = await redisStorage.getLeaderboard(10);
         this.broadcastDead(playerId);
         continue;
       }
@@ -242,8 +243,9 @@ class GameState {
       }
     }
 
-    for (let i = this.state.cannonBalls.length - 1; i >= 0; i--) {
-      const ball = this.state.cannonBalls[i];
+    const cannonballs = await redisStorage.getCannonballs();
+    for (let i = cannonballs.length - 1; i >= 0; i--) {
+      const ball = cannonballs[i];
       ball.x += ball.direction.x * ball.speed * deltaTime * 60;
       ball.y += ball.direction.y * ball.speed * deltaTime * 60;
       ball.z += ball.direction.z * ball.speed * deltaTime * 60;
@@ -251,7 +253,7 @@ class GameState {
       ball.z = (ball.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
 
       if (now - ball.created > 5000) {
-        this.state.cannonBalls.splice(i, 1);
+        await redisStorage.removeCannonball(i);
         continue;
       }
 
@@ -270,9 +272,9 @@ class GameState {
           if (player.hp <= 0) {
             player.hp = 0;
             player.sunk = true;
-            this.handlePlayerSunk(player);
+            await this.handlePlayerSunk(player);
           }
-          this.state.cannonBalls.splice(i, 1);
+          await redisStorage.removeCannonball(i);
           break;
         }
       }
@@ -333,12 +335,11 @@ class GameState {
   }
 
   async updatePrices() {
-    // Existing implementation remains unchanged
     try {
-      const ports = await storage.getPorts();
-      const goods = await storage.getGoods();
+      const ports = await redisStorage.getPorts();
+      const goods = await redisStorage.getGoods();
       for (const port of ports) {
-        const portGoods = await storage.getPortGoods(port.id);
+        const portGoods = await redisStorage.getPortGoods(port.id);
         if (portGoods.length === 0) {
           console.log(`Port ${port.name} has no goods. Initializing...`);
           for (const good of goods) {
@@ -346,7 +347,7 @@ class GameState {
             const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
             const initialPrice = Math.round(basePrice * (1 + fluctPercent));
             const initialStock = Math.floor(Math.random() * 50) + 50;
-            await storage.createPortGood({
+            await redisStorage.createPortGood({
               portId: port.id,
               goodId: good.id,
               currentPrice: initialPrice,
@@ -362,10 +363,10 @@ class GameState {
           if (!good) continue;
           const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
           const newPrice = Math.round(good.basePrice * (1 + fluctPercent));
-          await storage.updatePortGoodPrice(portGood.id, newPrice);
+          await redisStorage.updatePortGoodPrice(port.id, portGood.goodId, newPrice);
           if (portGood.stock < 10) {
             const newStock = Math.floor(Math.random() * 30) + 20;
-            await storage.updatePortGoodStock(portGood.id, newStock);
+            await redisStorage.updatePortGoodStock(port.id, portGood.goodId, newStock);
             console.log(`Replenished stock of good ${good.name} at port ${port.name} to ${newStock} units`);
           }
         }
@@ -398,41 +399,48 @@ class GameState {
 
   private async handlePlayerSunk(player: PlayerState) {
     try {
-      const dbPlayer = await storage.getPlayer(player.playerId);
-      if (dbPlayer) {
-        await storage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold });
-        console.log(`Player ${player.name} sunk with score ${player.gold}`);
-      }
+      const leaderboardEntry = await redisStorage.addToLeaderboard({
+        playerId: player.playerId,
+        playerName: player.name,
+        score: player.gold,
+        achievedAt: new Date()
+      });
+      const leaderboard = await redisStorage.getLeaderboard(10);
+      await this.updateLeaderboard(leaderboard);
+      console.log(`Player ${player.name} sunk with score ${player.gold}`);
     } catch (err) {
       console.error("Error handling sunk player:", err);
     }
+  }
+
+  async updateLeaderboard(leaderboard: { id: number; playerId: number | null; playerName: string; score: number; achievedAt: Date }[]) {
+    this.state.leaderboard = leaderboard;
   }
 }
 
 export const gameState = new GameState();
 
 export async function initializeGameState() {
-  // Existing implementation remains largely unchanged
   try {
-    const ports = await storage.getPorts();
+    const ports = await redisStorage.getPorts();
     if (ports.length === 0) {
-      for (const port of defaultPorts) await storage.createPort(port);
+      for (const port of defaultPorts) await redisStorage.createPort(port);
       console.log("Ports initialized");
     }
-    const goods = await storage.getGoods();
+    const goods = await redisStorage.getGoods();
     if (goods.length === 0) {
-      for (const good of goodTypes) await storage.createGood(good);
+      for (const good of goodTypes) await redisStorage.createGood(good);
       console.log("Goods initialized");
     }
-    for (const port of await storage.getPorts()) {
-      const portGoods = await storage.getPortGoods(port.id);
+    for (const port of await redisStorage.getPorts()) {
+      const portGoods = await redisStorage.getPortGoods(port.id);
       if (portGoods.length === 0) {
-        for (const good of await storage.getGoods()) {
+        for (const good of await redisStorage.getGoods()) {
           const basePrice = good.basePrice;
           const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
           const initialPrice = Math.round(basePrice * (1 + fluctPercent));
           const initialStock = Math.floor(Math.random() * 50) + 50;
-          await storage.createPortGood({
+          await redisStorage.createPortGood({
             portId: port.id,
             goodId: good.id,
             currentPrice: initialPrice,
@@ -440,12 +448,12 @@ export async function initializeGameState() {
             updatedAt: new Date(),
           });
         }
-        console.log(`Port ${port.name} goods initialized with ${(await storage.getGoods()).length} goods`);
+        console.log(`Port ${port.name} goods initialized with ${(await redisStorage.getGoods()).length} goods`);
       } else {
         for (const portGood of portGoods) {
           if (portGood.stock < 10) {
             const newStock = Math.floor(Math.random() * 30) + 20;
-            await storage.updatePortGoodStock(portGood.id, newStock);
+            await redisStorage.updatePortGoodStock(port.id, portGood.goodId, newStock);
             console.log(`Replenished stock of good ${portGood.goodId} at port ${port.id} to ${newStock} units`);
           }
         }

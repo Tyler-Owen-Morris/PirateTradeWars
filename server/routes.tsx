@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+// import { storage } from "./storage";
+import { redisStorage } from './redisStorage'
 import { WebSocketServer } from "ws";
 import { handleSocketConnection } from "./game/socketHandler";
 import { initializeGameState, gameState } from "./game/gameState";
@@ -27,7 +28,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       // Check if username already exists
-      const existingUser = await storage.getUserByUsername(username);
+      const existingUser = await redisStorage.getUserByUsername(username);
 
       if (existingUser) {
         return res.status(409).json({ message: 'Username already taken' });
@@ -37,7 +38,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
 
       // Create user
-      const user = await storage.createUser({
+      const user = await redisStorage.createUser({
         username,
         password: hashedPassword
       });
@@ -58,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const player = await storage.getPlayerByName(name);
+      const player = await redisStorage.getPlayerByName(name);
       res.json({ available: !player });
     } catch (error) {
       console.error('Error checking player name:', error);
@@ -69,7 +70,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get ship types
   app.get('/api/ship-types', async (req, res) => {
     try {
-      const shipTypes = await storage.getShipTypes();
+      const shipTypes = await redisStorage.getShipTypes();
+      //console.log("server sees database with ship types:", shipTypes);
       res.json(shipTypes);
     } catch (error) {
       console.error('Error fetching ship types:', error);
@@ -80,7 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get leaderboard
   app.get('/api/leaderboard', async (req, res) => {
     try {
-      const leaderboard = await storage.getLeaderboard();
+      const leaderboard = await redisStorage.getLeaderboard();
       res.json(leaderboard);
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
@@ -91,7 +93,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get ports
   app.get('/api/ports', async (req, res) => {
     try {
-      const ports = await storage.getPorts();
+      const ports = await redisStorage.getPorts();
       res.json(ports);
     } catch (error) {
       console.error('Error fetching ports:', error);
@@ -102,7 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get goods
   app.get('/api/goods', async (req, res) => {
     try {
-      const goods = await storage.getGoods();
+      const goods = await redisStorage.getGoods();
       res.json(goods);
     } catch (error) {
       console.error('Error fetching goods:', error);
@@ -119,14 +121,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const portGoods = await storage.getPortGoods(portId);
+      const portGoods = await redisStorage.getPortGoods(portId);
 
       // If the port has no goods, trigger an update
       if (portGoods.length === 0) {
         console.log(`Port ${portId} has no goods, triggering price update`);
         await gameState.updatePrices();
         // Fetch updated goods after regeneration
-        const updatedGoods = await storage.getPortGoods(portId);
+        const updatedGoods = await redisStorage.getPortGoods(portId);
         res.json(updatedGoods);
       } else {
         res.json(portGoods);
@@ -146,7 +148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const inventory = await storage.getPlayerInventory(playerId);
+      const inventory = await redisStorage.getPlayerInventory(playerId);
       res.json(inventory);
     } catch (error) {
       console.error('Error fetching player inventory:', error);

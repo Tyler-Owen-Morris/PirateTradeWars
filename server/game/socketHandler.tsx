@@ -1,8 +1,9 @@
-import { storage } from "../storage";
+import { redisStorage } from "../redisStorage";
 import { gameState } from "./gameState";
 import { WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { Or } from "drizzle-orm";
+import { PlayerState } from "../types";
 
 interface ConnectMessage {
   type: "connect";
@@ -83,18 +84,21 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!data.name || data.name.trim().length < 3) {
       return sendError(ws, "Name must be at least 3 characters");
     }
-    if (gameState.state.activeNames.has(data.name)) {
+    if (await redisStorage.getActiveNames().then(names => names.has(data.name))) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
-    const shipType = await storage.getShipType(data.shipType);
+    const shipType = await redisStorage.getShipType(data.shipType);
     if (!shipType) {
       return sendError(ws, "Invalid ship type");
     }
 
-    const player = await storage.createPlayer({
-      userId: 0,
+    const player = await redisStorage.createPlayer({
+      userId: null,
       name: data.name,
       shipType: data.shipType,
+      gold: 1000,
+      lastSeen: new Date(),
+      isActive: true
     });
     playerId = uuidv4();
 
@@ -103,6 +107,7 @@ export function handleSocketConnection(ws: WebSocket) {
       return sendError(ws, "Failed to add player due to name conflict");
     }
     gameState.registerClient(playerId, ws as any);
+    await redisStorage.addActiveName(data.name);
 
     ws.send(JSON.stringify({
       type: "connected",
@@ -122,15 +127,15 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!existingPlayer) {
       return sendError(ws, "Player ID not found");
     }
-    if (data.name !== existingPlayer.name && gameState.state.activeNames.has(data.name)) {
+    if (data.name !== existingPlayer.name && await redisStorage.getActiveNames().then(names => names.has(data.name))) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
 
     playerId = data.id;
     if (data.name !== existingPlayer.name) {
-      gameState.state.activeNames.delete(existingPlayer.name);
+      await redisStorage.removeActiveName(existingPlayer.name);
       existingPlayer.name = data.name;
-      gameState.state.activeNames.add(data.name);
+      await redisStorage.addActiveName(data.name);
     }
     existingPlayer.connected = true;
     existingPlayer.lastSeen = Date.now();
@@ -140,7 +145,7 @@ export function handleSocketConnection(ws: WebSocket) {
       type: "reconnected",
       playerId,
       name: existingPlayer.name,
-      ship: await storage.getShipType(existingPlayer.shipType),
+      ship: await redisStorage.getShipType(existingPlayer.shipType),
       gold: existingPlayer.gold,
       players: gameState.state.players,
       cannonBalls: gameState.state.cannonBalls,
@@ -150,11 +155,12 @@ export function handleSocketConnection(ws: WebSocket) {
   }
 
   function handleInput(playerId: string, data: InputMessage) {
-    const updateData: Partial<PlayerState> = {};
-    if (data.rotationY !== undefined) updateData.rotationY = data.rotationY;
-    if (data.speed !== undefined) updateData.speed = data.speed;
-    if (data.direction) updateData.direction = data.direction;
-    if (data.firing !== undefined) updateData.firing = data.firing;
+    const updateData: Partial<PlayerState> = {
+      ...(data.rotationY !== undefined && { rotationY: data.rotationY }),
+      ...(data.speed !== undefined && { speed: data.speed }),
+      ...(data.direction && { direction: data.direction }),
+      ...(data.firing !== undefined && { firing: data.firing })
+    };
     gameState.updatePlayer(playerId, updateData);
     if (data.firing) gameState.fireCannonBall(playerId);
   }
@@ -163,7 +169,7 @@ export function handleSocketConnection(ws: WebSocket) {
     const player = gameState.state.players[playerId];
     if (!player || player.dead) return;
 
-    const port = await storage.getPort(data.portId);
+    const port = await redisStorage.getPort(data.portId);
     if (!port) return sendError(ws, "Port not found");
 
     const dx = Math.min(Math.abs(player.x - port.x), 5000 - Math.abs(player.x - port.x));
@@ -171,14 +177,13 @@ export function handleSocketConnection(ws: WebSocket) {
     const distance = Math.sqrt(dx * dx + dz * dz);
     if (distance > port.safeRadius) return sendError(ws, "Too far from port");
 
-    const good = await storage.getGood(data.goodId);
-    if (!good) return sendError(ws, "Good not found");
-
-    const portGoods = await storage.getPortGoods(port.id);
+    const portGoods = await redisStorage.getPortGoods(port.id);
+    // console.log(port.id, "data request for trade", data)
+    // console.log("port goods for trade:", portGoods)
     const portGood = portGoods.find((pg) => pg.goodId === data.goodId);
     if (!portGood) return sendError(ws, "Good not available at this port");
 
-    const inventory = await storage.getPlayerInventory(player.playerId);
+    const inventory = await redisStorage.getPlayerInventory(player.playerId);
     const inventoryItem = inventory.find((item) => item.goodId === data.goodId);
     const currentQuantity = inventoryItem ? inventoryItem.quantity : 0;
 
@@ -190,13 +195,13 @@ export function handleSocketConnection(ws: WebSocket) {
 
       player.gold -= totalCost;
       player.cargoUsed += data.quantity;
-      await storage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity + data.quantity);
-      const updatedInventory = await storage.getPlayerInventory(player.playerId);
+      await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity + data.quantity);
+      const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
 
       ws.send(JSON.stringify({
         type: "tradeSuccess",
         action: "buy",
-        good: good.name,
+        good: portGood.goodId,
         quantity: data.quantity,
         price: portGood.currentPrice,
         totalCost,
@@ -210,13 +215,13 @@ export function handleSocketConnection(ws: WebSocket) {
 
       player.gold += totalEarnings;
       player.cargoUsed -= data.quantity;
-      await storage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity - data.quantity);
-      const updatedInventory = await storage.getPlayerInventory(player.playerId);
+      await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity - data.quantity);
+      const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
 
       ws.send(JSON.stringify({
         type: "tradeSuccess",
         action: "sell",
-        good: good.name,
+        good: portGood.goodId,
         quantity: data.quantity,
         price: portGood.currentPrice,
         totalEarnings,
@@ -225,7 +230,7 @@ export function handleSocketConnection(ws: WebSocket) {
         timestamp: Date.now(),
       }));
     }
-    await storage.updatePlayerGold(player.playerId, player.gold);
+    await redisStorage.updatePlayerGold(player.playerId, player.gold);
   }
 
   async function handleScuttle(playerId: string, ws: WebSocket) {
@@ -233,8 +238,14 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!player) return sendError(ws, "Player not found");
 
     console.log(`Player ${player.name} scuttled their ship with score ${player.gold}`);
-    await storage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold });
-    const leaderboard = await storage.getLeaderboard(10);
+    const leaderboardEntry = await redisStorage.addToLeaderboard({
+      playerId: player.playerId,
+      playerName: player.name,
+      score: player.gold,
+      achievedAt: new Date()
+    });
+    const leaderboard = await redisStorage.getLeaderboard(10);
+    await gameState.updateLeaderboard(leaderboard);
 
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
@@ -247,10 +258,10 @@ export function handleSocketConnection(ws: WebSocket) {
       }));
     }
 
-    gameState.state.activeNames.delete(player.name);
+    await redisStorage.removeActiveName(player.name);
     delete gameState.state.players[playerId];
     gameState.removeClient(playerId);
-    await storage.setPlayerActive(player.playerId, false);
+    await redisStorage.setPlayerActive(player.playerId, false);
     if (ws.readyState === WebSocket.OPEN) ws.close();
   }
 }

@@ -99,6 +99,7 @@ export default function TradeMenu() {
   // Load player inventory
   const loadInventory = async () => {
     if (!gameState.player?.id) return;
+    console.log("load inventory", gameState.player.id)
     await loadPlayerInventory(Number(gameState.player.id));
   };
 

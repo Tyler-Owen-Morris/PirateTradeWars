@@ -7,7 +7,7 @@ interface ShipState {
   selectedShip: ShipStats | null;
   loading: boolean;
   error: string | null;
-  
+
   fetchShips: () => Promise<void>;
   selectShip: (shipName: string) => void;
 }
@@ -17,16 +17,17 @@ export const useShip = create<ShipState>((set, get) => ({
   selectedShip: null,
   loading: false,
   error: null,
-  
+
   fetchShips: async () => {
     try {
       set({ loading: true, error: null });
-      
+
       const response = await apiRequest('GET', '/api/ship-types', undefined);
       const ships = await response.json();
-      
+      console.log("API returned ships:", ships)
+
       set({ ships, loading: false });
-      
+
       // Default to sloop if no ship is selected
       if (!get().selectedShip && ships.length > 0) {
         const sloop = ships.find((ship: ShipStats) => ship.name === 'sloop');
@@ -36,11 +37,11 @@ export const useShip = create<ShipState>((set, get) => ({
       }
     } catch (error) {
       console.error('Failed to fetch ships:', error);
-      set({ 
-        loading: false, 
+      set({
+        loading: false,
         error: 'Failed to load ship types. Please try again.'
       });
-      
+
       // Fallback to hardcoded ship types if API fails
       const fallbackShips: ShipStats[] = [
         {
@@ -104,15 +105,16 @@ export const useShip = create<ShipState>((set, get) => ({
           isPaid: true
         }
       ];
-      
+
       set({ ships: fallbackShips });
-      
+
       // Default to sloop
       set({ selectedShip: fallbackShips[0] });
     }
   },
-  
+
   selectShip: (shipName: string) => {
+    console.log("get ships", get().ships)
     const ship = get().ships.find(s => s.name === shipName);
     if (ship) {
       set({ selectedShip: ship });

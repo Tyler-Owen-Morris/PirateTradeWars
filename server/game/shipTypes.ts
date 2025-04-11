@@ -1,4 +1,5 @@
 import { storage } from "../storage";
+import { redisStorage } from "../redisStorage"
 
 // Define ship types based on the game design document
 export async function setupShipTypes() {
@@ -70,7 +71,7 @@ export async function setupShipTypes() {
   if (existingShipTypes.length === 0) {
     // Insert ship types if none exist
     for (const shipType of shipTypes) {
-      await storage.createShipType(shipType);
+      await redisStorage.createShipType(shipType);
     }
     console.log("Ship types initialized successfully");
   }
