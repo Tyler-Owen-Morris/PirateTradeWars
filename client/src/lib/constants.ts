@@ -85,14 +85,14 @@ export const SHIP_STATS = {
 
 // Game goods
 export const GOODS = [
-  { id: 1, name: "Rum", basePrice: 50, fluctuation: 30 },
-  { id: 2, name: "Sugar", basePrice: 30, fluctuation: 25 },
-  { id: 3, name: "Spices", basePrice: 80, fluctuation: 40 },
-  { id: 4, name: "Wood", basePrice: 15, fluctuation: 10 },
-  { id: 5, name: "Silk", basePrice: 100, fluctuation: 50 },
-  { id: 6, name: "Fish", basePrice: 10, fluctuation: 20 },
-  { id: 7, name: "Tobacco", basePrice: 60, fluctuation: 35 },
-  { id: 8, name: "Cotton", basePrice: 40, fluctuation: 20 }
+  { id: 1, name: "Fish", basePrice: 10, fluctuation: 20 },
+  { id: 2, name: "Wood", basePrice: 15, fluctuation: 10 },
+  { id: 3, name: "Sugar", basePrice: 30, fluctuation: 25 },
+  { id: 4, name: "Cotton", basePrice: 40, fluctuation: 20 },
+  { id: 5, name: "Rum", basePrice: 50, fluctuation: 30 },
+  { id: 6, name: "Tobacco", basePrice: 60, fluctuation: 35 },
+  { id: 7, name: "Spices", basePrice: 80, fluctuation: 40 },
+  { id: 8, name: "Silk", basePrice: 100, fluctuation: 50 }
 ];
 
 // Default ports (fallback)

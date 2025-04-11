@@ -78,14 +78,14 @@ export async function setupShipTypes() {
 
 // Trade goods
 export const goodTypes = [
-  { name: "Rum", basePrice: 50, fluctuation: 30 },
-  { name: "Sugar", basePrice: 30, fluctuation: 25 },
-  { name: "Spices", basePrice: 80, fluctuation: 40 },
-  { name: "Wood", basePrice: 15, fluctuation: 10 },
-  { name: "Silk", basePrice: 100, fluctuation: 50 },
   { name: "Fish", basePrice: 10, fluctuation: 20 },
+  { name: "Wood", basePrice: 15, fluctuation: 10 },
+  { name: "Sugar", basePrice: 30, fluctuation: 25 },
+  { name: "Cotton", basePrice: 40, fluctuation: 20 },
+  { name: "Rum", basePrice: 50, fluctuation: 30 },
   { name: "Tobacco", basePrice: 60, fluctuation: 35 },
-  { name: "Cotton", basePrice: 40, fluctuation: 20 }
+  { name: "Spices", basePrice: 80, fluctuation: 40 },
+  { name: "Silk", basePrice: 100, fluctuation: 50 }
 ];
 
 // Default port locations in the core map (5000x5000)
