@@ -118,7 +118,6 @@ function App() {
 
             {isPlaying && (
               <>
-                <TouchControls />
                 <Canvas
                   shadows
                   camera={{
