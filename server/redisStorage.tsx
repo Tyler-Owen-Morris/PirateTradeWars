@@ -4,10 +4,13 @@ import { type User, type Player, type ShipType, type Port, type Good, type PortG
 
 export class RedisStorage {
     private redis: Redis;
+    private readonly PLAYER_TTL = 24 * 60 * 60; // 24 hours in seconds
+    private readonly INVENTORY_TTL = 24 * 60 * 60; // 24 hours in seconds
+    private readonly ACTIVE_NAME_TTL = 5 * 60; // 5 minutes in seconds
 
     constructor() {
         //console.log("env", process.env)
-        const connString = process.env.REDIS_CONN_STRING;
+        const connString = "rediss://default:AT8PAAIjcDFkOTI2OTIwNWVmZmU0YmJmOTNiMTA4ODVmNzA2Y2U5YXAxMA@exciting-sunbird-16143.upstash.io:6379";//process.env.REDIS_CONN_STRING;
         if (!connString) {
             throw new Error('REDIS_CONN_STRING environment variable is required');
         }
@@ -55,19 +58,39 @@ export class RedisStorage {
     async createPlayer(player: Omit<Player, 'id'>): Promise<Player> {
         const id = uuidv4();
         const newPlayer = { ...player, id };
-        await this.redis.hmset(`player:${id}`, this.serializePlayer(newPlayer));
-        await this.redis.sadd('player_names', id);
-        // Initialize empty inventory as JSON string
-        await this.redis.set(`player_inventory:${id}`, JSON.stringify([]));
+
+        // Start a transaction to ensure atomicity
+        const multi = this.redis.multi();
+        multi.hmset(`player:${id}`, this.serializePlayer(newPlayer));
+        multi.expire(`player:${id}`, this.PLAYER_TTL);
+        multi.set(`player_inventory:${id}`, JSON.stringify([]));
+        multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
+        multi.sadd('player_names', id);
+        multi.sadd(`active_names:${newPlayer.name}`, "1");
+        multi.expire(`active-names:${newPlayer.name}`, this.ACTIVE_NAME_TTL)
+        await multi.exec();
+
         return newPlayer;
     }
 
     async updatePlayerGold(id: number, gold: number): Promise<void> {
-        await this.redis.hset(`player:${id}`, 'gold', gold.toString());
+        const multi = this.redis.multi();
+        multi.hset(`player:${id}`, 'gold', gold.toString());
+        multi.expire(`player:${id}`, this.PLAYER_TTL);
+        multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
+        await multi.exec();
     }
 
-    async setPlayerActive(id: number, isActive: boolean): Promise<void> {
-        await this.redis.hset(`player:${id}`, 'isActive', isActive.toString());
+    // Modified setPlayerActive
+    async setPlayerActive(id: string, isActive: boolean): Promise<void> {
+        const player_name = await this.redis.hget(`player:${id}`, 'name')
+        const multi = this.redis.multi();
+        multi.hset(`player:${id}`, 'isActive', isActive.toString());
+        multi.expire(`player:${id}`, this.PLAYER_TTL);
+        multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
+        multi.set(`active_names:${player_name}}`, "1")
+        multi.expire(`active_names:${player_name}`, this.ACTIVE_NAME_TTL);
+        await multi.exec();
     }
 
     // Leaderboard operations
@@ -198,9 +221,14 @@ export class RedisStorage {
 
     // Player inventory operations
     async getPlayerInventory(playerId: string): Promise<PlayerInventory[]> {
-        console.log("fetching player inventory from DB:", playerId)
+        //console.log("fetching player inventory from DB:", playerId)
         const data = await this.redis.get(`player_inventory:${playerId}`);
-        console.log("got back", data)
+        const multi = this.redis.multi();
+        multi.expire(`player_inventory:${playerId}`, this.INVENTORY_TTL);
+        multi.expire(`player:${playerId}`, this.PLAYER_TTL);
+        await multi.exec()
+        //console.log("got back", data)
+        this.setPlayerActive(playerId, true)
         return data ? JSON.parse(data) : [];
     }
 
@@ -219,7 +247,12 @@ export class RedisStorage {
             inventory.push({ playerId, goodId, quantity });
         }
 
-        await this.redis.set(`player_inventory:${playerId}`, JSON.stringify(inventory));
+        const multi = this.redis.multi();
+        multi.set(`player_inventory:${playerId}`, JSON.stringify(inventory));
+        multi.expire(`player_inventory:${playerId}`, this.INVENTORY_TTL);
+        multi.expire(`player:${playerId}`, this.PLAYER_TTL);
+        this.setPlayerActive(playerId, true)
+        await multi.exec();
     }
 
     // Game state operations
@@ -245,17 +278,28 @@ export class RedisStorage {
         await this.redis.lrem('cannonballs', 1, 'DELETED');
     }
 
+    async isNameActive(name: string): Promise<boolean> {
+        return (await this.redis.exists(`active_name:${name}`)) === 1;
+    }
+
     async getActiveNames(): Promise<Set<string>> {
         const names = await this.redis.smembers('active_names');
         return new Set(names);
     }
 
     async addActiveName(name: string): Promise<void> {
-        await this.redis.sadd('active_names', name);
+        const multi = this.redis.multi();
+        //multi.sadd('active_names', name);
+        multi.set(`active_name:${name}`, '1');
+        multi.expire(`active_name:${name}`, this.ACTIVE_NAME_TTL);
+        await multi.exec();
     }
 
     async removeActiveName(name: string): Promise<void> {
-        await this.redis.srem('active_names', name);
+        const multi = this.redis.multi();
+        //multi.srem('active_names', name);
+        multi.del(`active_name:${name}`);
+        await multi.exec();
     }
 
     // Serialization/deserialization helpers

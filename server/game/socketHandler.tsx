@@ -84,7 +84,7 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!data.name || data.name.trim().length < 3) {
       return sendError(ws, "Name must be at least 3 characters");
     }
-    if (await redisStorage.getActiveNames().then(names => names.has(data.name))) {
+    if (await redisStorage.isNameActive(data.name)) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
     const shipType = await redisStorage.getShipType(data.shipType);
@@ -96,7 +96,7 @@ export function handleSocketConnection(ws: WebSocket) {
       userId: null,
       name: data.name,
       shipType: data.shipType,
-      gold: 1000,
+      gold: 500,
       lastSeen: new Date(),
       isActive: true
     });
@@ -127,7 +127,7 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!existingPlayer) {
       return sendError(ws, "Player ID not found");
     }
-    if (data.name !== existingPlayer.name && await redisStorage.getActiveNames().then(names => names.has(data.name))) {
+    if (data.name !== existingPlayer.name && await redisStorage.isNameActive(data.name)) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
 
@@ -155,6 +155,7 @@ export function handleSocketConnection(ws: WebSocket) {
   }
 
   function handleInput(playerId: string, data: InputMessage) {
+    //console.log("handling input:", playerId, data)
     const updateData: Partial<PlayerState> = {
       ...(data.rotationY !== undefined && { rotationY: data.rotationY }),
       ...(data.speed !== undefined && { speed: data.speed }),

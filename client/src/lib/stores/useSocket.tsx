@@ -208,8 +208,8 @@ export const useSocket = create<SocketState>((set, get) => ({
   sendInput: (speed, direction, firing, rotationY) => {
     const { socket, connected } = get();
     if (!socket || !connected) return;
-
     const message = { type: "input", rotationY, speed, direction, firing };
+    //console.log("sending input:", message)
     socket.send(JSON.stringify(message));
   },
 

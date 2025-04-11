@@ -116,7 +116,7 @@ class GameState {
   }
 
   async addPlayer(id: string, playerId: string, name: string, shipType: string, ship: any) {
-    if (await redisStorage.getActiveNames().then(names => names.has(name))) return null;
+    if (await redisStorage.isNameActive(name)) return null;
     const x = Math.random() * MAP_WIDTH;
     const z = Math.random() * MAP_HEIGHT;
     const player: PlayerState = {
