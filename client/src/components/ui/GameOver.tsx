@@ -14,33 +14,33 @@ export default function GameOver({ score }: GameOverProps) {
   const { restartGame, gameState } = useGameState();
   const { disconnect } = useSocket();
   const [playerRank, setPlayerRank] = useState<number | null>(null);
-  
+
   // Automatically show leaderboard in game over screen
   useEffect(() => {
     // Add a short delay to ensure the leaderboard in state is updated with recent entry
     const timer = setTimeout(() => {
       if (gameState.leaderboard && gameState.leaderboard.length > 0) {
         // Find the player's position on the leaderboard
-        const playerEntry = gameState.leaderboard.findIndex(entry => 
+        const playerEntry = gameState.leaderboard.findIndex(entry =>
           entry.score === score && entry.achievedAt === gameState.leaderboard[gameState.leaderboard.length - 1].achievedAt
         );
         setPlayerRank(playerEntry !== -1 ? playerEntry + 1 : null);
       }
     }, 500);
-    
+
     return () => clearTimeout(timer);
   }, [gameState.leaderboard, score]);
-  
+
   // Handle restart
   const handleRestart = () => {
     console.log("Restarting game, clearing state and disconnecting...");
     // Disconnect current socket
     disconnect();
-    
+
     // Clear game state and restart
     restartGame();
   };
-  
+
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-gray-800/50 z-50">
       <Card className="w-full max-w-md mx-4 relative overflow-hidden bg-gray-900/90">
@@ -65,7 +65,7 @@ export default function GameOver({ score }: GameOverProps) {
 
             <div className="flex items-center justify-center">
               <Coins className="h-8 w-8 text-yellow-400 mr-2" />
-              <span className="text-3xl text-yellow-400 font-bold">{score}</span>
+              <span className="text-3xl text-yellow-400 font-bold">{useGameState.getState().gold}</span>
               <span className="ml-2 text-lg text-yellow-400">gold</span>
             </div>
 
@@ -92,13 +92,12 @@ export default function GameOver({ score }: GameOverProps) {
                     </thead>
                     <tbody>
                       {gameState.leaderboard.map((entry, index) => (
-                        <tr 
+                        <tr
                           key={entry.id}
-                          className={`border-t border-gray-700 ${
-                            playerRank !== null && index === playerRank - 1 
-                              ? 'bg-amber-800/40' 
+                          className={`border-t border-gray-700 ${playerRank !== null && index === playerRank - 1
+                              ? 'bg-amber-800/40'
                               : ''
-                          }`}
+                            }`}
                         >
                           <td className="text-white p-2">{index + 1}</td>
                           <td className="text-white p-2">{entry.playerName}</td>
@@ -116,7 +115,7 @@ export default function GameOver({ score }: GameOverProps) {
         </CardContent>
 
         <CardFooter className="flex justify-center relative pt-4">
-          <Button 
+          <Button
             className="w-full bg-amber-600 hover:bg-amber-700 text-black"
             size="lg"
             onClick={handleRestart}

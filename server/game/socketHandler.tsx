@@ -167,10 +167,10 @@ export function handleSocketConnection(ws: WebSocket) {
     const port = await redisStorage.getPort(data.portId);
     if (!port) return sendError(ws, "Port not found");
 
-    const dx = Math.min(Math.abs(player.x - port.x), 5000 - Math.abs(player.x - port.x));
-    const dz = Math.min(Math.abs(player.z - port.z), 5000 - Math.abs(player.z - port.z));
-    const distance = Math.sqrt(dx * dx + dz * dz);
-    if (distance > port.safeRadius) return sendError(ws, "Too far from port");
+    // const dx = Math.min(Math.abs(player.x - port.x), 5000 - Math.abs(player.x - port.x));
+    // const dz = Math.min(Math.abs(player.z - port.z), 5000 - Math.abs(player.z - port.z));
+    // const distance = Math.sqrt(dx * dx + dz * dz);
+    // if (distance > port.safeRadius) return sendError(ws, "Too far from port");
 
     const portGoods = await redisStorage.getPortGoods(port.id);
     // console.log(port.id, "data request for trade", data)
@@ -235,12 +235,12 @@ export function handleSocketConnection(ws: WebSocket) {
   async function handleScuttle(playerId: string, ws: WebSocket) {
     const player = gameState.state.players[playerId];
     if (!player) return sendError(ws, "Player not found");
-
-    console.log(`Player ${player.name} scuttled their ship with score ${player.gold}`);
+    let post_scuttle_gold = player.gold - 500;
+    console.log(`Player ${player.name} scuttled their ship with score ${post_scuttle_gold}`);
     const leaderboardEntry = await redisStorage.addToLeaderboard({
       playerId: player.playerId,
       playerName: player.name,
-      score: player.gold,
+      score: post_scuttle_gold,
       achievedAt: new Date()
     });
     const leaderboard = await redisStorage.getLeaderboard(10);
@@ -250,7 +250,7 @@ export function handleSocketConnection(ws: WebSocket) {
       ws.send(JSON.stringify({
         type: "gameEnd",
         reason: "scuttle",
-        score: player.gold,
+        score: post_scuttle_gold,
         message: "You scuttled your ship and joined the leaderboard!",
         leaderboard,
         timestamp: Date.now(),

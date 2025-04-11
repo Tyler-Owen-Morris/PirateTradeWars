@@ -102,6 +102,10 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    console.log("player is sunk:", isSunk)
+  }, [isSunk])
+
   return (
     <ErrorBoundary>
       <div

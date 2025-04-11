@@ -159,9 +159,9 @@ export const useSocket = create<SocketState>((set, get) => ({
                   gameState: { ...state.gameState, leaderboard: message.leaderboard },
                 }));
               }
-              useGameState.setState({ isSunk: true });
+              useGameState.setState({ isSunk: true, gold: message.score });
               useAudio.getState().playPlayerSinks();
-              console.log("Game state updated - isSunk:", useGameState.getState().isSunk);
+              console.log("Game state updated - isSunk:", useGameState.getState().isSunk, useGameState.getState().gold);
               break;
 
             default:
