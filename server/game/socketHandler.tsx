@@ -97,7 +97,6 @@ export function handleSocketConnection(ws: WebSocket) {
       name: data.name,
       shipType: data.shipType,
       gold: 1000,
-      inventory: [],
       lastSeen: new Date(),
       isActive: true
     });
@@ -106,7 +105,8 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
     }
-    gameState.registerClient(playerId, ws as any);
+
+    gameState.registerClient(player.id, ws as any);
     await redisStorage.addActiveName(data.name);
 
     ws.send(JSON.stringify({
@@ -119,7 +119,7 @@ export function handleSocketConnection(ws: WebSocket) {
       cannonBalls: gameState.state.cannonBalls,
       timestamp: Date.now(),
     }));
-    console.log(`Player ${player.name} connected with ID ${playerId}`);
+    console.log(`Player ${player.name} connected with ID ${player.id}`);
   }
 
   async function handleReconnect(ws: WebSocket, data: ReconnectMessage) {
@@ -259,13 +259,18 @@ export function handleSocketConnection(ws: WebSocket) {
         leaderboard,
         timestamp: Date.now(),
       }));
+
+      setTimeout(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.close();
+        }
+      }, 1000);
     }
 
     await redisStorage.removeActiveName(player.name);
     delete gameState.state.players[playerId];
     gameState.removeClient(playerId);
     await redisStorage.setPlayerActive(player.playerId, false);
-    if (ws.readyState === WebSocket.OPEN) ws.close();
   }
 }
 
