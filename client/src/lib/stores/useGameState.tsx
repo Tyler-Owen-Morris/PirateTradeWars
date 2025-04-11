@@ -26,6 +26,7 @@ interface GameStateStore {
   loadPorts: () => Promise<void>;
   loadGoods: () => Promise<void>;
   loadPortGoods: (portId: number) => Promise<void>;
+  loadPlayerInventory: (playerId: number) => Promise<void>;
   setNearPort: (portId: number | null) => void;
   setIsTrading: (isTrading: boolean) => void;
 
@@ -133,6 +134,13 @@ export const useGameState = create<GameStateStore>()(
       set((state) => ({
         gameState: { ...state.gameState, inventory },
       }));
+      // Also update the server with the new inventory
+      const playerId = get().gameState.player?.id;
+      if (playerId) {
+        apiRequest("PUT", `/api/players/${playerId}/inventory`, inventory).catch((error) => {
+          console.error("Failed to update inventory on server:", error);
+        });
+      }
     },
 
     loadPorts: async () => {
@@ -179,6 +187,18 @@ export const useGameState = create<GameStateStore>()(
         set({ currentPortGoods: portGoods });
       } catch (error) {
         console.error("Failed to load port goods:", error);
+      }
+    },
+
+    loadPlayerInventory: async (playerId: number) => {
+      try {
+        const response = await apiRequest("GET", `/api/players/${playerId}/inventory`, undefined);
+        const inventory = await response.json();
+        set((state) => ({
+          gameState: { ...state.gameState, inventory },
+        }));
+      } catch (error) {
+        console.error("Failed to load player inventory:", error);
       }
     },
 

@@ -12,7 +12,7 @@ import { ShoppingCart, Tag, Package, Coins, X, Info, AlertCircle } from 'lucide-
 import { Alert, AlertDescription } from './alert';
 
 export default function TradeMenu() {
-  const { gameState, isTrading, setIsTrading, nearPortId } = useGameState();
+  const { gameState, isTrading, setIsTrading, nearPortId, loadPlayerInventory } = useGameState();
   const { sendTrade, error: socketError } = useSocket();
 
   const [currentPort, setCurrentPort] = useState<Port | null>(null);
@@ -28,7 +28,10 @@ export default function TradeMenu() {
   useEffect(() => {
     if (nearPortId && isTrading) {
       loadPortData();
-      loadInventory();
+      // Load inventory when trading starts
+      if (gameState.player?.id) {
+        loadPlayerInventory(Number(gameState.player.id));
+      }
     }
   }, [nearPortId, isTrading]);
 
@@ -41,9 +44,6 @@ export default function TradeMenu() {
     }));
 
     setInventory(itemsWithGoods);
-
-    // Log for debugging
-    console.log("Inventory updated from game state:", gameState.inventory);
   }, [gameState.inventory]);
 
   // Load port data
@@ -98,33 +98,8 @@ export default function TradeMenu() {
 
   // Load player inventory
   const loadInventory = async () => {
-    try {
-      setLoading(true);
-
-      if (!gameState.player) return;
-
-      // Use the inventory from game state instead of making an API call
-      const inventoryItems = gameState.inventory;
-
-      if (Array.isArray(inventoryItems)) {
-        // Add good details to inventory items
-        const itemsWithGoods = inventoryItems.map(item => ({
-          ...item,
-          good: GOODS.find(g => g.id === item.goodId)
-        }));
-
-        setInventory(itemsWithGoods);
-        console.log("Loaded inventory from game state:", inventoryItems);
-      } else {
-        console.log("No inventory items in game state");
-        setInventory([]);
-      }
-    } catch (error) {
-      console.error('Error loading inventory:', error);
-      setInventory([]);
-    } finally {
-      setLoading(false);
-    }
+    if (!gameState.player?.id) return;
+    await loadPlayerInventory(Number(gameState.player.id));
   };
 
   // Find good by ID
@@ -189,14 +164,16 @@ export default function TradeMenu() {
     }
 
     // Send trade to server
-    sendTrade(currentPort.id, tab === 'buy' ? 'buy' : 'sell', selectedGoodId, quantity);
+    sendTrade(Number(currentPort.id), tab === 'buy' ? 'buy' : 'sell', selectedGoodId, quantity);
 
     // Reset form
     setSelectedGoodId(null);
     setQuantity(1);
 
-    // Note: We don't need to reload data here anymore
-    // The inventory will be updated via socket message
+    // Reload inventory after trade
+    if (gameState.player.id) {
+      loadPlayerInventory(Number(gameState.player.id));
+    }
   };
 
   // Handle buying maximum possible quantity
@@ -250,7 +227,7 @@ export default function TradeMenu() {
     setQuantity(maxQuantity);
 
     // Execute trade with max quantity
-    sendTrade(currentPort.id, 'buy', selectedGoodId, maxQuantity);
+    sendTrade(Number(currentPort.id), 'buy', selectedGoodId, maxQuantity);
 
     // Reset form
     setSelectedGoodId(null);
@@ -275,7 +252,7 @@ export default function TradeMenu() {
     const maxQuantity = inventoryQuantity;
 
     // Execute trade with max quantity
-    sendTrade(currentPort.id, 'sell', selectedGoodId, maxQuantity);
+    sendTrade(Number(currentPort.id), 'sell', selectedGoodId, maxQuantity);
 
     // Reset form
     setSelectedGoodId(null);
