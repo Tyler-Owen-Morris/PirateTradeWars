@@ -17,5 +17,6 @@ export interface PlayerState {
     firing: boolean;
     dead: boolean;
     connected: boolean;
+    isActive: boolean;
     lastSeen: number;
 } 

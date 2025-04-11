@@ -1,5 +1,6 @@
 import { redisStorage } from "../redisStorage";
 import { defaultPorts, goodTypes } from "./shipTypes";
+import { v4 as uuidv4 } from "uuid";
 
 export const MAP_WIDTH = 5000;
 export const MAP_HEIGHT = 5000;
@@ -33,6 +34,7 @@ export interface PlayerState {
   cannonCount: number;
   sunk: boolean;
   connected: boolean;
+  isActive: boolean;
   lastSeen: number;
   dead: boolean;
 }
@@ -115,13 +117,15 @@ class GameState {
     }
   }
 
-  async addPlayer(id: string, playerId: string, name: string, shipType: string, ship: any) {
+  async addPlayer(name: string, shipType: string, ship: any) {
     if (await redisStorage.isNameActive(name)) return null;
     const x = Math.random() * MAP_WIDTH;
     const z = Math.random() * MAP_HEIGHT;
+    const uuid = uuidv4();
+
     const player: PlayerState = {
-      id,
-      playerId,
+      id: uuid,
+      playerId: uuid,
       name,
       shipType,
       x,
@@ -143,11 +147,13 @@ class GameState {
       cannonCount: ship.cannonCount,
       sunk: false,
       connected: true,
+      isActive: true,
       lastSeen: Date.now(),
       dead: false,
     };
-    this.state.players[id] = player;
+    this.state.players[uuid] = player;
     await redisStorage.addActiveName(name);
+    //await redisStorage.createPlayer(player);
     return player;
   }
 
@@ -205,7 +211,6 @@ class GameState {
         created: now,
       };
       this.state.cannonBalls.push(cannonBall);
-      redisStorage.addCannonball(cannonBall);
     }
   }
 
@@ -243,7 +248,7 @@ class GameState {
       }
     }
 
-    const cannonballs = await redisStorage.getCannonballs();
+    const cannonballs = this.state.cannonBalls;
     for (let i = cannonballs.length - 1; i >= 0; i--) {
       const ball = cannonballs[i];
       ball.x += ball.direction.x * ball.speed * deltaTime * 60;
@@ -253,7 +258,7 @@ class GameState {
       ball.z = (ball.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
 
       if (now - ball.created > 5000) {
-        await redisStorage.removeCannonball(i);
+        this.state.cannonBalls.splice(i, 1);
         continue;
       }
 
@@ -274,7 +279,7 @@ class GameState {
             player.sunk = true;
             await this.handlePlayerSunk(player);
           }
-          await redisStorage.removeCannonball(i);
+          this.state.cannonBalls.splice(i, 1);
           break;
         }
       }

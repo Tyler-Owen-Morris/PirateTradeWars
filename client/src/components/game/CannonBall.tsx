@@ -105,7 +105,7 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
           return;
         }
       } else {
-        const moveSpeed = 1 * delta * 60;
+        const moveSpeed = 5 * delta * 60;
         const moveVector = new THREE.Vector3(
           direction.x * moveSpeed,
           direction.y * moveSpeed,

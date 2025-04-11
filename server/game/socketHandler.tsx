@@ -3,7 +3,7 @@ import { gameState } from "./gameState";
 import { WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { Or } from "drizzle-orm";
-import { PlayerState } from "../types";
+import { PlayerState } from "../game/gameState";
 
 interface ConnectMessage {
   type: "connect";
@@ -92,34 +92,27 @@ export function handleSocketConnection(ws: WebSocket) {
       return sendError(ws, "Invalid ship type");
     }
 
-    const player = await redisStorage.createPlayer({
-      userId: null,
-      name: data.name,
-      shipType: data.shipType,
-      gold: 500,
-      lastSeen: new Date(),
-      isActive: true
-    });
-
-    const addedPlayer = gameState.addPlayer(player.id, player.id, player.name, player.shipType, shipType);
+    const addedPlayer = await gameState.addPlayer(data.name, data.shipType, shipType);
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
+    } else {
+      await redisStorage.createPlayer(addedPlayer)
     }
 
-    gameState.registerClient(player.id, ws as any);
+    gameState.registerClient(addedPlayer.id, ws as any);
     await redisStorage.addActiveName(data.name);
 
     ws.send(JSON.stringify({
       type: "connected",
-      playerId: player.id,
+      playerId: addedPlayer.id,
       name: data.name,
       ship: shipType,
-      gold: player.gold,
+      gold: addedPlayer.gold,
       players: gameState.state.players,
       cannonBalls: gameState.state.cannonBalls,
       timestamp: Date.now(),
     }));
-    console.log(`Player ${player.name} connected with ID ${player.id}`);
+    console.log(`Player ${addedPlayer.name} connected with ID ${addedPlayer.id}`);
   }
 
   async function handleReconnect(ws: WebSocket, data: ReconnectMessage) {
@@ -199,6 +192,7 @@ export function handleSocketConnection(ws: WebSocket) {
       player.gold -= totalCost;
       player.cargoUsed += data.quantity;
       await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity + data.quantity);
+      await redisStorage.updatePlayerGold(player.playerId, player.gold)
       const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
 
       ws.send(JSON.stringify({
@@ -220,6 +214,7 @@ export function handleSocketConnection(ws: WebSocket) {
       player.cargoUsed -= data.quantity;
       //console.log("sell trade taking place", player)
       await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity - data.quantity);
+      await redisStorage.updatePlayerGold(player.playerId, player.gold)
       const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
 
       ws.send(JSON.stringify({

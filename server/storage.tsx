@@ -26,7 +26,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  
+
   // Player operations
   getPlayer(id: number): Promise<Player | undefined>;
   getPlayerByName(name: string): Promise<Player | undefined>;
@@ -34,32 +34,32 @@ export interface IStorage {
   updatePlayerGold(id: number, gold: number): Promise<Player | undefined>;
   updatePlayerShipType(id: number, shipType: string): Promise<Player | undefined>;
   setPlayerActive(id: number, isActive: boolean): Promise<void>;
-  
+
   // Ship operations
   getShipTypes(): Promise<ShipType[]>;
   getShipType(name: string): Promise<ShipType | undefined>;
   createShipType(shipType: Omit<ShipType, 'id'>): Promise<ShipType>;
-  
+
   // Port operations
   getPorts(): Promise<Port[]>;
   getPort(id: number): Promise<Port | undefined>;
   createPort(port: Omit<Port, 'id'>): Promise<Port>;
-  
+
   // Goods operations
   getGoods(): Promise<Good[]>;
   getGood(id: number): Promise<Good | undefined>;
   createGood(good: Omit<Good, 'id'>): Promise<Good>;
-  
+
   // Port goods operations
   getPortGoods(portId: number): Promise<PortGood[]>;
   createPortGood(portGood: Omit<PortGood, 'id'>): Promise<PortGood>;
   updatePortGoodPrice(id: number, price: number): Promise<PortGood | undefined>;
   updatePortGoodStock(id: number, stock: number): Promise<PortGood | undefined>;
-  
+
   // Player inventory operations
   getPlayerInventory(playerId: number): Promise<PlayerInventory[]>;
   updatePlayerInventory(playerId: number, goodId: number, quantity: number): Promise<void>;
-  
+
   // Leaderboard operations
   getLeaderboard(limit?: number): Promise<Leaderboard[]>;
   addToLeaderboard(entry: InsertLeaderboard): Promise<Leaderboard>;
@@ -75,7 +75,7 @@ export class MemStorage implements IStorage {
   private goodsMap: Map<number, Good>;
   private portGoodsMap: Map<number, PortGood[]>;
   private playerInventoryMap: Map<number, Map<number, PlayerInventory>>;
-  
+
   private userId: number;
   private playerId: number;
   private leaderboardId: number;
@@ -93,7 +93,7 @@ export class MemStorage implements IStorage {
     this.goodsMap = new Map();
     this.portGoodsMap = new Map();
     this.playerInventoryMap = new Map();
-    
+
     this.userId = 1;
     this.playerId = 1;
     this.leaderboardId = 1;
@@ -136,52 +136,52 @@ export class MemStorage implements IStorage {
   async createPlayer(insertPlayer: InsertPlayer): Promise<Player> {
     const id = this.playerId++;
     const now = new Date();
-    
+
     // Create player with required fields and defaults
-    const player: Player = { 
-      id, 
+    const player: Player = {
+      id,
       name: insertPlayer.name,
       shipType: insertPlayer.shipType || 'sloop', // Default ship type 
       userId: insertPlayer.userId || null,
-      gold: 500, 
-      isActive: true, 
-      lastSeen: now 
+      gold: 500,
+      isActive: true,
+      lastSeen: now
     };
-    
+
     this.playersMap.set(id, player);
-    
+
     // Initialize empty inventory for the player
     this.playerInventoryMap.set(id, new Map());
-    
+
     return player;
   }
 
-  async updatePlayerGold(id: number, gold: number): Promise<Player | undefined> {
+  async updatePlayerGold(id: string, gold: number): Promise<Player | undefined> {
     const player = this.playersMap.get(id);
     if (!player) return undefined;
-    
+
     player.gold = gold;
     player.lastSeen = new Date();
     this.playersMap.set(id, player);
-    
+
     return player;
   }
 
   async updatePlayerShipType(id: number, shipType: string): Promise<Player | undefined> {
     const player = this.playersMap.get(id);
     if (!player) return undefined;
-    
+
     player.shipType = shipType;
     player.lastSeen = new Date();
     this.playersMap.set(id, player);
-    
+
     return player;
   }
 
   async setPlayerActive(id: number, isActive: boolean): Promise<void> {
     const player = this.playersMap.get(id);
     if (!player) return;
-    
+
     player.isActive = isActive;
     player.lastSeen = new Date();
     this.playersMap.set(id, player);
@@ -216,10 +216,10 @@ export class MemStorage implements IStorage {
     const id = this.portId++;
     const newPort: Port = { ...port, id };
     this.portsMap.set(id, newPort);
-    
+
     // Initialize empty port goods
     this.portGoodsMap.set(id, []);
-    
+
     return newPort;
   }
 
@@ -247,24 +247,24 @@ export class MemStorage implements IStorage {
   async createPortGood(portGood: Omit<PortGood, 'id'>): Promise<PortGood> {
     const id = this.portGoodId++;
     const newPortGood: PortGood = { ...portGood, id };
-    
+
     // Get or initialize the port's goods array
     let portGoods = this.portGoodsMap.get(portGood.portId);
     if (!portGoods) {
       portGoods = [];
       this.portGoodsMap.set(portGood.portId, portGoods);
     }
-    
+
     // Add the good to the port
     portGoods.push(newPortGood);
-    
+
     return newPortGood;
   }
 
   async updatePortGoodPrice(id: number, price: number): Promise<PortGood | undefined> {
     // Using Array.from to avoid TypeScript iterator issues
     const portEntries = Array.from(this.portGoodsMap.entries());
-    
+
     for (const [portId, goods] of portEntries) {
       const goodIndex = goods.findIndex((goodItem: PortGood) => goodItem.id === id);
       if (goodIndex !== -1) {
@@ -275,11 +275,11 @@ export class MemStorage implements IStorage {
     }
     return undefined;
   }
-  
+
   async updatePortGoodStock(id: number, stock: number): Promise<PortGood | undefined> {
     // Using Array.from to avoid TypeScript iterator issues
     const portEntries = Array.from(this.portGoodsMap.entries());
-    
+
     for (const [portId, goods] of portEntries) {
       const goodIndex = goods.findIndex((goodItem: PortGood) => goodItem.id === id);
       if (goodIndex !== -1) {
@@ -304,7 +304,7 @@ export class MemStorage implements IStorage {
       playerInv = new Map();
       this.playerInventoryMap.set(playerId, playerInv);
     }
-    
+
     const existingItem = playerInv.get(goodId);
     if (!existingItem) {
       playerInv.set(goodId, { playerId, goodId, quantity });
@@ -324,12 +324,12 @@ export class MemStorage implements IStorage {
   async addToLeaderboard(entry: InsertLeaderboard): Promise<Leaderboard> {
     const id = this.leaderboardId++;
     const now = new Date();
-    const newEntry: Leaderboard = { 
-      id, 
+    const newEntry: Leaderboard = {
+      id,
       playerId: entry.playerId || null,
       playerName: entry.playerName,
       score: entry.score,
-      achievedAt: now 
+      achievedAt: now
     };
     this.leaderboardList.push(newEntry);
     return newEntry;

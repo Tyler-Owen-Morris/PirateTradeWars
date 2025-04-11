@@ -81,7 +81,7 @@ export const useSocket = create<SocketState>((set, get) => ({
               localStorage.setItem("playerId", message.playerId);
               localStorage.setItem("playerName", message.name);
               useGameState.setState({ isRegistered: true });
-              setTimeout(() => { useGameState.setState({ isPlaying: true }) }, 1000)
+              //setTimeout(() => { useGameState.setState({ isPlaying: true }) }, 1000)
               if (message.players) {
                 get().onGameUpdate(message.players, message.cannonBalls || []);
               }

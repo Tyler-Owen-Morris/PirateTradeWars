@@ -1,6 +1,7 @@
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { type User, type Player, type ShipType, type Port, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
+import { PlayerState } from '@/types';
 
 export class RedisStorage {
     private redis: Redis;
@@ -10,7 +11,7 @@ export class RedisStorage {
 
     constructor() {
         //console.log("env", process.env)
-        const connString = "rediss://default:AT8PAAIjcDFkOTI2OTIwNWVmZmU0YmJmOTNiMTA4ODVmNzA2Y2U5YXAxMA@exciting-sunbird-16143.upstash.io:6379";//process.env.REDIS_CONN_STRING;
+        const connString = process.env.REDIS_CONN_STRING;
         if (!connString) {
             throw new Error('REDIS_CONN_STRING environment variable is required');
         }
@@ -41,7 +42,7 @@ export class RedisStorage {
     }
 
     // Player operations
-    async getPlayer(id: number): Promise<Player | undefined> {
+    async getPlayer(id: string): Promise<Player | undefined> {
         const data = await this.redis.hgetall(`player:${id}`);
         return data ? this.deserializePlayer(data) : undefined;
     }
@@ -55,7 +56,7 @@ export class RedisStorage {
         return undefined;
     }
 
-    async createPlayer(player: Omit<Player, 'id'>): Promise<Player> {
+    async createPlayer(player: any): Promise<Player> {
         const id = uuidv4();
         const newPlayer = { ...player, id };
 
@@ -73,9 +74,9 @@ export class RedisStorage {
         return newPlayer;
     }
 
-    async updatePlayerGold(id: number, gold: number): Promise<void> {
+    async updatePlayerGold(id: string, gold: number): Promise<void> {
         const multi = this.redis.multi();
-        multi.hset(`player:${id}`, 'gold', gold.toString());
+        multi.hset(`player:${id}`, 'gold', gold);
         multi.expire(`player:${id}`, this.PLAYER_TTL);
         multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
         await multi.exec();
@@ -264,20 +265,6 @@ export class RedisStorage {
         await this.redis.hmset(`game_player:${playerId}`, data);
     }
 
-    async getCannonballs(): Promise<any[]> {
-        const data = await this.redis.lrange('cannonballs', 0, -1);
-        return data.map((item) => JSON.parse(item));
-    }
-
-    async addCannonball(ball: any): Promise<void> {
-        await this.redis.rpush('cannonballs', JSON.stringify(ball));
-    }
-
-    async removeCannonball(index: number): Promise<void> {
-        await this.redis.lset('cannonballs', index, 'DELETED');
-        await this.redis.lrem('cannonballs', 1, 'DELETED');
-    }
-
     async isNameActive(name: string): Promise<boolean> {
         return (await this.redis.exists(`active_name:${name}`)) === 1;
     }
@@ -289,7 +276,6 @@ export class RedisStorage {
 
     async addActiveName(name: string): Promise<void> {
         const multi = this.redis.multi();
-        //multi.sadd('active_names', name);
         multi.set(`active_name:${name}`, '1');
         multi.expire(`active_name:${name}`, this.ACTIVE_NAME_TTL);
         await multi.exec();
@@ -297,7 +283,6 @@ export class RedisStorage {
 
     async removeActiveName(name: string): Promise<void> {
         const multi = this.redis.multi();
-        //multi.srem('active_names', name);
         multi.del(`active_name:${name}`);
         await multi.exec();
     }
@@ -322,27 +307,78 @@ export class RedisStorage {
     }
 
     private serializePlayer(player: Player): Record<string, string> {
-        return {
+        const serialized: Record<string, string> = {
             id: player.id,
             userId: player.userId?.toString() || '',
             name: player.name,
             shipType: player.shipType,
             gold: player.gold.toString(),
             isActive: player.isActive.toString(),
-            lastSeen: player.lastSeen.toISOString()
         };
+
+        // Handle lastSeen safely
+        if (player.lastSeen instanceof Date) {
+            serialized.lastSeen = player.lastSeen.toISOString();
+        } else if (typeof player.lastSeen === 'string') {
+            // If it's already an ISO string, use it; otherwise, try to parse it
+            try {
+                serialized.lastSeen = new Date(player.lastSeen).toISOString();
+            } catch {
+                // Fallback to current time if parsing fails
+                serialized.lastSeen = new Date().toISOString();
+            }
+        } else if (typeof player.lastSeen === 'number') {
+            // If it's a timestamp (like from Date.now())
+            serialized.lastSeen = new Date(player.lastSeen).toISOString();
+        } else {
+            // Fallback to current time if lastSeen is invalid
+            serialized.lastSeen = new Date().toISOString();
+        }
+
+        if (player.x !== undefined) serialized.x = player.x.toString();
+        if (player.z !== undefined) serialized.z = player.z.toString();
+        if (player.rotationY !== undefined) serialized.rotationY = player.rotationY.toString();
+        if (player.speed !== undefined) serialized.speed = player.speed.toString();
+        if (player.hp !== undefined) serialized.hp = player.hp.toString();
+        if (player.maxHp !== undefined) serialized.maxHp = player.maxHp.toString();
+        if (player.cargoCapacity !== undefined) serialized.cargoCapacity = player.cargoCapacity.toString();
+        if (player.cargoUsed !== undefined) serialized.cargoUsed = player.cargoUsed.toString();
+        if (player.cannonCount !== undefined) serialized.cannonCount = player.cannonCount.toString();
+        if (player.damage !== undefined) serialized.damage = player.damage.toString();
+        if (player.reloadTime !== undefined) serialized.reloadTime = player.reloadTime.toString();
+
+        return serialized;
     }
 
     private deserializePlayer(data: Record<string, string>): Player {
-        return {
+        const player: Player = {
             id: data.id,
-            userId: data.userId ? parseInt(data.userId) : null,
+            userId: data.userId && data.userId !== '' ? data.userId : null,
             name: data.name,
             shipType: data.shipType,
-            gold: parseInt(data.gold),
-            isActive: data.isActive === 'true',
+            gold: parseInt(data.gold) || 0,
+            isActive: data.isActive === '1' || data.isActive === 'true',
             lastSeen: new Date(data.lastSeen)
         };
+
+        if (data.x !== undefined) player.x = parseFloat(data.x);
+        if (data.z !== undefined) player.z = parseFloat(data.z);
+        if (data.rotationY !== undefined) player.rotationY = parseFloat(data.rotationY);
+        if (data.speed !== undefined) player.speed = parseFloat(data.speed);
+        if (data.hp !== undefined) player.hp = parseInt(data.hp);
+        if (data.maxHp !== undefined) player.maxHp = parseInt(data.maxHp);
+        if (data.cargoCapacity !== undefined) player.cargoCapacity = parseInt(data.cargoCapacity);
+        if (data.cargoUsed !== undefined) player.cargoUsed = parseInt(data.cargoUsed);
+        if (data.cannonCount !== undefined) player.cannonCount = parseInt(data.cannonCount);
+        if (data.damage !== undefined) player.damage = parseInt(data.damage);
+        if (data.reloadTime !== undefined) player.reloadTime = parseInt(data.reloadTime);
+
+        // Validate lastSeen
+        if (!(player.lastSeen instanceof Date) || isNaN(player.lastSeen.getTime())) {
+            player.lastSeen = new Date();
+        }
+
+        return player;
     }
 
     private deserializeShipType(data: any): ShipType {
