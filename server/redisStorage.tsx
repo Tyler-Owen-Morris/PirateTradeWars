@@ -53,10 +53,12 @@ export class RedisStorage {
     }
 
     async createPlayer(player: Omit<Player, 'id'>): Promise<Player> {
-        const id = await this.redis.incr('player:next_id');
+        const id = uuidv4();
         const newPlayer = { ...player, id };
         await this.redis.hmset(`player:${id}`, this.serializePlayer(newPlayer));
-        await this.redis.sadd('player_names', id.toString());
+        await this.redis.sadd('player_names', id);
+        // Initialize empty inventory as JSON string
+        await this.redis.set(`player_inventory:${id}`, JSON.stringify([]));
         return newPlayer;
     }
 
@@ -80,7 +82,7 @@ export class RedisStorage {
             if (entryData) {
                 leaderboard.push({
                     id: parseInt(entryId),
-                    playerId: parseInt(entryData.playerId),
+                    playerId: entryData.playerId,
                     playerName: entryData.playerName,
                     score,
                     achievedAt: new Date(entryData.achievedAt)
@@ -97,7 +99,7 @@ export class RedisStorage {
 
         // Store the entry details
         await this.redis.hmset(`leaderboard_entry:${id}`, {
-            playerId: entry.playerId?.toString() ?? '',
+            playerId: entry.playerId,
             playerName: entry.playerName,
             achievedAt: entry.achievedAt.toISOString()
         });
@@ -195,17 +197,29 @@ export class RedisStorage {
     }
 
     // Player inventory operations
-    async getPlayerInventory(playerId: number): Promise<PlayerInventory[]> {
-        const data = await this.redis.hgetall(`player_inventory:${playerId}`);
-        return Object.entries(data).map(([goodId, quantity]) => ({
-            playerId,
-            goodId: parseInt(goodId),
-            quantity: parseInt(quantity)
-        }));
+    async getPlayerInventory(playerId: string): Promise<PlayerInventory[]> {
+        console.log("fetching player inventory from DB:", playerId)
+        const data = await this.redis.get(`player_inventory:${playerId}`);
+        console.log("got back", data)
+        return data ? JSON.parse(data) : [];
     }
 
-    async updatePlayerInventory(playerId: number, goodId: number, quantity: number): Promise<void> {
-        await this.redis.hset(`player_inventory:${playerId}`, goodId.toString(), quantity.toString());
+    async updatePlayerInventory(playerId: string, goodId: number, quantity: number): Promise<void> {
+        console.log("update player inventory called with playerid, goodId, quantity:", playerId, goodId, quantity)
+        const inventory = await this.getPlayerInventory(playerId);
+        const existingItemIndex = inventory.findIndex(item => item.goodId === goodId);
+
+        if (existingItemIndex >= 0) {
+            if (quantity > 0) {
+                inventory[existingItemIndex].quantity = quantity;
+            } else {
+                inventory.splice(existingItemIndex, 1);
+            }
+        } else if (quantity > 0) {
+            inventory.push({ playerId, goodId, quantity });
+        }
+
+        await this.redis.set(`player_inventory:${playerId}`, JSON.stringify(inventory));
     }
 
     // Game state operations
@@ -265,7 +279,7 @@ export class RedisStorage {
 
     private serializePlayer(player: Player): Record<string, string> {
         return {
-            id: player.id.toString(),
+            id: player.id,
             userId: player.userId?.toString() || '',
             name: player.name,
             shipType: player.shipType,
@@ -277,7 +291,7 @@ export class RedisStorage {
 
     private deserializePlayer(data: Record<string, string>): Player {
         return {
-            id: parseInt(data.id),
+            id: data.id,
             userId: data.userId ? parseInt(data.userId) : null,
             name: data.name,
             shipType: data.shipType,

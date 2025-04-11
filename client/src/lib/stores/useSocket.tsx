@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { useGameState } from "./useGameState";
 import { PlayerState, SocketMessage, Vector3 } from "@/types";
 import { useAudio } from "./useAudio";
+import { gameState } from "server/game/gameState";
 
 interface SocketState {
   socket: WebSocket | null;
@@ -138,10 +139,14 @@ export const useSocket = create<SocketState>((set, get) => ({
                 const gameState = useGameState.getState();
                 if (gameState.gameState.player) {
                   gameState.gameState.player.gold = message.gold;
+                  // useGameState.getState().loadPlayerInventory(gameState.gameState.player.id)
                 }
               }
+              console.log("trade success message", message)
               if (message.inventory && Array.isArray(message.inventory)) {
                 useGameState.getState().updatePlayerInventory(message.inventory);
+              } else {
+                console.warn("websocket back to client did not catch inventory")
               }
               break;
 

@@ -97,12 +97,12 @@ export function handleSocketConnection(ws: WebSocket) {
       name: data.name,
       shipType: data.shipType,
       gold: 1000,
+      inventory: [],
       lastSeen: new Date(),
       isActive: true
     });
-    playerId = uuidv4();
 
-    const addedPlayer = gameState.addPlayer(playerId, player.id, player.name, player.shipType, shipType);
+    const addedPlayer = gameState.addPlayer(player.id, player.id, player.name, player.shipType, shipType);
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
     }
@@ -111,7 +111,7 @@ export function handleSocketConnection(ws: WebSocket) {
 
     ws.send(JSON.stringify({
       type: "connected",
-      playerId,
+      playerId: player.id,
       name: data.name,
       ship: shipType,
       gold: player.gold,
@@ -166,6 +166,7 @@ export function handleSocketConnection(ws: WebSocket) {
   }
 
   async function handleTrade(playerId: string, data: TradeMessage) {
+    console.log("socket starting trade.")
     const player = gameState.state.players[playerId];
     if (!player || player.dead) return;
 
@@ -183,6 +184,7 @@ export function handleSocketConnection(ws: WebSocket) {
     const portGood = portGoods.find((pg) => pg.goodId === data.goodId);
     if (!portGood) return sendError(ws, "Good not available at this port");
 
+    //console.log("socket handler:handle trade -- player:", player)
     const inventory = await redisStorage.getPlayerInventory(player.playerId);
     const inventoryItem = inventory.find((item) => item.goodId === data.goodId);
     const currentQuantity = inventoryItem ? inventoryItem.quantity : 0;
@@ -215,6 +217,7 @@ export function handleSocketConnection(ws: WebSocket) {
 
       player.gold += totalEarnings;
       player.cargoUsed -= data.quantity;
+      //console.log("sell trade taking place", player)
       await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity - data.quantity);
       const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
 

@@ -30,19 +30,20 @@ export default function TradeMenu() {
       loadPortData();
       // Load inventory when trading starts
       if (gameState.player?.id) {
-        loadPlayerInventory(Number(gameState.player.id));
+        loadPlayerInventory(gameState.player.id);
       }
     }
   }, [nearPortId, isTrading]);
 
   // Update local inventory when game state inventory changes
   useEffect(() => {
+    console.log("Game state inventory changed:", gameState.inventory);
     // Add good details to inventory items
     const itemsWithGoods = gameState.inventory.map(item => ({
       ...item,
       good: GOODS.find(g => g.id === item.goodId)
     }));
-
+    console.log("Processed inventory items:", itemsWithGoods);
     setInventory(itemsWithGoods);
   }, [gameState.inventory]);
 
@@ -100,7 +101,7 @@ export default function TradeMenu() {
   const loadInventory = async () => {
     if (!gameState.player?.id) return;
     console.log("load inventory", gameState.player.id)
-    await loadPlayerInventory(Number(gameState.player.id));
+    await loadPlayerInventory(gameState.player.id);
   };
 
   // Find good by ID
@@ -173,7 +174,7 @@ export default function TradeMenu() {
 
     // Reload inventory after trade
     if (gameState.player.id) {
-      loadPlayerInventory(Number(gameState.player.id));
+      loadPlayerInventory(gameState.player.id);
     }
   };
 
@@ -306,6 +307,7 @@ export default function TradeMenu() {
           defaultValue="buy"
           value={tab}
           onValueChange={(newTab) => {
+            console.log("Tab changed to:", newTab);
             setTab(newTab);
             // If switching to sell tab, make sure to update inventory
             if (newTab === 'sell') {

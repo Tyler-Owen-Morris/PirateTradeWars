@@ -1,6 +1,6 @@
 export interface PlayerState {
     id: string;
-    playerId: number;
+    playerId: string;
     name: string;
     shipType: string;
     x: number;

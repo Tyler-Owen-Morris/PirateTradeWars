@@ -81,7 +81,7 @@ export interface PortGood {
 
 // Player inventory item
 export interface InventoryItem {
-  playerId: number;
+  playerId: string;
   goodId: number;
   quantity: number;
   good?: Good;
@@ -90,6 +90,7 @@ export interface InventoryItem {
 // Leaderboard entry
 export interface LeaderboardEntry {
   id: number;
+  playerId: string;
   playerName: string;
   score: number;
   achievedAt: string;

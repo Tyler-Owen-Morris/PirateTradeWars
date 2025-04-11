@@ -11,7 +11,7 @@ export const GRACE_PERIOD = 30000; // 30 seconds
 
 export interface PlayerState {
   id: string;
-  playerId: number;
+  playerId: string;
   name: string;
   shipType: string;
   x: number;
@@ -55,7 +55,7 @@ export interface GameStateData {
   cannonBalls: CannonBall[];
   lastUpdate: number;
   activeNames: Set<string>;
-  leaderboard: { id: number; playerId: number | null; playerName: string; score: number; achievedAt: Date }[];
+  leaderboard: { id: number; playerId: string; playerName: string; score: number; achievedAt: Date }[];
 }
 
 class GameState {
@@ -115,7 +115,7 @@ class GameState {
     }
   }
 
-  async addPlayer(id: string, playerId: number, name: string, shipType: string, ship: any) {
+  async addPlayer(id: string, playerId: string, name: string, shipType: string, ship: any) {
     if (await redisStorage.getActiveNames().then(names => names.has(name))) return null;
     const x = Math.random() * MAP_WIDTH;
     const z = Math.random() * MAP_HEIGHT;
@@ -413,7 +413,7 @@ class GameState {
     }
   }
 
-  async updateLeaderboard(leaderboard: { id: number; playerId: number | null; playerName: string; score: number; achievedAt: Date }[]) {
+  async updateLeaderboard(leaderboard: { id: number; playerId: string; playerName: string; score: number; achievedAt: Date }[]) {
     this.state.leaderboard = leaderboard;
   }
 }

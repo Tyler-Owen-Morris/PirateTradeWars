@@ -141,18 +141,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Get player inventory
   app.get('/api/players/:playerId/inventory', async (req, res) => {
-    const playerId = parseInt(req.params.playerId);
+    console.log(req.params)
+    const playerId = req.params.playerId;
 
-    if (isNaN(playerId)) {
+    if (!playerId) {
       return res.status(400).json({ message: 'Invalid player ID' });
     }
 
     try {
+      console.log("get player inventory route called with passed param:", playerId)
       const inventory = await redisStorage.getPlayerInventory(playerId);
       res.json(inventory);
     } catch (error) {
       console.error('Error fetching player inventory:', error);
       res.status(500).json({ message: 'Failed to fetch player inventory' });
+    }
+  });
+
+  // Update player inventory
+  app.put('/api/players/:playerId/inventory', async (req, res) => {
+    const playerId = req.params.playerId;
+    const inventory = req.body;
+
+    if (!playerId) {
+      return res.status(400).json({ message: 'Invalid player ID' });
+    }
+
+    if (!Array.isArray(inventory)) {
+      return res.status(400).json({ message: 'Inventory must be an array' });
+    }
+
+    try {
+      // Update each item in the inventory
+      for (const item of inventory) {
+        await redisStorage.updatePlayerInventory(parseInt(playerId), item.goodId, item.quantity);
+      }
+
+      res.json({ success: true, message: 'Inventory updated successfully' });
+    } catch (error) {
+      console.error('Error updating player inventory:', error);
+      res.status(500).json({ message: 'Failed to update player inventory' });
     }
   });
 

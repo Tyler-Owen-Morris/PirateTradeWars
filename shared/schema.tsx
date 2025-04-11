@@ -17,7 +17,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 // Player table - game state for each player
 export const players = pgTable("players", {
-  id: serial("id").primaryKey(),
+  id: text("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   name: text("name").notNull().unique(),
   shipType: text("ship_type").notNull().default("sloop"),
@@ -35,7 +35,7 @@ export const insertPlayerSchema = createInsertSchema(players).pick({
 // Leaderboard table - high scores
 export const leaderboard = pgTable("leaderboard", {
   id: serial("id").primaryKey(),
-  playerId: integer("player_id").references(() => players.id),
+  playerId: text("player_id").references(() => players.id),
   playerName: text("player_name").notNull(),
   score: integer("score").notNull(),
   achievedAt: timestamp("achieved_at").defaultNow().notNull(),
@@ -100,7 +100,7 @@ export const portGoods = pgTable("port_goods", {
 
 // Player inventory - what goods each player has
 export const playerInventory = pgTable("player_inventory", {
-  playerId: integer("player_id").references(() => players.id).notNull(),
+  playerId: text("player_id").references(() => players.id).notNull(),
   goodId: integer("good_id").references(() => goods.id).notNull(),
   quantity: integer("quantity").notNull().default(0),
 }, (table) => {
