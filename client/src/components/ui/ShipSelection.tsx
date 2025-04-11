@@ -223,7 +223,10 @@ export default function ShipSelection() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Free Ship: Sloop */}
             <Card
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.SLOOP ? "border-amber-500 border-2 bg-amber-50" : "bg-gray-50"}`}
+              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.SLOOP
+                ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-100"
+                : "bg-gray-50 border-2 border-transparent"
+                }`}
               onClick={() => handleShipSelect(SHIP_TYPES.SLOOP)}
             >
               <CardHeader className="p-4 pb-2 bg-amber-100">
@@ -234,18 +237,11 @@ export default function ShipSelection() {
               </CardHeader>
               <CardContent className="px-4 pb-2">
                 <div className="h-40 bg-blue-100 rounded-md flex items-center justify-center border border-amber-200">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-16 w-16 text-amber-800"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 10h18M9 16H6M12 16h-2M12 13l-2-3h9l-2 3M3 17l9-4 9 4M12 7V3" />
-                  </svg>
+                  <img
+                    src="/images/ships/sloop.jpg"
+                    alt="The Sloop"
+                    className="object-cover h-full w-full rounded-md"
+                  />
                 </div>
                 <div className="mt-4 text-xs">
                   <p className="mb-1">{SHIP_DESCRIPTIONS[SHIP_TYPES.SLOOP]}</p>
@@ -262,7 +258,10 @@ export default function ShipSelection() {
 
             {/* Paid Ship: Brigantine */}
             <Card
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.BRIGANTINE ? "border-amber-500 border-2 bg-amber-50" : "bg-gray-50"}`}
+              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.BRIGANTINE
+                ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-100"
+                : "bg-gray-50 border-2 border-transparent"
+                }`}
               onClick={() => handleShipSelect(SHIP_TYPES.BRIGANTINE)}
             >
               <CardHeader className="p-4 pb-2 bg-amber-100">
@@ -275,18 +274,11 @@ export default function ShipSelection() {
               </CardHeader>
               <CardContent className="px-4 pb-2">
                 <div className="h-40 bg-green-100 rounded-md flex items-center justify-center border border-amber-200">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-20 w-20 text-amber-800"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 11h18M9 17H6M12 17h-2M12 14l-2-3h9l-2 3M3 18l9-4 9 4M18 9l-3-6M12 7V3" />
-                  </svg>
+                  <img
+                    src="/images/ships/brigantine.jpg"
+                    alt="The Brigantine"
+                    className="object-cover h-full w-full rounded-md"
+                  />
                 </div>
                 <div className="mt-4 text-xs">
                   <p className="mb-1">
@@ -305,7 +297,10 @@ export default function ShipSelection() {
 
             {/* Paid Ship: Galleon */}
             <Card
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.GALLEON ? "border-amber-500 border-2 bg-amber-50" : "bg-gray-50"}`}
+              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.GALLEON
+                ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-100"
+                : "bg-gray-50 border-2 border-transparent"
+                }`}
               onClick={() => handleShipSelect(SHIP_TYPES.GALLEON)}
             >
               <CardHeader className="p-4 pb-2 bg-amber-100">
@@ -318,18 +313,11 @@ export default function ShipSelection() {
               </CardHeader>
               <CardContent className="px-4 pb-2">
                 <div className="h-40 bg-yellow-100 rounded-md flex items-center justify-center border border-amber-200">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-24 w-24 text-amber-800"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 11h18M9 17H5M14 17h-4M12 14l-3-3h12l-3 3M3 18l9-4 9 4M18 8l-3-5M12 7V2M6 8l3-5" />
-                  </svg>
+                  <img
+                    src="/images/ships/galleon.jpg"
+                    alt="The Galleon"
+                    className="object-cover h-full w-full rounded-md"
+                  />
                 </div>
                 <div className="mt-4 text-xs">
                   <p className="mb-1">
@@ -348,7 +336,10 @@ export default function ShipSelection() {
 
             {/* Paid Ship: Man-o'-War */}
             <Card
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.MAN_O_WAR ? "border-amber-500 border-2 bg-amber-50" : "bg-gray-50"}`}
+              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.MAN_O_WAR
+                ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-100"
+                : "bg-gray-50 border-2 border-transparent"
+                }`}
               onClick={() => handleShipSelect(SHIP_TYPES.MAN_O_WAR)}
             >
               <CardHeader className="p-4 pb-2 bg-amber-100">
@@ -361,18 +352,11 @@ export default function ShipSelection() {
               </CardHeader>
               <CardContent className="px-4 pb-2">
                 <div className="h-40 bg-red-100 rounded-md flex items-center justify-center border border-amber-200">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-28 w-28 text-amber-800"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 11h18M9 18H4M16 18H9M12 15l-4-4h14l-4 4M3 19l9-4 9 4M19 7l-4-4M12 7V1M5 7l4-4" />
-                  </svg>
+                  <img
+                    src="/images/ships/man-o-war.jpg"
+                    alt="The Man-o'-War"
+                    className="object-cover h-full w-full rounded-md"
+                  />
                 </div>
                 <div className="mt-4 text-xs">
                   <p className="mb-1">
