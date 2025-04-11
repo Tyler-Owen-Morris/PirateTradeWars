@@ -345,7 +345,7 @@ export default function TradeMenu() {
               <div className="flex items-center p-3 bg-amber-900/70 text-amber-100 font-medium">
                 <div className="w-1/4">Good</div>
                 <div className="w-1/4 text-center">Price</div>
-                <div className="w-1/4 text-center">Stock</div>
+                <div className="w-1/4 text-center">Price Trend</div>
                 <div className="w-1/4 text-center">Action</div>
               </div>
 
@@ -361,6 +361,22 @@ export default function TradeMenu() {
                   const good = findGood(portGood.goodId);
                   if (!good) return null;
 
+                  // Calculate price fluctuation percentage
+                  const basePrice = good.basePrice;
+                  const currentPrice = portGood.currentPrice;
+                  const fluctuation = ((currentPrice - basePrice) / basePrice) * 100;
+
+                  // Determine color and icon based on fluctuation
+                  let trendColor = 'text-amber-200'; // neutral
+                  let trendIcon = '→';
+                  if (fluctuation > 5) {
+                    trendColor = 'text-red-400';
+                    trendIcon = '↑';
+                  } else if (fluctuation < -5) {
+                    trendColor = 'text-green-400';
+                    trendIcon = '↓';
+                  }
+
                   return (
                     <div
                       key={portGood.id}
@@ -373,7 +389,12 @@ export default function TradeMenu() {
                       <div className="w-1/4 text-center">
                         <span className="text-yellow-300">{portGood.currentPrice}</span> gold
                       </div>
-                      <div className="w-1/4 text-center">{portGood.stock} units</div>
+                      <div className="w-1/4 text-center">
+                        <div className={`flex items-center justify-center ${trendColor}`}>
+                          <span className="mr-1">{trendIcon}</span>
+                          <span>{Math.abs(Math.round(fluctuation))}%</span>
+                        </div>
+                      </div>
                       <div className="w-1/4 text-center">
                         <Button
                           variant={selectedGoodId === portGood.goodId ? "default" : "outline"}
