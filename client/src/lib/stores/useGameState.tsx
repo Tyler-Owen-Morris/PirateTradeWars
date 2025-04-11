@@ -67,6 +67,10 @@ export const useGameState = create<GameStateStore>()(
     },
 
     startGame: () => {
+      // this somehow prevents a websocket disconnect error - do not remove it
+      setTimeout(() => {
+        window.location.reload(false);
+      }, 100)
       set({ isPlaying: true });
     },
 

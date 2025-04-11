@@ -69,6 +69,7 @@ export const useSocket = create<SocketState>((set, get) => ({
       socket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data) as SocketMessage;
+          //console.log("getting message", message)
 
           switch (message.type) {
             case "welcome":
@@ -202,11 +203,13 @@ export const useSocket = create<SocketState>((set, get) => ({
       socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name }));
     } else {
       socket.send(JSON.stringify({ type: "connect", name, shipType }));
+      console.log("sending connect event from client")
     }
   },
 
   sendInput: (speed, direction, firing, rotationY) => {
     const { socket, connected } = get();
+    //console.log("sending input to:", socket, connected)
     if (!socket || !connected) return;
     const message = { type: "input", rotationY, speed, direction, firing };
     //console.log("sending input:", message)

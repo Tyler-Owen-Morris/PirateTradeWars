@@ -11,7 +11,7 @@ export class RedisStorage {
 
     constructor() {
         //console.log("env", process.env)
-        const connString = process.env.REDIS_CONN_STRING;
+        const connString = "rediss://default:AT8PAAIjcDFkOTI2OTIwNWVmZmU0YmJmOTNiMTA4ODVmNzA2Y2U5YXAxMA@exciting-sunbird-16143.upstash.io:6379";//process.env.REDIS_CONN_STRING;
         if (!connString) {
             throw new Error('REDIS_CONN_STRING environment variable is required');
         }

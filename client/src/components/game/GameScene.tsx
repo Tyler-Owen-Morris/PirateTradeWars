@@ -160,7 +160,7 @@ export function GameScene() {
       <ambientLight intensity={0.3} />
       <directionalLight position={[50, 100, 50]} intensity={1} castShadow />
       <Sky sunPosition={[100, 20, 100]} turbidity={0.3} rayleigh={0.5} />
-      <Stars radius={500} depth={50} count={1000} factor={4} />
+      <Stars radius={5000} depth={50} count={1000} factor={4} />
 
       {/* Ocean */}
       <Ocean />
