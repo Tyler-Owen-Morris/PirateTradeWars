@@ -12,7 +12,7 @@ import { useShip } from "@/lib/stores/useShip";
 import { useGameState } from "@/lib/stores/useGameState";
 import { useSocket } from "@/lib/stores/useSocket";
 import { Alert, AlertDescription } from "./alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { SHIP_TYPES, SHIP_DESCRIPTIONS } from "@/lib/constants";
 
 export default function ShipSelection() {
@@ -146,6 +146,17 @@ export default function ShipSelection() {
       setLoading(false);
     }
   }, [socketError]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-12 w-12 text-amber-500 animate-spin" />
+          <p className="mt-4 text-white text-lg">Preparing your ship...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4 overflow-y-auto">
