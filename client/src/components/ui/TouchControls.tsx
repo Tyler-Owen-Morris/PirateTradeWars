@@ -17,13 +17,13 @@ const joystickStyle = {
   width: '100px',
   height: '100px',
   position: 'absolute',
-  bottom: '20px',
+  bottom: '18%',
   left: '20px',
 };
 
 const fireButtonStyle = {
   position: 'absolute',
-  bottom: '20px',
+  bottom: '20%',
   right: '20px',
   width: '60px',
   height: '60px',

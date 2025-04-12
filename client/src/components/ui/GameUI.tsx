@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useKeyboardControls } from "@react-three/drei";
 import { useGameState } from "@/lib/stores/useGameState";
 import { useAudio } from "@/lib/stores/useAudio";
@@ -28,8 +28,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./dropdown-menu";
+import TouchControls from "./TouchControls";
+//import { isMobile } from "react-device-detect"; // I don't know if we need this since we're detecting touch-enabled browser
 
-export default function GameUI() {
+interface ControlState {
+  forward: boolean;
+  backward: boolean;
+  left: boolean;
+  right: boolean;
+  fire: boolean;
+}
+
+interface GameUIProps {
+  controlsRef: React.MutableRefObject<ControlState>;
+}
+
+export default function GameUI({ controlsRef }: GameUIProps) {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const { isSunk, gameState } = useGameState();
@@ -45,10 +59,22 @@ export default function GameUI() {
     setMusicVolume,
     setSfxVolume,
   } = useAudio();
+  const [deviceIsTouch, setDeviceIsTouch] = useState(false)
 
-  // useEffect(() => {
-  //   console.log("sfxVolume changed:", sfxVolume);
-  // }, [sfxVolume]);
+
+
+  useEffect(() => {
+    function isTouchDevice() {
+      return (('ontouchstart' in window) || (navigator.maxTouchPoints > 0 || (navigator.msMaxTouchPoints > 0)))
+    }
+    let result = isTouchDevice();
+    if (result) {
+      setDeviceIsTouch(true)
+      setShowMinimap(false)
+    }
+    console.log("device is touch", result)
+  }, [])
+
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -107,7 +133,7 @@ export default function GameUI() {
     };
   }, [gameState.nearestPort, gameState.isNearPort, gameState.player, isMuted, isSfxMuted, sfxVolume]);
 
-  const [showMinimap, setShowMinimap] = useState(true);
+  const [showMinimap, setShowMinimap] = useState(!deviceIsTouch);
 
   const toggleMinimap = () => {
     setShowMinimap(!showMinimap);
@@ -300,6 +326,9 @@ export default function GameUI() {
           </div>
         </div>
       )}
+
+      {deviceIsTouch && <TouchControls controlsRef={controlsRef} />}
+      {/* <TouchControls controlsRef={controlsRef} /> */}
     </>
   );
 }
