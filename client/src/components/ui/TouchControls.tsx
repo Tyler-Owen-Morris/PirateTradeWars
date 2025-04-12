@@ -45,7 +45,7 @@ const TouchControls: React.FC<TouchControlsProps> = ({ controlsRef }) => {
     // Initialize nipplejs joystick
     const manager = nipplejs.create({
       zone: joystickRef.current,
-      mode: 'static',
+      mode: 'semi',
       position: { left: '50%', top: '50%' },
       color: 'white',
     });

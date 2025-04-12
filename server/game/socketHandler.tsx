@@ -119,6 +119,7 @@ export function handleSocketConnection(ws: WebSocket) {
   async function handleReconnect(ws: WebSocket, data: ReconnectMessage) {
     const existingPlayer = gameState.state.players[data.id];
     console.log("looking for reconnecting to player:", data)
+    console.log("existing players:", gameState.state.players)
     if (!existingPlayer) {
       return sendError(ws, "Player ID not found");
     }

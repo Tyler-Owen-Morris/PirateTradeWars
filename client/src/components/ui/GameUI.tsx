@@ -244,7 +244,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
       {/* Request to Trade */}
       {gameState.nearestPort && gameState.isNearPort && !isSunk && (
         <div
-          className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white p-3 rounded-md border border-amber-500 shadow-lg animate-pulse cursor-pointer hover:bg-black/90 transition-colors"
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-black/80 text-white p-3 rounded-md border border-amber-500 shadow-lg animate-pulse cursor-pointer hover:bg-black/90 transition-colors"
           onClick={startTrade}
         >
           <p className="text-center">
