@@ -52,7 +52,8 @@ export const useSocket = create<SocketState>((set, get) => ({
         if (storedPlayerId && storedName) {
           socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name: storedName }));
         } else {
-          set({ error: "Please provide a name to join the game" });
+          //set({ error: "Please provide a name to join the game" });
+          console.log("not attempting to rejoin the game")
         }
       };
 

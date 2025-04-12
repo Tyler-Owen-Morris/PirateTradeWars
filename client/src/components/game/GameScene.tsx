@@ -13,8 +13,21 @@ import * as THREE from "three";
 import { CannonBall } from "./CannonBall";
 import { Vector3 } from "@/types";
 
+// Interface for control state
+interface ControlState {
+  forward: boolean;
+  backward: boolean;
+  left: boolean;
+  right: boolean;
+  fire: boolean;
+}
+
 // GameScene component
-export function GameScene() {
+interface GameSceneProps {
+  controlsRef: React.MutableRefObject<ControlState>;
+}
+// GameScene component
+export function GameScene({ controlsRef }: GameSceneProps) {
   // Refs
   const playerRef = useRef<THREE.Group>(null);
   const lastInputTime = useRef<number>(0);
@@ -44,6 +57,8 @@ export function GameScene() {
     useGameState.getState().loadLeaderboard();
   }, []);
 
+
+
   // Handle camera following player with smooth interpolation
   useFrame((_, delta) => {
     if (playerRef.current && gameState.player) {
@@ -67,10 +82,19 @@ export function GameScene() {
       if (now - lastInputTime.current > 100) {
         lastInputTime.current = now;
 
+        // Combine keyboard and touch controls
+        const effectiveControls = {
+          forward: forward || controlsRef.current.forward,
+          backward: backward || controlsRef.current.backward,
+          left: left || controlsRef.current.left,
+          right: right || controlsRef.current.right,
+          fire: fire || controlsRef.current.fire,
+        };
+
         // Simplified controls - forward/backward directly control speed
         let speed = 0;
-        if (backward) speed = 5; // S key goes forward at max speed
-        if (forward) speed = -2.5; // W key goes backward at half speed
+        if (effectiveControls.backward) speed = 2; // S key goes forward at max speed
+        if (effectiveControls.forward) speed = -3.5; // W key goes backward at half speed
 
         // Get the current visual rotation from the player model
         const currentRotation = playerRef.current.rotation.y;
@@ -94,7 +118,7 @@ export function GameScene() {
         const shouldUpdateRotation = rotationDiff > 0.05 || (now - lastRotationUpdateTime.current > 250);
 
         // Debug when moving to help diagnose issues
-        if (forward || backward || left || right) {
+        if (effectiveControls.forward || effectiveControls.backward || effectiveControls.left || effectiveControls.right) {
           //console.log("Server input - Speed:", speed, "Direction:", direction.current);
         }
 
@@ -102,11 +126,11 @@ export function GameScene() {
           // Send complete input including rotation
           lastRotationUpdateTime.current = now;
           lastSentRotation.current = currentRotation;
-          socket.sendInput(speed, direction.current, fire, currentRotation);
+          socket.sendInput(speed, direction.current, effectiveControls.fire, currentRotation);
         } else {
           // Send just speed and direction updates without rotation
           // This keeps the rotation on the server until we need to change it
-          socket.sendInput(speed, direction.current, fire);
+          socket.sendInput(speed, direction.current, effectiveControls.fire);
         }
 
         // Update client-side game state for smooth local rendering

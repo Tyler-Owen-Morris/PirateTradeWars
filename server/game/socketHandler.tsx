@@ -81,6 +81,7 @@ export function handleSocketConnection(ws: WebSocket) {
   ws.send(JSON.stringify({ type: "welcome", message: "Welcome to Pirate Trade Wars!", timestamp: Date.now() }));
 
   async function handleConnect(ws: WebSocket, data: ConnectMessage) {
+    console.log("connection attempt")
     if (!data.name || data.name.trim().length < 3) {
       return sendError(ws, "Name must be at least 3 characters");
     }
@@ -117,6 +118,7 @@ export function handleSocketConnection(ws: WebSocket) {
 
   async function handleReconnect(ws: WebSocket, data: ReconnectMessage) {
     const existingPlayer = gameState.state.players[data.id];
+    console.log("looking for reconnecting to player:", data)
     if (!existingPlayer) {
       return sendError(ws, "Player ID not found");
     }

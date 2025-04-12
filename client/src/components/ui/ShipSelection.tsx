@@ -85,6 +85,19 @@ export default function ShipSelection() {
     }
   }, [isRegistered, socketError, startGame]);
 
+  useEffect(() => {
+    generatePirateName();
+  }, [])
+
+  // generate random pirate name
+  const generatePirateName = () => {
+    // Reset error and generate a random name
+    useSocket.getState().resetError();
+    const randomName = `pirate${Math.floor(Math.random() * 10000)}`;
+    setPlayerName(randomName);
+    localStorage.setItem("playerName", randomName);
+  }
+
   // Start game with selected ship
   const handleStartGame = () => {
     if (!selectedShip || !playerName || playerName.length < 3) {
@@ -197,6 +210,8 @@ export default function ShipSelection() {
           </div>
           {(shipError || socketError) && (
             <Alert variant="destructive" className="mb-4 text-white">
+              {/* <p>{shipError}ship error</p>
+              <p>{socketError}socket errro</p> */}
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 {shipError || socketError}
@@ -217,13 +232,7 @@ export default function ShipSelection() {
               </p>
             </AlertDescription>
             <Button
-              onClick={() => {
-                // Reset error and generate a random name
-                useSocket.getState().resetError();
-                const randomName = `pirate${Math.floor(Math.random() * 10000)}`;
-                setPlayerName(randomName);
-                localStorage.setItem("playerName", randomName);
-              }}
+              onClick={generatePirateName}
               className="mt-2 bg-amber-700 hover:bg-amber-600 text-white py-1 px-3 rounded-md transition"
               size="sm"
             >
