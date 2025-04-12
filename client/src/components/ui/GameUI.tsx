@@ -88,36 +88,9 @@ export default function GameUI({ controlsRef }: GameUIProps) {
       }
 
       if (e.key === "t" || e.key === "T") {
-        if (gameState.nearestPort && gameState.isNearPort) {
-          useGameState.setState({ isTrading: true });
-          console.log(`Trading at ${gameState.nearestPort.name}`);
-          const { playSound } = useAudio.getState();
-          if (typeof playSound === "function" && !isMuted && !isSfxMuted) {
-            playSound("success", sfxVolume);
-          }
-        } else {
-          const nearestPort = useGameState.getState().getNearestPort();
-          if (nearestPort) {
-            const player = gameState.player;
-            if (player) {
-              const distance = useGameState
-                .getState()
-                .calculateDistance(
-                  player.x,
-                  player.z,
-                  nearestPort.x,
-                  nearestPort.z,
-                );
-              const message = `Too far from ${nearestPort.name} (${Math.round(distance)} units away). Sail closer to trade!`;
-              console.log(message);
-            }
-          } else {
-            console.log("No ports nearby. Find a port to trade!");
-          }
-        }
-      }
-    };
-
+        startTrade();
+      };
+    }
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Tab") {
         setShowLeaderboard(false);
@@ -138,6 +111,37 @@ export default function GameUI({ controlsRef }: GameUIProps) {
   const toggleMinimap = () => {
     setShowMinimap(!showMinimap);
   };
+
+  const startTrade = () => {
+    if (gameState.nearestPort && gameState.isNearPort) {
+      useGameState.setState({ isTrading: true });
+      console.log(`Trading at ${gameState.nearestPort.name}`);
+      const { playSound } = useAudio.getState();
+      if (typeof playSound === "function" && !isMuted && !isSfxMuted) {
+        playSound("success", sfxVolume);
+      }
+    } else {
+      const nearestPort = useGameState.getState().getNearestPort();
+      if (nearestPort) {
+        const player = gameState.player;
+        if (player) {
+          const distance = useGameState
+            .getState()
+            .calculateDistance(
+              player.x,
+              player.z,
+              nearestPort.x,
+              nearestPort.z,
+            );
+          const message = `Too far from ${nearestPort.name} (${Math.round(distance)} units away). Sail closer to trade!`;
+          console.log(message);
+        }
+      } else {
+        console.log("No ports nearby. Find a port to trade!");
+      }
+    }
+
+  }
 
   return (
     <>
