@@ -59,7 +59,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
     setMusicVolume,
     setSfxVolume,
   } = useAudio();
-  const [deviceIsTouch, setDeviceIsTouch] = useState(false)
+  const [isDeviceTouch, setIsDeviceTouch] = useState(false)
 
 
 
@@ -69,7 +69,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
     }
     let result = isTouchDevice();
     if (result) {
-      setDeviceIsTouch(true)
+      setIsDeviceTouch(true)
       setShowMinimap(false)
     }
     console.log("device is touch", result)
@@ -106,7 +106,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
     };
   }, [gameState.nearestPort, gameState.isNearPort, gameState.player, isMuted, isSfxMuted, sfxVolume]);
 
-  const [showMinimap, setShowMinimap] = useState(!deviceIsTouch);
+  const [showMinimap, setShowMinimap] = useState(!isDeviceTouch);
 
   const toggleMinimap = () => {
     setShowMinimap(!showMinimap);
@@ -145,7 +145,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
 
   return (
     <>
-      <HUD />
+      <HUD controlsRef={controlsRef} />
       {showLeaderboard && <Leaderboard />}
       <ToastContainer />
 
@@ -241,59 +241,17 @@ export default function GameUI({ controlsRef }: GameUIProps) {
 
       {showMinimap && gameState.player && <Minimap />}
 
-      {gameState.player && !isSunk && (
-        <div className="absolute bottom-20 right-4 z-50 flex flex-col gap-3">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button
-                variant="destructive"
-                className="flex items-center gap-2 shadow-lg bg-red-700 hover:bg-red-800 text-white font-bold border-2 mb-5 border-red-900"
-              >
-                <Skull size={16} />
-                <span>Scuttle Ship</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-black/90 border-amber-500 text-white">
-              <DialogHeader>
-                <DialogTitle className="text-amber-400">
-                  Scuttle Your Ship?
-                </DialogTitle>
-                <DialogDescription className="text-gray-300">
-                  This will end your current game and register your score on the
-                  leaderboard. Your ship and all cargo will be lost forever.
-                  This action cannot be undone.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter className="flex gap-2 justify-end mt-4">
-                <Button
-                  variant="outline"
-                  className="border-gray-500 text-gray-300 hover:bg-gray-800"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="bg-red-700 hover:bg-red-800"
-                  onClick={() => {
-                    useSocket.getState().scuttleShip();
-                    //useAudio.getState().playExplosion();
-                  }}
-                >
-                  Scuttle Ship
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-      )}
-
+      {/* Request to Trade */}
       {gameState.nearestPort && gameState.isNearPort && !isSunk && (
-        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white p-3 rounded-md border border-amber-500 shadow-lg animate-pulse">
+        <div
+          className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50 bg-black/80 text-white p-3 rounded-md border border-amber-500 shadow-lg animate-pulse cursor-pointer hover:bg-black/90 transition-colors"
+          onClick={startTrade}
+        >
           <p className="text-center">
             <span className="font-bold text-amber-400">
               {gameState.nearestPort.name}
             </span>{" "}
-            - Press <span className="font-mono bg-black px-2 rounded">T</span>{" "}
+            - Click here or press <span className="font-mono bg-black px-2 rounded">T</span>{" "}
             to trade
           </p>
         </div>
@@ -331,8 +289,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
         </div>
       )}
 
-      {deviceIsTouch && <TouchControls controlsRef={controlsRef} />}
-      {/* <TouchControls controlsRef={controlsRef} /> */}
+      {isDeviceTouch && <TouchControls controlsRef={controlsRef} />}
     </>
   );
 }

@@ -158,7 +158,7 @@ function App() {
                   </Suspense>
                 </Canvas>
 
-                <GameUI />
+                <GameUI controlsRef={controlsRef} />
 
                 {isTrading && <TradeMenu />}
 

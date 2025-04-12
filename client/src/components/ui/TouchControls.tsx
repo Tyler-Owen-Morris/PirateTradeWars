@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import nipplejs from 'nipplejs';
 import { isMobile } from 'react-device-detect';
 import { useKeyboardControls } from '@react-three/drei';
@@ -17,22 +17,8 @@ const joystickStyle = {
   width: '100px',
   height: '100px',
   position: 'absolute',
-  bottom: '18%',
-  left: '20px',
-};
-
-const fireButtonStyle = {
-  position: 'absolute',
   bottom: '20%',
-  right: '20px',
-  width: '60px',
-  height: '60px',
-  borderRadius: '50%',
-  background: 'red',
-  color: 'white',
-  border: 'none',
-  fontSize: '16px',
-  cursor: 'pointer',
+  left: '20px',
 };
 
 interface TouchControlsProps {
@@ -42,9 +28,18 @@ interface TouchControlsProps {
 const TouchControls: React.FC<TouchControlsProps> = ({ controlsRef }) => {
   const joystickRef = useRef(null);
   const [, setControls] = useKeyboardControls();
+  const [isDeviceTouch, setIsDeviceTouch] = useState(false)
 
-  // Only render on mobile
-  if (!isMobile) return null;
+  useEffect(() => {
+    function isTouchDevice() {
+      return (('ontouchstart' in window) || (navigator.maxTouchPoints > 0))
+    }
+    let result = isTouchDevice();
+    if (result) {
+      setIsDeviceTouch(true)
+    }
+    console.log("device is touch", result)
+  }, [])
 
   useEffect(() => {
     // Initialize nipplejs joystick
@@ -106,38 +101,10 @@ const TouchControls: React.FC<TouchControlsProps> = ({ controlsRef }) => {
     return () => manager.destroy();
   }, [controlsRef, setControls]);
 
-  // Fire button handler
-  const handleFire = () => {
-    controlsRef.current = {
-      ...controlsRef.current,
-      fire: true,
-    };
-
-    setControls((state) => ({
-      ...state,
-      fire: true,
-    }));
-
-    // Reset fire after a short delay
-    setTimeout(() => {
-      controlsRef.current = {
-        ...controlsRef.current,
-        fire: false,
-      };
-      setControls((state) => ({
-        ...state,
-        fire: false,
-      }));
-    }, 100);
-  };
-
   return (
-    <>
+    <div>
       <div ref={joystickRef} style={joystickStyle} />
-      <button onTouchStart={handleFire} style={fireButtonStyle}>
-        Fire
-      </button>
-    </>
+    </div>
   );
 };
 
