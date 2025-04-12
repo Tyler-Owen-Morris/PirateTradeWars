@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose
 } from './dialog';
 import { useSocket } from '@/lib/stores/useSocket';
 
@@ -127,11 +128,11 @@ export default function HUD({ controlsRef }: HUDProps) {
       </div>
 
       {/* Compass and navigation - moved above help tooltip */}
-      <div className="absolute bottom-4 right-4 flex flex-col gap-3">
+      <div className="absolute bottom-4 right-4 flex flex-col gap-2">
         {/* Fire Button */}
         <button
           onClick={handleFire}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md pointer-events-auto transition-colors"
+          className="bg-red-700 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md pointer-events-auto transition-colors"
         >
           Fire Cannons
         </button>
@@ -158,6 +159,7 @@ export default function HUD({ controlsRef }: HUDProps) {
         {/* Scuttle Ship Button + modal */}
         {player && !isSunk && (
           <Dialog>
+
             <DialogTrigger asChild>
               <Button
                 variant="destructive"
@@ -179,12 +181,9 @@ export default function HUD({ controlsRef }: HUDProps) {
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="flex gap-2 justify-end mt-4">
-                <Button
-                  variant="outline"
-                  className="border-gray-500 text-gray-300 hover:bg-gray-800"
-                >
+                <DialogClose variant="outline" className="border-gray-500 text-gray-300 hover:bg-gray-800" >
                   Cancel
-                </Button>
+                </DialogClose>
                 <Button
                   variant="destructive"
                   className="bg-red-700 hover:bg-red-800"
@@ -196,6 +195,7 @@ export default function HUD({ controlsRef }: HUDProps) {
                 </Button>
               </DialogFooter>
             </DialogContent>
+
           </Dialog>
         )}
       </div>

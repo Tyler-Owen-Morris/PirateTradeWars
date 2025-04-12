@@ -75,6 +75,7 @@ export const useGameState = create<GameStateStore>()(
     },
 
     restartGame: () => {
+      console.log("restart game called")
       set({
         isRegistered: false,
         isPlaying: false,

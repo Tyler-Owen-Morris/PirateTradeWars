@@ -350,10 +350,10 @@ export default function TradeMenu() {
                   let trendColor = 'text-amber-200'; // neutral
                   let trendIcon = '→';
                   if (fluctuation > 5) {
-                    trendColor = 'text-red-400';
+                    trendColor = 'text-green-400';
                     trendIcon = '↑';
                   } else if (fluctuation < -5) {
-                    trendColor = 'text-green-400';
+                    trendColor = 'text-red-400';
                     trendIcon = '↓';
                   }
 

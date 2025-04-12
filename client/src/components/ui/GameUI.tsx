@@ -60,8 +60,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
     setSfxVolume,
   } = useAudio();
   const [isDeviceTouch, setIsDeviceTouch] = useState(false)
-
-
+  const [displayTouchControls, setDisplayTouchControls] = useState(false)
 
   useEffect(() => {
     function isTouchDevice() {
@@ -74,6 +73,12 @@ export default function GameUI({ controlsRef }: GameUIProps) {
     }
     console.log("device is touch", result)
   }, [])
+
+  useEffect(() => {
+    const shouldDisplay = !isSunk && isDeviceTouch
+    console.log("touch", isDeviceTouch, "| sunk:", isSunk, "result:", shouldDisplay)
+    setDisplayTouchControls(shouldDisplay)
+  }, [isDeviceTouch, isSunk])
 
 
   useEffect(() => {
@@ -289,7 +294,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
         </div>
       )}
 
-      {isDeviceTouch && <TouchControls controlsRef={controlsRef} />}
+      {displayTouchControls && <TouchControls controlsRef={controlsRef} />}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Sky, Stars } from "@react-three/drei";
 import { useKeyboardControls } from "@react-three/drei";
@@ -49,6 +49,13 @@ export function GameScene({ controlsRef }: GameSceneProps) {
   const left = useKeyboardControls((state) => state.left);
   const right = useKeyboardControls((state) => state.right);
   const fire = useKeyboardControls((state) => state.fire);
+  const [effectiveControlsState, setEffectiveControls] = useState({
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+    fire: false
+  });
 
   // Load initial game data
   useEffect(() => {
@@ -90,6 +97,10 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           right: right || controlsRef.current.right,
           fire: fire || controlsRef.current.fire,
         };
+        //console.log("effective controls:", effectiveControls)
+        if (effectiveControls != effectiveControlsState) {
+          setEffectiveControls(effectiveControls)
+        }
 
         // Simplified controls - forward/backward directly control speed
         let speed = 0;
@@ -198,11 +209,11 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           player={gameState.player}
           ref={playerRef}
           controls={{
-            forward,
-            backward,
-            left,
-            right,
-            fire
+            forward: (effectiveControlsState.forward || false),
+            backward: (effectiveControlsState.backward || false),
+            left: (effectiveControlsState.left || false),
+            right: (effectiveControlsState.right || false),
+            fire: (effectiveControlsState.fire || false)
           }}
         />
       )}

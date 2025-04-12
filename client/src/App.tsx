@@ -10,7 +10,7 @@ import ShipSelection from "./components/ui/ShipSelection";
 import GameOver from "./components/ui/GameOver";
 import { useGameState } from "./lib/stores/useGameState";
 import TradeMenu from "./components/ui/TradeMenu";
-import TouchControls from './components/ui/TouchControls'
+// import TouchControls from './components/ui/TouchControls'
 import { isMobile } from 'react-device-detect';
 
 // Define control keys for the game
@@ -164,7 +164,7 @@ function App() {
 
                 {isSunk && <GameOver score={gameState.player?.gold || 0} />}
 
-                {isMobile && <TouchControls controlsRef={controlsRef} />}
+                {/* {isMobile && <TouchControls controlsRef={controlsRef} />} */}
               </>
             )}
           </KeyboardControls>

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import nipplejs from 'nipplejs';
 import { isMobile } from 'react-device-detect';
 import { useKeyboardControls } from '@react-three/drei';
+import { useGameState } from '@/lib/stores/useGameState';
 
 // Interface for control state
 interface ControlState {
@@ -17,7 +18,7 @@ const joystickStyle = {
   width: '100px',
   height: '100px',
   position: 'absolute',
-  bottom: '20%',
+  bottom: '22%',
   left: '20px',
 };
 
@@ -45,36 +46,35 @@ const TouchControls: React.FC<TouchControlsProps> = ({ controlsRef }) => {
     // Initialize nipplejs joystick
     const manager = nipplejs.create({
       zone: joystickRef.current,
-      mode: 'semi',
+      mode: 'static',
       position: { left: '50%', top: '50%' },
       color: 'white',
     });
 
     // Map joystick movement to controls
     manager.on('move', (evt, data) => {
-      const { force, angle } = data;
-      const threshold = 0.3;
+      const { vector } = data; // vector.x and vector.y are normalized (-1 to 1)
+      const moveThreshold = 0.3; // Threshold for triggering movement
+      const turnThreshold = 0.1; // Threshold for triggering turning
 
-      // Calculate movement directions
-      const forward = Math.cos(angle.radian) * force;
-      const right = Math.sin(angle.radian) * force;
-
-      // Update shared controls ref
+      //console.log("left:", vector.x < -turnThreshold, "right", vector.x > turnThreshold)
+      // Update shared controls ref based on X/Y displacement
       controlsRef.current = {
-        forward: forward > threshold,
-        backward: forward < -threshold,
-        left: right < -threshold,
-        right: right > threshold,
+        forward: vector.y > moveThreshold,   // Joystick up (positive Y)
+        backward: vector.y < -moveThreshold, // Joystick down (negative Y)
+        left: vector.x < -turnThreshold,     // Joystick left (negative X)
+        right: vector.x > turnThreshold,     // Joystick right (positive X)
         fire: controlsRef.current.fire,
       };
 
       // Update keyboard controls for consistency
       setControls((state) => ({
         ...state,
-        forward: forward > threshold,
-        backward: forward < -threshold,
-        left: right < -threshold,
-        right: right > threshold,
+        forward: vector.y > moveThreshold,
+        backward: vector.y < -moveThreshold,
+        left: vector.x < -turnThreshold,
+        right: vector.x > turnThreshold,
+        fire: controlsRef.current.fire
       }));
     });
 

@@ -85,9 +85,9 @@ export default function ShipSelection() {
     }
   }, [isRegistered, socketError, startGame]);
 
-  useEffect(() => {
-    generatePirateName();
-  }, [])
+  // useEffect(() => {
+  //   generatePirateName();
+  // }, [])
 
   // generate random pirate name
   const generatePirateName = () => {
