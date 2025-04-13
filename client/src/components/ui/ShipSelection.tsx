@@ -173,7 +173,7 @@ export default function ShipSelection() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4 overflow-y-auto">
-      <Card className="w-full max-w-4xl border-amber-500 border flex flex-col" style={{ maxHeight: '90vh' }}>
+      <Card className="w-full max-w-4xl border-amber-500 border flex flex-col mb-20" style={{ maxHeight: '90vh' }}>
         <CardHeader className="bg-amber-900 text-white">
           <CardTitle className="text-2xl text-center">
             Choose Your Ship
