@@ -2,6 +2,8 @@ import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { type User, type Player, type ShipType, type Port, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
 import { PlayerState } from '@/types';
+import dotenv from 'dotenv';
+dotenv.config();
 
 export class RedisStorage {
     private redis: Redis;
@@ -11,7 +13,7 @@ export class RedisStorage {
 
     constructor() {
         //console.log("env", process.env)
-        const connString = process.env.REDIS_CONN_STRING;
+        const connString = process.env['REDIS_CONN_STRING']
         if (!connString) {
             throw new Error('REDIS_CONN_STRING environment variable is required');
         }
