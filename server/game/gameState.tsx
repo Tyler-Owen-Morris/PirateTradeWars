@@ -4,11 +4,11 @@ import { v4 as uuidv4 } from "uuid";
 
 export const MAP_WIDTH = 5000;
 export const MAP_HEIGHT = 5000;
-export const TICK_RATE = 50; // ms (20 updates/second)
-export const BROADCAST_RATE = 50; // ms (20 updates/second)
+export const TICK_RATE = 100; // ms (10 updates/second)
+export const BROADCAST_RATE = 100; // ms (10 updates/second)
 export const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 export const MAX_PLAYERS_PER_INSTANCE = 100;
-export const GRACE_PERIOD = 30000; // 30 seconds
+export const GRACE_PERIOD = 600000; // 10 minutes
 
 export interface PlayerState {
   id: string;
