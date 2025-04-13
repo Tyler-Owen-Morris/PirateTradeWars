@@ -21,7 +21,8 @@ export default function TradeMenu() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedGoodId, setSelectedGoodId] = useState<number | null>(null);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState<string>("1");
+  const [quantityError, setQuantityError] = useState<string | null>(null);
   const [tab, setTab] = useState('buy');
 
   // Get current port and its goods
@@ -115,6 +116,12 @@ export default function TradeMenu() {
     return item ? item.quantity : 0;
   };
 
+  // Get numeric quantity for calculations, returns 0 if invalid
+  const getNumericQuantity = (): number => {
+    const num = parseInt(quantity);
+    return isNaN(num) ? 0 : num;
+  };
+
   // Handle trade
   const handleTrade = () => {
     if (!currentPort || !selectedGoodId || !gameState.player) {
@@ -122,10 +129,12 @@ export default function TradeMenu() {
       return;
     }
 
-    if (quantity <= 0) {
-      setError('Quantity must be greater than 0');
+    const numericQuantity = getNumericQuantity();
+    if (numericQuantity <= 0) {
+      setQuantityError('Quantity must be greater than 0');
       return;
     }
+    setQuantityError(null);
 
     // Get port good
     const portGood = portGoods.find(pg => pg.goodId === selectedGoodId);
@@ -137,20 +146,20 @@ export default function TradeMenu() {
     // Check if buying or selling
     if (tab === 'buy') {
       // Check if port has enough stock
-      if (portGood.stock < quantity) {
+      if (portGood.stock < numericQuantity) {
         setError(`Not enough stock available. Only ${portGood.stock} units left.`);
         return;
       }
 
       // Check if player has enough gold
-      const totalCost = portGood.currentPrice * quantity;
+      const totalCost = portGood.currentPrice * numericQuantity;
       if (gameState.player.gold < totalCost) {
         setError(`Not enough gold. You need ${totalCost} gold.`);
         return;
       }
 
       // Check if player has enough cargo space
-      const spaceNeeded = quantity;
+      const spaceNeeded = numericQuantity;
       const spaceAvailable = gameState.player.cargoCapacity - gameState.player.cargoUsed;
       if (spaceNeeded > spaceAvailable) {
         setError(`Not enough cargo space. You only have space for ${spaceAvailable} more units.`);
@@ -159,18 +168,18 @@ export default function TradeMenu() {
     } else {
       // Check if player has enough of the good
       const inventoryQuantity = getInventoryQuantity(selectedGoodId);
-      if (inventoryQuantity < quantity) {
+      if (inventoryQuantity < numericQuantity) {
         setError(`You don't have enough of this good. You only have ${inventoryQuantity} units.`);
         return;
       }
     }
 
     // Send trade to server
-    sendTrade(Number(currentPort.id), tab === 'buy' ? 'buy' : 'sell', selectedGoodId, quantity);
+    sendTrade(Number(currentPort.id), tab === 'buy' ? 'buy' : 'sell', selectedGoodId, numericQuantity);
 
     // Reset form
     setSelectedGoodId(null);
-    setQuantity(1);
+    setQuantity("1");
 
     // Reload inventory after trade
     if (gameState.player.id) {
@@ -226,14 +235,14 @@ export default function TradeMenu() {
     }
 
     // Set the quantity to max and execute the trade
-    setQuantity(maxQuantity);
+    setQuantity(maxQuantity.toString());
 
     // Execute trade with max quantity
     sendTrade(Number(currentPort.id), 'buy', selectedGoodId, maxQuantity);
 
     // Reset form
     setSelectedGoodId(null);
-    setQuantity(1);
+    setQuantity("1");
   };
 
   // Handle selling maximum possible quantity
@@ -258,7 +267,7 @@ export default function TradeMenu() {
 
     // Reset form
     setSelectedGoodId(null);
-    setQuantity(1);
+    setQuantity("1");
   };
 
   // Close dialog
@@ -408,7 +417,7 @@ export default function TradeMenu() {
                       min="1"
                       max={portGoods.find(pg => pg.goodId === selectedGoodId)?.stock || 1}
                       value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                      onChange={(e) => setQuantity(e.target.value)}
                       className="bg-amber-950 border-amber-500/50 text-amber-100"
                     />
                   </div>
@@ -416,7 +425,7 @@ export default function TradeMenu() {
                     <label className="text-sm font-medium mb-1 block text-amber-100">Total Cost</label>
                     <div className="text-xl font-bold text-yellow-400 flex items-center">
                       <Coins className="mr-2 h-5 w-5 text-yellow-500" />
-                      {(portGoods.find(pg => pg.goodId === selectedGoodId)?.currentPrice || 0) * quantity} gold
+                      {(portGoods.find(pg => pg.goodId === selectedGoodId)?.currentPrice || 0) * getNumericQuantity()} gold
                     </div>
                   </div>
                 </div>
@@ -512,7 +521,7 @@ export default function TradeMenu() {
                       min="1"
                       max={getInventoryQuantity(selectedGoodId)}
                       value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+                      onChange={(e) => setQuantity(e.target.value)}
                       className="bg-amber-950 border-amber-500/50 text-amber-100"
                     />
                   </div>
@@ -520,7 +529,7 @@ export default function TradeMenu() {
                     <label className="text-sm font-medium mb-1 block text-amber-100">Total Earnings</label>
                     <div className="text-xl font-bold text-green-400 flex items-center">
                       <Coins className="mr-2 h-5 w-5 text-green-500" />
-                      {(portGoods.find(pg => pg.goodId === selectedGoodId)?.currentPrice || 0) * quantity} gold
+                      {(portGoods.find(pg => pg.goodId === selectedGoodId)?.currentPrice || 0) * getNumericQuantity()} gold
                     </div>
                   </div>
                 </div>

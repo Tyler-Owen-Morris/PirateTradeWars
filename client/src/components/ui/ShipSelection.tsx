@@ -176,12 +176,13 @@ export default function ShipSelection() {
       <Card className="w-full max-w-4xl border-amber-500 border flex flex-col mb-20" style={{ maxHeight: '90vh' }}>
         <CardHeader className="bg-amber-900 text-white">
           <CardTitle className="text-2xl text-center">
-            Choose Your Ship
+            Choose Your <br />
+            <span className="text-amber-100">Captain's Name</span> and <span className="text-amber-100">Ship</span>
           </CardTitle>
-          <CardDescription className="text-center text-amber-100">
+          {/* <CardDescription className="text-center text-amber-100">
             Select your vessel for your pirate adventure
             {playerName ? `, Captain ${playerName}` : ""}
-          </CardDescription>
+          </CardDescription> */}
         </CardHeader>
 
         <CardContent className="mt-4 overflow-y-auto flex-1">
@@ -267,9 +268,9 @@ export default function ShipSelection() {
                   <p className="mb-1">{SHIP_DESCRIPTIONS[SHIP_TYPES.SLOOP]}</p>
                   <ul className="space-y-1 mt-2">
                     <li>• Hull: 50 HP</li>
-                    <li>• Armor: 0%</li>
+                    {/* <li>• Armor: 0%</li> */}
                     <li>• Cargo: 20 units</li>
-                    <li>• Speed: 5</li>
+                    {/* <li>• Speed: 5</li> */}
                     <li>• Cannons: 1 (5 dmg)</li>
                   </ul>
                 </div>
@@ -306,9 +307,9 @@ export default function ShipSelection() {
                   </p>
                   <ul className="space-y-1 mt-2">
                     <li>• Hull: 150 HP</li>
-                    <li>• Armor: 10%</li>
+                    {/* <li>• Armor: 10%</li> */}
                     <li>• Cargo: 40 units</li>
-                    <li>• Speed: 6</li>
+                    {/* <li>• Speed: 6</li> */}
                     <li>• Cannons: 2 (8 dmg)</li>
                   </ul>
                 </div>
@@ -345,9 +346,9 @@ export default function ShipSelection() {
                   </p>
                   <ul className="space-y-1 mt-2">
                     <li>• Hull: 300 HP</li>
-                    <li>• Armor: 20%</li>
+                    {/* <li>• Armor: 20%</li> */}
                     <li>• Cargo: 60 units</li>
-                    <li>• Speed: 7</li>
+                    {/* <li>• Speed: 7</li> */}
                     <li>• Cannons: 3 (12 dmg)</li>
                   </ul>
                 </div>
@@ -384,9 +385,9 @@ export default function ShipSelection() {
                   </p>
                   <ul className="space-y-1 mt-2">
                     <li>• Hull: 500 HP</li>
-                    <li>• Armor: 30%</li>
+                    {/* <li>• Armor: 30%</li> */}
                     <li>• Cargo: 80 units</li>
-                    <li>• Speed: 8</li>
+                    {/* <li>• Speed: 8</li> */}
                     <li>• Cannons: 4 (15 dmg)</li>
                   </ul>
                 </div>
