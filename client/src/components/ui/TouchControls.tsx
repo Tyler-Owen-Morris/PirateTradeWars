@@ -55,7 +55,7 @@ const TouchControls: React.FC<TouchControlsProps> = ({ controlsRef }) => {
     manager.on('move', (evt, data) => {
       const { vector } = data; // vector.x and vector.y are normalized (-1 to 1)
       const moveThreshold = 0.3; // Threshold for triggering movement
-      const turnThreshold = 0.1; // Threshold for triggering turning
+      const turnThreshold = 0.4; // Threshold for triggering turning
 
       //console.log("left:", vector.x < -turnThreshold, "right", vector.x > turnThreshold)
       // Update shared controls ref based on X/Y displacement
