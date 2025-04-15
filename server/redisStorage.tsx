@@ -88,7 +88,7 @@ export class RedisStorage {
     async setPlayerActive(id: string, isActive: boolean): Promise<void> {
         const player_name = await this.redis.hget(`player:${id}`, 'name')
         const multi = this.redis.multi();
-        multi.hset(`player:${id}`, 'isActive', isActive.toString());
+        multi.hset(`player:${id}`, { 'isActive': isActive.toString() });
         multi.expire(`player:${id}`, this.PLAYER_TTL);
         multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
         multi.set(`active_names:${player_name}}`, "1")

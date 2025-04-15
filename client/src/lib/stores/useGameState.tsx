@@ -140,6 +140,7 @@ export const useGameState = create<GameStateStore>()(
         gameState: { ...state.gameState, inventory },
       }));
       console.log("inventory to update player with", inventory)
+      console.log("player id", get().gameState.player?.id)
       // Also update the server with the new inventory
       const playerId = get().gameState.player?.id;
       if (playerId) {
