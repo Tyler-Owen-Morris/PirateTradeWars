@@ -143,9 +143,9 @@ function App() {
                   shadows
                   camera={{
                     position: [0, 250, 400], // Start from a higher position to see the ship
-                    fov: 60,
+                    fov: 80,
                     near: 0.1,
-                    far: 5000,
+                    far: 4000,
                   }}
                   gl={{
                     antialias: true,
