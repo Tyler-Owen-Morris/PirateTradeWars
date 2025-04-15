@@ -1,6 +1,15 @@
 import { useRef, useEffect } from 'react';
 import { useGameState } from '@/lib/stores/useGameState';
-import { MAP_WIDTH, MAP_HEIGHT, PORT_INTERACTION_RADIUS } from '@shared/gameConstants';
+import {
+  MAP_WIDTH,
+  MAP_HEIGHT,
+  PORT_INTERACTION_RADIUS,
+  MINIMAP_SIZE,
+  MINIMAP_RADIUS,
+  MINIMAP_PLAYER_DOT_SIZE,
+  MINIMAP_PORT_DOT_SIZE,
+  MINIMAP_OTHER_PLAYER_DOT_SIZE
+} from '@shared/gameConstants';
 
 /**
  * Minimap component showing player position and nearby ports
@@ -8,13 +17,6 @@ import { MAP_WIDTH, MAP_HEIGHT, PORT_INTERACTION_RADIUS } from '@shared/gameCons
 export function Minimap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { gameState } = useGameState();
-
-  // Constants for minimap display
-  const MINIMAP_SIZE = 200; // Size in pixels
-  const MINIMAP_RADIUS = 1000; // View radius on the game map
-  const PLAYER_DOT_SIZE = 6;
-  const PORT_DOT_SIZE = 8;
-  const OTHER_PLAYER_DOT_SIZE = 4;
 
   // Draw minimap on canvas
   useEffect(() => {
@@ -87,7 +89,7 @@ export function Minimap() {
         // Draw port dot
         ctx.fillStyle = '#e6c577';
         ctx.beginPath();
-        ctx.arc(x, y, PORT_DOT_SIZE, 0, Math.PI * 2);
+        ctx.arc(x, y, MINIMAP_PORT_DOT_SIZE, 0, Math.PI * 2);
         ctx.fill();
 
         // Draw port interaction radius
@@ -107,7 +109,7 @@ export function Minimap() {
         ctx.fillStyle = '#ffffff';
         ctx.font = '10px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(port.name, x, y - PORT_DOT_SIZE - 2);
+        ctx.fillText(port.name, x, y - MINIMAP_PORT_DOT_SIZE - 2);
       }
     });
 
@@ -120,7 +122,7 @@ export function Minimap() {
         // Draw other player dot
         ctx.fillStyle = '#ff6347';
         ctx.beginPath();
-        ctx.arc(x, y, OTHER_PLAYER_DOT_SIZE, 0, Math.PI * 2);
+        ctx.arc(x, y, MINIMAP_OTHER_PLAYER_DOT_SIZE, 0, Math.PI * 2);
         ctx.fill();
       }
     });
@@ -128,11 +130,11 @@ export function Minimap() {
     // Draw player in the center
     ctx.fillStyle = '#4caf50';
     ctx.beginPath();
-    ctx.arc(MINIMAP_SIZE / 2, MINIMAP_SIZE / 2, PLAYER_DOT_SIZE, 0, Math.PI * 2);
+    ctx.arc(MINIMAP_SIZE / 2, MINIMAP_SIZE / 2, MINIMAP_PLAYER_DOT_SIZE, 0, Math.PI * 2);
     ctx.fill();
 
     // Draw player direction indicator
-    const dirLength = PLAYER_DOT_SIZE * 2;
+    const dirLength = MINIMAP_PLAYER_DOT_SIZE * 2;
     // Apply a complete inversion to match the ship's actual turning direction
     // The negative sign before gameState.player.rotationY inverts the rotation direction
     const dirX = MINIMAP_SIZE / 2 - Math.cos(gameState.player.rotationY - Math.PI / 2) * dirLength;

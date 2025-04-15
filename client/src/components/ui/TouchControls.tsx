@@ -39,7 +39,7 @@ const TouchControls: React.FC<TouchControlsProps> = ({ controlsRef }) => {
     if (result) {
       setIsDeviceTouch(true)
     }
-    console.log("device is touch", result)
+    //console.log("device is touch", result)
   }, [])
 
   useEffect(() => {
