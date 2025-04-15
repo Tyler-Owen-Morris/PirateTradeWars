@@ -78,7 +78,7 @@ export class RedisStorage {
 
     async updatePlayerGold(id: string, gold: number): Promise<void> {
         const multi = this.redis.multi();
-        multi.hset(`player:${id}`, 'gold', gold);
+        multi.hset(`player:${id}`, { 'gold': gold });
         multi.expire(`player:${id}`, this.PLAYER_TTL);
         multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
         await multi.exec();
