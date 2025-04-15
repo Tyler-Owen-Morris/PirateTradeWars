@@ -12,6 +12,7 @@ import { OtherShips } from "./OtherShips";
 import * as THREE from "three";
 import { CannonBall } from "./CannonBall";
 import { Vector3 } from "@/types";
+import { Fog } from "./Fog";
 
 // Interface for control state
 interface ControlState {
@@ -194,8 +195,31 @@ export function GameScene({ controlsRef }: GameSceneProps) {
       {/* Sky and lighting */}
       <ambientLight intensity={0.3} />
       <directionalLight position={[50, 100, 50]} intensity={1} castShadow />
-      <Sky sunPosition={[100, 20, 100]} turbidity={0.3} rayleigh={0.5} />
-      <Stars radius={5000} depth={50} count={1000} factor={4} />
+
+      {/* Sky setup with better parameters */}
+      <Sky
+        distance={450000} // This places the sky further away
+        sunPosition={[100, 20, 100]}
+        turbidity={0.8} // Increased for more atmospheric scattering
+        rayleigh={0.5}
+        mieCoefficient={0.005} // Controls sun haziness
+        mieDirectionalG={0.8} // Controls sun focus
+        inclination={0.49} // Sun elevation
+        azimuth={0.25} // Sun rotation
+      />
+
+      {/* Stars with adjusted parameters */}
+      <Stars
+        radius={100} // Reduced to be within camera far plane
+        depth={50}
+        count={5000} // Increased star count
+        factor={4}
+        saturation={0} // Makes stars more visible
+        fade={true} // Smooth transition
+      />
+
+      {/* Fog with adjusted distances */}
+      <Fog color="#b3d9ff" near={500} far={1800} /> {/* Kept within camera far plane */}
 
       {/* Ocean */}
       <Ocean />

@@ -142,16 +142,15 @@ function App() {
                 <Canvas
                   shadows
                   camera={{
-                    position: [0, 250, 400], // Start from a higher position to see the ship
+                    position: [0, 250, 400],
                     fov: 80,
                     near: 0.1,
-                    far: 4000,
+                    far: 2500,
                   }}
                   gl={{
                     antialias: true,
                     powerPreference: "default",
                   }}
-                  style={{ backgroundColor: "#1a334d" }}
                 >
                   <Suspense fallback={null}>
                     <GameScene controlsRef={controlsRef} />
