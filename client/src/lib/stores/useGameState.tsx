@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { apiRequest } from "../queryClient";
+import { MAP_HEIGHT, MAP_WIDTH } from "../constants";
 import { GameState, Port, Good, PortGood, LeaderboardEntry, InventoryItem, PlayerState } from "@/types";
 
 interface GameStateStore {

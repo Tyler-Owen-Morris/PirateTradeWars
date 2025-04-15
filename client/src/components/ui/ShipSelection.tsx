@@ -13,7 +13,7 @@ import { useGameState } from "@/lib/stores/useGameState";
 import { useSocket } from "@/lib/stores/useSocket";
 import { Alert, AlertDescription } from "./alert";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { SHIP_TYPES, SHIP_DESCRIPTIONS } from "@/lib/constants";
+import { SHIP_TYPES, SHIP_DESCRIPTIONS } from "@shared/gameConstants";
 
 export default function ShipSelection() {
   const {

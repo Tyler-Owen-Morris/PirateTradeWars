@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Vector3 } from '@/types';
-import { MAP_WIDTH, MAP_HEIGHT } from '@/lib/constants';
+import { MAP_WIDTH, MAP_HEIGHT } from '@shared/gameConstants';
 import { useAudio } from '../../lib/stores/useAudio';
 import { ShipProps } from './Ship';
 
@@ -122,16 +122,16 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
         }
 
         // Handle map wrapping
-        // if (ballRef.current.position.x < 0) {
-        //   ballRef.current.position.x += MAP_WIDTH;
-        // } else if (ballRef.current.position.x > MAP_WIDTH) {
-        //   ballRef.current.position.x -= MAP_WIDTH;
-        // }
-        // if (ballRef.current.position.z < 0) {
-        //   ballRef.current.position.z += MAP_HEIGHT;
-        // } else if (ballRef.current.position.z > MAP_HEIGHT) {
-        //   ballRef.current.position.z -= MAP_HEIGHT;
-        // }
+        if (ballRef.current.position.x < 0) {
+          ballRef.current.position.x += MAP_WIDTH;
+        } else if (ballRef.current.position.x > MAP_WIDTH) {
+          ballRef.current.position.x -= MAP_WIDTH;
+        }
+        if (ballRef.current.position.z < 0) {
+          ballRef.current.position.z += MAP_HEIGHT;
+        } else if (ballRef.current.position.z > MAP_HEIGHT) {
+          ballRef.current.position.z -= MAP_HEIGHT;
+        }
 
         // Update trail particles
         if (!particlesRef.current) {

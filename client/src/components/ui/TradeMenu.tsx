@@ -7,7 +7,7 @@ import { useGameState } from '@/lib/stores/useGameState';
 import { useSocket } from '@/lib/stores/useSocket';
 import { Good, PortGood, Port, InventoryItem } from '@/types';
 import { apiRequest } from '@/lib/queryClient';
-import { GOODS } from '@/lib/constants';
+import { GOODS } from '@shared/gameConstants';
 import { ShoppingCart, Tag, Package, Coins, X, Info, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from './alert';
 

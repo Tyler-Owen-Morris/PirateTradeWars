@@ -1,9 +1,8 @@
 import { redisStorage } from "../redisStorage";
 import { defaultPorts, goodTypes } from "./shipTypes";
 import { v4 as uuidv4 } from "uuid";
+import { MAP_WIDTH, MAP_HEIGHT } from "@shared/gameConstants";
 
-export const MAP_WIDTH = 5000;
-export const MAP_HEIGHT = 5000;
 export const TICK_RATE = 100; // ms (10 updates/second)
 export const BROADCAST_RATE = 100; // ms (10 updates/second)
 export const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
