@@ -3,11 +3,12 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Billboard, Text } from '@react-three/drei';
 import { useAudio } from '@/lib/stores/useAudio';
+import { SHIP_DIMENSIONS, SHIP_COLORS, SHIP_MAST_COUNTS, ShipType } from '@/lib/constants';
 
 interface ShipProps {
   position: [number, number, number];
   rotation: number;
-  type: string;
+  type: ShipType;
   name: string;
   hp: number;
   maxHp: number;
@@ -38,36 +39,6 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
     }
   }, [sunk, isPlayer, explosionSound, isSfxMuted, sfxVolume]);
 
-  const getShipColor = () => {
-    switch (type) {
-      case 'sloop': return '#8B4513';
-      case 'brigantine': return '#A0522D';
-      case 'galleon': return '#CD853F';
-      case 'man-o-war': return '#D2691E';
-      default: return '#8B4513';
-    }
-  };
-
-  const getShipDimensions = () => {
-    switch (type) {
-      case 'sloop': return { length: 40, width: 15, height: 20, mastHeight: 50 };
-      case 'brigantine': return { length: 60, width: 20, height: 25, mastHeight: 60 };
-      case 'galleon': return { length: 80, width: 30, height: 30, mastHeight: 70 };
-      case 'man-o-war': return { length: 100, width: 40, height: 35, mastHeight: 80 };
-      default: return { length: 40, width: 15, height: 20, mastHeight: 50 };
-    }
-  };
-
-  const getNumMasts = () => {
-    switch (type) {
-      case 'sloop': return 1;
-      case 'brigantine': return 2;
-      case 'galleon': return 3;
-      case 'man-o-war': return 4;
-      default: return 1;
-    }
-  };
-
   useFrame(() => {
     if (healthBarRef.current) {
       const healthPercent = Math.max(0, hp / maxHp);
@@ -87,15 +58,15 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
     }
   });
 
-  const dims = getShipDimensions();
-  const numMasts = getNumMasts();
+  const dims = SHIP_DIMENSIONS[type];
+  const numMasts = SHIP_MAST_COUNTS[type];
 
   return (
     <group ref={ref} position={position} rotation={[0, rotation, 0]}>
       <group ref={shipRef} position={[0, 0, 0]}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[dims.width, dims.height, dims.length]} />
-          <meshStandardMaterial color={getShipColor()} />
+          <meshStandardMaterial color={SHIP_COLORS[type]} />
         </mesh>
         <mesh position={[0, dims.height / 2 + 1, 0]} castShadow>
           <boxGeometry args={[dims.width, 2, dims.length]} />
@@ -118,11 +89,11 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
           );
         })}
         <mesh position={[0, dims.height / 4, -dims.length / 2 - dims.length / 8]} castShadow>
-          <coneGeometry args={[dims.width / 2, dims.length / 4, 32]} rotation={[Math.PI / 2, 0, 0]} />
-          <meshStandardMaterial color={getShipColor()} />
+          <coneGeometry args={[dims.width / 2, dims.length / 4, 32]} />
+          <meshStandardMaterial color={SHIP_COLORS[type]} />
         </mesh>
-        {Array.from({ length: getNumMasts() }).map((_, index) => {
-          const spacing = dims.length / (getNumMasts() * 2);
+        {Array.from({ length: numMasts }).map((_, index) => {
+          const spacing = dims.length / (numMasts * 2);
           const zPos = -dims.length / 4 + spacing * (index * 2);
           return (
             <group key={`cannons-${index}`}>

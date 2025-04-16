@@ -5,6 +5,7 @@ import { Vector3 } from '@/types';
 import { MAP_WIDTH, MAP_HEIGHT } from '@shared/gameConstants';
 import { useAudio } from '../../lib/stores/useAudio';
 import { ShipProps } from './Ship';
+import { SHIP_DIMENSIONS, ShipType } from '@/lib/constants';
 
 interface CannonBallProps {
   position: [number, number, number];
@@ -50,7 +51,7 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
       ships.forEach((ship, index) => {
         if (ship.sunk) return;
 
-        const shipDims = getShipDimensions(ship.type);
+        const shipDims = SHIP_DIMENSIONS[ship.type];
         const shipPos = new THREE.Vector3(...ship.position);
 
         const shipHalfWidth = shipDims.width / 2;
@@ -77,16 +78,6 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
           onHit(index, 10);
         }
       });
-    }
-  };
-
-  const getShipDimensions = (type: string) => {
-    switch (type) {
-      case 'sloop': return { length: 40, width: 15, height: 20 };
-      case 'brigantine': return { length: 60, width: 20, height: 25 };
-      case 'galleon': return { length: 80, width: 30, height: 30 };
-      case 'man-o-war': return { length: 100, width: 40, height: 35 };
-      default: return { length: 40, width: 15, height: 20 };
     }
   };
 
