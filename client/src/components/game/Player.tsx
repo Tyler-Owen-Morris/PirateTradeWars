@@ -25,6 +25,7 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
   // Core state references
   const speedRef = useRef(player.speed);
   const rotationRef = useRef(player.rotationY);
+  const smoothedPlayerPosition = useRef(new THREE.Vector3(player.x, player.y, player.z));
 
   // Ship movement physics parameters - completely rebuilt for smoother turning
   const TURN_SPEED = 0.05;              // Base turning speed (radians per frame)
@@ -32,18 +33,11 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
   const BACKWARD_ACCELERATION = 0.1;    // How quickly ship accelerates backward
   const DECELERATION = 0.03;            // Natural slowdown when not accelerating
   const DRAG_COEFFICIENT = 0.97;        // Gradual speed reduction (momentum)
+  const POSITION_LERP_FACTOR = 0.2;
 
   // Get max speed based on ship type
   const getMaxSpeed = () => {
-    //console.log("getmaxspeed:", player.maxSpeed)
     return player.maxSpeed;
-    switch (player.shipType) {
-      case 'sloop': return 5;
-      case 'brigantine': return 6;
-      case 'galleon': return 7;
-      case 'man-o-war': return 8;
-      default: return 5;
-    }
   };
 
   // Handle player movement with physics steps for consistent timing
@@ -56,6 +50,9 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
 
     const groupRef = ref.current;
     const { forward, backward, left, right, fire } = controls;
+
+    const targetPosition = new THREE.Vector3(player.x, player.y, player.z);
+    smoothedPlayerPosition.current.lerp(targetPosition, POSITION_LERP_FACTOR);
 
     // Debug movement (only log when needed)
     if (forward || backward || left || right) {
@@ -114,33 +111,29 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
       }
     }
 
-    // Apply movement based on current speed and rotation
+    // Apply movement to smoothed position
     if (speedRef.current !== 0) {
-      // Get directional vector based on current rotation
       const directionVector = new THREE.Vector3(0, 0, 1).applyAxisAngle(
         new THREE.Vector3(0, 1, 0),
         rotationRef.current
       );
-
-      // Calculate new position
       const movement = speedRef.current * normalizedDelta;
-      const newX = groupRef.position.x + directionVector.x * movement;
-      const newZ = groupRef.position.z + directionVector.z * movement;
+      smoothedPlayerPosition.current.x += directionVector.x * movement;
+      smoothedPlayerPosition.current.z += directionVector.z * movement;
 
-      // Handle map wrapping (continue at opposite edge when reaching map boundary)
-      let wrappedX = ((newX % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
-      let wrappedZ = ((newZ % MAP_HEIGHT) + MAP_HEIGHT) % MAP_HEIGHT;
+      // Handle map wrapping
+      smoothedPlayerPosition.current.x = ((smoothedPlayerPosition.current.x % MAP_WIDTH) + MAP_WIDTH) % MAP_WIDTH;
+      smoothedPlayerPosition.current.z = ((smoothedPlayerPosition.current.z % MAP_HEIGHT) + MAP_HEIGHT) % MAP_HEIGHT;
 
-      // Update position
-      groupRef.position.x = wrappedX;
-      groupRef.position.z = wrappedZ;
-
-      // Update player state to match visual position
+      // Update player state to match visual position (for server syncing)
       if (player && 'x' in player && 'z' in player) {
-        player.x = wrappedX;
-        player.z = wrappedZ;
+        player.x = smoothedPlayerPosition.current.x;
+        player.z = smoothedPlayerPosition.current.z;
       }
     }
+
+    // Apply smoothed position to the model
+    groupRef.position.copy(smoothedPlayerPosition.current);
   });
 
   // Sync with server state
