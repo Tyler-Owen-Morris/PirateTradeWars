@@ -14,7 +14,7 @@ import {
 /**
  * Minimap component showing player position and nearby ports
  */
-export function Minimap() {
+export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { gameState } = useGameState();
 
@@ -150,7 +150,7 @@ export function Minimap() {
   }, [gameState.player, gameState.ports, gameState.otherPlayers]);
 
   return (
-    <div className="fixed bottom-24 left-4 z-50">
+    <div className="fixed bottom-32 left-4 z-50">
       <div className="p-2 bg-gray-900/80 border-2 border-amber-700 rounded-lg">
         <h3 className="font-bold text-amber-400 text-sm mb-1 text-center">Navigation Map</h3>
         <canvas

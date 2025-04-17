@@ -244,7 +244,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
         </DropdownMenu>
       </div>
 
-      {showMinimap && gameState.player && <Minimap />}
+      {showMinimap && gameState.player && <Minimap toggleMinimap={toggleMinimap} />}
 
       {/* Request to Trade */}
       {gameState.nearestPort && gameState.isNearPort && !isSunk && (
@@ -263,13 +263,13 @@ export default function GameUI({ controlsRef }: GameUIProps) {
       )}
 
       {!isSunk && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40 text-white text-sm opacity-70">
+        <div onClick={() => setShowControls(true)} className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40 text-white text-sm opacity-70">
           Press <span className="font-mono bg-black/60 px-1 rounded">H</span> for help
         </div>
       )}
 
       {showControls && (
-        <div className="absolute left-1/2 bottom-4 transform -translate-x-1/2 z-50 bg-black/80 text-white p-4 rounded-md border border-amber-500 shadow-lg">
+        <div onClick={() => setShowControls(false)} className="absolute left-1/2 bottom-4 transform -translate-x-1/2 z-50 bg-black/80 text-white p-4 rounded-md border border-amber-500 shadow-lg">
           <h3 className="text-center font-bold mb-2 text-amber-400">
             Game Controls
           </h3>
