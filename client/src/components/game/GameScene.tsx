@@ -34,7 +34,6 @@ export function GameScene({ controlsRef }: GameSceneProps) {
   const lastInputTime = useRef<number>(0);
   const lastRotationUpdateTime = useRef<number>(0);
   const lastSentRotation = useRef<number>(0);
-  const lastPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const direction = useRef<Vector3>({ x: 0, y: 0, z: 1 });
 
   // Game state
@@ -42,7 +41,10 @@ export function GameScene({ controlsRef }: GameSceneProps) {
   const socket = useSocket();
 
   // Camera
+  const smoothedPlayerPosition = useRef<THREE.Vector3>(new THREE.Vector3());
   const { camera } = useThree();
+  const cameraLerpFactor = 0.05;
+  const positionLerpFactor = 0.1;
 
   // Keyboard controls - simplified
   const forward = useKeyboardControls((state) => state.forward);
@@ -75,15 +77,19 @@ export function GameScene({ controlsRef }: GameSceneProps) {
 
       // Get player position
       const playerPosition = playerRef.current.position;
+      smoothedPlayerPosition.current.lerp(playerPosition, positionLerpFactor);
+      // console.log("player ref current:", playerRef.current);
+      //console.log("game state player:", gameState.player);
 
       // Calculate camera target position - pulled back further for a wider view
       const cameraOffset = new THREE.Vector3(0, 250, 400); // Increased height and distance
-      cameraOffset.applyQuaternion(playerRef.current.quaternion);
-      const targetCameraPosition = new THREE.Vector3().copy(playerPosition).add(cameraOffset);
+      const rotatedCameraOffset = cameraOffset.clone().applyQuaternion(playerRef.current.quaternion);;
+      //cameraOffset.applyQuaternion(playerRef.current.quaternion);
+      const targetCameraPosition = smoothedPlayerPosition.current.clone().add(rotatedCameraOffset);
 
       // Smoothly interpolate camera position (lerp) for smoother camera movement
-      camera.position.lerp(targetCameraPosition, 0.1);
-      camera.lookAt(playerPosition);
+      camera.position.lerp(targetCameraPosition, cameraLerpFactor);
+      camera.lookAt(smoothedPlayerPosition.current);
 
       // Send input updates to server (throttled to 10 times per second)
       const now = Date.now();
@@ -104,9 +110,11 @@ export function GameScene({ controlsRef }: GameSceneProps) {
         }
 
         // Simplified controls - forward/backward directly control speed
+        const maxSpeed = gameState.player?.maxSpeed || 3.5;
+        //console.log("max speed:", maxSpeed)
         let speed = 0;
-        if (effectiveControls.backward) speed = 2; // S key goes forward at max speed
-        if (effectiveControls.forward) speed = -3.5; // W key goes backward at half speed
+        if (effectiveControls.backward) speed = (maxSpeed / 2); // S key goes forward at max speed
+        if (effectiveControls.forward) speed = -maxSpeed; // W key goes backward at half speed
 
         // Get the current visual rotation from the player model
         const currentRotation = playerRef.current.rotation.y;
@@ -210,7 +218,7 @@ export function GameScene({ controlsRef }: GameSceneProps) {
 
       {/* Stars with adjusted parameters */}
       <Stars
-        radius={100} // Reduced to be within camera far plane
+        radius={1000} // Reduced to be within camera far plane
         depth={50}
         count={5000} // Increased star count
         factor={4}

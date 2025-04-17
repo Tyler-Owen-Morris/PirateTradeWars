@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Ship } from './Ship';
 import { PlayerState } from '@/types';
-import { MAP_HEIGHT, MAP_WIDTH } from '@/lib/constants';
+import { MAP_HEIGHT, MAP_WIDTH } from '@shared/gameConstants';
 
 interface PlayerControls {
   forward: boolean;
@@ -35,6 +35,8 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player(
 
   // Get max speed based on ship type
   const getMaxSpeed = () => {
+    //console.log("getmaxspeed:", player.maxSpeed)
+    return player.maxSpeed;
     switch (player.shipType) {
       case 'sloop': return 5;
       case 'brigantine': return 6;

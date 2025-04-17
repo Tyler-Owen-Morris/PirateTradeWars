@@ -25,12 +25,14 @@ export interface PlayerState {
   z: number;
   rotationY: number;
   speed: number;
+  maxSpeed: number;
   direction: Vector3;
   hp: number;
   maxHp: number;
   gold: number;
   cargoCapacity: number;
   cargoUsed: number;
+  repairCost: number;
   firing: boolean;
   canFire: boolean;
   lastFired: number;

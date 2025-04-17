@@ -19,12 +19,14 @@ export interface PlayerState {
   z: number;
   rotationY: number;
   speed: number;
+  maxSpeed: number;
   direction: { x: number, y: number, z: number };
   hp: number;
   maxHp: number;
   gold: number;
   cargoCapacity: number;
   cargoUsed: number;
+  repairCost: number;
   firing: boolean;
   canFire: boolean;
   lastFired: number;
@@ -132,12 +134,14 @@ class GameState {
       z,
       rotationY: 0,
       speed: 0,
+      maxSpeed: ship.speed,
       direction: { x: 0, y: 0, z: 1 },
       hp: ship.hullStrength,
       maxHp: ship.hullStrength,
       gold: 500,
       cargoCapacity: ship.cargoCapacity,
       cargoUsed: 0,
+      repairCost: ship.repairCost,
       firing: false,
       canFire: true,
       lastFired: 0,
