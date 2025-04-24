@@ -78,43 +78,43 @@ export default function HUD({ controlsRef }: HUDProps) {
   return (
     <div className="absolute mb-20 sm:mb-20 md:mb-10 inset-0 pointer-events-none">
       {/* Ship stats panel */}
-      <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/50 p-2 sm:p-3 rounded-md text-white w-[70vw] sm:w-auto max-w-[80vw] sm:max-w-[400px]">
-        <div className="mb-1 sm:mb-2 font-bold text-sm sm:text-lg flex items-center">
-          <span className="mr-2">{player.name}'s Ship</span>
-          <span className="text-[0.6rem] sm:text-xs ml-auto opacity-70">{player.shipType}</span>
+      <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/50 p-1.5 sm:p-3 rounded-md text-white w-[60vw] sm:w-auto max-w-[70vw] sm:max-w-[400px]">
+        <div className="mb-0.5 sm:mb-2 font-bold text-xs sm:text-lg flex items-center">
+          <span className="mr-1 sm:mr-2 truncate">{player.name}'s Ship</span>
+          <span className="text-[0.5rem] sm:text-xs ml-auto opacity-70">{player.shipType}</span>
         </div>
 
         {/* HP Bar */}
-        <div className="mb-1 sm:mb-2">
-          <div className="flex justify-between text-[0.6rem] sm:text-xs mb-0.5 sm:mb-1">
+        <div className="mb-0.5 sm:mb-2">
+          <div className="flex justify-between text-[0.5rem] sm:text-xs mb-0.5 sm:mb-1">
             <span>Hull Integrity</span>
             <span>{player.hp} / {player.maxHp}</span>
           </div>
           <Progress
             value={(player.hp / player.maxHp) * 100}
-            className="h-1 sm:h-2"
+            className="h-0.5 sm:h-2"
             indicatorClassName={getHealthColor(player.hp, player.maxHp)}
           />
         </div>
 
         {/* Cargo capacity */}
-        <div className="mb-1 sm:mb-2">
-          <div className="flex justify-between text-[0.6rem] sm:text-xs mb-0.5 sm:mb-1">
+        <div className="mb-0.5 sm:mb-2">
+          <div className="flex justify-between text-[0.5rem] sm:text-xs mb-0.5 sm:mb-1">
             <span>Cargo</span>
             <span>{player.cargoUsed} / {player.cargoCapacity}</span>
           </div>
           <Progress
             value={(player.cargoUsed / player.cargoCapacity) * 100}
-            className="h-1 sm:h-2"
+            className="h-0.5 sm:h-2"
             indicatorClassName="bg-amber-500"
           />
         </div>
 
         {/* Gold */}
-        <div className="flex items-center mt-1 sm:mt-3">
-          <Coins className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-yellow-400" />
-          <span className="font-bold text-sm sm:text-base">{player.gold}</span>
-          <span className="ml-1 text-[0.6rem] sm:text-xs">gold</span>
+        <div className="flex items-center mt-0.5 sm:mt-3">
+          <Coins className="h-2.5 w-2.5 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-yellow-400" />
+          <span className="font-bold text-xs sm:text-base">{player.gold}</span>
+          <span className="ml-1 text-[0.5rem] sm:text-xs">gold</span>
         </div>
       </div>
 

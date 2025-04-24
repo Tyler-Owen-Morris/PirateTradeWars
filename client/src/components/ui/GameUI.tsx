@@ -6,7 +6,7 @@ import { useSocket } from "@/lib/stores/useSocket";
 import HUD from "./HUD";
 import Leaderboard from "./Leaderboard";
 import { Button } from "./button";
-import { Volume2, VolumeX, HelpCircle, Map, Skull, Sliders } from "lucide-react";
+import { Volume2, VolumeX, HelpCircle, Map, Skull, Sliders, QrCode } from "lucide-react";
 import { HelpTooltip } from "./HelpTooltip";
 import { Minimap } from "./Minimap";
 import { ToastContainer } from "./TradingToast";
@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 import TouchControls from "./TouchControls";
+import { QRCodeSVG } from 'qrcode.react';
 //import { isMobile } from "react-device-detect"; // I don't know if we need this since we're detecting touch-enabled browser
 
 interface ControlState {
@@ -46,6 +47,7 @@ interface GameUIProps {
 export default function GameUI({ controlsRef }: GameUIProps) {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showControls, setShowControls] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
   const { isSunk, gameState } = useGameState();
   const {
     isMuted,
@@ -148,6 +150,10 @@ export default function GameUI({ controlsRef }: GameUIProps) {
 
   }
 
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(window.location.href);
+  };
+
   return (
     <>
       <HUD controlsRef={controlsRef} />
@@ -155,6 +161,16 @@ export default function GameUI({ controlsRef }: GameUIProps) {
       <ToastContainer />
 
       <div className="absolute top-4 right-4 z-50 flex gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setShowQRCode(true)}
+          className="bg-black/50 border-0 text-white hover:bg-black/70"
+          title="Share Game Link"
+        >
+          <QrCode />
+        </Button>
+
         <Button
           variant="outline"
           size="icon"
@@ -295,6 +311,37 @@ export default function GameUI({ controlsRef }: GameUIProps) {
       )}
 
       {displayTouchControls && <TouchControls controlsRef={controlsRef} />}
+
+      <Dialog open={showQRCode} onOpenChange={setShowQRCode}>
+        <DialogContent className="bg-black/90 border-amber-500 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-amber-400">Share Game Link</DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Scan the QR code or copy the link to share this game with others
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="bg-white p-4 rounded-lg">
+              <QRCodeSVG value={window.location.href} size={200} />
+            </div>
+            <Button
+              onClick={copyToClipboard}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              Click to Copy Link
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowQRCode(false)}
+              className="border-amber-400 text-amber-200 hover:bg-amber-800"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
