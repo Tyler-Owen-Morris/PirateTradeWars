@@ -38,7 +38,7 @@ export const SHIP_DESCRIPTIONS = {
 export const SHIP_STATS = {
     [SHIP_TYPES.SLOOP]: {
         hullStrength: 50,
-        armor: 0,
+        armor: 5,
         cargoCapacity: 20,
         speed: 6,
         cannonCount: 1,
@@ -62,7 +62,7 @@ export const SHIP_STATS = {
     },
     [SHIP_TYPES.GALLEON]: {
         hullStrength: 300,
-        armor: 20,
+        armor: 15,
         cargoCapacity: 60,
         speed: 4,
         cannonCount: 3,
@@ -74,7 +74,7 @@ export const SHIP_STATS = {
     },
     [SHIP_TYPES.MAN_O_WAR]: {
         hullStrength: 500,
-        armor: 30,
+        armor: 20,
         cargoCapacity: 80,
         speed: 3.5,
         cannonCount: 4,

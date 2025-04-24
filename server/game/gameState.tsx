@@ -1,7 +1,7 @@
 import { redisStorage } from "../redisStorage";
 import { defaultPorts, goodTypes } from "./shipTypes";
 import { v4 as uuidv4 } from "uuid";
-import { MAP_WIDTH, MAP_HEIGHT } from "@shared/gameConstants";
+import { MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES, SHIP_STATS } from "@shared/gameConstants";
 
 export const TICK_RATE = 100; // ms (5 updates/second)
 export const BROADCAST_RATE = 100; // ms (5 updates/second)
@@ -196,6 +196,7 @@ class GameState {
 
     const shipType = this.state.players[playerId].shipType;
     const cannonRange = this.getShipCannonRange(shipType);
+    const cannonDamage = this.getShipDamage(shipType);
 
     for (let i = 0; i < player.cannonCount; i++) {
       const offsetAngle = (i - (player.cannonCount - 1) / 2) * 0.1;
@@ -204,7 +205,7 @@ class GameState {
       const cannonBall: CannonBall = {
         id: `${playerId}_${now}_${i}`,
         ownerId: playerId,
-        damage: player.damage,
+        damage: cannonDamage,
         x: player.x + direction.x * 10,
         y: 5,
         z: player.z + direction.z * 10,
@@ -310,6 +311,7 @@ class GameState {
         if (this.segmentIntersectsSphere(prevPos, newPos, shipCenter, hitRadius)) {
           const armorFactor = 1 - this.getShipArmor(player.shipType) / 100;
           const damageDealt = Math.round(ball.damage * armorFactor);
+          //console.log("damageDealt", damageDealt);
           player.hp -= damageDealt;
           if (player.hp <= 0) {
             player.hp = 0;
@@ -420,23 +422,21 @@ class GameState {
   }
 
   private getShipSpeed(shipType: string): number {
-    const speedMap: Record<string, number> = { "sloop": 5, "brigantine": 6, "galleon": 7, "man-o-war": 8 };
-    return speedMap[shipType] || 5;
+    //console.log("ship type-speed", shipType, SHIP_STATS[shipType]?.speed);
+    return SHIP_STATS[shipType]?.speed || SHIP_STATS[SHIP_TYPES.SLOOP].speed;
   }
 
   private getShipArmor(shipType: string): number {
-    const armorMap: Record<string, number> = { "sloop": 0, "brigantine": 10, "galleon": 20, "man-o-war": 30 };
-    return armorMap[shipType] || 0;
+    //console.log("ship type-armor", shipType, SHIP_STATS[shipType]?.armor);
+    return SHIP_STATS[shipType]?.armor || SHIP_STATS[SHIP_TYPES.SLOOP].armor;
   }
 
   private getShipCannonRange(shipType: string): number {
-    const rangeMap: Record<string, number> = {
-      "sloop": 300,
-      "brigantine": 250,
-      "galleon": 200,
-      "man-o-war": 150
-    };
-    return rangeMap[shipType] || 200;
+    return SHIP_STATS[shipType]?.cannonRange || SHIP_STATS[SHIP_TYPES.SLOOP].cannonRange;
+  }
+
+  private getShipDamage(shipType: string): number {
+    return SHIP_STATS[shipType]?.cannonDamage || SHIP_STATS[SHIP_TYPES.SLOOP].cannonDamage;
   }
 
   private async handlePlayerSunk(player: PlayerState) {
