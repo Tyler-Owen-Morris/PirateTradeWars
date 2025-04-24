@@ -217,6 +217,34 @@ class GameState {
     }
   }
 
+  private segmentIntersectsSphere(
+    p0: { x: number, y: number, z: number },
+    p1: { x: number, y: number, z: number },
+    center: { x: number, y: number, z: number },
+    r: number
+  ): boolean {
+    // d = p1 - p0
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const dz = p1.z - p0.z;
+    // f = p0 - center
+    const fx = p0.x - center.x;
+    const fy = p0.y - center.y;
+    const fz = p0.z - center.z;
+
+    const a = dx * dx + dy * dy + dz * dz;
+    const b = 2 * (fx * dx + fy * dy + fz * dz);
+    const c = fx * fx + fy * fy + fz * fz - r * r;
+
+    const disc = b * b - 4 * a * c;
+    if (disc < 0) return false;            // no real roots → miss
+    const sqrtD = Math.sqrt(disc);
+    const t1 = (-b - sqrtD) / (2 * a);
+    const t2 = (-b + sqrtD) / (2 * a);
+    // if either intersection point lies between p0 (t=0) and p1 (t=1), it hit
+    return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1);
+  }
+
   async tick() {
     const now = Date.now();
     const deltaTime = (now - this.state.lastUpdate) / 1000;
@@ -254,13 +282,18 @@ class GameState {
     const cannonballs = this.state.cannonBalls;
     for (let i = cannonballs.length - 1; i >= 0; i--) {
       const ball = cannonballs[i];
+
+      // Store previous position before moving
+      const prevPos = { x: ball.x, y: ball.y, z: ball.z };
+
+      // Move the cannonball
       ball.x += ball.direction.x * ball.speed * deltaTime * 60;
       ball.y += ball.direction.y * ball.speed * deltaTime * 60;
       ball.z += ball.direction.z * ball.speed * deltaTime * 60;
       ball.x = (ball.x % MAP_WIDTH + MAP_WIDTH) % MAP_WIDTH;
       ball.z = (ball.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
 
-      if (now - ball.created > 5000) {
+      if (now - ball.created > 3000) {
         this.state.cannonBalls.splice(i, 1);
         continue;
       }
@@ -269,11 +302,12 @@ class GameState {
         const player = this.state.players[playerId];
         if (ball.ownerId === playerId || player.sunk || player.dead) continue;
 
-        const dx = Math.min(Math.abs(ball.x - player.x), MAP_WIDTH - Math.abs(ball.x - player.x));
-        const dz = Math.min(Math.abs(ball.z - player.z), MAP_HEIGHT - Math.abs(ball.z - player.z));
-        const distance = Math.sqrt(dx * dx + dz * dz);
+        // Use continuous collision detection
+        const newPos = { x: ball.x, y: ball.y, z: ball.z };
+        const shipCenter = { x: player.x, y: player.y, z: player.z };
+        const hitRadius = 20; // Same as before, but now used for sphere radius
 
-        if (distance < 20) {
+        if (this.segmentIntersectsSphere(prevPos, newPos, shipCenter, hitRadius)) {
           const armorFactor = 1 - this.getShipArmor(player.shipType) / 100;
           const damageDealt = Math.round(ball.damage * armorFactor);
           player.hp -= damageDealt;
