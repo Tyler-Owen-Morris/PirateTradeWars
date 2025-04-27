@@ -9,6 +9,16 @@ import { setupShipTypes } from "./game/shipTypes";
 import crypto from "crypto";
 import { autoscaling } from 'aws-sdk';
 
+function generateServerId(): string {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters[randomIndex];
+  }
+  return result;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
   await setupShipTypes();
