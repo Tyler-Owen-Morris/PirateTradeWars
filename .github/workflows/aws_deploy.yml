@@ -40,7 +40,7 @@ jobs:
           aws deploy push \
             --application-name PirateTradeWarsApp \
             --s3-location s3://piratetradewars-deploy-bucket/backend.zip \
-            --ignore-application-not-exist
+            --source server
           aws deploy create-deployment \
             --application-name PirateTradeWarsApp \
             --deployment-group-name PirateTradeWarsGameServerGroup \
