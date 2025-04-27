@@ -71,7 +71,7 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
         cdk.Tags.of(asg).add('App', 'PirateTradeWars');
 
         asg.role.addManagedPolicy(
-            iam.ManagedPolicy.fromAwsManagedPolicyName('AWSSecretsManagerReadWrite')
+            iam.ManagedPolicy.fromAwsManagedPolicyName('SecretsManagerReadWrite')
         );
 
         targetGroup.addTarget(asg);
