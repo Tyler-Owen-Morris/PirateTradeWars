@@ -58,6 +58,10 @@ jobs:
           node-version: '20'
       - name: Install ts-node
         run: npm install -g ts-node
+      - name: Install frontend Dependencies
+        run: npm install
+      - name: Build frontend
+        run: npm run build
       - name: Install CDK Dependencies
         working-directory: infra
         run: npm install
