@@ -47,34 +47,13 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
         });
 
         // Create a Launch Template
-        const launchTemplate = new ec2.LaunchTemplate(this, 'PirateTradeWarsLaunchTemplate', {
-            machineImage: ec2.MachineImage.latestAmazonLinux2(),
-            instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
-            userData: ec2.UserData.custom(`
-          #!/bin/bash
-          UPSTASH_REDIS_URL=$(aws secretsmanager get-secret-value --secret-id piratetradewars-upstash-redis-url --query SecretString --output text --region us-east-2)
-          echo "UPSTASH_REDIS_URL=$UPSTASH_REDIS_URL" >> /etc/environment
-          yum install -y nodejs
-          npm install -g pm2
-          cd /home/ec2-user
-          aws s3 cp s3://piratetradewars-deploy-bucket/backend.zip .
-          unzip backend.zip
-          npm install
-          pm2 start server/index.js
-        `),
-            role: new iam.Role(this, 'PirateTradeWarsGameAsgRole', {
-                assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-                managedPolicies: [
-                    iam.ManagedPolicy.fromAwsManagedPolicyName('SecretsManagerReadWrite'),
-                ],
-            }),
+        const launchTemplate = ec2.LaunchTemplate.fromLaunchTemplateAttributes(this, 'PirateTradeWarsLaunchTemplate', {
+            launchTemplateId: 'lt-0d4adaabcca520b9e',
         });
 
         const asg = new autoscaling.AutoScalingGroup(this, 'PirateTradeWarsGameAsg', {
             vpc,
-            launchTemplate: {
-                launchTemplate,
-            },
+            launchTemplate,
             minCapacity: 0,
             maxCapacity: 10,
             desiredCapacity: 0,
