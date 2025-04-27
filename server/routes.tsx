@@ -27,7 +27,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start game server for AWS Autoscaling
   app.post('/start-game', async (req, res) => {
     const AWS = require('aws-sdk');
-    const autoscaling = new AWS.AutoScaling({ region: 'us-west-2' });
+    const autoscaling = new AWS.AutoScaling({ region: 'us-east-2' });
     await autoscaling.updateAutoScalingGroup({
       AutoScalingGroupName: 'PirateTradeWarsGameAsg',
       DesiredCapacity: 1,
