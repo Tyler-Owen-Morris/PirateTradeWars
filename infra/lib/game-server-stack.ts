@@ -68,7 +68,6 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
       `),
         });
 
-        // Add tag for CodeDeploy
         cdk.Tags.of(asg).add('App', 'PirateTradeWars');
 
         asg.role.addManagedPolicy(
