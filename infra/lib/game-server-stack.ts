@@ -18,7 +18,9 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
         const listener = alb.addListener('PirateTradeWarsListener', {
             port: 443,
             protocol: elbv2.ApplicationProtocol.HTTPS,
-            certificates: [], // Add ARN of ACM certificate for piratetradewars.com
+            certificates: [
+                elbv2.ListenerCertificate.fromArn('arn:aws:acm:us-west-2:<account-id>:certificate/<certificate-id>'),// Add ARN of ACM certificate for piratetradewars.com
+            ],
         });
 
         const targetGroup = new elbv2.ApplicationTargetGroup(this, 'PirateTradeWarsTargetGroup', {
@@ -59,6 +61,9 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
         pm2 start server/index.js
       `),
         });
+
+        // Add tag for CodeDeploy
+        cdk.Tags.of(asg).add('App', 'PirateTradeWars');
 
         asg.role.addManagedPolicy(
             iam.ManagedPolicy.fromAwsManagedPolicyName('AWSSecretsManagerReadWrite')
