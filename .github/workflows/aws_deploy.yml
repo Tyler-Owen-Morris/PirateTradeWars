@@ -1,0 +1,71 @@
+name: Deploy Pirate Trade Wars to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+      - name: Build Frontend
+        run: cd frontend && npm install && npm run build
+      - name: Deploy to S3
+        run: aws s3 sync frontend/build/ s3://piratetradewars-frontend-bucket --delete
+
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+      - name: Zip Backend
+        run: cd server && zip -r ../backend.zip .
+      - name: Deploy to EC2 via CodeDeploy
+        run: |
+          aws deploy push \
+            --application-name PirateTradeWarsApp \
+            --s3-location s3://piratetradewars-deploy-bucket/backend.zip \
+            --ignore-application-not-exist
+          aws deploy create-deployment \
+            --application-name PirateTradeWarsApp \
+            --deployment-group-name PirateTradeWarsGameServerGroup \
+            --s3-location bucket=piratetradewars-deploy-bucket,key=backend.zip,bundleType=zip
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  deploy-infra:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      - name: Install CDK Dependencies
+        working-directory: infra
+        run: npm install
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+      - name: Build CDK
+        working-directory: infra
+        run: npm run build
+      - name: Deploy CDK
+        working-directory: infra
+        run: npx cdk deploy --require-approval never
