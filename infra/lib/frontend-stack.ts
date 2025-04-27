@@ -18,7 +18,7 @@ export class PirateTradeWarsFrontendStack extends cdk.Stack {
             }),
         });
 
-        // SKIPPED FOR NOW: the frontend is deployed to the bucket through the other build process, we don't need to do it here
+        //  SKIPPED FOR NOW: the frontend is deployed to the bucket through the other build process, we don't need to do it here
         // new s3deploy.BucketDeployment(this, 'PirateTradeWarsDeployFrontend', {
         //     sources: [s3deploy.Source.asset('../dist/public')], // Adjust path to your React build directory
         //     destinationBucket: bucket,
