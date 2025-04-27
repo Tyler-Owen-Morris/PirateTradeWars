@@ -11,16 +11,16 @@ export class PirateTradeWarsFrontendStack extends cdk.Stack {
         // Import existing bucket
         const bucket = s3.Bucket.fromBucketName(this, 'PirateTradeWarsFrontendBucket', 'piratetradewars-frontend-bucket');
 
-        // Debug: Print directory contents
-        console.log('Current directory (infra/lib):', fs.readdirSync(__dirname));
-        console.log('One level up (infra):', fs.readdirSync(path.join(__dirname, '..')));
-        console.log('Two levels up (repository root):', fs.readdirSync(path.join(__dirname, '../..')));
-        console.log('Checking existence of dist/public:', fs.existsSync(path.join(__dirname, '../../dist/public')));
+        // // Debug: Print directory contents
+        // console.log('Current directory (infra/lib):', fs.readdirSync(__dirname));
+        // console.log('One level up (infra):', fs.readdirSync(path.join(__dirname, '..')));
+        // console.log('Two levels up (repository root):', fs.readdirSync(path.join(__dirname, '../..')));
+        // console.log('Checking existence of dist/public:', fs.existsSync(path.join(__dirname, '../../dist/public')));
 
-        new s3deploy.BucketDeployment(this, 'PirateTradeWarsDeployFrontend', {
-            sources: [s3deploy.Source.asset('../../dist/public')],
-            destinationBucket: bucket,
-        });
+        // new s3deploy.BucketDeployment(this, 'PirateTradeWarsDeployFrontend', {
+        //     sources: [s3deploy.Source.asset('../../dist/public')],
+        //     destinationBucket: bucket,
+        // });
 
         new cdk.CfnOutput(this, 'PirateTradeWarsBucketUrl', {
             value: bucket.bucketWebsiteUrl,
