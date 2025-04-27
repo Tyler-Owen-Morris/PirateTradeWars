@@ -70,4 +70,4 @@ jobs:
         run: npm run build
       - name: Deploy CDK
         working-directory: infra
-        run: npx cdk deploy --require-approval never
+        run: npx cdk deploy --require-approval never --app "npx ts-node --prefer-ts-exts bin/app.ts"

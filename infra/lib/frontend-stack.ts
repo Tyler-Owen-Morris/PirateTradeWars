@@ -19,7 +19,7 @@ export class PirateTradeWarsFrontendStack extends cdk.Stack {
         });
 
         new s3deploy.BucketDeployment(this, 'PirateTradeWarsDeployFrontend', {
-            sources: [s3deploy.Source.asset('../build')], // Adjust path to your React build directory
+            sources: [s3deploy.Source.asset('../dist')], // Adjust path to your React build directory
             destinationBucket: bucket,
         });
 
