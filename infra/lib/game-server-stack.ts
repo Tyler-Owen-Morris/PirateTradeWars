@@ -19,7 +19,7 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
             port: 443,
             protocol: elbv2.ApplicationProtocol.HTTPS,
             certificates: [
-                elbv2.ListenerCertificate.fromArn('arn:aws:acm:us-west-2:<account-id>:certificate/<certificate-id>'),// Add ARN of ACM certificate for piratetradewars.com
+                elbv2.ListenerCertificate.fromArn('arn:aws:acm:us-east-2:<account-id>:certificate/<certificate-id>'),// Add ARN of ACM certificate for piratetradewars.com
             ],
         });
 
@@ -50,7 +50,7 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
             desiredCapacity: 0,
             userData: ec2.UserData.custom(`
         #!/bin/bash
-        UPSTASH_REDIS_URL=$(aws secretsmanager get-secret-value --secret-id piratetradewars-upstash-redis-url --query SecretString --output text --region us-west-2)
+        UPSTASH_REDIS_URL=$(aws secretsmanager get-secret-value --secret-id piratetradewars-upstash-redis-url --query SecretString --output text --region us-east-2)
         echo "UPSTASH_REDIS_URL=$UPSTASH_REDIS_URL" >> /etc/environment
         yum install -y nodejs
         npm install -g pm2
