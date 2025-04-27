@@ -1,0 +1,991 @@
+{
+ "Resources": {
+  "PirateTradeWarsGameVpc1559C219": {
+   "Type": "AWS::EC2::VPC",
+   "Properties": {
+    "CidrBlock": "10.0.0.0/16",
+    "EnableDnsHostnames": true,
+    "EnableDnsSupport": true,
+    "InstanceTenancy": "default",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/Resource"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet1Subnet8584E2DC": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": {
+     "Fn::Select": [
+      0,
+      {
+       "Fn::GetAZs": ""
+      }
+     ]
+    },
+    "CidrBlock": "10.0.0.0/18",
+    "MapPublicIpOnLaunch": true,
+    "Tags": [
+     {
+      "Key": "aws-cdk:subnet-name",
+      "Value": "Public"
+     },
+     {
+      "Key": "aws-cdk:subnet-type",
+      "Value": "Public"
+     },
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1/Subnet"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet1RouteTable39643486": {
+   "Type": "AWS::EC2::RouteTable",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1/RouteTable"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet1RouteTableAssociationFFD5B558": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet1RouteTable39643486"
+    },
+    "SubnetId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet1Subnet8584E2DC"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1/RouteTableAssociation"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet1DefaultRouteADC196AC": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "0.0.0.0/0",
+    "GatewayId": {
+     "Ref": "PirateTradeWarsGameVpcIGW464EAA06"
+    },
+    "RouteTableId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet1RouteTable39643486"
+    }
+   },
+   "DependsOn": [
+    "PirateTradeWarsGameVpcVPCGW9B8B7B05"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1/DefaultRoute"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet1EIP0F1BF39F": {
+   "Type": "AWS::EC2::EIP",
+   "Properties": {
+    "Domain": "vpc",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1/EIP"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet1NATGatewayBAB09B1C": {
+   "Type": "AWS::EC2::NatGateway",
+   "Properties": {
+    "AllocationId": {
+     "Fn::GetAtt": [
+      "PirateTradeWarsGameVpcPublicSubnet1EIP0F1BF39F",
+      "AllocationId"
+     ]
+    },
+    "SubnetId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet1Subnet8584E2DC"
+    },
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1"
+     }
+    ]
+   },
+   "DependsOn": [
+    "PirateTradeWarsGameVpcPublicSubnet1DefaultRouteADC196AC",
+    "PirateTradeWarsGameVpcPublicSubnet1RouteTableAssociationFFD5B558"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet1/NATGateway"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet2SubnetC7081A34": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": {
+     "Fn::Select": [
+      1,
+      {
+       "Fn::GetAZs": ""
+      }
+     ]
+    },
+    "CidrBlock": "10.0.64.0/18",
+    "MapPublicIpOnLaunch": true,
+    "Tags": [
+     {
+      "Key": "aws-cdk:subnet-name",
+      "Value": "Public"
+     },
+     {
+      "Key": "aws-cdk:subnet-type",
+      "Value": "Public"
+     },
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2/Subnet"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet2RouteTable974A8EDD": {
+   "Type": "AWS::EC2::RouteTable",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2/RouteTable"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet2RouteTableAssociationAC835BE8": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet2RouteTable974A8EDD"
+    },
+    "SubnetId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet2SubnetC7081A34"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2/RouteTableAssociation"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet2DefaultRoute1FEE84AB": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "0.0.0.0/0",
+    "GatewayId": {
+     "Ref": "PirateTradeWarsGameVpcIGW464EAA06"
+    },
+    "RouteTableId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet2RouteTable974A8EDD"
+    }
+   },
+   "DependsOn": [
+    "PirateTradeWarsGameVpcVPCGW9B8B7B05"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2/DefaultRoute"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet2EIP8CE7B630": {
+   "Type": "AWS::EC2::EIP",
+   "Properties": {
+    "Domain": "vpc",
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2/EIP"
+   }
+  },
+  "PirateTradeWarsGameVpcPublicSubnet2NATGatewayE01D1914": {
+   "Type": "AWS::EC2::NatGateway",
+   "Properties": {
+    "AllocationId": {
+     "Fn::GetAtt": [
+      "PirateTradeWarsGameVpcPublicSubnet2EIP8CE7B630",
+      "AllocationId"
+     ]
+    },
+    "SubnetId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet2SubnetC7081A34"
+    },
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2"
+     }
+    ]
+   },
+   "DependsOn": [
+    "PirateTradeWarsGameVpcPublicSubnet2DefaultRoute1FEE84AB",
+    "PirateTradeWarsGameVpcPublicSubnet2RouteTableAssociationAC835BE8"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PublicSubnet2/NATGateway"
+   }
+  },
+  "PirateTradeWarsGameVpcPrivateSubnet1Subnet4742B53E": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": {
+     "Fn::Select": [
+      0,
+      {
+       "Fn::GetAZs": ""
+      }
+     ]
+    },
+    "CidrBlock": "10.0.128.0/18",
+    "MapPublicIpOnLaunch": false,
+    "Tags": [
+     {
+      "Key": "aws-cdk:subnet-name",
+      "Value": "Private"
+     },
+     {
+      "Key": "aws-cdk:subnet-type",
+      "Value": "Private"
+     },
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet1"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet1/Subnet"
+   }
+  },
+  "PirateTradeWarsGameVpcPrivateSubnet1RouteTable45F286C6": {
+   "Type": "AWS::EC2::RouteTable",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet1"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet1/RouteTable"
+   }
+  },
+  "PirateTradeWarsGameVpcPrivateSubnet1RouteTableAssociation8DD6669A": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PirateTradeWarsGameVpcPrivateSubnet1RouteTable45F286C6"
+    },
+    "SubnetId": {
+     "Ref": "PirateTradeWarsGameVpcPrivateSubnet1Subnet4742B53E"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet1/RouteTableAssociation"
+   }
+  },
+  "PirateTradeWarsGameVpcPrivateSubnet1DefaultRoute82C21C78": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "0.0.0.0/0",
+    "NatGatewayId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet1NATGatewayBAB09B1C"
+    },
+    "RouteTableId": {
+     "Ref": "PirateTradeWarsGameVpcPrivateSubnet1RouteTable45F286C6"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet1/DefaultRoute"
+   }
+  },
+  "PirateTradeWarsGameVpcPrivateSubnet2SubnetF1C116A4": {
+   "Type": "AWS::EC2::Subnet",
+   "Properties": {
+    "AvailabilityZone": {
+     "Fn::Select": [
+      1,
+      {
+       "Fn::GetAZs": ""
+      }
+     ]
+    },
+    "CidrBlock": "10.0.192.0/18",
+    "MapPublicIpOnLaunch": false,
+    "Tags": [
+     {
+      "Key": "aws-cdk:subnet-name",
+      "Value": "Private"
+     },
+     {
+      "Key": "aws-cdk:subnet-type",
+      "Value": "Private"
+     },
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet2"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet2/Subnet"
+   }
+  },
+  "PirateTradeWarsGameVpcPrivateSubnet2RouteTableF5880FB1": {
+   "Type": "AWS::EC2::RouteTable",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet2"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet2/RouteTable"
+   }
+  },
+  "PirateTradeWarsGameVpcPrivateSubnet2RouteTableAssociationCA4462BF": {
+   "Type": "AWS::EC2::SubnetRouteTableAssociation",
+   "Properties": {
+    "RouteTableId": {
+     "Ref": "PirateTradeWarsGameVpcPrivateSubnet2RouteTableF5880FB1"
+    },
+    "SubnetId": {
+     "Ref": "PirateTradeWarsGameVpcPrivateSubnet2SubnetF1C116A4"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet2/RouteTableAssociation"
+   }
+  },
+  "PirateTradeWarsGameVpcPrivateSubnet2DefaultRoute7731A091": {
+   "Type": "AWS::EC2::Route",
+   "Properties": {
+    "DestinationCidrBlock": "0.0.0.0/0",
+    "NatGatewayId": {
+     "Ref": "PirateTradeWarsGameVpcPublicSubnet2NATGatewayE01D1914"
+    },
+    "RouteTableId": {
+     "Ref": "PirateTradeWarsGameVpcPrivateSubnet2RouteTableF5880FB1"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/PrivateSubnet2/DefaultRoute"
+   }
+  },
+  "PirateTradeWarsGameVpcIGW464EAA06": {
+   "Type": "AWS::EC2::InternetGateway",
+   "Properties": {
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/IGW"
+   }
+  },
+  "PirateTradeWarsGameVpcVPCGW9B8B7B05": {
+   "Type": "AWS::EC2::VPCGatewayAttachment",
+   "Properties": {
+    "InternetGatewayId": {
+     "Ref": "PirateTradeWarsGameVpcIGW464EAA06"
+    },
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameVpc/VPCGW"
+   }
+  },
+  "PirateTradeWarsAlb6B22A4BC": {
+   "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+   "Properties": {
+    "LoadBalancerAttributes": [
+     {
+      "Key": "deletion_protection.enabled",
+      "Value": "false"
+     }
+    ],
+    "Scheme": "internet-facing",
+    "SecurityGroups": [
+     {
+      "Fn::GetAtt": [
+       "PirateTradeWarsAlbSecurityGroupCCCE5E54",
+       "GroupId"
+      ]
+     }
+    ],
+    "Subnets": [
+     {
+      "Ref": "PirateTradeWarsGameVpcPublicSubnet1Subnet8584E2DC"
+     },
+     {
+      "Ref": "PirateTradeWarsGameVpcPublicSubnet2SubnetC7081A34"
+     }
+    ],
+    "Type": "application"
+   },
+   "DependsOn": [
+    "PirateTradeWarsGameVpcPublicSubnet1DefaultRouteADC196AC",
+    "PirateTradeWarsGameVpcPublicSubnet1RouteTableAssociationFFD5B558",
+    "PirateTradeWarsGameVpcPublicSubnet2DefaultRoute1FEE84AB",
+    "PirateTradeWarsGameVpcPublicSubnet2RouteTableAssociationAC835BE8"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsAlb/Resource"
+   }
+  },
+  "PirateTradeWarsAlbSecurityGroupCCCE5E54": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Automatically created Security Group for ELB PirateTradeWarsGameServerStackPirateTradeWarsAlb7CE1BEFC",
+    "SecurityGroupIngress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow from anyone on port 443",
+      "FromPort": 443,
+      "IpProtocol": "tcp",
+      "ToPort": 443
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsAlb/SecurityGroup/Resource"
+   }
+  },
+  "PirateTradeWarsAlbSecurityGrouptoPirateTradeWarsGameServerStackPirateTradeWarsGameAsgInstanceSecurityGroupF865FF9B4437A67BE8C": {
+   "Type": "AWS::EC2::SecurityGroupEgress",
+   "Properties": {
+    "Description": "Load balancer to target",
+    "DestinationSecurityGroupId": {
+     "Fn::GetAtt": [
+      "PirateTradeWarsGameAsgInstanceSecurityGroupAE858045",
+      "GroupId"
+     ]
+    },
+    "FromPort": 443,
+    "GroupId": {
+     "Fn::GetAtt": [
+      "PirateTradeWarsAlbSecurityGroupCCCE5E54",
+      "GroupId"
+     ]
+    },
+    "IpProtocol": "tcp",
+    "ToPort": 443
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsAlb/SecurityGroup/to PirateTradeWarsGameServerStackPirateTradeWarsGameAsgInstanceSecurityGroupF865FF9B:443"
+   }
+  },
+  "PirateTradeWarsAlbPirateTradeWarsListenerC6748DF1": {
+   "Type": "AWS::ElasticLoadBalancingV2::Listener",
+   "Properties": {
+    "Certificates": [
+     {
+      "CertificateArn": "arn:aws:acm:us-east-2:835677831294:certificate/73add82a-2aa2-4a1e-8eda-7424da554d03"
+     }
+    ],
+    "DefaultActions": [
+     {
+      "FixedResponseConfig": {
+       "ContentType": "text/plain",
+       "MessageBody": "Not Found",
+       "StatusCode": "404"
+      },
+      "Type": "fixed-response"
+     }
+    ],
+    "LoadBalancerArn": {
+     "Ref": "PirateTradeWarsAlb6B22A4BC"
+    },
+    "Port": 443,
+    "Protocol": "HTTPS"
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsAlb/PirateTradeWarsListener/Resource"
+   }
+  },
+  "PirateTradeWarsAlbPirateTradeWarsListenerPirateTradeWarsGameTargetRule34BBB32E": {
+   "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+   "Properties": {
+    "Actions": [
+     {
+      "TargetGroupArn": {
+       "Ref": "PirateTradeWarsTargetGroupA5C66F91"
+      },
+      "Type": "forward"
+     }
+    ],
+    "Conditions": [
+     {
+      "Field": "path-pattern",
+      "PathPatternConfig": {
+       "Values": [
+        "/server-*"
+       ]
+      }
+     }
+    ],
+    "ListenerArn": {
+     "Ref": "PirateTradeWarsAlbPirateTradeWarsListenerC6748DF1"
+    },
+    "Priority": 1
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsAlb/PirateTradeWarsListener/PirateTradeWarsGameTargetRule/Resource"
+   }
+  },
+  "PirateTradeWarsTargetGroupA5C66F91": {
+   "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+   "Properties": {
+    "HealthCheckPath": "/health",
+    "HealthCheckProtocol": "HTTPS",
+    "Port": 443,
+    "Protocol": "HTTPS",
+    "TargetGroupAttributes": [
+     {
+      "Key": "stickiness.enabled",
+      "Value": "false"
+     }
+    ],
+    "TargetType": "instance",
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsTargetGroup/Resource"
+   }
+  },
+  "PirateTradeWarsGameAsgInstanceSecurityGroupAE858045": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg/InstanceSecurityGroup",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic by default",
+      "IpProtocol": "-1"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "App",
+      "Value": "PirateTradeWars"
+     },
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg/InstanceSecurityGroup/Resource"
+   }
+  },
+  "PirateTradeWarsGameAsgInstanceSecurityGroupfromPirateTradeWarsGameServerStackPirateTradeWarsAlbSecurityGroup37E45F1C443762EDEF6": {
+   "Type": "AWS::EC2::SecurityGroupIngress",
+   "Properties": {
+    "Description": "Load balancer to target",
+    "FromPort": 443,
+    "GroupId": {
+     "Fn::GetAtt": [
+      "PirateTradeWarsGameAsgInstanceSecurityGroupAE858045",
+      "GroupId"
+     ]
+    },
+    "IpProtocol": "tcp",
+    "SourceSecurityGroupId": {
+     "Fn::GetAtt": [
+      "PirateTradeWarsAlbSecurityGroupCCCE5E54",
+      "GroupId"
+     ]
+    },
+    "ToPort": 443
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg/InstanceSecurityGroup/from PirateTradeWarsGameServerStackPirateTradeWarsAlbSecurityGroup37E45F1C:443"
+   }
+  },
+  "PirateTradeWarsGameAsgInstanceRole5F21E035": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "ec2.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AWSSecretsManagerReadWrite"
+       ]
+      ]
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "App",
+      "Value": "PirateTradeWars"
+     },
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg/InstanceRole/Resource"
+   }
+  },
+  "PirateTradeWarsGameAsgInstanceProfileD59D49A3": {
+   "Type": "AWS::IAM::InstanceProfile",
+   "Properties": {
+    "Roles": [
+     {
+      "Ref": "PirateTradeWarsGameAsgInstanceRole5F21E035"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg/InstanceProfile"
+   }
+  },
+  "PirateTradeWarsGameAsgLaunchConfig46036314": {
+   "Type": "AWS::AutoScaling::LaunchConfiguration",
+   "Properties": {
+    "IamInstanceProfile": {
+     "Ref": "PirateTradeWarsGameAsgInstanceProfileD59D49A3"
+    },
+    "ImageId": {
+     "Ref": "SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amikernel510hvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter"
+    },
+    "InstanceType": "t3.small",
+    "SecurityGroups": [
+     {
+      "Fn::GetAtt": [
+       "PirateTradeWarsGameAsgInstanceSecurityGroupAE858045",
+       "GroupId"
+      ]
+     }
+    ],
+    "UserData": {
+     "Fn::Base64": "\n        #!/bin/bash\n        UPSTASH_REDIS_URL=$(aws secretsmanager get-secret-value --secret-id piratetradewars-upstash-redis-url --query SecretString --output text --region us-east-2)\n        echo \"UPSTASH_REDIS_URL=$UPSTASH_REDIS_URL\" >> /etc/environment\n        yum install -y nodejs\n        npm install -g pm2\n        cd /home/ec2-user\n        aws s3 cp s3://piratetradewars-deploy-bucket/backend.zip .\n        unzip backend.zip\n        npm install\n        pm2 start server/index.js\n      "
+    }
+   },
+   "DependsOn": [
+    "PirateTradeWarsGameAsgInstanceRole5F21E035"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg/LaunchConfig"
+   }
+  },
+  "PirateTradeWarsGameAsgASG9076C62E": {
+   "Type": "AWS::AutoScaling::AutoScalingGroup",
+   "Properties": {
+    "DesiredCapacity": "0",
+    "LaunchConfigurationName": {
+     "Ref": "PirateTradeWarsGameAsgLaunchConfig46036314"
+    },
+    "MaxSize": "10",
+    "MinSize": "0",
+    "Tags": [
+     {
+      "Key": "App",
+      "PropagateAtLaunch": true,
+      "Value": "PirateTradeWars"
+     },
+     {
+      "Key": "Name",
+      "PropagateAtLaunch": true,
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg"
+     }
+    ],
+    "TargetGroupARNs": [
+     {
+      "Ref": "PirateTradeWarsTargetGroupA5C66F91"
+     }
+    ],
+    "VPCZoneIdentifier": [
+     {
+      "Ref": "PirateTradeWarsGameVpcPrivateSubnet1Subnet4742B53E"
+     },
+     {
+      "Ref": "PirateTradeWarsGameVpcPrivateSubnet2SubnetF1C116A4"
+     }
+    ]
+   },
+   "UpdatePolicy": {
+    "AutoScalingScheduledAction": {
+     "IgnoreUnmodifiedGroupSizeProperties": true
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsGameAsg/ASG"
+   }
+  },
+  "PirateTradeWarsCoordinatorInstanceSecurityGroupC601F81D": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "PirateTradeWarsGameServerStack/PirateTradeWarsCoordinator/InstanceSecurityGroup",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic by default",
+      "IpProtocol": "-1"
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsCoordinator"
+     }
+    ],
+    "VpcId": {
+     "Ref": "PirateTradeWarsGameVpc1559C219"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsCoordinator/InstanceSecurityGroup/Resource"
+   }
+  },
+  "PirateTradeWarsCoordinatorInstanceRole7BE3DBD6": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "ec2.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/AutoScalingFullAccess"
+       ]
+      ]
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsCoordinator"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsCoordinator/InstanceRole/Resource"
+   }
+  },
+  "PirateTradeWarsCoordinatorInstanceProfile0AAE962B": {
+   "Type": "AWS::IAM::InstanceProfile",
+   "Properties": {
+    "Roles": [
+     {
+      "Ref": "PirateTradeWarsCoordinatorInstanceRole7BE3DBD6"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsCoordinator/InstanceProfile"
+   }
+  },
+  "PirateTradeWarsCoordinatorA7DF7DEB": {
+   "Type": "AWS::EC2::Instance",
+   "Properties": {
+    "AvailabilityZone": {
+     "Fn::Select": [
+      0,
+      {
+       "Fn::GetAZs": ""
+      }
+     ]
+    },
+    "IamInstanceProfile": {
+     "Ref": "PirateTradeWarsCoordinatorInstanceProfile0AAE962B"
+    },
+    "ImageId": {
+     "Ref": "SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amikernel510hvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter"
+    },
+    "InstanceType": "t3.micro",
+    "SecurityGroupIds": [
+     {
+      "Fn::GetAtt": [
+       "PirateTradeWarsCoordinatorInstanceSecurityGroupC601F81D",
+       "GroupId"
+      ]
+     }
+    ],
+    "SubnetId": {
+     "Ref": "PirateTradeWarsGameVpcPrivateSubnet1Subnet4742B53E"
+    },
+    "Tags": [
+     {
+      "Key": "Name",
+      "Value": "PirateTradeWarsGameServerStack/PirateTradeWarsCoordinator"
+     }
+    ],
+    "UserData": {
+     "Fn::Base64": "#!/bin/bash"
+    }
+   },
+   "DependsOn": [
+    "PirateTradeWarsCoordinatorInstanceRole7BE3DBD6"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/PirateTradeWarsCoordinator/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/31RwW7CMAz9Fu4hg16mHRmaUKVpqwriOrnBFI/gVIkDQlX/fYKMAtu0k997frGenUyPnzI9GsAhDM1qO7RU6XYuYLYKDuGjRZPpdtkYNV3zspiqIlaWzDxWjHLSrqh0UXABlcWrftUmIThDIOS4N5/AS16cyhvIDAQPcFSFpz0IXgfnLOgZe0NK8s0mImA2O2RRczTRkxxn3sXmnOFf4aX2GMIvOeek5xwE2GBKkHCn0EIQMtbBqgILbIjrfabbSdNYMuf1Xh2sns899KfHd/zWR0GQvz0X/Ee/jOmid/zGtwBfo/Q73tBOQRQXDFjiWreTKG6eSO9+hchmM3W8pjr6/nt+WjtFsNNt6VKUS73cpfBuTRa7TpUYXPTpagV42KGkDd+jNFE6xW6F+jM87LORHj/q0eAzEA19ZKEd6jLVL4n/uxmVAgAA"
+   },
+   "Metadata": {
+    "aws:cdk:path": "PirateTradeWarsGameServerStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Parameters": {
+  "SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amikernel510hvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter": {
+   "Type": "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>",
+   "Default": "/aws/service/ami-amazon-linux-latest/amzn2-ami-kernel-5.10-hvm-x86_64-gp2"
+  },
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Outputs": {
+  "PirateTradeWarsAlbDnsName": {
+   "Value": {
+    "Fn::GetAtt": [
+     "PirateTradeWarsAlb6B22A4BC",
+     "DNSName"
+    ]
+   }
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

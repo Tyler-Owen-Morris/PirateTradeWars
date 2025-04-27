@@ -19,8 +19,12 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
             port: 443,
             protocol: elbv2.ApplicationProtocol.HTTPS,
             certificates: [
-                elbv2.ListenerCertificate.fromArn('arn:aws:acm:us-east-2:<account-id>:certificate/<certificate-id>'),// Add ARN of ACM certificate for piratetradewars.com
+                elbv2.ListenerCertificate.fromArn('arn:aws:acm:us-east-2:835677831294:certificate/73add82a-2aa2-4a1e-8eda-7424da554d03'),// Add ARN of ACM certificate for piratetradewars.com
             ],
+            defaultAction: elbv2.ListenerAction.fixedResponse(404, {
+                contentType: 'text/plain',
+                messageBody: 'Not Found'
+            })
         });
 
         const targetGroup = new elbv2.ApplicationTargetGroup(this, 'PirateTradeWarsTargetGroup', {
@@ -36,6 +40,7 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
 
         listener.addTargetGroups('PirateTradeWarsGameTarget', {
             targetGroups: [targetGroup],
+            priority: 1,
             conditions: [
                 elbv2.ListenerCondition.pathPatterns(['/server-*']),
             ],
