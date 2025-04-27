@@ -63,7 +63,8 @@ export class PirateTradeWarsGameServerStack extends cdk.Stack {
         aws s3 cp s3://piratetradewars-deploy-bucket/backend.zip .
         unzip backend.zip
         npm install
-        pm2 start server/index.js
+        npm run build
+        pm2 start dist/index.js
       `),
         });
 
