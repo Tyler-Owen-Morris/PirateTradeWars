@@ -7,11 +7,32 @@ import { handleSocketConnection } from "./game/socketHandler";
 import { initializeGameState, gameState } from "./game/gameState";
 import { setupShipTypes } from "./game/shipTypes";
 import crypto from "crypto";
+import { autoscaling } from 'aws-sdk';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
   await setupShipTypes();
   await initializeGameState();
+
+  // Start game server for AWS Autoscaling
+  app.post('/start-game', async (req, res) => {
+    const AWS = require('aws-sdk');
+    const autoscaling = new AWS.AutoScaling({ region: 'us-west-2' });
+    await autoscaling.updateAutoScalingGroup({
+      AutoScalingGroupName: 'PirateTradeWarsGameAsg',
+      DesiredCapacity: 1,
+    }).promise();
+    const serverId = generateServerId(); // e.g., 'abcdef'
+    res.json({ wsUrl: `wss://piratetradewars.com/server-${serverId}` });
+  });
+
+  app.post('/no-players', async (req, res) => {
+    await autoscaling.updateAutoScalingGroup({
+      AutoScalingGroupName: 'PirateTradeWarsGameAsg',
+      DesiredCapacity: 0,
+    }).promise();
+    res.sendStatus(200);
+  });
 
   // API Routes
   app.get('/api/health', (req, res) => {
