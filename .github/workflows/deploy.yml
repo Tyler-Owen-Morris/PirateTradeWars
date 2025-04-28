@@ -40,11 +40,11 @@ jobs:
             --option-settings \
               Namespace=aws:autoscaling:asg,Name=MinSize,Value=1 \
               Namespace=aws:autoscaling:asg,Name=MaxSize,Value=4
-          aws s3 cp application.zip s3://elasticbeanstalk-us-east-2-your-account-id/${{ github.sha }}.zip
+          aws s3 cp application.zip s3://elasticbeanstalk-us-east-2-835677831294/${{ github.sha }}.zip
           aws elasticbeanstalk create-application-version \
             --application-name PirateTradeWarsApp \
             --version-label ${{ github.sha }} \
-            --source-bundle S3Bucket=elasticbeanstalk-us-east-2-your-account-id,S3Key=${{ github.sha }}.zip
+            --source-bundle S3Bucket=elasticbeanstalk-us-east-2-835677831294,S3Key=${{ github.sha }}.zip
           aws elasticbeanstalk update-environment \
             --application-name PirateTradeWarsApp \
             --environment-name PirateTradeWarsEnv \
