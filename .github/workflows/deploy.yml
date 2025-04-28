@@ -38,8 +38,8 @@ jobs:
             --environment-name PirateTradeWarsEnv \
             --version-label ${{ github.sha }} \
             --option-settings \
-              Namespace=aws:autoscaling:asg,Name=MinSize,Value=1 \
-              Namespace=aws:autoscaling:asg,Name=MaxSize,Value=4
+              Namespace=aws:autoscaling:asg,OptionName=MinSize,Value=1 \
+              Namespace=aws:autoscaling:asg,OptionName=MaxSize,Value=4
           aws s3 cp application.zip s3://elasticbeanstalk-us-east-2-835677831294/${{ github.sha }}.zip
           aws elasticbeanstalk create-application-version \
             --application-name PirateTradeWarsApp \
