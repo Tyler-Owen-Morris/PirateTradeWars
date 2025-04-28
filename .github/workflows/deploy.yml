@@ -26,13 +26,26 @@ jobs:
       - name: Create deployment package
         run: zip -r application.zip . -x "*.git*"
 
-      - name: Deploy to Elastic Beanstalk
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-2
+      - name: Configure AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Upload ZIP to S3
         run: |
-          aws configure set region $AWS_REGION
+          aws s3 cp application.zip s3://elasticbeanstalk-us-east-2-835677831294/${{ github.sha }}.zip
+
+      - name: Create Elastic Beanstalk Application Version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name PirateTradeWarsApp \
+            --version-label ${{ github.sha }} \
+            --source-bundle S3Bucket=elasticbeanstalk-us-east-2-835677831294,S3Key=${{ github.sha }}.zip
+
+      - name: Deploy to Elastic Beanstalk
+        run: |
           aws elasticbeanstalk update-environment \
             --application-name PirateTradeWarsApp \
             --environment-name PirateTradeWarsEnv \
@@ -40,12 +53,3 @@ jobs:
             --option-settings \
               Namespace=aws:autoscaling:asg,OptionName=MinSize,Value=1 \
               Namespace=aws:autoscaling:asg,OptionName=MaxSize,Value=4
-          aws s3 cp application.zip s3://elasticbeanstalk-us-east-2-835677831294/${{ github.sha }}.zip
-          aws elasticbeanstalk create-application-version \
-            --application-name PirateTradeWarsApp \
-            --version-label ${{ github.sha }} \
-            --source-bundle S3Bucket=elasticbeanstalk-us-east-2-835677831294,S3Key=${{ github.sha }}.zip
-          aws elasticbeanstalk update-environment \
-            --application-name PirateTradeWarsApp \
-            --environment-name PirateTradeWarsEnv \
-            --version-label ${{ github.sha }}
