@@ -4,7 +4,7 @@ describe('homepage spec', () => {
   })
 
   it('successfully loads the homepage', () => {
-    cy.url().should('include', 'localhost:5000')
+    cy.url().should('include', Cypress.env('NGROK_URL') || 'http://localhost:5000')
   })
 
   it('starts game with random ship', () => {
