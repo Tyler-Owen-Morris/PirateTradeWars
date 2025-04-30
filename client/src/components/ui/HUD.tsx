@@ -77,6 +77,11 @@ export default function HUD({ controlsRef }: HUDProps) {
 
   return (
     <div className="absolute mb-20 sm:mb-20 md:mb-10 inset-0 pointer-events-none">
+      {/* Player count display - temporary */}
+      <div className="absolute top-10 right-10 bg-black/50 p-2 rounded-md text-white">
+        Players: {Object.keys(gameState.otherPlayers).length + (gameState.player ? 1 : 0)}
+      </div>
+
       {/* Ship stats panel */}
       <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/50 p-1.5 sm:p-3 rounded-md text-white w-[60vw] sm:w-auto max-w-[70vw] sm:max-w-[400px]">
         <div className="mb-0.5 sm:mb-2 font-bold text-xs sm:text-lg flex items-center">
