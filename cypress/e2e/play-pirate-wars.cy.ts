@@ -1,6 +1,6 @@
 describe('homepage spec', () => {
   beforeEach(() => {
-    cy.visit('/?no-visual-test=true')
+    cy.visit('/?no-visual-test=false')
   })
 
   // it('successfully loads the homepage', () => {
