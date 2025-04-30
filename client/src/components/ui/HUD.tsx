@@ -80,8 +80,8 @@ export default function HUD({ controlsRef }: HUDProps) {
       {/* Ship stats panel */}
       <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/50 p-1.5 sm:p-3 rounded-md text-white w-[60vw] sm:w-auto max-w-[70vw] sm:max-w-[400px]">
         <div className="mb-0.5 sm:mb-2 font-bold text-xs sm:text-lg flex items-center">
-          <span className="mr-1 sm:mr-2 truncate">{player.name}'s Ship</span>
-          <span className="text-[0.5rem] sm:text-xs ml-auto opacity-70">{player.shipType}</span>
+          <span className="mr-1 sm:mr-2 truncate"><span data-testid="cypress-player-name">{player.name}</span>'s Ship</span>
+          <span className="text-[0.5rem] sm:text-xs ml-auto opacity-70" data-testid="cypress-ship-type">{player.shipType}</span>
         </div>
 
         {/* HP Bar */}
