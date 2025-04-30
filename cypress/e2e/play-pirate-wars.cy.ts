@@ -1,6 +1,6 @@
 describe('homepage spec', () => {
   beforeEach(() => {
-    cy.visit('/')
+    cy.visit('/?no-visual-test=true')
   })
 
   it('successfully loads the homepage', () => {
@@ -24,6 +24,9 @@ describe('homepage spec', () => {
       cy.log(`Selected ship: ${selectedShip.type}`)
 
       cy.get(`[data-testid="${selectedShip.id}"]`).click()
+      cy.get(`[data-testid="${selectedShip.id}"]`).click()
+      cy.get(`[data-testid="${selectedShip.id}"]`).click()
+      cy.wait(1000)
       cy.get('[data-testid="cypress-start-game-button"]').click()
 
       // Wait for game to load and verify player name and ship type in HUD
