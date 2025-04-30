@@ -284,6 +284,13 @@ class GameState {
     for (let i = cannonballs.length - 1; i >= 0; i--) {
       const ball = cannonballs[i];
 
+      // Skip if ball is undefined or invalid
+      if (!ball || typeof ball !== 'object' || !ball.direction || !ball.x || !ball.y || !ball.z) {
+        console.warn(`Invalid cannonball at index ${i}, removing from game state`);
+        this.state.cannonBalls.splice(i, 1);
+        continue;
+      }
+
       // Store previous position before moving
       const prevPos = { x: ball.x, y: ball.y, z: ball.z };
 
