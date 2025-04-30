@@ -133,6 +133,7 @@ export default function HUD({ controlsRef }: HUDProps) {
         <button
           onClick={handleFire}
           className="bg-red-700 hover:bg-red-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded-md pointer-events-auto transition-colors text-xs sm:text-base"
+          data-testid="cypress-fire-cannon-button"
         >
           Fire Cannons
         </button>
