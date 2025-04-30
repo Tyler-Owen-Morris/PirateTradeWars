@@ -78,7 +78,7 @@ describe('homepage spec', () => {
             .then($el => $el.length && $el.click())
         }
       ];
-      performRandomActions(actions, 60000); // 30 seconds
+      performRandomActions(actions, 120000); // 30 seconds
 
       // Scuttle ship
       cy.get('[data-testid="cypress-scuttle-ship-request-button"]').click()
