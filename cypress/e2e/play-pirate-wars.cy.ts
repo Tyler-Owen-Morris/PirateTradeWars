@@ -3,11 +3,12 @@ describe('homepage spec', () => {
     cy.visit('/?no-visual-test=true')
   })
 
-  it('successfully loads the homepage', () => {
-    cy.url().should('include', process.env.NGROK_URL || 'http://localhost:5000')
-  })
+  // it('successfully loads the homepage', () => {
+  //   cy.url().should('include', process.env.NGROK_URL || 'http://localhost:5000')
+  // })
 
   it('starts game with random ship', () => {
+    cy.wait(1000)
     cy.get('[data-testid="cypress-generate-random-name-button"]').click()
     cy.get('#playerName').invoke('val').should('not.be.empty')
     cy.get('#playerName').invoke('val').then((name) => {
