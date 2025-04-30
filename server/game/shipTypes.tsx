@@ -1,5 +1,6 @@
 import { redisStorage } from "../redisStorage";
 import { ShipType } from "@shared/schema";
+import { DEFAULT_PORTS } from "@shared/gameConstants";
 
 export const defaultShipTypes: Omit<ShipType, "id">[] = [
     {
@@ -72,17 +73,8 @@ export const goodTypes = [
     { name: "Silk", basePrice: 100, fluctuation: 50 }
 ];
 
-// Default port locations in the core map (5000x5000)
-export const defaultPorts = [
-    { name: "Tortuga", x: 1000, y: 0, z: 1200, safeRadius: 200 },
-    { name: "Port Royale", x: 4000, y: 0, z: 300, safeRadius: 200 },
-    { name: "Nassau", x: 2500, y: 0, z: 4500, safeRadius: 200 },
-    { name: "Havana", x: 4200, y: 0, z: 4000, safeRadius: 200 },
-    { name: "Kingston", x: 800, y: 0, z: 3500, safeRadius: 200 },
-    { name: "Santo Domingo", x: 2800, y: 0, z: 1500, safeRadius: 200 },
-    { name: "Barbados", x: 1500, y: 0, z: 2500, safeRadius: 200 },
-    { name: "Puerto Rico", x: 3500, y: 0, z: 2800, safeRadius: 200 }
-];
+// Use ports from gameConstants
+export const defaultPorts = DEFAULT_PORTS;
 
 export async function setupShipTypes() {
     try {
