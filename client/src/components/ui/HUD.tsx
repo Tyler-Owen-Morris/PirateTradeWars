@@ -167,6 +167,7 @@ export default function HUD({ controlsRef }: HUDProps) {
           <Dialog>
             <DialogTrigger asChild>
               <Button
+                data-testid="cypress-scuttle-ship-request-button"
                 variant="destructive"
                 className="flex items-center gap-1 sm:gap-2 shadow-lg bg-red-700 hover:bg-red-800 text-white font-bold border-2 border-red-900 pointer-events-auto text-xs sm:text-base py-1 sm:py-2 px-2 sm:px-4"
               >
@@ -187,7 +188,7 @@ export default function HUD({ controlsRef }: HUDProps) {
               </DialogHeader>
               <DialogFooter className="flex gap-2 justify-end mt-2 sm:mt-4">
                 <DialogClose asChild>
-                  <Button variant="outline" className="border-gray-500 text-gray-300 hover:bg-gray-800 text-xs sm:text-sm">
+                  <Button data-testid="cypress-scuttle-ship-cancel-button" variant="outline" className="border-gray-500 text-gray-300 hover:bg-gray-800 text-xs sm:text-sm">
                     Cancel
                   </Button>
                 </DialogClose>
@@ -197,6 +198,7 @@ export default function HUD({ controlsRef }: HUDProps) {
                   onClick={() => {
                     useSocket.getState().scuttleShip();
                   }}
+                  data-testid="cypress-scuttle-ship-confirm-button"
                 >
                   Scuttle Ship
                 </Button>
