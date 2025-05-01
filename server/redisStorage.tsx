@@ -43,6 +43,15 @@ export class RedisStorage {
         return newUser;
     }
 
+    async getActivePlayers(): Promise<Player[]> {
+        const playerKeys = await this.redis.keys('player:*');
+        const players = await Promise.all(playerKeys.map(async (key) => {
+            const data = await this.redis.hgetall(key);
+            return this.deserializePlayer(data);
+        }));
+        return players;
+    }
+
     // Player operations
     async getPlayer(id: string): Promise<Player | undefined> {
         const data = await this.redis.hgetall(`player:${id}`);
@@ -69,8 +78,8 @@ export class RedisStorage {
         multi.set(`player_inventory:${id}`, JSON.stringify([]));
         multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
         multi.sadd('player_names', id);
-        multi.sadd(`active_names:${newPlayer.name}`, "1");
-        multi.expire(`active-names:${newPlayer.name}`, this.ACTIVE_NAME_TTL)
+        multi.set(`active_name:${newPlayer.name}`, "1");
+        multi.expire(`active_name:${newPlayer.name}`, this.ACTIVE_NAME_TTL);
         await multi.exec();
 
         return newPlayer;
@@ -91,8 +100,8 @@ export class RedisStorage {
         multi.hset(`player:${id}`, { 'isActive': isActive.toString() });
         multi.expire(`player:${id}`, this.PLAYER_TTL);
         multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
-        multi.set(`active_names:${player_name}}`, "1")
-        multi.expire(`active_names:${player_name}`, this.ACTIVE_NAME_TTL);
+        multi.set(`active_name:${player_name}`, "1");
+        multi.expire(`active_name:${player_name}`, this.ACTIVE_NAME_TTL);
         await multi.exec();
     }
 
@@ -258,27 +267,19 @@ export class RedisStorage {
         await multi.exec();
     }
 
-    // Game state operations
-    async getGamePlayer(playerId: string): Promise<any> {
-        return this.redis.hgetall(`game_player:${playerId}`);
-    }
-
-    async updateGamePlayer(playerId: string, data: Record<string, any>): Promise<void> {
-        await this.redis.hmset(`game_player:${playerId}`, data);
-    }
-
     async isNameActive(name: string): Promise<boolean> {
         return (await this.redis.exists(`active_name:${name}`)) === 1;
     }
 
     async getActiveNames(): Promise<Set<string>> {
-        const names = await this.redis.smembers('active_names');
-        return new Set(names);
+        const keys = await this.redis.keys('active_name:*');
+        const names = await Promise.all(keys.map(key => this.redis.get(key)));
+        return new Set(names.filter(name => name !== null));
     }
 
     async addActiveName(name: string): Promise<void> {
         const multi = this.redis.multi();
-        multi.set(`active_name:${name}`, '1');
+        multi.set(`active_name:${name}`, `${name}`);
         multi.expire(`active_name:${name}`, this.ACTIVE_NAME_TTL);
         await multi.exec();
     }

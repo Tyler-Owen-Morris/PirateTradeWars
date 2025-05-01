@@ -508,6 +508,12 @@ export async function initializeGameState() {
         }
       }
     }
+    const activePlayers = await redisStorage.getActivePlayers();
+    if (activePlayers.length > 0) {
+      for (const player of activePlayers) {
+        if (player) gameState.state.players[player.id] = player;
+      }
+    }
     gameState.start();
   } catch (err) {
     console.error("Error initializing game state:", err);
