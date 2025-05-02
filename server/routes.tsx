@@ -7,6 +7,7 @@ import { handleSocketConnection } from "./game/socketHandler";
 import { initializeGameState, gameState } from "./game/gameState";
 import { setupShipTypes } from "./game/shipTypes";
 import crypto from "crypto";
+import { validate as isUUID } from "uuid";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
@@ -171,10 +172,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ message: 'Inventory must be an array' });
     }
 
+    if (!isUUID(playerId)) {
+      return res.status(400).json({ message: 'Invalid player ID' });
+    }
+
     try {
       // Update each item in the inventory
       for (const item of inventory) {
-        await redisStorage.updatePlayerInventory(parseInt(playerId), item.goodId, item.quantity);
+        await redisStorage.updatePlayerInventory(playerId, item.goodId, item.quantity);
       }
 
       res.json({ success: true, message: 'Inventory updated successfully' });

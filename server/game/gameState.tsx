@@ -1,13 +1,13 @@
 import { redisStorage } from "../redisStorage";
 import { defaultPorts, goodTypes } from "./shipTypes";
 import { v4 as uuidv4 } from "uuid";
-import { MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES, SHIP_STATS } from "@shared/gameConstants";
+import { MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES, SHIP_STATS, GOODS, DEFAULT_PORTS } from "@shared/gameConstants";
 
 export const TICK_RATE = 100; // ms (5 updates/second)
 export const BROADCAST_RATE = 100; // ms (5 updates/second)
 export const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
-export const MAX_PLAYERS_PER_INSTANCE = 100;
-export const GRACE_PERIOD = 60000; // 10 minutes
+export const MAX_PLAYERS = 1000;
+export const GRACE_PERIOD = 60000; // 1 minute
 
 export interface PlayerState {
   id: string;
@@ -119,6 +119,7 @@ class GameState {
   }
 
   async addPlayer(name: string, shipType: string, ship: any) {
+    console.log("addPlayer", name, shipType, ship);
     if (await redisStorage.isNameActive(name)) return null;
     const x = Math.random() * MAP_WIDTH;
     const z = Math.random() * MAP_HEIGHT;
@@ -155,8 +156,7 @@ class GameState {
       dead: false,
     };
     this.state.players[uuid] = player;
-    await redisStorage.addActiveName(name);
-    //await redisStorage.createPlayer(player);
+    await redisStorage.addActiveName(name, uuid);
     return player;
   }
 
@@ -283,13 +283,6 @@ class GameState {
     const cannonballs = this.state.cannonBalls;
     for (let i = cannonballs.length - 1; i >= 0; i--) {
       const ball = cannonballs[i];
-
-      // Skip if ball is undefined or invalid
-      if (!ball || typeof ball !== 'object' || !ball.direction || !ball.x || !ball.y || !ball.z) {
-        console.warn(`Invalid cannonball at index ${i}, removing from game state`);
-        this.state.cannonBalls.splice(i, 1);
-        continue;
-      }
 
       // Store previous position before moving
       const prevPos = { x: ball.x, y: ball.y, z: ball.z };
@@ -473,12 +466,12 @@ export async function initializeGameState() {
   try {
     const ports = await redisStorage.getPorts();
     if (ports.length === 0) {
-      for (const port of defaultPorts) await redisStorage.createPort(port);
+      for (const port of DEFAULT_PORTS) await redisStorage.createPort(port);
       console.log("Ports initialized");
     }
     const goods = await redisStorage.getGoods();
     if (goods.length === 0) {
-      for (const good of goodTypes) await redisStorage.createGood(good);
+      for (const good of GOODS) await redisStorage.createGood(good);
       console.log("Goods initialized");
     }
     for (const port of await redisStorage.getPorts()) {
@@ -506,12 +499,6 @@ export async function initializeGameState() {
             console.log(`Replenished stock of good ${portGood.goodId} at port ${port.id} to ${newStock} units`);
           }
         }
-      }
-    }
-    const activePlayers = await redisStorage.getActivePlayers();
-    if (activePlayers.length > 0) {
-      for (const player of activePlayers) {
-        if (player) gameState.state.players[player.id] = player;
       }
     }
     gameState.start();

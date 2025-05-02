@@ -7,9 +7,9 @@ dotenv.config();
 
 export class RedisStorage {
     private redis: Redis;
-    private readonly PLAYER_TTL = 24 * 60 * 60; // 24 hours in seconds
-    private readonly INVENTORY_TTL = 24 * 60 * 60; // 24 hours in seconds
-    private readonly ACTIVE_NAME_TTL = 5 * 60; // 5 minutes in seconds
+    private readonly PLAYER_TTL = 1 * 60 * 60; // 1 hours in seconds
+    private readonly INVENTORY_TTL = 1 * 60 * 60; // 1 hours in seconds
+    private readonly ACTIVE_NAME_TTL = 1 * 60; // 1 minutes in seconds
 
     constructor() {
         //console.log("env", process.env)
@@ -43,6 +43,7 @@ export class RedisStorage {
         return newUser;
     }
 
+    // Player operations
     async getActivePlayers(): Promise<Player[]> {
         const playerKeys = await this.redis.keys('player:*');
         const players = await Promise.all(playerKeys.map(async (key) => {
@@ -52,9 +53,10 @@ export class RedisStorage {
         return players;
     }
 
-    // Player operations
     async getPlayer(id: string): Promise<Player | undefined> {
+        console.log("getting player data:", id)
         const data = await this.redis.hgetall(`player:${id}`);
+        console.log("got player data:", data)
         return data ? this.deserializePlayer(data) : undefined;
     }
 
@@ -77,8 +79,8 @@ export class RedisStorage {
         multi.expire(`player:${id}`, this.PLAYER_TTL);
         multi.set(`player_inventory:${id}`, JSON.stringify([]));
         multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
-        multi.sadd('player_names', id);
-        multi.set(`active_name:${newPlayer.name}`, "1");
+        //multi.sadd('player_names', id);
+        multi.set(`active_name:${newPlayer.name}`, `${id}`);
         multi.expire(`active_name:${newPlayer.name}`, this.ACTIVE_NAME_TTL);
         await multi.exec();
 
@@ -86,8 +88,19 @@ export class RedisStorage {
     }
 
     async updatePlayerGold(id: string, gold: number): Promise<void> {
+        console.log("updating player gold:", id, gold)
+        const player = await this.getPlayer(id);
+        if (!player) {
+            throw new Error(`Player ${id} not found`);
+        }
+
+        // Update the gold value
+        player.gold = gold;
+        console.log("updating player - post gold:", player)
+
+        // Use multi to update the full player record and refresh TTL
         const multi = this.redis.multi();
-        multi.hset(`player:${id}`, { 'gold': gold });
+        multi.hmset(`player:${id}`, this.serializePlayer(player));
         multi.expire(`player:${id}`, this.PLAYER_TTL);
         multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
         await multi.exec();
@@ -95,12 +108,19 @@ export class RedisStorage {
 
     // Modified setPlayerActive
     async setPlayerActive(id: string, isActive: boolean): Promise<void> {
-        const player_name = await this.redis.hget(`player:${id}`, 'name')
+        const player = await this.getPlayer(id);
+        if (!player) {
+            throw new Error(`Player ${id} not found`);
+        }
+
+        player.isActive = isActive;
+        const player_name = player.name;
+
         const multi = this.redis.multi();
-        multi.hset(`player:${id}`, { 'isActive': isActive.toString() });
+        multi.hmset(`player:${id}`, this.serializePlayer(player));
         multi.expire(`player:${id}`, this.PLAYER_TTL);
         multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
-        multi.set(`active_name:${player_name}`, "1");
+        multi.set(`active_name:${player_name}`, `${id}`);
         multi.expire(`active_name:${player_name}`, this.ACTIVE_NAME_TTL);
         await multi.exec();
     }
@@ -268,6 +288,7 @@ export class RedisStorage {
     }
 
     async isNameActive(name: string): Promise<boolean> {
+        // TODO : does this need to have a different assertion? the value is a string of the playerId- does "=== 1" work?
         return (await this.redis.exists(`active_name:${name}`)) === 1;
     }
 
@@ -277,9 +298,9 @@ export class RedisStorage {
         return new Set(names.filter(name => name !== null));
     }
 
-    async addActiveName(name: string): Promise<void> {
+    async addActiveName(name: string, playerId: string): Promise<void> {
         const multi = this.redis.multi();
-        multi.set(`active_name:${name}`, `${name}`);
+        multi.set(`active_name:${name}`, `${playerId}`);
         multi.expire(`active_name:${name}`, this.ACTIVE_NAME_TTL);
         await multi.exec();
     }

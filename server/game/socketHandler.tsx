@@ -96,9 +96,11 @@ export function handleSocketConnection(ws: WebSocket) {
     //console.log("ship type:", shipType)
 
     const addedPlayer = await gameState.addPlayer(data.name, data.shipType, shipType);
+    // TODO : THESE redis updates should be in the gameState.tsx file, and not here.
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
     } else {
+      console.log("adding player to redis:", addedPlayer)
       await redisStorage.createPlayer(addedPlayer)
     }
 
@@ -236,7 +238,7 @@ export function handleSocketConnection(ws: WebSocket) {
         timestamp: Date.now(),
       }));
     }
-    await redisStorage.updatePlayerGold(player.playerId, player.gold);
+    // await redisStorage.updatePlayerGold(player.playerId, player.gold);
   }
 
   async function handleScuttle(playerId: string, ws: WebSocket) {
