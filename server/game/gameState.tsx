@@ -254,21 +254,31 @@ class GameState {
     for (const playerId in this.state.players) {
       const player = this.state.players[playerId];
 
-      if (player.dead && now - player.lastSeen > 10000) {
+      // if the player has been dead for 15 seconds, remove them from the active names
+      if (player.dead && now - player.lastSeen > 15 * 1000) {
         console.log(`Removing dead player ${player.name} (${playerId})`);
         await redisStorage.removeActiveName(player.name);
         delete this.state.players[playerId];
         continue;
       }
 
-      if (!player.connected && !player.dead && now - player.lastSeen > GRACE_PERIOD) {
-        console.log(`Marking player ${player.name} (${playerId}) as dead`);
-        player.dead = true;
-        await redisStorage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold, achievedAt: new Date() });
-        this.state.leaderboard = await redisStorage.getLeaderboard(10);
-        this.broadcastDead(playerId);
+      if (!player.connected && now - player.lastSeen > GRACE_PERIOD) {
+        // update the record in redis, and remove the player from the game state
+        console.log(`Removing disconnected player ${player.name} (${playerId})`);
+        await redisStorage.updatePlayerState(player);
+        delete this.state.players[playerId];
         continue;
       }
+
+      // old disconnect logic marked the player as dead, we're not doing that anymore
+      // if (!player.connected && !player.dead && now - player.lastSeen > GRACE_PERIOD) {
+      //   console.log(`Marking player ${player.name} (${playerId}) as dead`);
+      //   player.dead = true;
+      //   await redisStorage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold, achievedAt: new Date() });
+      //   this.state.leaderboard = await redisStorage.getLeaderboard(10);
+      //   this.broadcastDead(playerId);
+      //   continue;
+      // }
 
       if (player.sunk || player.dead) continue;
 

@@ -57,7 +57,10 @@ export class RedisStorage {
         console.log("getting player data:", id)
         const data = await this.redis.hgetall(`player:${id}`);
         console.log("got player data:", data)
-        return data ? this.deserializePlayer(data) : undefined;
+        if (!data || Object.keys(data).length === 0) {
+            return undefined;
+        }
+        return this.deserializePlayer(data);
     }
 
     async getPlayerByName(name: string): Promise<Player | undefined> {
@@ -70,9 +73,10 @@ export class RedisStorage {
     }
 
     async createPlayer(player: any): Promise<Player> {
-        const id = uuidv4();
-        const newPlayer = { ...player, id };
-
+        // const id = uuidv4();
+        const id = player.id;
+        const newPlayer = { ...player };
+        //console.log("creating player:", newPlayer)
         // Start a transaction to ensure atomicity
         const multi = this.redis.multi();
         multi.hmset(`player:${id}`, this.serializePlayer(newPlayer));
@@ -87,24 +91,21 @@ export class RedisStorage {
         return newPlayer;
     }
 
-    async updatePlayerGold(id: string, gold: number): Promise<void> {
-        console.log("updating player gold:", id, gold)
-        const player = await this.getPlayer(id);
-        if (!player) {
-            throw new Error(`Player ${id} not found`);
-        }
-
-        // Update the gold value
-        player.gold = gold;
-        console.log("updating player - post gold:", player)
-
-        // Use multi to update the full player record and refresh TTL
+    async updatePlayerState(player: any): Promise<void> {
         const multi = this.redis.multi();
-        multi.hmset(`player:${id}`, this.serializePlayer(player));
-        multi.expire(`player:${id}`, this.PLAYER_TTL);
-        multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
+        multi.hmset(`player:${player.id}`, this.serializePlayer(player));
+        multi.expire(`player:${player.id}`, this.PLAYER_TTL);
+        multi.expire(`player_inventory:${player.id}`, this.INVENTORY_TTL);
+        multi.expire(`active_name:${player.name}`, this.ACTIVE_NAME_TTL);
         await multi.exec();
     }
+
+    async updatePlayerGold(id: string, gold: number): Promise<void> {
+        console.log("updating player gold:", id, gold);
+        await this.redis.hset(`player:${id}`, 'gold', gold.toString());
+        await this.redis.expire(`player:${id}`, this.PLAYER_TTL);
+    }
+
 
     // Modified setPlayerActive
     async setPlayerActive(id: string, isActive: boolean): Promise<void> {

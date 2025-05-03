@@ -105,7 +105,7 @@ export function handleSocketConnection(ws: WebSocket) {
     }
 
     gameState.registerClient(addedPlayer.id, ws as any);
-    await redisStorage.addActiveName(data.name);
+
 
     console.log(`Total players connected: ${Object.keys(gameState.state.players).length}`);
 
@@ -123,12 +123,16 @@ export function handleSocketConnection(ws: WebSocket) {
   }
 
   async function handleReconnect(ws: WebSocket, data: ReconnectMessage) {
-    const existingPlayer = gameState.state.players[data.id];
-    // console.log("looking for reconnecting to player:", data)
+    let existingPlayer = gameState.state.players[data.id];
+    console.log("looking for reconnecting to player:", data)
     // console.log("existing players:", gameState.state.players)
     if (!existingPlayer) {
-      return sendError(ws, "Player ID not found");
+      existingPlayer = await redisStorage.getPlayer(data.id);
+      if (!existingPlayer) {
+        return sendError(ws, "Player ID not found");
+      }
     }
+    console.log("existing player:", existingPlayer)
     if (data.name !== existingPlayer.name && await redisStorage.isNameActive(data.name)) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
