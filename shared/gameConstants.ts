@@ -46,7 +46,8 @@ export const SHIP_STATS = {
         cannonReload: 2.0,
         cannonRange: 300,
         repairCost: 100,
-        isPaid: false
+        isPaid: false,
+        playerTTL: 1 * 15 * 60  // 15 minutes in seconds
     },
     [SHIP_TYPES.BRIGANTINE]: {
         hullStrength: 150,
@@ -58,7 +59,8 @@ export const SHIP_STATS = {
         cannonReload: 1.8,
         cannonRange: 250,
         repairCost: 300,
-        isPaid: true
+        isPaid: true,
+        playerTTL: 1 * 60 * 60  // 1 hour in seconds
     },
     [SHIP_TYPES.GALLEON]: {
         hullStrength: 300,
@@ -70,7 +72,8 @@ export const SHIP_STATS = {
         cannonReload: 1.5,
         cannonRange: 200,
         repairCost: 600,
-        isPaid: true
+        isPaid: true,
+        playerTTL: 4 * 60 * 60  // 4 hours in seconds
     },
     [SHIP_TYPES.MAN_O_WAR]: {
         hullStrength: 500,
@@ -82,7 +85,8 @@ export const SHIP_STATS = {
         cannonReload: 1.2,
         cannonRange: 150,
         repairCost: 1000,
-        isPaid: true
+        isPaid: true,
+        playerTTL: 24 * 60 * 60  // 24 hours in seconds
     }
 };
 

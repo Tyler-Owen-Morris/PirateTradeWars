@@ -2,6 +2,7 @@ import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { type User, type Player, type ShipType, type Port, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
 import { PlayerState } from '@/types';
+import { SHIP_STATS } from '@shared/gameConstants';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -34,6 +35,7 @@ interface Player {
     isActive: boolean;
     lastSeen: number;
     dead: boolean;
+    playerTTL: number;
 }
 
 
@@ -87,9 +89,9 @@ export class RedisStorage {
     }
 
     async getPlayer(id: string): Promise<Player | undefined> {
-        console.log("getting player data:", id)
+        //console.log("getting player data:", id)
         const data = await this.redis.hgetall(`player:${id}`);
-        console.log("got player data:", data)
+        //console.log("got player data:", data)
         if (!data || Object.keys(data).length === 0) {
             return undefined;
         }
@@ -109,34 +111,53 @@ export class RedisStorage {
         // const id = uuidv4();
         const id = player.id;
         const newPlayer = { ...player };
-        //console.log("creating player:", newPlayer)
+        console.log("newPlayer:", newPlayer)
+        // Get the playerTTL from SHIP_STATS based on ship type
+        const shipStats = SHIP_STATS[newPlayer.shipType];
+        if (!shipStats) {
+            throw new Error(`Invalid ship type: ${newPlayer.shipType}`);
+        }
+        newPlayer.playerTTL = shipStats.playerTTL;
+        // console.log("shipStats:", shipStats)
+        // console.log("newPlayer.playerTTL:", newPlayer.playerTTL, this.PLAYER_TTL)
+        // console.log("type of newPlayer.playerTTL:", typeof newPlayer.playerTTL, typeof this.PLAYER_TTL)
         // Start a transaction to ensure atomicity
         const multi = this.redis.multi();
         multi.hmset(`player:${id}`, this.serializePlayer(newPlayer));
-        multi.expire(`player:${id}`, this.PLAYER_TTL);
+        multi.expire(`player:${id}`, newPlayer.playerTTL);
         multi.set(`player_inventory:${id}`, JSON.stringify([]));
-        multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
+        multi.expire(`player_inventory:${id}`, newPlayer.playerTTL);
         //multi.sadd('player_names', id);
         multi.set(`active_name:${newPlayer.name}`, `${id}`);
-        multi.expire(`active_name:${newPlayer.name}`, this.ACTIVE_NAME_TTL);
+        multi.expire(`active_name:${newPlayer.name}`, newPlayer.playerTTL);
         await multi.exec();
 
         return newPlayer;
     }
 
     async updatePlayerState(player: any): Promise<void> {
+        // First get the current player record to get their TTL
+        const currentPlayer = await this.getPlayer(player.id);
+        if (!currentPlayer) {
+            throw new Error(`Player ${player.id} not found`);
+        }
+
         const multi = this.redis.multi();
         multi.hmset(`player:${player.id}`, this.serializePlayer(player));
-        multi.expire(`player:${player.id}`, this.PLAYER_TTL);
-        multi.expire(`player_inventory:${player.id}`, this.INVENTORY_TTL);
-        multi.expire(`active_name:${player.name}`, this.ACTIVE_NAME_TTL);
+        multi.expire(`player:${player.id}`, currentPlayer.playerTTL);
+        multi.expire(`player_inventory:${player.id}`, currentPlayer.playerTTL);
+        multi.expire(`active_name:${player.name}`, currentPlayer.playerTTL);
         await multi.exec();
     }
 
     async updatePlayerGold(id: string, gold: number): Promise<void> {
         console.log("updating player gold:", id, gold);
+        const currentPlayer = await this.getPlayer(id);
+        if (!currentPlayer) {
+            throw new Error(`Player ${id} not found`);
+        }
         await this.redis.hset(`player:${id}`, 'gold', gold.toString());
-        await this.redis.expire(`player:${id}`, this.PLAYER_TTL);
+        await this.redis.expire(`player:${id}`, currentPlayer.playerTTL);
     }
 
 
@@ -152,10 +173,10 @@ export class RedisStorage {
 
         const multi = this.redis.multi();
         multi.hmset(`player:${id}`, this.serializePlayer(player));
-        multi.expire(`player:${id}`, this.PLAYER_TTL);
-        multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
+        multi.expire(`player:${id}`, player.playerTTL);
+        multi.expire(`player_inventory:${id}`, player.playerTTL);
         multi.set(`active_name:${player_name}`, `${id}`);
-        multi.expire(`active_name:${player_name}`, this.ACTIVE_NAME_TTL);
+        multi.expire(`active_name:${player_name}`, player.playerTTL);
         await multi.exec();
     }
 
@@ -287,19 +308,30 @@ export class RedisStorage {
 
     // Player inventory operations
     async getPlayerInventory(playerId: string): Promise<PlayerInventory[]> {
-        //console.log("fetching player inventory from DB:", playerId)
+        // First get the current player record to get their TTL
+        const currentPlayer = await this.getPlayer(playerId);
+        if (!currentPlayer) {
+            throw new Error(`Player ${playerId} not found`);
+        }
+
         const data = await this.redis.get(`player_inventory:${playerId}`);
         const multi = this.redis.multi();
-        multi.expire(`player_inventory:${playerId}`, this.INVENTORY_TTL);
-        multi.expire(`player:${playerId}`, this.PLAYER_TTL);
-        await multi.exec()
-        //console.log("got back", data)
-        this.setPlayerActive(playerId, true)
+        multi.expire(`player_inventory:${playerId}`, currentPlayer.playerTTL);
+        multi.expire(`player:${playerId}`, currentPlayer.playerTTL);
+        await multi.exec();
+        this.setPlayerActive(playerId, true);
         return data ? JSON.parse(data) : [];
     }
 
     async updatePlayerInventory(playerId: string, goodId: number, quantity: number): Promise<void> {
-        console.log("update player inventory called with playerid, goodId, quantity:", playerId, goodId, quantity)
+        console.log("update player inventory called with playerid, goodId, quantity:", playerId, goodId, quantity);
+
+        // First get the current player record to get their TTL
+        const currentPlayer = await this.getPlayer(playerId);
+        if (!currentPlayer) {
+            throw new Error(`Player ${playerId} not found`);
+        }
+
         const inventory = await this.getPlayerInventory(playerId);
         const existingItemIndex = inventory.findIndex(item => item.goodId === goodId);
 
@@ -313,11 +345,15 @@ export class RedisStorage {
             inventory.push({ playerId, goodId, quantity });
         }
 
+        // Calculate total cargo units
+        const totalCargoUnits = inventory.reduce((sum, item) => sum + item.quantity, 0);
+
         const multi = this.redis.multi();
         multi.set(`player_inventory:${playerId}`, JSON.stringify(inventory));
-        multi.expire(`player_inventory:${playerId}`, this.INVENTORY_TTL);
-        multi.expire(`player:${playerId}`, this.PLAYER_TTL);
-        this.setPlayerActive(playerId, true)
+        multi.expire(`player_inventory:${playerId}`, currentPlayer.playerTTL);
+        multi.expire(`player:${playerId}`, currentPlayer.playerTTL);
+        multi.hset(`player:${playerId}`, 'cargoUsed', totalCargoUnits.toString());
+        this.setPlayerActive(playerId, true);
         await multi.exec();
     }
 
@@ -333,9 +369,15 @@ export class RedisStorage {
     }
 
     async addActiveName(name: string, playerId: string): Promise<void> {
+        // First get the current player record to get their TTL
+        const currentPlayer = await this.getPlayer(playerId);
+        if (!currentPlayer) {
+            throw new Error(`Player ${playerId} not found`);
+        }
+
         const multi = this.redis.multi();
         multi.set(`active_name:${name}`, `${playerId}`);
-        multi.expire(`active_name:${name}`, this.ACTIVE_NAME_TTL);
+        multi.expire(`active_name:${name}`, currentPlayer.playerTTL);
         await multi.exec();
     }
 
@@ -389,6 +431,7 @@ export class RedisStorage {
             cannonCount: player.cannonCount.toString(),
             lastSeen: player.lastSeen.toString(),
             dead: player.dead.toString(),
+            playerTTL: player.playerTTL.toString()
         };
 
         return serialized;
@@ -433,6 +476,7 @@ export class RedisStorage {
             isActive: true, // Default value
             lastSeen: parseInt(data.lastSeen) || Date.now(),
             dead: data.dead === 'true',
+            playerTTL: parseInt(data.playerTTL) || 0
         };
 
         // Validate numeric fields
@@ -454,7 +498,8 @@ export class RedisStorage {
             isNaN(player.reloadTime) ||
             isNaN(player.damage) ||
             isNaN(player.cannonCount) ||
-            isNaN(player.lastSeen)
+            isNaN(player.lastSeen) ||
+            isNaN(player.playerTTL)
         ) {
             throw new Error('Invalid numeric fields in deserialized player');
         }

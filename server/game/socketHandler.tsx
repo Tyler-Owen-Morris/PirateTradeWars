@@ -100,8 +100,9 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
     } else {
-      console.log("adding player to redis:", addedPlayer)
+      //console.log("adding player to redis:", addedPlayer)
       await redisStorage.createPlayer(addedPlayer)
+      await redisStorage.addActiveName(addedPlayer.name, addedPlayer.id);
     }
 
     gameState.registerClient(addedPlayer.id, ws as any);
@@ -136,17 +137,15 @@ export function handleSocketConnection(ws: WebSocket) {
         gameState.state.players[data.id] = existingPlayer;
       }
     }
-    console.log("existing player:", existingPlayer)
+    // console.log("existing player:", existingPlayer)
     if (data.name !== existingPlayer.name && await redisStorage.isNameActive(data.name)) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
 
     playerId = data.id;
-    if (data.name !== existingPlayer.name) {
-      await redisStorage.removeActiveName(existingPlayer.name);
-      existingPlayer.name = data.name;
-      await redisStorage.addActiveName(data.name);
-    }
+    console.log("reconnecting player:", existingPlayer.name, data.name)
+
+    await redisStorage.addActiveName(data.name, playerId);
     existingPlayer.connected = true;
     existingPlayer.lastSeen = Date.now();
     gameState.registerClient(playerId, ws as any);
