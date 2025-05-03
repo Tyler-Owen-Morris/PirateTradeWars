@@ -5,6 +5,39 @@ import { PlayerState } from '@/types';
 import dotenv from 'dotenv';
 dotenv.config();
 
+interface Player {
+    id: string;
+    playerId: string;
+    name: string;
+    shipType: string;
+    x: number;
+    y: number;
+    z: number;
+    rotationY: number;
+    speed: number;
+    maxSpeed: number;
+    direction: { x: number; y: number; z: number };
+    hp: number;
+    maxHp: number;
+    gold: number;
+    cargoCapacity: number;
+    cargoUsed: number;
+    repairCost: number;
+    firing: boolean;
+    canFire: boolean;
+    lastFired: number;
+    reloadTime: number;
+    damage: number;
+    cannonCount: number;
+    sunk: boolean;
+    connected: boolean;
+    isActive: boolean;
+    lastSeen: number;
+    dead: boolean;
+}
+
+
+
 export class RedisStorage {
     private redis: Redis;
     private readonly PLAYER_TTL = 1 * 60 * 60; // 1 hours in seconds
@@ -334,73 +367,96 @@ export class RedisStorage {
     private serializePlayer(player: Player): Record<string, string> {
         const serialized: Record<string, string> = {
             id: player.id,
-            userId: player.userId?.toString() || '',
+            playerId: player.playerId,
             name: player.name,
             shipType: player.shipType,
+            x: player.x.toString(),
+            y: player.y.toString(),
+            z: player.z.toString(),
+            rotationY: player.rotationY.toString(),
+            maxSpeed: player.maxSpeed.toString(),
+            directionX: player.direction.x.toString(),
+            directionY: player.direction.y.toString(),
+            directionZ: player.direction.z.toString(),
+            hp: player.hp.toString(),
+            maxHp: player.maxHp.toString(),
             gold: player.gold.toString(),
-            isActive: player.isActive.toString(),
+            cargoCapacity: player.cargoCapacity.toString(),
+            cargoUsed: player.cargoUsed.toString(),
+            repairCost: player.repairCost.toString(),
+            reloadTime: player.reloadTime.toString(),
+            damage: player.damage.toString(),
+            cannonCount: player.cannonCount.toString(),
+            lastSeen: player.lastSeen.toString(),
+            dead: player.dead.toString(),
         };
-
-        // Handle lastSeen safely
-        if (player.lastSeen instanceof Date) {
-            serialized.lastSeen = player.lastSeen.toISOString();
-        } else if (typeof player.lastSeen === 'string') {
-            // If it's already an ISO string, use it; otherwise, try to parse it
-            try {
-                serialized.lastSeen = new Date(player.lastSeen).toISOString();
-            } catch {
-                // Fallback to current time if parsing fails
-                serialized.lastSeen = new Date().toISOString();
-            }
-        } else if (typeof player.lastSeen === 'number') {
-            // If it's a timestamp (like from Date.now())
-            serialized.lastSeen = new Date(player.lastSeen).toISOString();
-        } else {
-            // Fallback to current time if lastSeen is invalid
-            serialized.lastSeen = new Date().toISOString();
-        }
-
-        if (player.x !== undefined) serialized.x = player.x.toString();
-        if (player.z !== undefined) serialized.z = player.z.toString();
-        if (player.rotationY !== undefined) serialized.rotationY = player.rotationY.toString();
-        if (player.speed !== undefined) serialized.speed = player.speed.toString();
-        if (player.hp !== undefined) serialized.hp = player.hp.toString();
-        if (player.maxHp !== undefined) serialized.maxHp = player.maxHp.toString();
-        if (player.cargoCapacity !== undefined) serialized.cargoCapacity = player.cargoCapacity.toString();
-        if (player.cargoUsed !== undefined) serialized.cargoUsed = player.cargoUsed.toString();
-        if (player.cannonCount !== undefined) serialized.cannonCount = player.cannonCount.toString();
-        if (player.damage !== undefined) serialized.damage = player.damage.toString();
-        if (player.reloadTime !== undefined) serialized.reloadTime = player.reloadTime.toString();
 
         return serialized;
     }
 
     private deserializePlayer(data: Record<string, string>): Player {
+        // Validate required fields
+        if (!data.id || !data.playerId || !data.name || !data.shipType) {
+            throw new Error('Missing required player fields in Redis data');
+        }
+
         const player: Player = {
             id: data.id,
-            userId: data.userId && data.userId !== '' ? data.userId : null,
+            playerId: data.playerId,
             name: data.name,
             shipType: data.shipType,
+            x: parseFloat(data.x) || 0,
+            y: parseFloat(data.y) || 0,
+            z: parseFloat(data.z) || 0,
+            rotationY: parseFloat(data.rotationY) || 0,
+            speed: 0, // Default value
+            maxSpeed: parseFloat(data.maxSpeed) || 0,
+            direction: {
+                x: parseFloat(data.directionX) || 0,
+                y: parseFloat(data.directionY) || 0,
+                z: parseFloat(data.directionZ) || 0,
+            },
+            hp: parseInt(data.hp) || 0,
+            maxHp: parseInt(data.maxHp) || 0,
             gold: parseInt(data.gold) || 0,
-            isActive: data.isActive === '1' || data.isActive === 'true',
-            lastSeen: new Date(data.lastSeen)
+            cargoCapacity: parseInt(data.cargoCapacity) || 0,
+            cargoUsed: parseInt(data.cargoUsed) || 0,
+            repairCost: parseInt(data.repairCost) || 0,
+            firing: false, // Default value
+            canFire: true, // Default value
+            lastFired: 0, // Default value
+            reloadTime: parseInt(data.reloadTime) || 0,
+            damage: parseInt(data.damage) || 0,
+            cannonCount: parseInt(data.cannonCount) || 0,
+            sunk: false, // Default value
+            connected: false, // Default value
+            isActive: true, // Default value
+            lastSeen: parseInt(data.lastSeen) || Date.now(),
+            dead: data.dead === 'true',
         };
 
-        if (data.x !== undefined) player.x = parseFloat(data.x);
-        if (data.z !== undefined) player.z = parseFloat(data.z);
-        if (data.rotationY !== undefined) player.rotationY = parseFloat(data.rotationY);
-        if (data.speed !== undefined) player.speed = parseFloat(data.speed);
-        if (data.hp !== undefined) player.hp = parseInt(data.hp);
-        if (data.maxHp !== undefined) player.maxHp = parseInt(data.maxHp);
-        if (data.cargoCapacity !== undefined) player.cargoCapacity = parseInt(data.cargoCapacity);
-        if (data.cargoUsed !== undefined) player.cargoUsed = parseInt(data.cargoUsed);
-        if (data.cannonCount !== undefined) player.cannonCount = parseInt(data.cannonCount);
-        if (data.damage !== undefined) player.damage = parseInt(data.damage);
-        if (data.reloadTime !== undefined) player.reloadTime = parseInt(data.reloadTime);
-
-        // Validate lastSeen
-        if (!(player.lastSeen instanceof Date) || isNaN(player.lastSeen.getTime())) {
-            player.lastSeen = new Date();
+        // Validate numeric fields
+        if (
+            isNaN(player.x) ||
+            isNaN(player.y) ||
+            isNaN(player.z) ||
+            isNaN(player.rotationY) ||
+            isNaN(player.maxSpeed) ||
+            isNaN(player.direction.x) ||
+            isNaN(player.direction.y) ||
+            isNaN(player.direction.z) ||
+            isNaN(player.hp) ||
+            isNaN(player.maxHp) ||
+            isNaN(player.gold) ||
+            isNaN(player.cargoCapacity) ||
+            isNaN(player.cargoUsed) ||
+            isNaN(player.repairCost) ||
+            isNaN(player.reloadTime) ||
+            isNaN(player.damage) ||
+            isNaN(player.cannonCount) ||
+            isNaN(player.lastSeen)
+        ) {
+            throw new Error('Invalid numeric fields in deserialized player');
         }
 
         return player;

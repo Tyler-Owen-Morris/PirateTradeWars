@@ -130,6 +130,10 @@ export function handleSocketConnection(ws: WebSocket) {
       existingPlayer = await redisStorage.getPlayer(data.id);
       if (!existingPlayer) {
         return sendError(ws, "Player ID not found");
+      } else {
+        // Don't forget to put the player object into the game state
+        existingPlayer = existingPlayer as PlayerState;
+        gameState.state.players[data.id] = existingPlayer;
       }
     }
     console.log("existing player:", existingPlayer)
