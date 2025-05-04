@@ -85,6 +85,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      //console.log("key down", e.key, showLeaderboard)
       if (e.key === "Tab") {
         e.preventDefault();
         setShowLeaderboard(true);
@@ -156,8 +157,8 @@ export default function GameUI({ controlsRef }: GameUIProps) {
 
   return (
     <>
-      <HUD controlsRef={controlsRef} />
-      {showLeaderboard && <Leaderboard />}
+      <HUD controlsRef={controlsRef} onShowLeaderboard={() => setShowLeaderboard(true)} />
+      {showLeaderboard && <div onClick={() => setShowLeaderboard(false)}><Leaderboard /></div>}
       <ToastContainer />
 
       <div className="absolute top-4 right-4 z-50 flex gap-2">

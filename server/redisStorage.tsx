@@ -44,9 +44,7 @@ interface Player {
 export class RedisStorage {
     private redis: Redis;
     private pubsub: Redis;
-    // private readonly PLAYER_TTL = 1 * 60 * 60; // 1 hours in seconds
-    // private readonly INVENTORY_TTL = 1 * 60 * 60; // 1 hours in seconds
-    // private readonly ACTIVE_NAME_TTL = 1 * 60; // 1 minutes in seconds
+    private readonly EXPIRATION_OFFSET = 30; // Player expires 30 seconds after inventory - so we use the inventory event to store the player's high score and expire both records.
 
     constructor() {
         //console.log("env", process.env)
@@ -57,6 +55,7 @@ export class RedisStorage {
         this.redis = new Redis(connString);
         this.pubsub = new Redis(connString);
         this.redis.config('SET', 'notify-keyspace-events', 'Ex');
+        //this.redis.config('GET', 'hz').then((result) => console.log("hz:", result));
         this.setupExpirationListener();
 
     }
@@ -66,12 +65,26 @@ export class RedisStorage {
             await this.pubsub.subscribe('__keyevent@0__:expired');
             console.log('Subscribed to key expiration events');
 
-            this.pubsub.on('message', (channel, expiredKey) => {
+            this.pubsub.on('message', async (channel, expiredKey) => {
                 console.log("channel:", channel, "expiredKey:", expiredKey)
-                if (channel === '__keyevent@0__:expired' && expiredKey.startsWith('player:')) {
+                if (channel === '__keyevent@0__:expired' && expiredKey.startsWith('player_inventory:')) {
                     const playerId = expiredKey.split(':')[1];
-                    console.log(`Detected expiration of player:${playerId}`);
-                    //processExpiredPlayer(playerId);
+                    console.log(`>>>>>>>>>>>>>> Detected expiration of player:${playerId}`);
+                    // fetch the player
+                    const player = await this.getPlayer(playerId);
+                    if (player) {
+                        // add the player to the leaderboard
+                        const lederboardentry = await this.addToLeaderboard({
+                            playerId: player.playerId,
+                            playerName: player.name,
+                            score: player.gold,
+                            achievedAt: new Date()
+                        });
+                        console.log("leaderboard entry for expired player:", lederboardentry)
+                        // delete the player
+                        await this.removePlayer(playerId);
+                    }
+
                 }
             });
         } catch (error) {
@@ -148,7 +161,7 @@ export class RedisStorage {
         // Start a transaction to ensure atomicity
         const multi = this.redis.multi();
         multi.hmset(`player:${id}`, this.serializePlayer(newPlayer));
-        multi.expire(`player:${id}`, newPlayer.playerTTL);
+        multi.expire(`player:${id}`, newPlayer.playerTTL + this.EXPIRATION_OFFSET);
         multi.set(`player_inventory:${id}`, JSON.stringify([]));
         multi.expire(`player_inventory:${id}`, newPlayer.playerTTL);
         //multi.sadd('player_names', id);
@@ -183,7 +196,7 @@ export class RedisStorage {
             throw new Error(`Player ${id} not found`);
         }
         await this.redis.hset(`player:${id}`, 'gold', gold.toString());
-        await this.redis.expire(`player:${id}`, currentPlayer.playerTTL);
+        await this.redis.expire(`player:${id}`, currentPlayer.playerTTL + this.EXPIRATION_OFFSET);
     }
 
 
@@ -201,7 +214,7 @@ export class RedisStorage {
         multi.hmset(`player:${id}`, this.serializePlayer(player));
         multi.set(`active_name:${player_name}`, `${id}`);
         if (isActive) {
-            multi.expire(`player:${id}`, player.playerTTL);
+            multi.expire(`player:${id}`, player.playerTTL + this.EXPIRATION_OFFSET);
             multi.expire(`player_inventory:${id}`, player.playerTTL);
             multi.expire(`active_name:${player_name}`, player.playerTTL);
         }

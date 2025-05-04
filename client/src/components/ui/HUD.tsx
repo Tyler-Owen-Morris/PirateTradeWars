@@ -26,9 +26,10 @@ interface ControlState {
 
 interface HUDProps {
   controlsRef: React.MutableRefObject<ControlState>;
+  onShowLeaderboard: () => void;
 }
 
-export default function HUD({ controlsRef }: HUDProps) {
+export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
   const { gameState } = useGameState();
   const { isSunk } = useGameState();
   const player = gameState.player;
@@ -76,10 +77,10 @@ export default function HUD({ controlsRef }: HUDProps) {
   if (!player) return null;
 
   return (
-    <div className="absolute mb-20 sm:mb-20 md:mb-10 inset-0 pointer-events-none">
+    <div className="absolute mb-20 sm:mb-20 md:mb-10 inset-0">
 
       {/* Ship stats panel */}
-      <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/50 p-1.5 sm:p-3 rounded-md text-white w-[60vw] sm:w-auto max-w-[70vw] sm:max-w-[400px]">
+      <div onClick={onShowLeaderboard} className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/50 p-1.5 sm:p-3 rounded-md text-white w-[60vw] sm:w-auto max-w-[70vw] sm:max-w-[400px]">
         <div className="mb-0.5 sm:mb-2 font-bold text-xs sm:text-lg flex items-center">
           <span className="mr-1 sm:mr-2 truncate"><span data-testid="cypress-player-name">{player.name}</span>'s Ship</span>
           <span className="text-[0.5rem] sm:text-xs ml-auto opacity-70" data-testid="cypress-ship-type">{player.shipType}</span>
