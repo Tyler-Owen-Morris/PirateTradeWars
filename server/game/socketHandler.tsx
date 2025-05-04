@@ -125,10 +125,11 @@ export function handleSocketConnection(ws: WebSocket) {
 
   async function handleReconnect(ws: WebSocket, data: ReconnectMessage) {
     let existingPlayer = gameState.state.players[data.id];
-    console.log("looking for reconnecting to player:", data)
+    //console.log("looking for reconnecting to player:", data)
     // console.log("existing players:", gameState.state.players)
     if (!existingPlayer) {
       existingPlayer = await redisStorage.getPlayer(data.id);
+      //console.log("existing player from redis:", existingPlayer)
       if (!existingPlayer) {
         return sendError(ws, "Player ID not found");
       } else {
@@ -137,7 +138,7 @@ export function handleSocketConnection(ws: WebSocket) {
         gameState.state.players[data.id] = existingPlayer;
       }
     }
-    // console.log("existing player:", existingPlayer)
+    console.log("existing player:", existingPlayer)
     if (data.name !== existingPlayer.name && await redisStorage.isNameActive(data.name)) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
@@ -259,6 +260,7 @@ export function handleSocketConnection(ws: WebSocket) {
       score: post_scuttle_gold,
       achievedAt: new Date()
     });
+    // TODO: Fetch the leaderboard ranks NEAR the player's rank.
     const leaderboard = await redisStorage.getLeaderboard(10);
     await gameState.updateLeaderboard(leaderboard);
 
@@ -279,10 +281,13 @@ export function handleSocketConnection(ws: WebSocket) {
       }, 1000);
     }
 
-    await redisStorage.removeActiveName(player.name);
-    delete gameState.state.players[playerId];
+
     gameState.removeClient(playerId);
     await redisStorage.setPlayerActive(player.playerId, false);
+    await redisStorage.removePlayer(player.playerId);
+    setTimeout(() => {
+      delete gameState.state.players[playerId];
+    }, 5000);
   }
 }
 

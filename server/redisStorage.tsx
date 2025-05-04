@@ -4,6 +4,7 @@ import { type User, type Player, type ShipType, type Port, type Good, type PortG
 import { PlayerState } from '@/types';
 import { SHIP_STATS } from '@shared/gameConstants';
 import dotenv from 'dotenv';
+import { set } from 'node_modules/cypress/types/lodash';
 dotenv.config();
 
 interface Player {
@@ -42,9 +43,10 @@ interface Player {
 
 export class RedisStorage {
     private redis: Redis;
-    private readonly PLAYER_TTL = 1 * 60 * 60; // 1 hours in seconds
-    private readonly INVENTORY_TTL = 1 * 60 * 60; // 1 hours in seconds
-    private readonly ACTIVE_NAME_TTL = 1 * 60; // 1 minutes in seconds
+    private pubsub: Redis;
+    // private readonly PLAYER_TTL = 1 * 60 * 60; // 1 hours in seconds
+    // private readonly INVENTORY_TTL = 1 * 60 * 60; // 1 hours in seconds
+    // private readonly ACTIVE_NAME_TTL = 1 * 60; // 1 minutes in seconds
 
     constructor() {
         //console.log("env", process.env)
@@ -53,6 +55,28 @@ export class RedisStorage {
             throw new Error('REDIS_CONN_STRING environment variable is required');
         }
         this.redis = new Redis(connString);
+        this.pubsub = new Redis(connString);
+        this.redis.config('SET', 'notify-keyspace-events', 'Ex');
+        this.setupExpirationListener();
+
+    }
+
+    async setupExpirationListener() {
+        try {
+            await this.pubsub.subscribe('__keyevent@0__:expired');
+            console.log('Subscribed to key expiration events');
+
+            this.pubsub.on('message', (channel, expiredKey) => {
+                console.log("channel:", channel, "expiredKey:", expiredKey)
+                if (channel === '__keyevent@0__:expired' && expiredKey.startsWith('player:')) {
+                    const playerId = expiredKey.split(':')[1];
+                    console.log(`Detected expiration of player:${playerId}`);
+                    //processExpiredPlayer(playerId);
+                }
+            });
+        } catch (error) {
+            console.error('Failed to set up expiration listener:', error);
+        }
     }
 
     // User operations
@@ -141,9 +165,11 @@ export class RedisStorage {
         if (!currentPlayer) {
             throw new Error(`Player ${player.id} not found`);
         }
+        let player_to_update = { ...player };
+        player_to_update.playerTTL = currentPlayer.playerTTL;
 
         const multi = this.redis.multi();
-        multi.hmset(`player:${player.id}`, this.serializePlayer(player));
+        multi.hmset(`player:${player.id}`, this.serializePlayer(player_to_update));
         multi.expire(`player:${player.id}`, currentPlayer.playerTTL);
         multi.expire(`player_inventory:${player.id}`, currentPlayer.playerTTL);
         multi.expire(`active_name:${player.name}`, currentPlayer.playerTTL);
@@ -173,10 +199,12 @@ export class RedisStorage {
 
         const multi = this.redis.multi();
         multi.hmset(`player:${id}`, this.serializePlayer(player));
-        multi.expire(`player:${id}`, player.playerTTL);
-        multi.expire(`player_inventory:${id}`, player.playerTTL);
         multi.set(`active_name:${player_name}`, `${id}`);
-        multi.expire(`active_name:${player_name}`, player.playerTTL);
+        if (isActive) {
+            multi.expire(`player:${id}`, player.playerTTL);
+            multi.expire(`player_inventory:${id}`, player.playerTTL);
+            multi.expire(`active_name:${player_name}`, player.playerTTL);
+        }
         await multi.exec();
     }
 
@@ -570,6 +598,23 @@ export class RedisStorage {
         const newPort = { ...port, id };
         await this.redis.hset('ports', id.toString(), JSON.stringify(newPort));
         return newPort;
+    }
+
+    async removePlayer(playerId: string): Promise<void> {
+        // First get the player record to get their name
+        const player = await this.getPlayer(playerId);
+        if (!player) {
+            throw new Error(`Player ${playerId} not found`);
+        }
+
+        const multi = this.redis.multi();
+        // Delete the player record
+        multi.del(`player:${playerId}`);
+        // Delete the inventory record
+        multi.del(`player_inventory:${playerId}`);
+        // Delete the active name record using the player's name
+        multi.del(`active_name:${player.name}`);
+        await multi.exec();
     }
 }
 
