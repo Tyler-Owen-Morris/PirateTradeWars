@@ -77,11 +77,16 @@ export default function HUD({ controlsRef }: HUDProps) {
 
   return (
     <div className="absolute mb-20 sm:mb-20 md:mb-10 inset-0 pointer-events-none">
+      {/* Player count display - temporary */}
+      <div className="absolute top-10 right-10 bg-black/50 p-2 rounded-md text-white">
+        Players: {Object.keys(gameState.otherPlayers).length + (gameState.player ? 1 : 0)}
+      </div>
+
       {/* Ship stats panel */}
       <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/50 p-1.5 sm:p-3 rounded-md text-white w-[60vw] sm:w-auto max-w-[70vw] sm:max-w-[400px]">
         <div className="mb-0.5 sm:mb-2 font-bold text-xs sm:text-lg flex items-center">
-          <span className="mr-1 sm:mr-2 truncate">{player.name}'s Ship</span>
-          <span className="text-[0.5rem] sm:text-xs ml-auto opacity-70">{player.shipType}</span>
+          <span className="mr-1 sm:mr-2 truncate"><span data-testid="cypress-player-name">{player.name}</span>'s Ship</span>
+          <span className="text-[0.5rem] sm:text-xs ml-auto opacity-70" data-testid="cypress-ship-type">{player.shipType}</span>
         </div>
 
         {/* HP Bar */}
@@ -133,6 +138,7 @@ export default function HUD({ controlsRef }: HUDProps) {
         <button
           onClick={handleFire}
           className="bg-red-700 hover:bg-red-600 text-white font-bold py-1 px-2 sm:py-2 sm:px-4 rounded-md pointer-events-auto transition-colors text-xs sm:text-base"
+          data-testid="cypress-fire-cannon-button"
         >
           Fire Cannons
         </button>
@@ -161,6 +167,7 @@ export default function HUD({ controlsRef }: HUDProps) {
           <Dialog>
             <DialogTrigger asChild>
               <Button
+                data-testid="cypress-scuttle-ship-request-button"
                 variant="destructive"
                 className="flex items-center gap-1 sm:gap-2 shadow-lg bg-red-700 hover:bg-red-800 text-white font-bold border-2 border-red-900 pointer-events-auto text-xs sm:text-base py-1 sm:py-2 px-2 sm:px-4"
               >
@@ -181,7 +188,7 @@ export default function HUD({ controlsRef }: HUDProps) {
               </DialogHeader>
               <DialogFooter className="flex gap-2 justify-end mt-2 sm:mt-4">
                 <DialogClose asChild>
-                  <Button variant="outline" className="border-gray-500 text-gray-300 hover:bg-gray-800 text-xs sm:text-sm">
+                  <Button data-testid="cypress-scuttle-ship-cancel-button" variant="outline" className="border-gray-500 text-gray-300 hover:bg-gray-800 text-xs sm:text-sm">
                     Cancel
                   </Button>
                 </DialogClose>
@@ -191,6 +198,7 @@ export default function HUD({ controlsRef }: HUDProps) {
                   onClick={() => {
                     useSocket.getState().scuttleShip();
                   }}
+                  data-testid="cypress-scuttle-ship-confirm-button"
                 >
                   Scuttle Ship
                 </Button>

@@ -46,7 +46,8 @@ export const SHIP_STATS = {
         cannonReload: 2.0,
         cannonRange: 300,
         repairCost: 100,
-        isPaid: false
+        isPaid: false,
+        playerTTL: 1 * 15 * 60  // 15 minutes in seconds
     },
     [SHIP_TYPES.BRIGANTINE]: {
         hullStrength: 150,
@@ -58,7 +59,8 @@ export const SHIP_STATS = {
         cannonReload: 1.8,
         cannonRange: 250,
         repairCost: 300,
-        isPaid: true
+        isPaid: true,
+        playerTTL: 1 * 60 * 60  // 1 hour in seconds
     },
     [SHIP_TYPES.GALLEON]: {
         hullStrength: 300,
@@ -70,7 +72,8 @@ export const SHIP_STATS = {
         cannonReload: 1.5,
         cannonRange: 200,
         repairCost: 600,
-        isPaid: true
+        isPaid: true,
+        playerTTL: 4 * 60 * 60  // 4 hours in seconds
     },
     [SHIP_TYPES.MAN_O_WAR]: {
         hullStrength: 500,
@@ -82,7 +85,8 @@ export const SHIP_STATS = {
         cannonReload: 1.2,
         cannonRange: 150,
         repairCost: 1000,
-        isPaid: true
+        isPaid: true,
+        playerTTL: 24 * 60 * 60  // 24 hours in seconds
     }
 };
 
@@ -100,32 +104,18 @@ export const GOODS = [
 
 // Default ports (fallback)
 export const DEFAULT_PORTS = [
-    { id: 1, name: "Tortuga", x: 1000, y: 0, z: 1200, safeRadius: 200 },
-    { id: 2, name: "Port Royale", x: 4000, y: 0, z: 300, safeRadius: 200 },
-    { id: 3, name: "Nassau", x: 2500, y: 0, z: 4500, safeRadius: 200 },
-    { id: 4, name: "Havana", x: 4200, y: 0, z: 4000, safeRadius: 200 },
-    { id: 5, name: "Kingston", x: 800, y: 0, z: 3500, safeRadius: 200 },
-    { id: 6, name: "Santo Domingo", x: 2800, y: 0, z: 1500, safeRadius: 200 },
-    { id: 7, name: "Barbados", x: 1500, y: 0, z: 2500, safeRadius: 200 },
-    { id: 8, name: "Puerto Rico", x: 3500, y: 0, z: 2800, safeRadius: 200 },
-    { id: 9, name: "Bermuda", x: 6000, y: 0, z: 1000, safeRadius: 200 },
-    { id: 10, name: "Martinique", x: 5500, y: 0, z: 3500, safeRadius: 200 },
-    { id: 11, name: "Guadeloupe", x: 4800, y: 0, z: 4200, safeRadius: 200 },
-    { id: 12, name: "St. Kitts", x: 4200, y: 0, z: 4800, safeRadius: 200 },
-    { id: 13, name: "St. Lucia", x: 3500, y: 0, z: 5500, safeRadius: 200 },
-    { id: 14, name: "Grenada", x: 2800, y: 0, z: 6200, safeRadius: 200 },
-    { id: 15, name: "St. Vincent", x: 2200, y: 0, z: 6800, safeRadius: 200 },
-    { id: 16, name: "Dominica", x: 1500, y: 0, z: 7500, safeRadius: 200 },
-    { id: 17, name: "Antigua", x: 800, y: 0, z: 8200, safeRadius: 200 },
-    { id: 18, name: "St. Martin", x: 6500, y: 0, z: 2000, safeRadius: 200 },
-    { id: 19, name: "St. Barts", x: 7000, y: 0, z: 2800, safeRadius: 200 },
-    { id: 20, name: "St. Eustatius", x: 7500, y: 0, z: 3500, safeRadius: 200 },
-    { id: 21, name: "Saba", x: 8000, y: 0, z: 4200, safeRadius: 200 },
-    { id: 22, name: "St. Croix", x: 8500, y: 0, z: 4800, safeRadius: 200 },
-    { id: 23, name: "St. Thomas", x: 9000, y: 0, z: 5500, safeRadius: 200 },
-    { id: 24, name: "St. John", x: 9500, y: 0, z: 6200, safeRadius: 200 },
-    { id: 25, name: "Virgin Gorda", x: 9200, y: 0, z: 6800, safeRadius: 200 },
-    { id: 26, name: "Tortola", x: 8800, y: 0, z: 7500, safeRadius: 200 },
-    { id: 27, name: "Anegada", x: 8200, y: 0, z: 8200, safeRadius: 200 },
-    { id: 28, name: "Jost Van Dyke", x: 7800, y: 0, z: 8800, safeRadius: 200 }
+    { id: 1, name: "Tortuga", x: 3748, y: 0, z: 4566, safeRadius: 200 },
+    { id: 2, name: "Port Royale", x: 8656, y: 0, z: 2374, safeRadius: 200 },
+    { id: 3, name: "Nassau", x: 1566, y: 0, z: 8243, safeRadius: 200 },
+    { id: 4, name: "Havana", x: 6347, y: 0, z: 6728, safeRadius: 200 },
+    { id: 5, name: "Kingston", x: 234, y: 0, z: 3456, safeRadius: 200 },
+    { id: 6, name: "Santo Domingo", x: 5123, y: 0, z: 1234, safeRadius: 200 },
+    { id: 7, name: "Barbados", x: 7890, y: 0, z: 8901, safeRadius: 200 },
+    { id: 8, name: "Puerto Rico", x: 3456, y: 0, z: 6789, safeRadius: 200 },
+    { id: 9, name: "Bermuda", x: 9012, y: 0, z: 456, safeRadius: 200 },
+    { id: 10, name: "Martinique", x: 1234, y: 0, z: 5678, safeRadius: 200 },
+    { id: 11, name: "St. Lucia", x: 6789, y: 0, z: 3456, safeRadius: 200 },
+    { id: 12, name: "St. Vincent", x: 456, y: 0, z: 9012, safeRadius: 200 },
+    { id: 13, name: "St. Martin", x: 5678, y: 0, z: 234, safeRadius: 200 },
+    { id: 14, name: "St. Thomas", x: 2345, y: 0, z: 1234, safeRadius: 200 }
 ]; 

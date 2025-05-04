@@ -236,6 +236,7 @@ export default function ShipSelection() {
               onClick={generatePirateName}
               className="mt-2 bg-amber-700 hover:bg-amber-600 text-white py-1 px-3 rounded-md transition"
               size="sm"
+              data-testid="cypress-generate-random-name-button"
             >
               Generate Random Name
             </Button>
@@ -249,6 +250,7 @@ export default function ShipSelection() {
                 : "bg-gray-50 border-2 border-transparent"
                 }`}
               onClick={() => handleShipSelect(SHIP_TYPES.SLOOP)}
+              data-testid="cypress-sloop-card"
             >
               <CardHeader className="p-4 pb-2 bg-amber-100">
                 <CardTitle className="text-lg text-amber-900">
@@ -284,6 +286,7 @@ export default function ShipSelection() {
                 : "bg-gray-50 border-2 border-transparent"
                 }`}
               onClick={() => handleShipSelect(SHIP_TYPES.BRIGANTINE)}
+              data-testid="cypress-brigantine-card"
             >
               <CardHeader className="p-4 pb-2 bg-amber-100">
                 <CardTitle className="text-lg text-amber-900">
@@ -323,6 +326,7 @@ export default function ShipSelection() {
                 : "bg-gray-50 border-2 border-transparent"
                 }`}
               onClick={() => handleShipSelect(SHIP_TYPES.GALLEON)}
+              data-testid="cypress-galleon-card"
             >
               <CardHeader className="p-4 pb-2 bg-amber-100">
                 <CardTitle className="text-lg text-amber-900">
@@ -362,6 +366,7 @@ export default function ShipSelection() {
                 : "bg-gray-50 border-2 border-transparent"
                 }`}
               onClick={() => handleShipSelect(SHIP_TYPES.MAN_O_WAR)}
+              data-testid="cypress-man-o-war-card"
             >
               <CardHeader className="p-4 pb-2 bg-amber-100">
                 <CardTitle className="text-lg text-amber-900">
@@ -404,6 +409,7 @@ export default function ShipSelection() {
             }
             className="w-1/2 bg-amber-600 hover:bg-amber-700 text-white font-bold border-2 border-amber-200"
             size="lg"
+            data-testid="cypress-start-game-button"
           >
             {loading ? "Preparing Ship..." : "Set Sail!"}
           </Button>

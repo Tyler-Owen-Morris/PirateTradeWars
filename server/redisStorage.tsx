@@ -2,14 +2,51 @@ import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { type User, type Player, type ShipType, type Port, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
 import { PlayerState } from '@/types';
+import { SHIP_STATS } from '@shared/gameConstants';
 import dotenv from 'dotenv';
+import { set } from 'node_modules/cypress/types/lodash';
 dotenv.config();
+
+interface Player {
+    id: string;
+    playerId: string;
+    name: string;
+    shipType: string;
+    x: number;
+    y: number;
+    z: number;
+    rotationY: number;
+    speed: number;
+    maxSpeed: number;
+    direction: { x: number; y: number; z: number };
+    hp: number;
+    maxHp: number;
+    gold: number;
+    cargoCapacity: number;
+    cargoUsed: number;
+    repairCost: number;
+    firing: boolean;
+    canFire: boolean;
+    lastFired: number;
+    reloadTime: number;
+    damage: number;
+    cannonCount: number;
+    sunk: boolean;
+    connected: boolean;
+    isActive: boolean;
+    lastSeen: number;
+    dead: boolean;
+    playerTTL: number;
+}
+
+
 
 export class RedisStorage {
     private redis: Redis;
-    private readonly PLAYER_TTL = 24 * 60 * 60; // 24 hours in seconds
-    private readonly INVENTORY_TTL = 24 * 60 * 60; // 24 hours in seconds
-    private readonly ACTIVE_NAME_TTL = 5 * 60; // 5 minutes in seconds
+    private pubsub: Redis;
+    // private readonly PLAYER_TTL = 1 * 60 * 60; // 1 hours in seconds
+    // private readonly INVENTORY_TTL = 1 * 60 * 60; // 1 hours in seconds
+    // private readonly ACTIVE_NAME_TTL = 1 * 60; // 1 minutes in seconds
 
     constructor() {
         //console.log("env", process.env)
@@ -18,6 +55,28 @@ export class RedisStorage {
             throw new Error('REDIS_CONN_STRING environment variable is required');
         }
         this.redis = new Redis(connString);
+        this.pubsub = new Redis(connString);
+        this.redis.config('SET', 'notify-keyspace-events', 'Ex');
+        this.setupExpirationListener();
+
+    }
+
+    async setupExpirationListener() {
+        try {
+            await this.pubsub.subscribe('__keyevent@0__:expired');
+            console.log('Subscribed to key expiration events');
+
+            this.pubsub.on('message', (channel, expiredKey) => {
+                console.log("channel:", channel, "expiredKey:", expiredKey)
+                if (channel === '__keyevent@0__:expired' && expiredKey.startsWith('player:')) {
+                    const playerId = expiredKey.split(':')[1];
+                    console.log(`Detected expiration of player:${playerId}`);
+                    //processExpiredPlayer(playerId);
+                }
+            });
+        } catch (error) {
+            console.error('Failed to set up expiration listener:', error);
+        }
     }
 
     // User operations
@@ -44,9 +103,23 @@ export class RedisStorage {
     }
 
     // Player operations
+    async getActivePlayers(): Promise<Player[]> {
+        const playerKeys = await this.redis.keys('player:*');
+        const players = await Promise.all(playerKeys.map(async (key) => {
+            const data = await this.redis.hgetall(key);
+            return this.deserializePlayer(data);
+        }));
+        return players;
+    }
+
     async getPlayer(id: string): Promise<Player | undefined> {
+        //console.log("getting player data:", id)
         const data = await this.redis.hgetall(`player:${id}`);
-        return data ? this.deserializePlayer(data) : undefined;
+        //console.log("got player data:", data)
+        if (!data || Object.keys(data).length === 0) {
+            return undefined;
+        }
+        return this.deserializePlayer(data);
     }
 
     async getPlayerByName(name: string): Promise<Player | undefined> {
@@ -59,40 +132,79 @@ export class RedisStorage {
     }
 
     async createPlayer(player: any): Promise<Player> {
-        const id = uuidv4();
-        const newPlayer = { ...player, id };
-
+        // const id = uuidv4();
+        const id = player.id;
+        const newPlayer = { ...player };
+        console.log("newPlayer:", newPlayer)
+        // Get the playerTTL from SHIP_STATS based on ship type
+        const shipStats = SHIP_STATS[newPlayer.shipType];
+        if (!shipStats) {
+            throw new Error(`Invalid ship type: ${newPlayer.shipType}`);
+        }
+        newPlayer.playerTTL = shipStats.playerTTL;
+        // console.log("shipStats:", shipStats)
+        // console.log("newPlayer.playerTTL:", newPlayer.playerTTL, this.PLAYER_TTL)
+        // console.log("type of newPlayer.playerTTL:", typeof newPlayer.playerTTL, typeof this.PLAYER_TTL)
         // Start a transaction to ensure atomicity
         const multi = this.redis.multi();
         multi.hmset(`player:${id}`, this.serializePlayer(newPlayer));
-        multi.expire(`player:${id}`, this.PLAYER_TTL);
+        multi.expire(`player:${id}`, newPlayer.playerTTL);
         multi.set(`player_inventory:${id}`, JSON.stringify([]));
-        multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
-        multi.sadd('player_names', id);
-        multi.sadd(`active_names:${newPlayer.name}`, "1");
-        multi.expire(`active-names:${newPlayer.name}`, this.ACTIVE_NAME_TTL)
+        multi.expire(`player_inventory:${id}`, newPlayer.playerTTL);
+        //multi.sadd('player_names', id);
+        multi.set(`active_name:${newPlayer.name}`, `${id}`);
+        multi.expire(`active_name:${newPlayer.name}`, newPlayer.playerTTL);
         await multi.exec();
 
         return newPlayer;
     }
 
-    async updatePlayerGold(id: string, gold: number): Promise<void> {
+    async updatePlayerState(player: any): Promise<void> {
+        // First get the current player record to get their TTL
+        const currentPlayer = await this.getPlayer(player.id);
+        if (!currentPlayer) {
+            throw new Error(`Player ${player.id} not found`);
+        }
+        let player_to_update = { ...player };
+        player_to_update.playerTTL = currentPlayer.playerTTL;
+
         const multi = this.redis.multi();
-        multi.hset(`player:${id}`, { 'gold': gold });
-        multi.expire(`player:${id}`, this.PLAYER_TTL);
-        multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
+        multi.hmset(`player:${player.id}`, this.serializePlayer(player_to_update));
+        multi.expire(`player:${player.id}`, currentPlayer.playerTTL);
+        multi.expire(`player_inventory:${player.id}`, currentPlayer.playerTTL);
+        multi.expire(`active_name:${player.name}`, currentPlayer.playerTTL);
         await multi.exec();
     }
 
+    async updatePlayerGold(id: string, gold: number): Promise<void> {
+        console.log("updating player gold:", id, gold);
+        const currentPlayer = await this.getPlayer(id);
+        if (!currentPlayer) {
+            throw new Error(`Player ${id} not found`);
+        }
+        await this.redis.hset(`player:${id}`, 'gold', gold.toString());
+        await this.redis.expire(`player:${id}`, currentPlayer.playerTTL);
+    }
+
+
     // Modified setPlayerActive
     async setPlayerActive(id: string, isActive: boolean): Promise<void> {
-        const player_name = await this.redis.hget(`player:${id}`, 'name')
+        const player = await this.getPlayer(id);
+        if (!player) {
+            throw new Error(`Player ${id} not found`);
+        }
+
+        player.isActive = isActive;
+        const player_name = player.name;
+
         const multi = this.redis.multi();
-        multi.hset(`player:${id}`, { 'isActive': isActive.toString() });
-        multi.expire(`player:${id}`, this.PLAYER_TTL);
-        multi.expire(`player_inventory:${id}`, this.INVENTORY_TTL);
-        multi.set(`active_names:${player_name}}`, "1")
-        multi.expire(`active_names:${player_name}`, this.ACTIVE_NAME_TTL);
+        multi.hmset(`player:${id}`, this.serializePlayer(player));
+        multi.set(`active_name:${player_name}`, `${id}`);
+        if (isActive) {
+            multi.expire(`player:${id}`, player.playerTTL);
+            multi.expire(`player_inventory:${id}`, player.playerTTL);
+            multi.expire(`active_name:${player_name}`, player.playerTTL);
+        }
         await multi.exec();
     }
 
@@ -224,19 +336,30 @@ export class RedisStorage {
 
     // Player inventory operations
     async getPlayerInventory(playerId: string): Promise<PlayerInventory[]> {
-        //console.log("fetching player inventory from DB:", playerId)
+        // First get the current player record to get their TTL
+        const currentPlayer = await this.getPlayer(playerId);
+        if (!currentPlayer) {
+            throw new Error(`Player ${playerId} not found`);
+        }
+
         const data = await this.redis.get(`player_inventory:${playerId}`);
         const multi = this.redis.multi();
-        multi.expire(`player_inventory:${playerId}`, this.INVENTORY_TTL);
-        multi.expire(`player:${playerId}`, this.PLAYER_TTL);
-        await multi.exec()
-        //console.log("got back", data)
-        this.setPlayerActive(playerId, true)
+        multi.expire(`player_inventory:${playerId}`, currentPlayer.playerTTL);
+        multi.expire(`player:${playerId}`, currentPlayer.playerTTL);
+        await multi.exec();
+        this.setPlayerActive(playerId, true);
         return data ? JSON.parse(data) : [];
     }
 
     async updatePlayerInventory(playerId: string, goodId: number, quantity: number): Promise<void> {
-        console.log("update player inventory called with playerid, goodId, quantity:", playerId, goodId, quantity)
+        console.log("update player inventory called with playerid, goodId, quantity:", playerId, goodId, quantity);
+
+        // First get the current player record to get their TTL
+        const currentPlayer = await this.getPlayer(playerId);
+        if (!currentPlayer) {
+            throw new Error(`Player ${playerId} not found`);
+        }
+
         const inventory = await this.getPlayerInventory(playerId);
         const existingItemIndex = inventory.findIndex(item => item.goodId === goodId);
 
@@ -250,36 +373,39 @@ export class RedisStorage {
             inventory.push({ playerId, goodId, quantity });
         }
 
+        // Calculate total cargo units
+        const totalCargoUnits = inventory.reduce((sum, item) => sum + item.quantity, 0);
+
         const multi = this.redis.multi();
         multi.set(`player_inventory:${playerId}`, JSON.stringify(inventory));
-        multi.expire(`player_inventory:${playerId}`, this.INVENTORY_TTL);
-        multi.expire(`player:${playerId}`, this.PLAYER_TTL);
-        this.setPlayerActive(playerId, true)
+        multi.expire(`player_inventory:${playerId}`, currentPlayer.playerTTL);
+        multi.expire(`player:${playerId}`, currentPlayer.playerTTL);
+        multi.hset(`player:${playerId}`, 'cargoUsed', totalCargoUnits.toString());
+        this.setPlayerActive(playerId, true);
         await multi.exec();
     }
 
-    // Game state operations
-    async getGamePlayer(playerId: string): Promise<any> {
-        return this.redis.hgetall(`game_player:${playerId}`);
-    }
-
-    async updateGamePlayer(playerId: string, data: Record<string, any>): Promise<void> {
-        await this.redis.hmset(`game_player:${playerId}`, data);
-    }
-
     async isNameActive(name: string): Promise<boolean> {
+        // TODO : does this need to have a different assertion? the value is a string of the playerId- does "=== 1" work?
         return (await this.redis.exists(`active_name:${name}`)) === 1;
     }
 
     async getActiveNames(): Promise<Set<string>> {
-        const names = await this.redis.smembers('active_names');
-        return new Set(names);
+        const keys = await this.redis.keys('active_name:*');
+        const names = await Promise.all(keys.map(key => this.redis.get(key)));
+        return new Set(names.filter(name => name !== null));
     }
 
-    async addActiveName(name: string): Promise<void> {
+    async addActiveName(name: string, playerId: string): Promise<void> {
+        // First get the current player record to get their TTL
+        const currentPlayer = await this.getPlayer(playerId);
+        if (!currentPlayer) {
+            throw new Error(`Player ${playerId} not found`);
+        }
+
         const multi = this.redis.multi();
-        multi.set(`active_name:${name}`, '1');
-        multi.expire(`active_name:${name}`, this.ACTIVE_NAME_TTL);
+        multi.set(`active_name:${name}`, `${playerId}`);
+        multi.expire(`active_name:${name}`, currentPlayer.playerTTL);
         await multi.exec();
     }
 
@@ -311,73 +437,99 @@ export class RedisStorage {
     private serializePlayer(player: Player): Record<string, string> {
         const serialized: Record<string, string> = {
             id: player.id,
-            userId: player.userId?.toString() || '',
+            playerId: player.playerId,
             name: player.name,
             shipType: player.shipType,
+            x: player.x.toString(),
+            y: player.y.toString(),
+            z: player.z.toString(),
+            rotationY: player.rotationY.toString(),
+            maxSpeed: player.maxSpeed.toString(),
+            directionX: player.direction.x.toString(),
+            directionY: player.direction.y.toString(),
+            directionZ: player.direction.z.toString(),
+            hp: player.hp.toString(),
+            maxHp: player.maxHp.toString(),
             gold: player.gold.toString(),
-            isActive: player.isActive.toString(),
+            cargoCapacity: player.cargoCapacity.toString(),
+            cargoUsed: player.cargoUsed.toString(),
+            repairCost: player.repairCost.toString(),
+            reloadTime: player.reloadTime.toString(),
+            damage: player.damage.toString(),
+            cannonCount: player.cannonCount.toString(),
+            lastSeen: player.lastSeen.toString(),
+            dead: player.dead.toString(),
+            playerTTL: player.playerTTL.toString()
         };
-
-        // Handle lastSeen safely
-        if (player.lastSeen instanceof Date) {
-            serialized.lastSeen = player.lastSeen.toISOString();
-        } else if (typeof player.lastSeen === 'string') {
-            // If it's already an ISO string, use it; otherwise, try to parse it
-            try {
-                serialized.lastSeen = new Date(player.lastSeen).toISOString();
-            } catch {
-                // Fallback to current time if parsing fails
-                serialized.lastSeen = new Date().toISOString();
-            }
-        } else if (typeof player.lastSeen === 'number') {
-            // If it's a timestamp (like from Date.now())
-            serialized.lastSeen = new Date(player.lastSeen).toISOString();
-        } else {
-            // Fallback to current time if lastSeen is invalid
-            serialized.lastSeen = new Date().toISOString();
-        }
-
-        if (player.x !== undefined) serialized.x = player.x.toString();
-        if (player.z !== undefined) serialized.z = player.z.toString();
-        if (player.rotationY !== undefined) serialized.rotationY = player.rotationY.toString();
-        if (player.speed !== undefined) serialized.speed = player.speed.toString();
-        if (player.hp !== undefined) serialized.hp = player.hp.toString();
-        if (player.maxHp !== undefined) serialized.maxHp = player.maxHp.toString();
-        if (player.cargoCapacity !== undefined) serialized.cargoCapacity = player.cargoCapacity.toString();
-        if (player.cargoUsed !== undefined) serialized.cargoUsed = player.cargoUsed.toString();
-        if (player.cannonCount !== undefined) serialized.cannonCount = player.cannonCount.toString();
-        if (player.damage !== undefined) serialized.damage = player.damage.toString();
-        if (player.reloadTime !== undefined) serialized.reloadTime = player.reloadTime.toString();
 
         return serialized;
     }
 
     private deserializePlayer(data: Record<string, string>): Player {
+        // Validate required fields
+        if (!data.id || !data.playerId || !data.name || !data.shipType) {
+            throw new Error('Missing required player fields in Redis data');
+        }
+
         const player: Player = {
             id: data.id,
-            userId: data.userId && data.userId !== '' ? data.userId : null,
+            playerId: data.playerId,
             name: data.name,
             shipType: data.shipType,
+            x: parseFloat(data.x) || 0,
+            y: parseFloat(data.y) || 0,
+            z: parseFloat(data.z) || 0,
+            rotationY: parseFloat(data.rotationY) || 0,
+            speed: 0, // Default value
+            maxSpeed: parseFloat(data.maxSpeed) || 0,
+            direction: {
+                x: parseFloat(data.directionX) || 0,
+                y: parseFloat(data.directionY) || 0,
+                z: parseFloat(data.directionZ) || 0,
+            },
+            hp: parseInt(data.hp) || 0,
+            maxHp: parseInt(data.maxHp) || 0,
             gold: parseInt(data.gold) || 0,
-            isActive: data.isActive === '1' || data.isActive === 'true',
-            lastSeen: new Date(data.lastSeen)
+            cargoCapacity: parseInt(data.cargoCapacity) || 0,
+            cargoUsed: parseInt(data.cargoUsed) || 0,
+            repairCost: parseInt(data.repairCost) || 0,
+            firing: false, // Default value
+            canFire: true, // Default value
+            lastFired: 0, // Default value
+            reloadTime: parseInt(data.reloadTime) || 0,
+            damage: parseInt(data.damage) || 0,
+            cannonCount: parseInt(data.cannonCount) || 0,
+            sunk: false, // Default value
+            connected: false, // Default value
+            isActive: true, // Default value
+            lastSeen: parseInt(data.lastSeen) || Date.now(),
+            dead: data.dead === 'true',
+            playerTTL: parseInt(data.playerTTL) || 0
         };
 
-        if (data.x !== undefined) player.x = parseFloat(data.x);
-        if (data.z !== undefined) player.z = parseFloat(data.z);
-        if (data.rotationY !== undefined) player.rotationY = parseFloat(data.rotationY);
-        if (data.speed !== undefined) player.speed = parseFloat(data.speed);
-        if (data.hp !== undefined) player.hp = parseInt(data.hp);
-        if (data.maxHp !== undefined) player.maxHp = parseInt(data.maxHp);
-        if (data.cargoCapacity !== undefined) player.cargoCapacity = parseInt(data.cargoCapacity);
-        if (data.cargoUsed !== undefined) player.cargoUsed = parseInt(data.cargoUsed);
-        if (data.cannonCount !== undefined) player.cannonCount = parseInt(data.cannonCount);
-        if (data.damage !== undefined) player.damage = parseInt(data.damage);
-        if (data.reloadTime !== undefined) player.reloadTime = parseInt(data.reloadTime);
-
-        // Validate lastSeen
-        if (!(player.lastSeen instanceof Date) || isNaN(player.lastSeen.getTime())) {
-            player.lastSeen = new Date();
+        // Validate numeric fields
+        if (
+            isNaN(player.x) ||
+            isNaN(player.y) ||
+            isNaN(player.z) ||
+            isNaN(player.rotationY) ||
+            isNaN(player.maxSpeed) ||
+            isNaN(player.direction.x) ||
+            isNaN(player.direction.y) ||
+            isNaN(player.direction.z) ||
+            isNaN(player.hp) ||
+            isNaN(player.maxHp) ||
+            isNaN(player.gold) ||
+            isNaN(player.cargoCapacity) ||
+            isNaN(player.cargoUsed) ||
+            isNaN(player.repairCost) ||
+            isNaN(player.reloadTime) ||
+            isNaN(player.damage) ||
+            isNaN(player.cannonCount) ||
+            isNaN(player.lastSeen) ||
+            isNaN(player.playerTTL)
+        ) {
+            throw new Error('Invalid numeric fields in deserialized player');
         }
 
         return player;
@@ -446,6 +598,23 @@ export class RedisStorage {
         const newPort = { ...port, id };
         await this.redis.hset('ports', id.toString(), JSON.stringify(newPort));
         return newPort;
+    }
+
+    async removePlayer(playerId: string): Promise<void> {
+        // First get the player record to get their name
+        const player = await this.getPlayer(playerId);
+        if (!player) {
+            throw new Error(`Player ${playerId} not found`);
+        }
+
+        const multi = this.redis.multi();
+        // Delete the player record
+        multi.del(`player:${playerId}`);
+        // Delete the inventory record
+        multi.del(`player_inventory:${playerId}`);
+        // Delete the active name record using the player's name
+        multi.del(`active_name:${player.name}`);
+        await multi.exec();
     }
 }
 

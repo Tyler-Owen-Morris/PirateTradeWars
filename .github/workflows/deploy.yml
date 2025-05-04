@@ -1,0 +1,55 @@
+name: Deploy to Elastic Beanstalk
+
+on:
+  push:
+    branches:
+      - replit
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build the app
+        run: npm run build
+
+      - name: Create deployment package
+        run: zip -r application.zip . -x "*.git*"
+
+      - name: Configure AWS CLI
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Upload ZIP to S3
+        run: |
+          aws s3 cp application.zip s3://elasticbeanstalk-us-east-2-835677831294/${{ github.sha }}.zip
+
+      - name: Create Elastic Beanstalk Application Version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name PirateTradeWarsApp \
+            --version-label ${{ github.sha }} \
+            --source-bundle S3Bucket=elasticbeanstalk-us-east-2-835677831294,S3Key=${{ github.sha }}.zip
+
+      - name: Deploy to Elastic Beanstalk
+        run: |
+          aws elasticbeanstalk update-environment \
+            --application-name PirateTradeWarsApp \
+            --environment-name PirateTradeWarsEnv \
+            --version-label ${{ github.sha }} \
+            --option-settings \
+              Namespace=aws:autoscaling:asg,OptionName=MinSize,Value=1 \
+              Namespace=aws:autoscaling:asg,OptionName=MaxSize,Value=4

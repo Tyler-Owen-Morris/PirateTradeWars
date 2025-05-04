@@ -67,7 +67,14 @@ export function GameScene({ controlsRef }: GameSceneProps) {
     useGameState.getState().loadLeaderboard();
   }, []);
 
+  const [isVisualTest, setIsVisualTest] = useState(true);
 
+  // Check URL parameters for no-visual-test flag
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const noVisualTest = urlParams.get('no-visual-test') === 'true';
+    setIsVisualTest(!noVisualTest);
+  }, []);
 
   // Handle camera following player with smooth interpolation
   useFrame((_, delta) => {
@@ -200,42 +207,58 @@ export function GameScene({ controlsRef }: GameSceneProps) {
 
   return (
     <>
-      {/* Sky and lighting */}
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[50, 100, 50]} intensity={1} castShadow />
+      {isVisualTest && (
+        <>
+          {/* Sky and lighting */}
+          <ambientLight intensity={0.3} />
+          <directionalLight position={[50, 100, 50]} intensity={1} castShadow />
 
-      {/* Sky setup with better parameters */}
-      <Sky
-        distance={450000} // This places the sky further away
-        sunPosition={[100, 20, 100]}
-        turbidity={0.8} // Increased for more atmospheric scattering
-        rayleigh={0.5}
-        mieCoefficient={0.005} // Controls sun haziness
-        mieDirectionalG={0.8} // Controls sun focus
-        inclination={0.49} // Sun elevation
-        azimuth={0.25} // Sun rotation
-      />
+          {/* Sky setup with better parameters */}
+          <Sky
+            distance={450000}
+            sunPosition={[100, 20, 100]}
+            turbidity={0.8}
+            rayleigh={0.5}
+            mieCoefficient={0.005}
+            mieDirectionalG={0.8}
+            inclination={0.49}
+            azimuth={0.25}
+          />
 
-      {/* Stars with adjusted parameters */}
-      <Stars
-        radius={1000} // Reduced to be within camera far plane
-        depth={50}
-        count={5000} // Increased star count
-        factor={4}
-        saturation={0} // Makes stars more visible
-        fade={true} // Smooth transition
-      />
+          {/* Stars with adjusted parameters */}
+          <Stars
+            radius={1000}
+            depth={50}
+            count={5000}
+            factor={4}
+            saturation={0}
+            fade={true}
+          />
 
-      {/* Fog with adjusted distances */}
-      <Fog color="#b3d9ff" near={500} far={1800} /> {/* Kept within camera far plane */}
+          {/* Fog with adjusted distances */}
+          <Fog color="#b3d9ff" near={500} far={1800} />
 
-      {/* Ocean */}
-      <Ocean />
+          {/* Ocean */}
+          <Ocean />
 
-      {/* Ports */}
-      <Ports />
+          {/* Ports */}
+          <Ports />
 
-      {/* Player ship */}
+          {/* Other player ships */}
+          <OtherShips players={gameState.otherPlayers} />
+
+          {/* Cannon balls */}
+          {gameState.cannonBalls.map((ball) => (
+            <CannonBall
+              key={ball.id}
+              position={[ball.x, ball.y, ball.z]}
+              direction={ball.direction}
+            />
+          ))}
+        </>
+      )}
+
+      {/* Player ship - always render */}
       {gameState.player && (
         <Player
           player={gameState.player}
@@ -249,18 +272,6 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           }}
         />
       )}
-
-      {/* Other player ships */}
-      <OtherShips players={gameState.otherPlayers} />
-
-      {/* Cannon balls */}
-      {gameState.cannonBalls.map((ball) => (
-        <CannonBall
-          key={ball.id}
-          position={[ball.x, ball.y, ball.z]}
-          direction={ball.direction}
-        />
-      ))}
     </>
   );
 }

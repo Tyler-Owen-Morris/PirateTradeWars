@@ -1,13 +1,13 @@
 import { redisStorage } from "../redisStorage";
 import { defaultPorts, goodTypes } from "./shipTypes";
 import { v4 as uuidv4 } from "uuid";
-import { MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES, SHIP_STATS } from "@shared/gameConstants";
+import { MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES, SHIP_STATS, GOODS, DEFAULT_PORTS } from "@shared/gameConstants";
 
 export const TICK_RATE = 100; // ms (5 updates/second)
 export const BROADCAST_RATE = 100; // ms (5 updates/second)
 export const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
-export const MAX_PLAYERS_PER_INSTANCE = 100;
-export const GRACE_PERIOD = 600000; // 10 minutes
+export const MAX_PLAYERS = 1000;
+export const GRACE_PERIOD = 60000; // 1 minute
 
 export interface PlayerState {
   id: string;
@@ -119,6 +119,7 @@ class GameState {
   }
 
   async addPlayer(name: string, shipType: string, ship: any) {
+    //console.log("addPlayer", name, shipType, ship);
     if (await redisStorage.isNameActive(name)) return null;
     const x = Math.random() * MAP_WIDTH;
     const z = Math.random() * MAP_HEIGHT;
@@ -155,8 +156,7 @@ class GameState {
       dead: false,
     };
     this.state.players[uuid] = player;
-    await redisStorage.addActiveName(name);
-    //await redisStorage.createPlayer(player);
+    //await redisStorage.addActiveName(name, uuid);
     return player;
   }
 
@@ -254,21 +254,31 @@ class GameState {
     for (const playerId in this.state.players) {
       const player = this.state.players[playerId];
 
-      if (player.dead && now - player.lastSeen > 10000) {
+      // if the player has been dead for 15 seconds, remove them from the active names
+      if (player.dead && now - player.lastSeen > 15 * 1000) {
         console.log(`Removing dead player ${player.name} (${playerId})`);
         await redisStorage.removeActiveName(player.name);
         delete this.state.players[playerId];
         continue;
       }
 
-      if (!player.connected && !player.dead && now - player.lastSeen > GRACE_PERIOD) {
-        console.log(`Marking player ${player.name} (${playerId}) as dead`);
-        player.dead = true;
-        await redisStorage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold, achievedAt: new Date() });
-        this.state.leaderboard = await redisStorage.getLeaderboard(10);
-        this.broadcastDead(playerId);
+      if (!player.connected && now - player.lastSeen > GRACE_PERIOD) {
+        // update the record in redis, and remove the player from the game state
+        console.log(`Removing disconnected player ${player.name} (${playerId})`);
+        await redisStorage.updatePlayerState(player);
+        delete this.state.players[playerId];
         continue;
       }
+
+      // old disconnect logic marked the player as dead, we're not doing that anymore
+      // if (!player.connected && !player.dead && now - player.lastSeen > GRACE_PERIOD) {
+      //   console.log(`Marking player ${player.name} (${playerId}) as dead`);
+      //   player.dead = true;
+      //   await redisStorage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold, achievedAt: new Date() });
+      //   this.state.leaderboard = await redisStorage.getLeaderboard(10);
+      //   this.broadcastDead(playerId);
+      //   continue;
+      // }
 
       if (player.sunk || player.dead) continue;
 
@@ -466,12 +476,12 @@ export async function initializeGameState() {
   try {
     const ports = await redisStorage.getPorts();
     if (ports.length === 0) {
-      for (const port of defaultPorts) await redisStorage.createPort(port);
+      for (const port of DEFAULT_PORTS) await redisStorage.createPort(port);
       console.log("Ports initialized");
     }
     const goods = await redisStorage.getGoods();
     if (goods.length === 0) {
-      for (const good of goodTypes) await redisStorage.createGood(good);
+      for (const good of GOODS) await redisStorage.createGood(good);
       console.log("Goods initialized");
     }
     for (const port of await redisStorage.getPorts()) {
