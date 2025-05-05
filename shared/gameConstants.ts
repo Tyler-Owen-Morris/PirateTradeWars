@@ -90,6 +90,12 @@ export const SHIP_STATS = {
     }
 };
 
+export const SHIP_PRICES = {
+    [SHIP_TYPES.BRIGANTINE]: 100,
+    [SHIP_TYPES.GALLEON]: 200,
+    [SHIP_TYPES.MAN_O_WAR]: 400
+};
+
 // Game goods
 export const GOODS = [
     { id: 1, name: "Fish", basePrice: 10, fluctuation: 20 },

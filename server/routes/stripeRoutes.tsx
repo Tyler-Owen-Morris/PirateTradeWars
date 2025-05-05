@@ -2,18 +2,12 @@ import type { Express, Request, Response } from "express";
 import express from "express";
 import Stripe from "stripe";
 import { redisStorage } from '../redisStorage';
+import { SHIP_PRICES } from '@shared/gameConstants';
 
 // Initialize Stripe with your secret key (loaded from environment variable)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: '2025-04-30.basil',
 });
-
-// Hardcoded ship prices (in cents) - replace with database/config if needed
-const SHIP_PRICES: { [key: string]: number } = {
-    brigantine: 100, // $1.00
-    galleon: 200,    // $2.00
-    'man-o-war': 400 // $4.00
-};
 
 // Webhook secret for verifying Stripe webhook signatures
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;

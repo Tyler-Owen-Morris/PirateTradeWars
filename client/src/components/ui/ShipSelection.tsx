@@ -13,7 +13,7 @@ import { useGameState } from "@/lib/stores/useGameState";
 import { useSocket } from "@/lib/stores/useSocket";
 import { Alert, AlertDescription } from "./alert";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { SHIP_TYPES, SHIP_DESCRIPTIONS } from "@shared/gameConstants";
+import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES } from "@shared/gameConstants";
 import PaymentModal from "./PaymentModal";
 
 export default function ShipSelection() {
@@ -104,11 +104,6 @@ export default function ShipSelection() {
   const launchStripeCheckout = async (ship: any) => {
     try {
       // Call backend to create a Payment Intent
-      const SHIP_PRICES: { [key: string]: number } = {
-        brigantine: 100, // $1.00
-        galleon: 200,    // $2.00
-        'man-o-war': 400 // $4.00
-      };
       const response = await fetch('/api/stripe/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -478,13 +473,16 @@ export default function ShipSelection() {
         </CardFooter>
       </Card>
       {/* Payment modal */}
-      <PaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        onSuccess={handlePaymentSuccess}
-        clientSecret={clientSecret || ''}
-        shipName={selectedShip?.name || ''}
-      />
+      {showPaymentModal && clientSecret && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={handlePaymentSuccess}
+          clientSecret={clientSecret}
+          shipName={selectedShip?.name || ''}
+          amount={selectedShip ? SHIP_PRICES[selectedShip.name] : 0}
+        />
+      )}
     </div>
   );
 }
