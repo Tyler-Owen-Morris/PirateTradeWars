@@ -220,7 +220,10 @@ export default function ShipSelection() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4">
-      <Card className="w-full max-w-5xl border-amber-500 border flex flex-col rounded-xl" style={{ maxHeight: '95vh' }}>
+      <Card className="w-full max-w-5xl border-amber-500 border flex flex-col rounded-xl" style={{
+        maxHeight: '80vh',
+        marginBottom: 'env(safe-area-inset-bottom, 20px)'
+      }}>
         <CardHeader className="bg-amber-900 text-white rounded-t-xl">
           <CardTitle className="text-2xl md:text-3xl text-center">
             Choose Your <span className="text-amber-100">Captain's Name</span> and <span className="text-amber-100">Ship</span>
@@ -370,7 +373,9 @@ export default function ShipSelection() {
           </div>
         </CardContent>
 
-        <CardFooter className="flex flex-col sm:flex-row items-center justify-center p-4 bg-amber-900 rounded-b-xl sticky bottom-0 gap-4">
+        <CardFooter className="flex flex-col sm:flex-row items-center justify-center p-4 bg-amber-900 rounded-b-xl sticky bottom-0 gap-4" style={{
+          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 20px))'
+        }}>
           <Button
             onClick={handleStartGame}
             disabled={!selectedShip || !playerName || playerName.length < 3 || loading}
