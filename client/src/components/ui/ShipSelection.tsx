@@ -13,7 +13,7 @@ import { useGameState } from "@/lib/stores/useGameState";
 import { useSocket } from "@/lib/stores/useSocket";
 import { Alert, AlertDescription } from "./alert";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES } from "@shared/gameConstants";
+import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES, SHIP_STATS } from "@shared/gameConstants";
 import PaymentModal from "./PaymentModal";
 
 export default function ShipSelection() {
@@ -219,260 +219,174 @@ export default function ShipSelection() {
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4 overflow-y-auto">
-      <Card className="w-full max-w-4xl border-amber-500 border flex flex-col mb-20" style={{ maxHeight: '90vh' }}>
-        <CardHeader className="bg-amber-900 text-white">
-          <CardTitle className="text-2xl text-center">
-            Choose Your <br />
-            <span className="text-amber-100">Captain's Name</span> and <span className="text-amber-100">Ship</span>
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4">
+      <Card className="w-full max-w-5xl border-amber-500 border flex flex-col rounded-xl" style={{ maxHeight: '95vh' }}>
+        <CardHeader className="bg-amber-900 text-white rounded-t-xl">
+          <CardTitle className="text-2xl md:text-3xl text-center">
+            Choose Your <span className="text-amber-100">Captain's Name</span> and <span className="text-amber-100">Ship</span>
           </CardTitle>
-          {/* <CardDescription className="text-center text-amber-100">
-            Select your vessel for your pirate adventure
-            {playerName ? `, Captain ${playerName}` : ""}
-          </CardDescription> */}
         </CardHeader>
 
-        <CardContent className="mt-4 overflow-y-auto flex-1">
-          {/* Always show player name input field */}
+        <CardContent className="mt-4 overflow-y-auto flex-1 px-4 sm:px-6">
           <div className="mb-6">
             <label
               htmlFor="playerName"
-              className="block text-sm font-medium mb-1 text-white"
+              className="block text-sm font-medium mb-2 text-white"
             >
               Your Captain's Name:
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 id="playerName"
-                className="px-3 py-2 bg-gray-100 border border-amber-300 rounded-md w-full"
+                className="px-3 py-2 bg-gray-100 border border-amber-300 rounded-md w-full text-sm"
                 value={playerName}
                 onChange={(e) => {
                   setPlayerName(e.target.value);
-                  // Save to localStorage for persistence
                   localStorage.setItem("playerName", e.target.value);
                 }}
                 placeholder="Enter your name (min. 3 characters)"
               />
+              <Button
+                onClick={generatePirateName}
+                className="bg-amber-700 hover:bg-amber-600 text-white py-2 px-4 rounded-md transition text-sm"
+                data-testid="cypress-generate-random-name-button"
+              >
+                Random Name
+              </Button>
             </div>
           </div>
+
           {(shipError || socketError) && (
             <Alert variant="destructive" className="mb-4 text-white">
-              {/* <p>{shipError}ship error</p>
-              <p>{socketError}socket errro</p> */}
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 {shipError || socketError}
                 {socketError && socketError.includes("Name already taken") && (
-                  <div className="mt-2">
-                    <p>Please try a different name</p>
-
-                  </div>
+                  <p className="mt-2">Please try a different name</p>
                 )}
               </AlertDescription>
             </Alert>
           )}
-          <Alert variant="default" className="mb-4">
 
-            <AlertDescription className="text-white">
-              <p>
-                <strong>Note:</strong> you may generate a random name if you're not feeling creative.
-              </p>
-            </AlertDescription>
-            <Button
-              onClick={generatePirateName}
-              className="mt-2 bg-amber-700 hover:bg-amber-600 text-white py-1 px-3 rounded-md transition"
-              size="sm"
-              data-testid="cypress-generate-random-name-button"
-            >
-              Generate Random Name
-            </Button>
-          </Alert>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Free Ship: Sloop */}
-            <Card
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.SLOOP
-                ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-100"
-                : "bg-gray-50 border-2 border-transparent"
-                }`}
-              onClick={() => handleShipSelect(SHIP_TYPES.SLOOP)}
-              data-testid="cypress-sloop-card"
-            >
-              <CardHeader className="p-4 pb-2 bg-amber-100">
-                <CardTitle className="text-lg text-amber-900">
-                  The Sloop
-                </CardTitle>
-                <CardDescription className="text-xs">Free</CardDescription>
-              </CardHeader>
-              <CardContent className="px-4 pb-2">
-                <div className="h-40 bg-blue-100 rounded-md flex items-center justify-center border border-amber-200">
-                  <img
-                    src="/images/ships/sloop.jpg"
-                    alt="The Sloop"
-                    className="object-cover h-full w-full rounded-md"
-                  />
-                </div>
-                <div className="mt-4 text-xs">
-                  <p className="mb-1">{SHIP_DESCRIPTIONS[SHIP_TYPES.SLOOP]}</p>
-                  <ul className="space-y-1 mt-2">
-                    <li>• Hull: 50 HP</li>
-                    {/* <li>• Armor: 0%</li> */}
-                    <li>• Cargo: 20 units</li>
-                    {/* <li>• Speed: 5</li> */}
-                    <li>• Cannons: 1 (5 dmg)</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Paid Ship: Brigantine */}
-            <Card
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.BRIGANTINE
-                ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-100"
-                : "bg-gray-50 border-2 border-transparent"
-                }`}
-              onClick={() => handleShipSelect(SHIP_TYPES.BRIGANTINE)}
-              data-testid="cypress-brigantine-card"
-            >
-              <CardHeader className="p-4 pb-2 bg-amber-100">
-                <CardTitle className="text-lg text-amber-900">
-                  The Brigantine
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Premium Tier 1
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-4 pb-2">
-                <div className="h-40 bg-green-100 rounded-md flex items-center justify-center border border-amber-200">
-                  <img
-                    src="/images/ships/brigantine.jpg"
-                    alt="The Brigantine"
-                    className="object-cover h-full w-full rounded-md"
-                  />
-                </div>
-                <div className="mt-4 text-xs">
-                  <p className="mb-1">
-                    {SHIP_DESCRIPTIONS[SHIP_TYPES.BRIGANTINE]}
-                  </p>
-                  <ul className="space-y-1 mt-2">
-                    <li>• Hull: 150 HP</li>
-                    {/* <li>• Armor: 10%</li> */}
-                    <li>• Cargo: 40 units</li>
-                    {/* <li>• Speed: 6</li> */}
-                    <li>• Cannons: 2 (8 dmg)</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Paid Ship: Galleon */}
-            <Card
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.GALLEON
-                ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-100"
-                : "bg-gray-50 border-2 border-transparent"
-                }`}
-              onClick={() => handleShipSelect(SHIP_TYPES.GALLEON)}
-              data-testid="cypress-galleon-card"
-            >
-              <CardHeader className="p-4 pb-2 bg-amber-100">
-                <CardTitle className="text-lg text-amber-900">
-                  The Galleon
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Premium Tier 2
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-4 pb-2">
-                <div className="h-40 bg-yellow-100 rounded-md flex items-center justify-center border border-amber-200">
-                  <img
-                    src="/images/ships/galleon.jpg"
-                    alt="The Galleon"
-                    className="object-cover h-full w-full rounded-md"
-                  />
-                </div>
-                <div className="mt-4 text-xs">
-                  <p className="mb-1">
-                    {SHIP_DESCRIPTIONS[SHIP_TYPES.GALLEON]}
-                  </p>
-                  <ul className="space-y-1 mt-2">
-                    <li>• Hull: 300 HP</li>
-                    {/* <li>• Armor: 20%</li> */}
-                    <li>• Cargo: 60 units</li>
-                    {/* <li>• Speed: 7</li> */}
-                    <li>• Cannons: 3 (12 dmg)</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Paid Ship: Man-o'-War */}
-            <Card
-              className={`cursor-pointer transition-all transform hover:scale-105 ${selectedShip?.name === SHIP_TYPES.MAN_O_WAR
-                ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-100"
-                : "bg-gray-50 border-2 border-transparent"
-                }`}
-              onClick={() => handleShipSelect(SHIP_TYPES.MAN_O_WAR)}
-              data-testid="cypress-man-o-war-card"
-            >
-              <CardHeader className="p-4 pb-2 bg-amber-100">
-                <CardTitle className="text-lg text-amber-900">
-                  The Man-o'-War
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Premium Tier 3
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="px-4 pb-2">
-                <div className="h-40 bg-red-100 rounded-md flex items-center justify-center border border-amber-200">
-                  <img
-                    src="/images/ships/man-o-war.jpg"
-                    alt="The Man-o'-War"
-                    className="object-cover h-full w-full rounded-md"
-                  />
-                </div>
-                <div className="mt-4 text-xs">
-                  <p className="mb-1">
-                    {SHIP_DESCRIPTIONS[SHIP_TYPES.MAN_O_WAR]}
-                  </p>
-                  <ul className="space-y-1 mt-2">
-                    <li>• Hull: 500 HP</li>
-                    {/* <li>• Armor: 30%</li> */}
-                    <li>• Cargo: 80 units</li>
-                    {/* <li>• Speed: 8</li> */}
-                    <li>• Cannons: 4 (15 dmg)</li>
-                  </ul>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              {
+                type: SHIP_TYPES.SLOOP,
+                name: "The Sloop",
+                tier: "Free",
+                color: "blue-100",
+                stats: {
+                  price: "Free",
+                  ttl: `${SHIP_STATS[SHIP_TYPES.SLOOP].playerTTL / 60} min`,
+                  hull: "50 HP",
+                  cargo: "20 units",
+                  cannons: "1 (5 dmg)",
+                },
+                testId: "cypress-sloop-card",
+              },
+              {
+                type: SHIP_TYPES.BRIGANTINE,
+                name: "The Brigantine",
+                tier: "Premium Tier 1",
+                color: "green-100",
+                stats: {
+                  price: `$${(SHIP_PRICES[SHIP_TYPES.BRIGANTINE] / 100).toFixed(2)}`,
+                  ttl: `${(SHIP_STATS[SHIP_TYPES.BRIGANTINE].playerTTL / 60) / 60} hour`,
+                  hull: "150 HP",
+                  cargo: "40 units",
+                  cannons: "2 (8 dmg)",
+                },
+                testId: "cypress-brigantine-card",
+              },
+              {
+                type: SHIP_TYPES.GALLEON,
+                name: "The Galleon",
+                tier: "Premium Tier 2",
+                color: "yellow-100",
+                stats: {
+                  price: `$${(SHIP_PRICES[SHIP_TYPES.GALLEON] / 100).toFixed(2)}`,
+                  ttl: `${(SHIP_STATS[SHIP_TYPES.GALLEON].playerTTL / 60) / 60} hours`,
+                  hull: "300 HP",
+                  cargo: "60 units",
+                  cannons: "3 (12 dmg)",
+                },
+                testId: "cypress-galleon-card",
+              },
+              {
+                type: SHIP_TYPES.MAN_O_WAR,
+                name: "The Man-o'-War",
+                tier: "Premium Tier 3",
+                color: "red-100",
+                stats: {
+                  price: `$${(SHIP_PRICES[SHIP_TYPES.MAN_O_WAR] / 100).toFixed(2)}`,
+                  ttl: `${(SHIP_STATS[SHIP_TYPES.MAN_O_WAR].playerTTL / 60) / 60} hours`,
+                  hull: "500 HP",
+                  cargo: "80 units",
+                  cannons: "4 (15 dmg)",
+                },
+                testId: "cypress-man-o-war-card",
+              },
+            ].map((ship) => (
+              <Card
+                key={ship.type}
+                className={`cursor-pointer transition-all transform hover:scale-105 rounded-xl overflow-hidden ${selectedShip?.name === ship.type
+                  ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-50"
+                  : "bg-gray-50 border-2 border-transparent"
+                  }`}
+                onClick={() => handleShipSelect(ship.type)}
+                data-testid={ship.testId}
+              >
+                <CardHeader className="p-3 bg-amber-100 relative">
+                  <CardTitle className="text-lg text-amber-900 pr-16">{ship.name}</CardTitle>
+                  <CardDescription className="text-xs text-amber-700">{ship.tier}</CardDescription>
+                  <div className="absolute top-3 right-3 bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {ship.stats.price}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-3">
+                  <div className={`h-32 bg-${ship.color} rounded-lg flex items-center justify-center border border-amber-200`}>
+                    <img
+                      src={`/images/ships/${ship.type.toLowerCase()}.jpg`}
+                      alt={ship.name}
+                      className="object-cover h-full w-full rounded-lg"
+                    />
+                  </div>
+                  <div className="mt-3 text-xs text-gray-800">
+                    <p className="mb-2 text-xsm h-10">{SHIP_DESCRIPTIONS[ship.type]}</p>
+                    <ul className="space-y-1">
+                      <li>
+                        <span className="font-bold text-amber-700 text-sm">Persistence:</span>
+                        <span className="ml-1 text-amber-600 font-semibold text-sm">{ship.stats.ttl}</span>
+                      </li>
+                      <li><span className="font-semibold">Hull:</span> {ship.stats.hull}</li>
+                      <li><span className="font-semibold">Cargo:</span> {ship.stats.cargo}</li>
+                      <li><span className="font-semibold">Cannons:</span> {ship.stats.cannons}</li>
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </CardContent>
 
-        <CardFooter className="flex justify-center p-6 bg-amber-900 rounded-b-lg sticky bottom-0">
+        <CardFooter className="flex flex-col sm:flex-row items-center justify-center p-4 bg-amber-900 rounded-b-xl sticky bottom-0 gap-4">
           <Button
             onClick={handleStartGame}
-            disabled={
-              !selectedShip || !playerName || playerName.length < 3 || loading
-            }
-            className="w-1/2 bg-amber-600 hover:bg-amber-700 text-white font-bold border-2 border-amber-200"
-            size="lg"
+            disabled={!selectedShip || !playerName || playerName.length < 3 || loading}
+            className="w-full sm:w-1/3 bg-amber-600 hover:bg-amber-700 text-white font-bold border-2 border-amber-200 text-sm py-3 rounded-lg"
             data-testid="cypress-start-game-button"
           >
             {loading ? "Preparing Ship..." : "Set Sail!"}
           </Button>
           {!playerName && (
-            <p className="ml-4 text-sm text-amber-200">
-              Enter your name first!
-            </p>
+            <p className="text-sm text-amber-200 text-center">Enter your name first!</p>
           )}
           {playerName && playerName.length < 3 && (
-            <p className="ml-4 text-sm text-amber-200">
-              Name must be at least 3 characters
-            </p>
+            <p className="text-sm text-amber-200 text-center">Name must be at least 3 characters</p>
           )}
         </CardFooter>
       </Card>
-      {/* Payment modal */}
       {showPaymentModal && clientSecret && (
         <PaymentModal
           isOpen={showPaymentModal}

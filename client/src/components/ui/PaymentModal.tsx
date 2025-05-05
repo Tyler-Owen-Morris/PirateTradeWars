@@ -45,8 +45,28 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
     console.log('Formatted price:', formattedPrice);
 
     return (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <div style={{ background: 'white', padding: '24px', borderRadius: '12px', width: '400px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}>
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            overflow: 'auto',
+            padding: '20px'
+        }}>
+            <div style={{
+                background: 'white',
+                padding: '24px',
+                borderRadius: '12px',
+                width: '400px',
+                maxWidth: '100%',
+                boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                margin: 'auto'
+            }}>
                 <div style={{
                     borderBottom: '1px solid #e5e7eb',
                     paddingBottom: '16px',

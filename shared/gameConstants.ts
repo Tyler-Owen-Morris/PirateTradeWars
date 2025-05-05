@@ -28,7 +28,7 @@ export const SHIP_DISPLAY_NAMES = {
 
 // Ship descriptions
 export const SHIP_DESCRIPTIONS = {
-    [SHIP_TYPES.SLOOP]: "A small, rickety vessel for new pirates. Cheap but vulnerable, it's a starting point for all free players.",
+    [SHIP_TYPES.SLOOP]: "A small, rickety vessel for new pirates.It's a starting point for all free players.",
     [SHIP_TYPES.BRIGANTINE]: "A sturdy ship for aspiring captains, offering a balanced upgrade over the free Sloop.",
     [SHIP_TYPES.GALLEON]: "A formidable merchant vessel, blending cargo capacity with combat strength.",
     [SHIP_TYPES.MAN_O_WAR]: "The ultimate warship, a terror of the seas built for dominance."
