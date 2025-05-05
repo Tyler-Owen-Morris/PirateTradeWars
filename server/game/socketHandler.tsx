@@ -138,7 +138,7 @@ export function handleSocketConnection(ws: WebSocket) {
         gameState.state.players[data.id] = existingPlayer;
       }
     }
-    console.log("existing player:", existingPlayer)
+    //console.log("existing player:", existingPlayer)
     if (data.name !== existingPlayer.name && await redisStorage.isNameActive(data.name)) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }

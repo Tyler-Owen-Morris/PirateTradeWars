@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { ShipStats } from "@/types";
 import { apiRequest } from "../queryClient";
+import { SHIP_TYPES, SHIP_DISPLAY_NAMES, SHIP_DESCRIPTIONS, SHIP_STATS } from "@shared/gameConstants";
 
 interface ShipState {
   ships: ShipStats[];
@@ -46,63 +47,31 @@ export const useShip = create<ShipState>((set, get) => ({
       const fallbackShips: ShipStats[] = [
         {
           id: 1,
-          name: "sloop",
-          displayName: "The Sloop",
-          description: "A small, rickety vessel for new pirates. Cheap but vulnerable, it's a starting point for all free players.",
-          hullStrength: 50,
-          armor: 0,
-          cargoCapacity: 20,
-          speed: 5,
-          cannonCount: 1,
-          cannonDamage: 5,
-          cannonReload: 2.0,
-          repairCost: 100,
-          isPaid: false
+          name: SHIP_TYPES.SLOOP,
+          displayName: SHIP_DISPLAY_NAMES[SHIP_TYPES.SLOOP],
+          description: SHIP_DESCRIPTIONS[SHIP_TYPES.SLOOP],
+          ...SHIP_STATS[SHIP_TYPES.SLOOP]
         },
         {
           id: 2,
-          name: "brigantine",
-          displayName: "The Brigantine",
-          description: "A sturdy ship for aspiring captains, offering a balanced upgrade over the free Sloop.",
-          hullStrength: 150,
-          armor: 10,
-          cargoCapacity: 40,
-          speed: 6,
-          cannonCount: 2,
-          cannonDamage: 8,
-          cannonReload: 1.8,
-          repairCost: 300,
-          isPaid: true
+          name: SHIP_TYPES.BRIGANTINE,
+          displayName: SHIP_DISPLAY_NAMES[SHIP_TYPES.BRIGANTINE],
+          description: SHIP_DESCRIPTIONS[SHIP_TYPES.BRIGANTINE],
+          ...SHIP_STATS[SHIP_TYPES.BRIGANTINE]
         },
         {
           id: 3,
-          name: "galleon",
-          displayName: "The Galleon",
-          description: "A formidable merchant vessel, blending cargo capacity with combat strength.",
-          hullStrength: 300,
-          armor: 20,
-          cargoCapacity: 60,
-          speed: 7,
-          cannonCount: 3,
-          cannonDamage: 12,
-          cannonReload: 1.5,
-          repairCost: 600,
-          isPaid: true
+          name: SHIP_TYPES.GALLEON,
+          displayName: SHIP_DISPLAY_NAMES[SHIP_TYPES.GALLEON],
+          description: SHIP_DESCRIPTIONS[SHIP_TYPES.GALLEON],
+          ...SHIP_STATS[SHIP_TYPES.GALLEON]
         },
         {
           id: 4,
-          name: "man-o-war",
-          displayName: "The Man-o'-War",
-          description: "The ultimate warship, a terror of the seas built for dominance.",
-          hullStrength: 500,
-          armor: 30,
-          cargoCapacity: 80,
-          speed: 8,
-          cannonCount: 4,
-          cannonDamage: 15,
-          cannonReload: 1.2,
-          repairCost: 1000,
-          isPaid: true
+          name: SHIP_TYPES.MAN_O_WAR,
+          displayName: SHIP_DISPLAY_NAMES[SHIP_TYPES.MAN_O_WAR],
+          description: SHIP_DESCRIPTIONS[SHIP_TYPES.MAN_O_WAR],
+          ...SHIP_STATS[SHIP_TYPES.MAN_O_WAR]
         }
       ];
 

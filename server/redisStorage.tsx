@@ -3,8 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { type User, type Player, type ShipType, type Port, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
 import { PlayerState } from '@/types';
 import { SHIP_STATS } from '@shared/gameConstants';
-import dotenv from 'dotenv';
 import { set } from 'node_modules/cypress/types/lodash';
+import dotenv from 'dotenv';
 dotenv.config();
 
 interface Player {
@@ -72,6 +72,7 @@ export class RedisStorage {
                     console.log(`>>>>>>>>>>>>>> Detected expiration of player:${playerId}`);
                     // fetch the player
                     const player = await this.getPlayer(playerId);
+                    console.log("got player to be removed player:", player)
                     if (player) {
                         // add the player to the leaderboard
                         const lederboardentry = await this.addToLeaderboard({
@@ -148,7 +149,7 @@ export class RedisStorage {
         // const id = uuidv4();
         const id = player.id;
         const newPlayer = { ...player };
-        console.log("newPlayer:", newPlayer)
+        //console.log("newPlayer:", newPlayer)
         // Get the playerTTL from SHIP_STATS based on ship type
         const shipStats = SHIP_STATS[newPlayer.shipType];
         if (!shipStats) {
@@ -549,6 +550,7 @@ export class RedisStorage {
     }
 
     private deserializeShipType(data: any): ShipType {
+        //console.log("deserializing ship type:", data.isPaid)
         return {
             ...data,
             id: parseInt(data.id),
@@ -560,7 +562,7 @@ export class RedisStorage {
             cannonDamage: parseInt(data.cannonDamage),
             cannonReload: parseInt(data.cannonReload),
             repairCost: parseInt(data.repairCost),
-            isPaid: data.isPaid === 'true'
+            isPaid: data.isPaid
         };
     }
 

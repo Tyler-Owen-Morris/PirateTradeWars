@@ -11,8 +11,10 @@ export interface ShipStats {
   cannonCount: number;
   cannonDamage: number;
   cannonReload: number;
+  cannonRange: number;
   repairCost: number;
   isPaid: boolean;
+  playerTTL: number;
 }
 
 // Player state

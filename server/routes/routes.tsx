@@ -1,20 +1,21 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
-// import { storage } from "./storage";
-import { redisStorage } from './redisStorage'
+import { redisStorage } from '../redisStorage'
 import { WebSocketServer } from "ws";
-import { handleSocketConnection } from "./game/socketHandler";
-import { initializeGameState, gameState } from "./game/gameState";
-import { setupShipTypes } from "./game/shipTypes";
+import { handleSocketConnection } from "../game/socketHandler";
+import { initializeGameState, gameState } from "../game/gameState";
+import { setupShipTypes } from "../game/shipTypes";
 import crypto from "crypto";
-
 import { validate as isUUID } from "uuid";
-
+import { registerStripeRoutes } from "./stripeRoutes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
   await setupShipTypes();
   await initializeGameState();
+
+  registerStripeRoutes(app)
 
   // Start game server for AWS Autoscaling
   app.post('/start-game', async (req, res) => {

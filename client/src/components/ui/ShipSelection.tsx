@@ -14,6 +14,7 @@ import { useSocket } from "@/lib/stores/useSocket";
 import { Alert, AlertDescription } from "./alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { SHIP_TYPES, SHIP_DESCRIPTIONS } from "@shared/gameConstants";
+import PaymentModal from "./PaymentModal";
 
 export default function ShipSelection() {
   const {
@@ -27,6 +28,8 @@ export default function ShipSelection() {
   const { register, error: socketError, connected } = useSocket();
   const [loading, setLoading] = useState(false);
   const [playerName, setPlayerName] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   // Log current state for debugging
   useEffect(() => {
@@ -98,8 +101,48 @@ export default function ShipSelection() {
     localStorage.setItem("playerName", randomName);
   }
 
+  const launchStripeCheckout = async (ship: any) => {
+    try {
+      // Call backend to create a Payment Intent
+      const SHIP_PRICES: { [key: string]: number } = {
+        brigantine: 100, // $1.00
+        galleon: 200,    // $2.00
+        'man-o-war': 400 // $4.00
+      };
+      const response = await fetch('/api/stripe/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shipName: ship.name,
+          amount: SHIP_PRICES[ship.name], // Amount in cents (e.g., $10.00 = 1000)
+          currency: 'usd',
+          playerName: playerName,
+        }),
+      });
+      console.log("initiate payment response:", response)
+      const { clientSecret } = await response.json();
+      if (!clientSecret) throw new Error('Failed to create payment intent');
+
+      // Open the payment modal
+      setClientSecret(clientSecret);
+      setShowPaymentModal(true);
+    } catch (error) {
+      console.error('Error initiating payment:', error);
+      alert('Failed to initiate payment. Please try again.');
+    }
+  };
+
+  const handlePaymentSuccess = () => {
+    if (!selectedShip) {
+      console.error('Cannot start game: missing ship');
+      return;
+    }
+    // Called when payment succeeds
+    register(playerName, selectedShip.name); // Proceed with registration
+  };
+
   // Start game with selected ship
-  const handleStartGame = () => {
+  const handleStartGame = async () => {
     if (!selectedShip || !playerName || playerName.length < 3) {
       console.log("Cannot start game: missing requirements", {
         hasShip: !!selectedShip,
@@ -108,49 +151,58 @@ export default function ShipSelection() {
       });
       return;
     }
+    console.log("selectedShip:", selectedShip)
 
     // Clear any previous errors
     useSocket.getState().resetError();
 
-    console.log(
-      "Starting game with ship:",
-      selectedShip.name,
-      "and player name:",
-      playerName,
-    );
-    setLoading(true);
-
-    try {
-      // First connect to WebSocket if not connected
-      if (!connected) {
-        console.log("Connecting to WebSocket...");
-        useSocket.getState().connect();
-      }
-
-      // Wait a moment for connection to establish if needed
-      setTimeout(
-        () => {
-          try {
-            // Register player with server through WebSocket
-            console.log("Registering player with WebSocket...");
-            register(playerName, selectedShip.name);
-
-            // We don't immediately call startGame() here anymore
-            // Instead, we wait for the registered event to be confirmed by the server
-            // The useEffect above will handle starting the game when registration is successful
-
-            // If there's an error, the loading state will be reset in the useEffect below
-          } catch (innerError) {
-            console.error("Error during game start sequence:", innerError);
-            setLoading(false);
-          }
-        },
-        connected ? 0 : 500,
+    if (selectedShip.isPaid) {
+      // Launch Stripe checkout
+      launchStripeCheckout(selectedShip);
+    } else {
+      // No payment required for free ship
+      console.log(
+        "Starting game with ship:",
+        selectedShip.name,
+        "and player name:",
+        playerName,
       );
-    } catch (error) {
-      console.error("Error starting game:", error);
-      setLoading(false);
+      setLoading(true);
+      try {
+        // First connect to WebSocket if not connected
+        if (!connected) {
+          console.log("Connecting to WebSocket...");
+          useSocket.getState().connect();
+        }
+
+        // Wait a moment for connection to establish if needed
+        setTimeout(
+          () => {
+            try {
+              // Register player with server through WebSocket
+              console.log("Registering player with WebSocket...");
+              register(playerName, selectedShip.name);
+
+              // We don't immediately call startGame() here anymore
+              // Instead, we wait for the registered event to be confirmed by the server
+              // The useEffect above will handle starting the game when registration is successful
+
+              // If there's an error, the loading state will be reset in the useEffect below
+            } catch (innerError) {
+              console.error("Error during game start sequence:", innerError);
+              setLoading(false);
+            }
+          },
+          connected ? 0 : 500,
+        );
+      } catch (error) {
+        console.error("Error starting game:", error);
+        setLoading(false);
+      }
     }
+
+
+
   };
 
   // Reset loading state if there's an error
@@ -425,6 +477,14 @@ export default function ShipSelection() {
           )}
         </CardFooter>
       </Card>
+      {/* Payment modal */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={handlePaymentSuccess}
+        clientSecret={clientSecret || ''}
+        shipName={selectedShip?.name || ''}
+      />
     </div>
   );
 }
