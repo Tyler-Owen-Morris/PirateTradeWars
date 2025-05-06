@@ -90,6 +90,12 @@ export const SHIP_STATS = {
     }
 };
 
+export const SHIP_UPGRADE_PATH = [
+    { from: SHIP_TYPES.SLOOP, to: SHIP_TYPES.BRIGANTINE, cost: 5000 },
+    { from: SHIP_TYPES.BRIGANTINE, to: SHIP_TYPES.GALLEON, cost: 9000 },
+    { from: SHIP_TYPES.GALLEON, to: SHIP_TYPES.MAN_O_WAR, cost: 12000 },
+];
+
 export const SHIP_PRICES = {
     [SHIP_TYPES.BRIGANTINE]: 100,
     [SHIP_TYPES.GALLEON]: 200,

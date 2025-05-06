@@ -4,6 +4,7 @@ import { WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { Or } from "drizzle-orm";
 import { PlayerState } from "../game/gameState";
+import { SHIP_UPGRADE_PATH, SHIP_STATS, MAP_WIDTH, MAP_HEIGHT } from "@shared/gameConstants";
 
 interface ConnectMessage {
   type: "connect";
@@ -33,11 +34,16 @@ interface TradeMessage {
   quantity: number;
 }
 
+interface UpgradeShipMessage {
+  type: "upgradeShip";
+  portId: number;
+}
+
 interface ScuttleMessage {
   type: "scuttle";
 }
 
-type ClientMessage = ConnectMessage | ReconnectMessage | InputMessage | TradeMessage | ScuttleMessage;
+type ClientMessage = ConnectMessage | ReconnectMessage | InputMessage | TradeMessage | ScuttleMessage | UpgradeShipMessage;
 
 export function handleSocketConnection(ws: WebSocket) {
   let playerId: string | null = null;
@@ -58,6 +64,9 @@ export function handleSocketConnection(ws: WebSocket) {
           break;
         case "trade":
           if (playerId) await handleTrade(playerId, data);
+          break;
+        case "upgradeShip":
+          if (playerId && data.portId) await handleUpgradeShip(playerId, data.portId, ws);
           break;
         case "scuttle":
           if (playerId) await handleScuttle(playerId, ws);
@@ -247,6 +256,48 @@ export function handleSocketConnection(ws: WebSocket) {
       }));
     }
     // await redisStorage.updatePlayerGold(player.playerId, player.gold);
+  }
+
+  async function handleUpgradeShip(playerId: string, portId: number, ws: WebSocket) {
+    const player = gameState.state.players[playerId];
+    if (!player) return sendError(ws, "Player not found");
+
+    const port = await redisStorage.getPort(portId);
+    if (!port) return sendError(ws, "Port not found");
+
+    const dx = Math.min(Math.abs(player.x - port.x), MAP_WIDTH - Math.abs(player.x - port.x));
+    const dz = Math.min(Math.abs(player.z - port.z), MAP_HEIGHT - Math.abs(player.z - port.z));
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    if (distance > port.safeRadius) return sendError(ws, "Too far from port");
+
+    const currentShip = player.shipType;
+    const upgradeOption = SHIP_UPGRADE_PATH.find(option => option.from === currentShip);
+    if (!upgradeOption) return sendError(ws, "No upgrade available");
+
+    const nextShipType = upgradeOption.to;
+    const upgradeCost = upgradeOption.cost;
+    if (player.gold < upgradeCost) return sendError(ws, "Not enough gold");
+
+    player.gold -= upgradeCost;
+    player.shipType = nextShipType;
+
+    const newShipStats = SHIP_STATS[nextShipType];
+    player.maxHp = newShipStats.hullStrength;
+    player.hp = newShipStats.hullStrength; // Fully repair on upgrade
+    player.cargoCapacity = newShipStats.cargoCapacity;
+    player.maxSpeed = newShipStats.speed;
+    player.reloadTime = newShipStats.cannonReload * 1000;
+    player.damage = newShipStats.cannonDamage;
+    player.cannonCount = newShipStats.cannonCount;
+
+    await redisStorage.updatePlayerState(player);
+
+    ws.send(JSON.stringify({
+      type: "upgradeSuccess",
+      newShipType: nextShipType,
+      gold: player.gold,
+      timestamp: Date.now(),
+    }));
   }
 
   async function handleScuttle(playerId: string, ws: WebSocket) {

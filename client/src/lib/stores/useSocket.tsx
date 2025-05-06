@@ -18,6 +18,7 @@ interface SocketState {
   register: (name: string, shipType: string) => void;
   sendInput: (speed: number, direction: Vector3, firing: boolean, rotationY?: number) => void;
   sendTrade: (portId: number, action: "buy" | "sell", goodId: number, quantity: number) => void;
+  sendUpgradeShip: (portId: number) => void;
   scuttleShip: () => void;
 
   onGameUpdate: (players: Record<string, PlayerState>, cannonBalls: any[], goldObjects: any[]) => void;
@@ -153,6 +154,10 @@ export const useSocket = create<SocketState>((set, get) => ({
               }
               break;
 
+            case "upgradeSuccess":
+              console.log("Ship upgraded successfully to", message?.newShipType);
+              break;
+
             case "gameEnd":
               console.log("Game ended:", message);
               if (message.leaderboard && Array.isArray(message.leaderboard)) {
@@ -226,6 +231,15 @@ export const useSocket = create<SocketState>((set, get) => ({
 
     const message = { type: "trade", portId, action, goodId, quantity };
     socket.send(JSON.stringify(message));
+  },
+
+  sendUpgradeShip: (portId: number) => {
+    const { socket, connected } = get();
+    if (!socket || !connected) {
+      set({ error: "Not connected. Please refresh and try again." });
+      return;
+    }
+    socket.send(JSON.stringify({ type: "upgradeShip", portId }));
   },
 
   scuttleShip: () => {
