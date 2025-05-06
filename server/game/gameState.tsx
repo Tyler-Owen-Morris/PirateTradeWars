@@ -9,6 +9,7 @@ export const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 export const MAX_PLAYERS = 1000;
 export const GRACE_PERIOD = 60000; // 1 minute
 export const GOLD_COLLECTION_RADIUS = 50;
+export const GOLD_OBJECT_LIFETIME = 60 * 1000; // 1 minute
 
 export interface PlayerState {
   id: string;
@@ -60,6 +61,7 @@ export interface GoldObject {
   y: number;
   z: number;
   gold: number;
+  created: number;
 }
 
 export interface GameStateData {
@@ -132,8 +134,10 @@ class GameState {
   async addPlayer(name: string, shipType: string, ship: any) {
     //console.log("addPlayer", name, shipType, ship);
     if (await redisStorage.isNameActive(name)) return null;
-    const x = Math.random() * MAP_WIDTH;
-    const z = Math.random() * MAP_HEIGHT;
+    // const x = Math.random() * MAP_WIDTH;
+    // const z = Math.random() * MAP_HEIGHT;
+    const x = 1194;
+    const z = 5685;
     const uuid = uuidv4();
 
     const player: PlayerState = {
@@ -352,18 +356,25 @@ class GameState {
       }
     }
 
-    // handle gold object state updates
-    // Check for gold collection
-    for (const playerId in this.state.players) {
-      const player = this.state.players[playerId];
-      if (player.sunk || player.dead) continue; // Skip sunk or dead players
+    // Handle gold objects
+    for (let i = this.state.goldObjects.length - 1; i >= 0; i--) {
+      const gold = this.state.goldObjects[i];
 
-      for (let i = this.state.goldObjects.length - 1; i >= 0; i--) {
-        const gold = this.state.goldObjects[i];
+      // Check if gold object is expired (older than 1 minute)
+      if (now - gold.created > GOLD_OBJECT_LIFETIME) {
+        console.log("gold object expired", gold);
+        this.state.goldObjects.splice(i, 1);
+        continue;
+      }
+
+      // Check for player collisions
+      for (const playerId in this.state.players) {
+        const player = this.state.players[playerId];
+        if (player.sunk || player.dead) continue; // Skip sunk or dead players
+
         const dx = Math.min(Math.abs(player.x - gold.x), MAP_WIDTH - Math.abs(player.x - gold.x));
         const dz = Math.min(Math.abs(player.z - gold.z), MAP_HEIGHT - Math.abs(player.z - gold.z));
         const distance = Math.sqrt(dx * dx + dz * dz);
-        //console.log("gold distance", distance);
 
         if (distance < GOLD_COLLECTION_RADIUS) {
           // update the player's gold in the game state
@@ -375,16 +386,16 @@ class GameState {
 
           // Notify the collecting player immediately
           const ws = this.connectedClients.get(playerId);
-          //console.log("player hits gold ws", ws);
           let message = {
             type: "goldCollected",
             gold: gold.gold,
             newTotalGold: player.gold,
-            timestamp: Date.now(),
+            timestamp: now,
           }
           if (ws && ws.readyState === 1) {
             ws.send(JSON.stringify(message));
           }
+          break; // Exit player loop since gold was collected
         }
       }
     }
@@ -523,6 +534,7 @@ class GameState {
           y: player.y,
           z: player.z,
           gold: player.gold,
+          created: Date.now(),
         };
         console.log("CREATING goldObject", goldObject);
         this.state.goldObjects.push(goldObject);
