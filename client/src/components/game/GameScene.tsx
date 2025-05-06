@@ -250,7 +250,7 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           <OtherShips players={gameState.otherPlayers} />
 
           {/* Cannon balls */}
-          {gameState.cannonBalls.map((ball) => (
+          {gameState.cannonBalls?.map((ball) => (
             <CannonBall
               key={ball.id}
               position={[ball.x, ball.y, ball.z]}
@@ -262,7 +262,7 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           ))}
 
           {/* Gold objects */}
-          {gameState.goldObjects.map((gold) => (
+          {gameState.goldObjects?.map((gold) => (
             <GoldObject
               key={gold.id}
               id={gold.id}

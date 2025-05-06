@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
@@ -17,10 +17,12 @@ export function GoldObject({ id, position, gold }: GoldObjectProps) {
     useFrame((state) => {
         if (coinRef.current) {
             coinRef.current.rotation.x += 0.01; // Rotate on X-axis (edge spinning)
-            coinRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2) * 2; // Float
+            // Raise base position by 20 units and add floating animation
+            coinRef.current.position.y = position[1] + 20 + Math.sin(state.clock.elapsedTime * 2) * 2;
         }
         if (haloRef.current) {
-            haloRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2) * 2; // Sync halo with coin
+            // Match the coin's raised position
+            haloRef.current.position.y = position[1] + 20 + Math.sin(state.clock.elapsedTime * 2) * 2;
             // Subtle pulse effect for halo
             const scale = 1 + Math.sin(state.clock.elapsedTime * 1.5) * 0.05;
             haloRef.current.scale.set(scale, scale, scale);
@@ -30,8 +32,8 @@ export function GoldObject({ id, position, gold }: GoldObjectProps) {
     return (
         <group>
             {/* Coin Mesh */}
-            <mesh ref={coinRef} position={position}>
-                <cylinderGeometry args={[8, 8, 1.5, 32]} /> {/* Larger, thicker coin */}
+            <mesh ref={coinRef} position={[position[0], position[1] + 20, position[2]]}>
+                <cylinderGeometry args={[20, 20, 3, 62]} /> {/* Larger, thicker coin */}
                 <meshStandardMaterial
                     color="#FFD700" // Gold color
                     metalness={0.9}
@@ -42,14 +44,14 @@ export function GoldObject({ id, position, gold }: GoldObjectProps) {
             </mesh>
 
             {/* Glowing Halo */}
-            <mesh ref={haloRef} position={position}>
-                <sphereGeometry args={[12, 16, 16]} /> {/* Larger sphere for halo */}
+            <mesh ref={haloRef} position={[position[0], position[1] + 20, position[2]]}>
+                <sphereGeometry args={[25, 30, 30]} /> {/* Larger sphere for halo */}
                 <meshStandardMaterial
                     color="#FFFFE0" // Light yellow
                     emissive="#FFFFE0"
-                    emissiveIntensity={0.3}
+                    emissiveIntensity={0.7}
                     transparent
-                    opacity={0.4}
+                    opacity={0.2}
                     side={THREE.DoubleSide}
                 />
             </mesh>
@@ -59,24 +61,24 @@ export function GoldObject({ id, position, gold }: GoldObjectProps) {
                 color="#FFD700"
                 intensity={0.5}
                 distance={20}
-                position={[position[0], position[1] + 2, position[2]]}
+                position={[position[0], position[1] + 22, position[2]]}
             />
 
             {/* Shiny Text */}
-            <Billboard position={[position[0], position[1] + 12, position[2]]}>
+            <Billboard position={[position[0], position[1] + 50, position[2]]}>
                 <Text
-                    fontSize={6}
+                    fontSize={20}
                     //font="/fonts/Helvetica-Bold.ttf" // Adjust if custom font available
                     anchorX="center"
                     anchorY="bottom"
                 >
                     {gold}
                     <meshStandardMaterial
-                        color="#FFFFFF"
+                        color="#FFD700" // Changed to gold color
                         metalness={0.8}
                         roughness={0.2}
                         emissive="#FFD700"
-                        emissiveIntensity={0.1}
+                        emissiveIntensity={0.5} // Increased emissive intensity
                     />
                 </Text>
             </Billboard>
