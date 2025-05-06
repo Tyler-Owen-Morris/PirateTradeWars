@@ -13,6 +13,7 @@ import * as THREE from "three";
 import { CannonBall } from "./CannonBall";
 import { Vector3 } from "@/types";
 import { Fog } from "./Fog";
+import { GoldObject } from "./GoldObject";
 
 // Interface for control state
 interface ControlState {
@@ -78,6 +79,7 @@ export function GameScene({ controlsRef }: GameSceneProps) {
 
   // Handle camera following player with smooth interpolation
   useFrame((_, delta) => {
+    //aconsole.log("gameState.goldObjects:", gameState.goldObjects);
     if (playerRef.current && gameState.player) {
       // Ensure consistent physics step for better stability
       const physicsDelta = Math.min(delta, 0.1);
@@ -253,6 +255,19 @@ export function GameScene({ controlsRef }: GameSceneProps) {
               key={ball.id}
               position={[ball.x, ball.y, ball.z]}
               direction={ball.direction}
+              ownerId={ball.ownerId}
+              localPlayerId={gameState.player?.id || ""}
+              range={ball.range}
+            />
+          ))}
+
+          {/* Gold objects */}
+          {gameState.goldObjects.map((gold) => (
+            <GoldObject
+              key={gold.id}
+              id={gold.id}
+              position={[gold.x, gold.y, gold.z]}
+              gold={gold.gold}
             />
           ))}
         </>

@@ -20,7 +20,7 @@ interface SocketState {
   sendTrade: (portId: number, action: "buy" | "sell", goodId: number, quantity: number) => void;
   scuttleShip: () => void;
 
-  onGameUpdate: (players: Record<string, PlayerState>, cannonBalls: any[]) => void;
+  onGameUpdate: (players: Record<string, PlayerState>, cannonBalls: any[], goldObjects: any[]) => void;
 }
 
 export const useSocket = create<SocketState>((set, get) => ({
@@ -109,7 +109,7 @@ export const useSocket = create<SocketState>((set, get) => ({
               break;
 
             case "gameUpdate":
-              get().onGameUpdate(message.players, message.cannonBalls);
+              get().onGameUpdate(message.players, message.cannonBalls, message.goldObjects);
               break;
 
             case "playerDead":
@@ -239,9 +239,11 @@ export const useSocket = create<SocketState>((set, get) => ({
     socket.send(JSON.stringify(message));
   },
 
-  onGameUpdate: (players, cannonBalls) => {
+  onGameUpdate: (players, cannonBalls, goldObjects) => {
+    //console.log("onGameUpdate called with goldObjects:", goldObjects);
     useGameState.getState().updateOtherPlayers(players);
     useGameState.getState().updateCannonBalls(cannonBalls);
+    useGameState.getState().updateGoldObjects(goldObjects);
 
     const playerId = get().playerId;
     if (playerId && players[playerId]) {

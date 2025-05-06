@@ -8,6 +8,7 @@ export const BROADCAST_RATE = 100; // ms (5 updates/second)
 export const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 export const MAX_PLAYERS = 1000;
 export const GRACE_PERIOD = 60000; // 1 minute
+export const GOLD_COLLECTION_RADIUS = 50;
 
 export interface PlayerState {
   id: string;
@@ -53,9 +54,18 @@ export interface CannonBall {
   created: number;
 }
 
+export interface GoldObject {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  gold: number;
+}
+
 export interface GameStateData {
   players: Record<string, PlayerState>;
   cannonBalls: CannonBall[];
+  goldObjects: GoldObject[];
   lastUpdate: number;
   activeNames: Set<string>;
   leaderboard: { id: number; playerId: string; playerName: string; score: number; achievedAt: Date }[];
@@ -72,6 +82,7 @@ class GameState {
     this.state = {
       players: {},
       cannonBalls: [],
+      goldObjects: [],
       lastUpdate: Date.now(),
       activeNames: new Set(),
       leaderboard: [],
@@ -251,6 +262,7 @@ class GameState {
     const deltaTime = (now - this.state.lastUpdate) / 1000;
     this.state.lastUpdate = now;
 
+    // handle player state updates
     for (const playerId in this.state.players) {
       const player = this.state.players[playerId];
 
@@ -290,9 +302,15 @@ class GameState {
       }
     }
 
+    // handle cannonball state updates
     const cannonballs = this.state.cannonBalls;
     for (let i = cannonballs.length - 1; i >= 0; i--) {
       const ball = cannonballs[i];
+
+      // Skip if ball is null/undefined or has been removed
+      if (!ball || ball.ownerId === null || ball.x === null || ball.y === null || ball.z === null) {
+        continue;
+      }
 
       // Store previous position before moving
       const prevPos = { x: ball.x, y: ball.y, z: ball.z };
@@ -311,7 +329,7 @@ class GameState {
 
       for (const playerId in this.state.players) {
         const player = this.state.players[playerId];
-        if (ball.ownerId === playerId || player.sunk || player.dead) continue;
+        if (!player || ball.ownerId === playerId || player.sunk || player.dead) continue;
 
         // Use continuous collision detection
         const newPos = { x: ball.x, y: ball.y, z: ball.z };
@@ -330,6 +348,43 @@ class GameState {
           }
           this.state.cannonBalls.splice(i, 1);
           break;
+        }
+      }
+    }
+
+    // handle gold object state updates
+    // Check for gold collection
+    for (const playerId in this.state.players) {
+      const player = this.state.players[playerId];
+      if (player.sunk || player.dead) continue; // Skip sunk or dead players
+
+      for (let i = this.state.goldObjects.length - 1; i >= 0; i--) {
+        const gold = this.state.goldObjects[i];
+        const dx = Math.min(Math.abs(player.x - gold.x), MAP_WIDTH - Math.abs(player.x - gold.x));
+        const dz = Math.min(Math.abs(player.z - gold.z), MAP_HEIGHT - Math.abs(player.z - gold.z));
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        //console.log("gold distance", distance);
+
+        if (distance < GOLD_COLLECTION_RADIUS) {
+          // update the player's gold in the game state
+          player.gold += gold.gold;
+          this.state.goldObjects.splice(i, 1); // Remove collected gold
+
+          // update the player's gold in redis
+          redisStorage.updatePlayerGold(playerId, player.gold);
+
+          // Notify the collecting player immediately
+          const ws = this.connectedClients.get(playerId);
+          //console.log("player hits gold ws", ws);
+          let message = {
+            type: "goldCollected",
+            gold: gold.gold,
+            newTotalGold: player.gold,
+            timestamp: Date.now(),
+          }
+          if (ws && ws.readyState === 1) {
+            ws.send(JSON.stringify(message));
+          }
         }
       }
     }
@@ -360,11 +415,20 @@ class GameState {
         return Math.sqrt(dx * dx + dz * dz) < 1000;
       });
 
+      // Calculate nearby gold objects (within 1000 units)
+      //console.log("this.state.goldObjects:", this.state.goldObjects);
+      const nearbyGoldObjects = this.state.goldObjects.filter((gold) => {
+        const dx = Math.min(Math.abs(player.x - gold.x), MAP_WIDTH - Math.abs(player.x - gold.x));
+        const dz = Math.min(Math.abs(player.z - gold.z), MAP_HEIGHT - Math.abs(player.z - gold.z));
+        return Math.sqrt(dx * dx + dz * dz) < 1000;
+      });
+
       try {
         ws.send(JSON.stringify({
           type: "gameUpdate",
           players: nearbyPlayers,
           cannonBalls: nearbyCannonBalls,
+          goldObjects: nearbyGoldObjects,
           timestamp: Date.now(),
         }));
       } catch (err) {
@@ -451,13 +515,34 @@ class GameState {
 
   private async handlePlayerSunk(player: PlayerState) {
     try {
+      if (player.gold > 0) {
+
+        const goldObject: GoldObject = {
+          id: uuidv4(),
+          x: player.x,
+          y: player.y,
+          z: player.z,
+          gold: player.gold,
+        };
+        console.log("CREATING goldObject", goldObject);
+        this.state.goldObjects.push(goldObject);
+      }
+    } catch (e) {
+      console.error("Error handling sunk player:", e);
+    }
+    // add the player to the leaderboard
+    try {
       const leaderboardEntry = await redisStorage.addToLeaderboard({
         playerId: player.playerId,
         playerName: player.name,
         score: player.gold,
         achievedAt: new Date()
       });
-      const leaderboard = await redisStorage.getLeaderboard(10);
+      const leaderboardRaw = await redisStorage.getLeaderboard(10);
+      const leaderboard = leaderboardRaw.map(entry => ({
+        ...entry,
+        playerId: entry.playerId ?? "", // or use a placeholder like "unknown"
+      }));
       await this.updateLeaderboard(leaderboard);
       console.log(`Player ${player.name} sunk with score ${player.gold}`);
     } catch (err) {

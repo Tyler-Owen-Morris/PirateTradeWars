@@ -21,25 +21,16 @@ export interface ShipStats {
 export interface PlayerState {
   id: string;
   name: string;
-  shipType: string;
   x: number;
   y: number;
   z: number;
-  rotationY: number;
-  speed: number;
-  maxSpeed: number;
-  direction: Vector3;
-  hp: number;
-  maxHp: number;
+  rotation: number;
+  shipType: string;
+  health: number;
   gold: number;
-  cargoCapacity: number;
-  cargoUsed: number;
-  repairCost: number;
-  firing: boolean;
-  canFire: boolean;
-  lastFired: number;
-  reloadTime: number;
   sunk: boolean;
+  scuttled: boolean;
+  inventory: InventoryItem[];
 }
 
 // Cannon ball
@@ -56,6 +47,14 @@ export interface CannonBall {
   created: number;
 }
 
+// Gold object
+export interface GoldObject {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  gold: number;
+}
 // Port
 export interface Port {
   id: number;
@@ -112,6 +111,7 @@ export interface GameState {
   player: PlayerState | null;
   otherPlayers: Record<string, PlayerState>;
   cannonBalls: CannonBall[];
+  goldObjects: GoldObject[];
   ports: Port[];
   goods: Good[];
   inventory: InventoryItem[];
