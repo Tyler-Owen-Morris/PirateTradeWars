@@ -47,7 +47,7 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
           ballRef.current.scale.setScalar(1 - sinkProgress);
         } else {
           // Remove the cannon ball after sinking
-          console.log("cannonball removing itself")
+          // console.log("cannonball removing itself")
           ballRef.current.visible = false;
           return;
         }
