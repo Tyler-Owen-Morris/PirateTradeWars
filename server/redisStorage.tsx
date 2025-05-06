@@ -177,7 +177,8 @@ export class RedisStorage {
         // First get the current player record to get their TTL
         const currentPlayer = await this.getPlayer(player.id);
         if (!currentPlayer) {
-            throw new Error(`Player ${player.id} not found`);
+            console.error(`Player ${player.id} not found`);
+            return;
         }
         let player_to_update = { ...player };
         player_to_update.playerTTL = currentPlayer.playerTTL;

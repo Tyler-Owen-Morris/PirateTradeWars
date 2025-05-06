@@ -121,6 +121,10 @@ function App() {
 
   useEffect(() => {
     console.log("player is sunk:", isSunk)
+    if (isSunk) {
+      localStorage.removeItem("playerName");
+      localStorage.removeItem("playerId");
+    }
   }, [isSunk])
 
   return (

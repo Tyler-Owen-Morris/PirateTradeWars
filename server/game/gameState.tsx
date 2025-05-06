@@ -403,7 +403,7 @@ class GameState {
           const dx = Math.min(Math.abs(player.x - otherPlayer.x), MAP_WIDTH - Math.abs(player.x - otherPlayer.x));
           const dz = Math.min(Math.abs(player.z - otherPlayer.z), MAP_HEIGHT - Math.abs(player.z - otherPlayer.z));
           const distance = Math.sqrt(dx * dx + dz * dz);
-          if (distance < 1000 || id === playerId) {
+          if (distance < 2000 || id === playerId) {
             nearbyPlayers[id] = otherPlayer;
           }
         }
@@ -547,6 +547,12 @@ class GameState {
       console.log(`Player ${player.name} sunk with score ${player.gold}`);
     } catch (err) {
       console.error("Error handling sunk player:", err);
+    }
+
+    try {
+      await redisStorage.removePlayer(player.playerId);
+    } catch (err) {
+      console.error("Error removing player:", err);
     }
   }
 
