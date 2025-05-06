@@ -147,6 +147,7 @@ export interface SocketGameUpdateMessage {
   type: 'gameUpdate';
   players: Record<string, PlayerState>;
   cannonBalls: CannonBall[];
+  goldObjects: GoldObject[];
   timestamp: number;
 }
 
@@ -184,13 +185,131 @@ export interface SocketGameEndMessage {
   timestamp: number;
 }
 
+// Connect message
+export interface SocketConnectMessage {
+  type: 'connect';
+  name: string;
+  shipType: string;
+}
+
+// Reconnect message
+export interface SocketReconnectMessage {
+  type: 'reconnect';
+  id: string;
+  name: string;
+}
+
+// Connected message
+export interface SocketConnectedMessage {
+  type: 'connected';
+  playerId: string;
+  name: string;
+  ship: ShipStats;
+  gold: number;
+  players: Record<string, PlayerState>;
+  cannonBalls: CannonBall[];
+  goldObjects?: GoldObject[];
+  timestamp: number;
+}
+
+// Reconnected message
+export interface SocketReconnectedMessage {
+  type: 'reconnected';
+  playerId: string;
+  name: string;
+  ship: ShipStats;
+  gold: number;
+  players: Record<string, PlayerState>;
+  cannonBalls: CannonBall[];
+  timestamp: number;
+}
+
+// Full sync message
+export interface SocketFullSyncMessage {
+  type: 'fullSync';
+  players: Record<string, PlayerState>;
+  cannonBalls: CannonBall[];
+  goldObjects: GoldObject[];
+  timestamp: number;
+}
+
+// Player dead message
+export interface SocketPlayerDeadMessage {
+  type: 'playerDead';
+  id: string;
+  players: Record<string, PlayerState>;
+  timestamp: number;
+}
+
+// Name error message
+export interface SocketNameErrorMessage {
+  type: 'nameError';
+  message: string;
+  timestamp: number;
+}
+
+// Upgrade ship message
+export interface SocketUpgradeShipMessage {
+  type: 'upgradeShip';
+  portId: number;
+}
+
+// Repair ship message
+export interface SocketRepairShipMessage {
+  type: 'repairShip';
+  portId: number;
+}
+
+// Upgrade success message
+export interface SocketUpgradeSuccessMessage {
+  type: 'upgradeSuccess';
+  newShipType: string;
+  gold: number;
+  timestamp: number;
+}
+
+// Repair success message
+export interface SocketRepairSuccessMessage {
+  type: 'repairSuccess';
+  gold: number;
+  hp: number;
+  timestamp: number;
+}
+
+// Scuttle message
+export interface SocketScuttleMessage {
+  type: 'scuttle';
+}
+
+// Gold collected message
+export interface SocketGoldCollectedMessage {
+  type: 'goldCollected';
+  gold: number;
+  newTotalGold: number;
+  timestamp: number;
+}
+
+// Update SocketMessage union type
 export type SocketMessage =
   | SocketRegisterMessage
+  | SocketConnectMessage
+  | SocketReconnectMessage
+  | SocketConnectedMessage
+  | SocketReconnectedMessage
+  | SocketFullSyncMessage
   | SocketInputMessage
   | SocketTradeMessage
+  | SocketUpgradeShipMessage
+  | SocketRepairShipMessage
+  | SocketScuttleMessage
   | SocketGameUpdateMessage
+  | SocketPlayerDeadMessage
   | SocketErrorMessage
+  | SocketNameErrorMessage
   | SocketWelcomeMessage
   | SocketRegisteredMessage
   | SocketTradeSuccessMessage
+  | SocketUpgradeSuccessMessage
+  | SocketRepairSuccessMessage
+  | SocketGoldCollectedMessage
   | SocketGameEndMessage;

@@ -7,13 +7,13 @@ import { useGameState } from '@/lib/stores/useGameState';
 import { useSocket } from '@/lib/stores/useSocket';
 import { Good, PortGood, Port, InventoryItem } from '@/types';
 import { apiRequest } from '@/lib/queryClient';
-import { GOODS, SHIP_UPGRADE_PATH, SHIP_DISPLAY_NAMES, SHIP_DESCRIPTIONS } from '@shared/gameConstants';
+import { GOODS, SHIP_UPGRADE_PATH, SHIP_DISPLAY_NAMES, SHIP_DESCRIPTIONS, SHIP_STATS } from '@shared/gameConstants';
 import { ShoppingCart, Tag, Package, Coins, X, Info, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from './alert';
 
 export default function TradeMenu() {
   const { gameState, isTrading, setIsTrading, nearPortId, loadPlayerInventory } = useGameState();
-  const { sendTrade, sendUpgradeShip, error: socketError } = useSocket();
+  const { sendTrade, sendUpgradeShip, sendRepairShip, error: socketError } = useSocket();
 
   const [currentPort, setCurrentPort] = useState<Port | null>(null);
   const [portGoods, setPortGoods] = useState<PortGood[]>([]);
@@ -559,36 +559,74 @@ export default function TradeMenu() {
               const currentShip = gameState.player?.shipType;
               if (!currentShip) return <p className="text-amber-100">Loading...</p>;
 
-              const upgradeOption = SHIP_UPGRADE_PATH.find(option => option.from === currentShip);
-              if (!upgradeOption) {
-                return <p className="text-amber-100">You already have the best ship available.</p>;
-              }
+              const repairCost = SHIP_STATS[currentShip].repairCost;
+              const hasEnoughGoldForRepair = (gameState.player?.gold || 0) >= repairCost;
+              const needsRepair = (gameState.player?.hp || 0) < (gameState.player?.maxHp || 0);
 
-              const nextShipType = upgradeOption.to;
-              const upgradeCost = upgradeOption.cost;
-              const hasEnoughGold = (gameState.player?.gold || 0) >= upgradeCost;
+              const upgradeOption = SHIP_UPGRADE_PATH.find(option => option.from === currentShip);
+              const canUpgrade = !!upgradeOption;
+              const nextShipType = upgradeOption?.to;
+              const upgradeCost = upgradeOption?.cost;
+              const hasEnoughGoldForUpgrade = (gameState.player?.gold || 0) >= (upgradeCost || 0);
 
               return (
-                <div className="p-4 rounded-md border border-amber-500/50 bg-amber-900/30">
-                  <h3 className="font-bold mb-3 text-amber-200">{SHIP_DISPLAY_NAMES[nextShipType]}</h3>
-                  <p className="text-amber-100 mb-4">{SHIP_DESCRIPTIONS[nextShipType]}</p>
-                  <div className="flex items-center mb-4">
-                    <Coins className="h-5 w-5 mr-2 text-yellow-500" />
-                    <span className="text-amber-200">Cost: {upgradeCost} gold</span>
+                <div className="space-y-4">
+                  {/* Repair Section */}
+                  <div className="p-4 rounded-md border border-amber-500/50 bg-amber-900/30">
+                    <h3 className="font-bold mb-3 text-amber-200">Repair Ship</h3>
+                    <p className="text-amber-100 mb-4">Restore your ship to full health.</p>
+                    <div className="flex items-center mb-4">
+                      <Coins className="h-5 w-5 mr-2 text-yellow-500" />
+                      <span className="text-amber-200">Repair Cost: {repairCost} gold</span>
+                    </div>
+                    <div className="flex items-center mb-4">
+                      <Coins className="h-5 w-5 mr-2 text-yellow-500" />
+                      <span className="text-amber-200">Your gold: {gameState.player?.gold}</span>
+                    </div>
+                    <div className="flex items-center mb-4">
+                      <span className="text-amber-200">Current HP: {gameState.player?.hp} / {gameState.player?.maxHp}</span>
+                    </div>
+                    <Button
+                      disabled={!hasEnoughGoldForRepair || !needsRepair}
+                      onClick={() => sendRepairShip(nearPortId)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      Repair Ship
+                    </Button>
+                    {!hasEnoughGoldForRepair && (
+                      <p className="text-red-400 mt-2">Not enough gold to repair.</p>
+                    )}
+                    {!needsRepair && hasEnoughGoldForRepair && (
+                      <p className="text-amber-100 mt-2">Your ship is already at full health.</p>
+                    )}
                   </div>
-                  <div className="flex items-center mb-4">
-                    <Coins className="h-5 w-5 mr-2 text-yellow-500" />
-                    <span className="text-amber-200">Your gold: {gameState.player?.gold}</span>
-                  </div>
-                  <Button
-                    disabled={!hasEnoughGold}
-                    onClick={() => sendUpgradeShip(nearPortId || 1)}
-                    className="bg-amber-600 hover:bg-amber-700 text-white"
-                  >
-                    Upgrade Ship
-                  </Button>
-                  {!hasEnoughGold && (
-                    <p className="text-red-400 mt-2">Not enough gold to upgrade.</p>
+
+                  {/* Upgrade Section */}
+                  {canUpgrade ? (
+                    <div className="p-4 rounded-md border border-amber-500/50 bg-amber-900/30">
+                      <h3 className="font-bold mb-3 text-amber-200">{SHIP_DISPLAY_NAMES[nextShipType]}</h3>
+                      <p className="text-amber-100 mb-4">{SHIP_DESCRIPTIONS[nextShipType]}</p>
+                      <div className="flex items-center mb-4">
+                        <Coins className="h-5 w-5 mr-2 text-yellow-500" />
+                        <span className="text-amber-200">Upgrade Cost: {upgradeCost} gold</span>
+                      </div>
+                      <div className="flex items-center mb-4">
+                        <Coins className="h-5 w-5 mr-2 text-yellow-500" />
+                        <span className="text-amber-200">Your gold: {gameState.player?.gold}</span>
+                      </div>
+                      <Button
+                        disabled={!hasEnoughGoldForUpgrade}
+                        onClick={() => sendUpgradeShip(nearPortId || 1)}
+                        className="bg-amber-600 hover:bg-amber-700 text-white"
+                      >
+                        Upgrade Ship
+                      </Button>
+                      {!hasEnoughGoldForUpgrade && (
+                        <p className="text-red-400 mt-2">Not enough gold to upgrade.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-amber-100">You already have the best ship available.</p>
                   )}
                 </div>
               );

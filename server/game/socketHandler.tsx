@@ -39,11 +39,16 @@ interface UpgradeShipMessage {
   portId: number;
 }
 
+interface RepairShipMessage {
+  type: "repairShip";
+  portId: number;
+}
+
 interface ScuttleMessage {
   type: "scuttle";
 }
 
-type ClientMessage = ConnectMessage | ReconnectMessage | InputMessage | TradeMessage | ScuttleMessage | UpgradeShipMessage;
+type ClientMessage = ConnectMessage | ReconnectMessage | InputMessage | TradeMessage | ScuttleMessage | UpgradeShipMessage | RepairShipMessage;
 
 export function handleSocketConnection(ws: WebSocket) {
   let playerId: string | null = null;
@@ -67,6 +72,9 @@ export function handleSocketConnection(ws: WebSocket) {
           break;
         case "upgradeShip":
           if (playerId && data.portId) await handleUpgradeShip(playerId, data.portId, ws);
+          break;
+        case "repairShip":
+          if (playerId && data.portId) await handleRepairShip(playerId, data.portId, ws);
           break;
         case "scuttle":
           if (playerId) await handleScuttle(playerId, ws);
@@ -296,6 +304,35 @@ export function handleSocketConnection(ws: WebSocket) {
       type: "upgradeSuccess",
       newShipType: nextShipType,
       gold: player.gold,
+      timestamp: Date.now(),
+    }));
+  }
+
+  async function handleRepairShip(playerId: string, portId: number, ws: WebSocket) {
+    const player = gameState.state.players[playerId];
+    if (!player) return sendError(ws, "Player not found");
+    if (player.dead || player.sunk) return sendError(ws, "Cannot repair a sunk or dead ship");
+
+    const port = await redisStorage.getPort(portId);
+    if (!port) return sendError(ws, "Port not found");
+
+    const dx = Math.min(Math.abs(player.x - port.x), MAP_WIDTH - Math.abs(player.x - port.x));
+    const dz = Math.min(Math.abs(player.z - port.z), MAP_HEIGHT - Math.abs(player.z - port.z));
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    if (distance > port.safeRadius) return sendError(ws, "Too far from port");
+
+    const repairCost = SHIP_STATS[player.shipType].repairCost;
+    if (player.gold < repairCost) return sendError(ws, "Not enough gold");
+
+    player.gold -= repairCost;
+    player.hp = player.maxHp; // Restore to full HP
+
+    await redisStorage.updatePlayerState(player);
+
+    ws.send(JSON.stringify({
+      type: "repairSuccess",
+      gold: player.gold,
+      hp: player.hp,
       timestamp: Date.now(),
     }));
   }

@@ -64,7 +64,7 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
 
         // Check if we've reached the range limit
         if (distanceTraveled >= range) {
-          console.log("Cannonball is at range limit")
+          //console.log("Cannonball is at range limit")
           setIsSinking(true);
         }
 

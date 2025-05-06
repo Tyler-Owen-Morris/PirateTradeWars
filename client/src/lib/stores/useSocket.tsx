@@ -19,6 +19,7 @@ interface SocketState {
   sendInput: (speed: number, direction: Vector3, firing: boolean, rotationY?: number) => void;
   sendTrade: (portId: number, action: "buy" | "sell", goodId: number, quantity: number) => void;
   sendUpgradeShip: (portId: number) => void;
+  sendRepairShip: (portId: number) => void;
   scuttleShip: () => void;
 
   onGameUpdate: (players: Record<string, PlayerState>, cannonBalls: any[], goldObjects: any[]) => void;
@@ -86,7 +87,7 @@ export const useSocket = create<SocketState>((set, get) => ({
               useGameState.setState({ isRegistered: true });
               //setTimeout(() => { useGameState.setState({ isPlaying: true }) }, 1000)
               if (message.players) {
-                get().onGameUpdate(message.players, message.cannonBalls || []);
+                get().onGameUpdate(message.players, message.cannonBalls || [], message.goldObjects || []);
               }
               break;
 
@@ -95,12 +96,12 @@ export const useSocket = create<SocketState>((set, get) => ({
               set({ playerId: message.playerId, playerName: message.name, error: null });
               useGameState.setState({ isPlaying: true });
               if (message.players) {
-                get().onGameUpdate(message.players, message.cannonBalls || []);
+                get().onGameUpdate(message.players, message.cannonBalls || [], []);
               }
               break;
 
             case "fullSync":
-              get().onGameUpdate(message.players, message.cannonBalls || []);
+              get().onGameUpdate(message.players, message.cannonBalls || [], message.goldObjects || []);
               break;
 
             case "registered":
@@ -156,6 +157,17 @@ export const useSocket = create<SocketState>((set, get) => ({
 
             case "upgradeSuccess":
               console.log("Ship upgraded successfully to", message?.newShipType);
+              break;
+
+            case "repairSuccess":
+              console.log("Ship repaired successfully");
+              if (message.gold !== undefined && message.hp !== undefined) {
+                const gameState = useGameState.getState();
+                if (gameState.gameState.player) {
+                  gameState.gameState.player.gold = message.gold;
+                  gameState.gameState.player.hp = message.hp;
+                }
+              }
               break;
 
             case "gameEnd":
@@ -240,6 +252,16 @@ export const useSocket = create<SocketState>((set, get) => ({
       return;
     }
     socket.send(JSON.stringify({ type: "upgradeShip", portId }));
+  },
+
+  sendRepairShip: (portId: number) => {
+    const { socket, connected } = get();
+    if (!socket || !connected) {
+      set({ error: "Not connected. Please refresh and try again." });
+      return;
+    }
+    console.log("sending repair ship message to server")
+    socket.send(JSON.stringify({ type: "repairShip", portId }));
   },
 
   scuttleShip: () => {
