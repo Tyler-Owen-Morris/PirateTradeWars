@@ -29,12 +29,20 @@ interface HUDProps {
   onShowLeaderboard: () => void;
 }
 
+interface GoldAnimation {
+  id: number;
+  value: number;
+  key: string;
+}
+
 export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
   const { gameState } = useGameState();
   const { isSunk } = useGameState();
   const player = gameState.player;
   const [nearestPort, setNearestPort] = useState<Port | null>(null);
   const [distance, setDistance] = useState<number>(0);
+  const [goldAnimations, setGoldAnimations] = useState<GoldAnimation[]>([]);
+  const [prevGold, setPrevGold] = useState<number | null>(null);
 
   // Update nearest port info
   useEffect(() => {
@@ -50,6 +58,24 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
     }
   }, [player?.x, player?.z, gameState.ports]);
 
+  // Track gold changes and create animations
+  useEffect(() => {
+    if (player && player.gold !== prevGold && prevGold !== null) {
+      const difference = player.gold - prevGold;
+      const newAnimation: GoldAnimation = {
+        id: Date.now(),
+        value: difference,
+        key: `gold-anim-${Date.now()}`,
+      };
+      setGoldAnimations((prev) => [...prev, newAnimation]);
+
+      // Remove animation after 3 seconds
+      setTimeout(() => {
+        setGoldAnimations((prev) => prev.filter((anim) => anim.id !== newAnimation.id));
+      }, 3000);
+    }
+    setPrevGold(player?.gold ?? null);
+  }, [player?.gold, prevGold]);
   // Fire button handler
   const handleFire = () => {
     if (!controlsRef?.current) {
@@ -112,11 +138,23 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
           />
         </div>
 
-        {/* Gold */}
-        <div className="flex items-center mt-0.5 sm:mt-3">
+        {/* Gold with animations */}
+        <div className="relative flex items-center mt-0.5 sm:mt-3">
           <Coins className="h-2.5 w-2.5 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-yellow-400" />
           <span className="font-bold text-xs sm:text-base">{player.gold}</span>
           <span className="ml-1 text-[0.5rem] sm:text-xs">gold</span>
+          {goldAnimations.map((anim) => (
+            <span
+              key={anim.key}
+              className={`absolute left-20 text-xs sm:text-sm font-bold animate-gold ${anim.value >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}
+              style={{
+                animation: 'goldAnimation 3s ease-out forwards',
+              }}
+            >
+              {anim.value >= 0 ? '+' : ''}{anim.value}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -274,6 +312,24 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
           </div>
         </div>
       </div>
+      {/* CSS for gold animation */}
+      <style>
+        {`
+          @keyframes goldAnimation {
+            0% {
+              transform: translateY(0);
+              opacity: 1;
+            }
+            100% {
+              transform: translateY(-30px);
+              opacity: 0;
+            }
+          }
+          .animate-gold {
+            animation: goldAnimation 3s ease-out forwards;
+          }
+        `}
+      </style>
     </div>
   );
 }
