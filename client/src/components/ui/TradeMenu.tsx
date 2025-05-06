@@ -327,7 +327,7 @@ export default function TradeMenu() {
           <TabsList className="grid w-full grid-cols-3 bg-amber-900 border border-amber-500">
             <TabsTrigger value="buy" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">Buy Goods</TabsTrigger>
             <TabsTrigger value="sell" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">Sell Goods</TabsTrigger>
-            <TabsTrigger value="upgrade" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">Upgrade Ship</TabsTrigger>
+            <TabsTrigger value="upgrade" className="text-amber-200 data-[state=active]:bg-amber-700 data-[state=active]:text-white">The Ship</TabsTrigger>
           </TabsList>
 
           <TabsContent value="buy" className="space-y-4">
@@ -554,10 +554,16 @@ export default function TradeMenu() {
               </div>
             )}
           </TabsContent>
-          <TabsContent value="upgrade" className="space-y-4">
+          <TabsContent value="upgrade" className="space-y-6">
             {(() => {
               const currentShip = gameState.player?.shipType;
-              if (!currentShip) return <p className="text-amber-100">Loading...</p>;
+              if (!currentShip) {
+                return (
+                  <div className="text-center text-amber-100 animate-pulse">
+                    Loading ship details...
+                  </div>
+                );
+              }
 
               const repairCost = SHIP_STATS[currentShip].repairCost;
               const hasEnoughGoldForRepair = (gameState.player?.gold || 0) >= repairCost;
@@ -570,63 +576,92 @@ export default function TradeMenu() {
               const hasEnoughGoldForUpgrade = (gameState.player?.gold || 0) >= (upgradeCost || 0);
 
               return (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {/* Repair Section */}
-                  <div className="p-4 rounded-md border border-amber-500/50 bg-amber-900/30">
-                    <h3 className="font-bold mb-3 text-amber-200">Repair Ship</h3>
-                    <p className="text-amber-100 mb-4">Restore your ship to full health.</p>
+                  <div className="relative p-6 rounded-lg border border-amber-500/50 bg-gradient-to-br from-amber-900/50 to-amber-800/30 shadow-lg transition-all duration-300 hover:shadow-amber-500/20">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-600 to-amber-400 rounded-t-lg" />
                     <div className="flex items-center mb-4">
-                      <Coins className="h-5 w-5 mr-2 text-yellow-500" />
-                      <span className="text-amber-200">Repair Cost: {repairCost} gold</span>
+                      <svg className="h-6 w-6 mr-2 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 11l7-7 7 7M5 19l7-7 7 7" />
+                      </svg>
+                      <h3 className="text-xl font-bold text-amber-200">Ship Repair</h3>
                     </div>
-                    <div className="flex items-center mb-4">
-                      <Coins className="h-5 w-5 mr-2 text-yellow-500" />
-                      <span className="text-amber-200">Your gold: {gameState.player?.gold}</span>
-                    </div>
-                    <div className="flex items-center mb-4">
-                      <span className="text-amber-200">Current HP: {gameState.player?.hp} / {gameState.player?.maxHp}</span>
+                    <p className="text-amber-100 mb-4 italic">Patch up your vessel to sail another day!</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                      <div className="flex items-center">
+                        <Coins className="h-5 w-5 mr-2 text-yellow-500" />
+                        <span className="text-amber-200">Cost: {repairCost} gold</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Coins className="h-5 w-5 mr-2 text-yellow-500" />
+                        <span className="text-amber-200">Your Gold: {gameState.player?.gold}</span>
+                      </div>
+                      <div className="flex items-center sm:col-span-2">
+                        <svg className="h-5 w-5 mr-2 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                        </svg>
+                        <span className="text-amber-200">Health: {gameState.player?.hp} / {gameState.player?.maxHp}</span>
+                      </div>
                     </div>
                     <Button
                       disabled={!hasEnoughGoldForRepair || !needsRepair}
                       onClick={() => sendRepairShip(nearPortId)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md transition-all duration-200 disabled:bg-gray-600 disabled:cursor-not-allowed"
                     >
+                      <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                      </svg>
                       Repair Ship
                     </Button>
-                    {!hasEnoughGoldForRepair && (
-                      <p className="text-red-400 mt-2">Not enough gold to repair.</p>
-                    )}
-                    {!needsRepair && hasEnoughGoldForRepair && (
-                      <p className="text-amber-100 mt-2">Your ship is already at full health.</p>
-                    )}
+                    <div className="mt-3 text-sm">
+                      {!hasEnoughGoldForRepair && (
+                        <p className="text-red-400">Not enough gold to repair.</p>
+                      )}
+                      {!needsRepair && hasEnoughGoldForRepair && (
+                        <p className="text-amber-100">Your ship is ready for battle!</p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Upgrade Section */}
                   {canUpgrade ? (
-                    <div className="p-4 rounded-md border border-amber-500/50 bg-amber-900/30">
-                      <h3 className="font-bold mb-3 text-amber-200">{SHIP_DISPLAY_NAMES[nextShipType]}</h3>
-                      <p className="text-amber-100 mb-4">{SHIP_DESCRIPTIONS[nextShipType]}</p>
+                    <div className="relative p-6 rounded-lg border border-amber-500/50 bg-gradient-to-br from-amber-900/50 to-amber-800/30 shadow-lg transition-all duration-300 hover:shadow-amber-500/20">
+                      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-600 to-amber-400 rounded-t-lg" />
                       <div className="flex items-center mb-4">
-                        <Coins className="h-5 w-5 mr-2 text-yellow-500" />
-                        <span className="text-amber-200">Upgrade Cost: {upgradeCost} gold</span>
+                        <svg className="h-6 w-6 mr-2 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                        </svg>
+                        <h3 className="text-xl font-bold text-amber-200">{SHIP_DISPLAY_NAMES[nextShipType]}</h3>
                       </div>
-                      <div className="flex items-center mb-4">
-                        <Coins className="h-5 w-5 mr-2 text-yellow-500" />
-                        <span className="text-amber-200">Your gold: {gameState.player?.gold}</span>
+                      <p className="text-amber-100 mb-4 italic">{SHIP_DESCRIPTIONS[nextShipType]}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                        <div className="flex items-center">
+                          <Coins className="h-5 w-5 mr-2 text-yellow-500" />
+                          <span className="text-amber-200">Cost: {upgradeCost} gold</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Coins className="h-5 w-5 mr-2 text-yellow-500" />
+                          <span className="text-amber-200">Your Gold: {gameState.player?.gold}</span>
+                        </div>
                       </div>
                       <Button
                         disabled={!hasEnoughGoldForUpgrade}
                         onClick={() => sendUpgradeShip(nearPortId || 1)}
-                        className="bg-amber-600 hover:bg-amber-700 text-white"
+                        className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-semibold py-2 px-4 rounded-md transition-all duration-200 disabled:bg-gray-600 disabled:cursor-not-allowed"
                       >
+                        <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
                         Upgrade Ship
                       </Button>
                       {!hasEnoughGoldForUpgrade && (
-                        <p className="text-red-400 mt-2">Not enough gold to upgrade.</p>
+                        <p className="mt-3 text-sm text-red-400">Not enough gold to upgrade.</p>
                       )}
                     </div>
                   ) : (
-                    <p className="text-amber-100">You already have the best ship available.</p>
+                    <div className="text-center text-amber-100 bg-amber-900/30 p-4 rounded-md border border-amber-500/50">
+                      You command the mightiest ship on the seas!
+                    </div>
                   )}
                 </div>
               );

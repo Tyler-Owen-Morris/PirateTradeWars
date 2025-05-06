@@ -134,10 +134,10 @@ class GameState {
   async addPlayer(name: string, shipType: string, ship: any) {
     //console.log("addPlayer", name, shipType, ship);
     if (await redisStorage.isNameActive(name)) return null;
-    // const x = Math.random() * MAP_WIDTH;
-    // const z = Math.random() * MAP_HEIGHT;
-    const x = 1194;
-    const z = 5685;
+    const x = Math.random() * MAP_WIDTH;
+    const z = Math.random() * MAP_HEIGHT;
+    //const x = 1194;
+    //const z = 5685;
     const uuid = uuidv4();
 
     const player: PlayerState = {
@@ -536,7 +536,7 @@ class GameState {
           gold: player.gold,
           created: Date.now(),
         };
-        console.log("CREATING goldObject", goldObject);
+        //console.log("CREATING goldObject", goldObject);
         this.state.goldObjects.push(goldObject);
       }
     } catch (e) {

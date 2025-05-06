@@ -342,12 +342,16 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!player) return sendError(ws, "Player not found");
     let post_scuttle_gold = player.gold - 500;
     console.log(`Player ${player.name} scuttled their ship with score ${post_scuttle_gold}`);
-    const leaderboardEntry = await redisStorage.addToLeaderboard({
-      playerId: player.playerId,
-      playerName: player.name,
-      score: post_scuttle_gold,
-      achievedAt: new Date()
-    });
+    if (post_scuttle_gold <= 0) {
+      //post_scuttle_gold = 0;
+    } else {
+      const leaderboardEntry = await redisStorage.addToLeaderboard({
+        playerId: player.playerId,
+        playerName: player.name,
+        score: post_scuttle_gold,
+        achievedAt: new Date()
+      });
+    }
     // TODO: Fetch the leaderboard ranks NEAR the player's rank.
     const leaderboard = await redisStorage.getLeaderboard(10);
     await gameState.updateLeaderboard(leaderboard);
