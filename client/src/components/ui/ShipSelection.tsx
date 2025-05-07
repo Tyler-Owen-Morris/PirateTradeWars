@@ -13,7 +13,7 @@ import { useGameState } from "@/lib/stores/useGameState";
 import { useSocket } from "@/lib/stores/useSocket";
 import { Alert, AlertDescription } from "./alert";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES, SHIP_STATS } from "@shared/gameConstants";
+import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES, SHIP_STATS, SHIP_DISPLAY_NAMES } from "@shared/gameConstants";
 import PaymentModal from "./PaymentModal";
 
 export default function ShipSelection() {
@@ -103,6 +103,9 @@ export default function ShipSelection() {
 
   const launchStripeCheckout = async (ship: any) => {
     try {
+      // Clear any existing Stripe link auth session
+      localStorage.removeItem('link_auth_session_client_secret');
+
       // Call backend to create a Payment Intent
       const response = await fetch('/api/stripe/create-payment-intent', {
         method: 'POST',
@@ -221,17 +224,19 @@ export default function ShipSelection() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4">
       <Card className="w-full max-w-5xl border-amber-500 border flex flex-col rounded-xl" style={{
-        maxHeight: '80vh',
-        marginBottom: 'env(safe-area-inset-bottom, 20px)'
+        maxHeight: '83vh',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        zIndex: 1
       }}>
-        <CardHeader className="bg-amber-900 text-white rounded-t-xl">
+        <CardHeader className="bg-amber-900 text-white rounded-t-xl sticky top-0" style={{
+          zIndex: 1
+        }}>
           <CardTitle className="text-2xl md:text-3xl text-center">
             Choose Your <span className="text-amber-100">Captain's Name</span> and <span className="text-amber-100">Ship</span>
           </CardTitle>
-        </CardHeader>
-
-        <CardContent className="mt-4 overflow-y-auto flex-1 px-4 sm:px-6">
-          <div className="mb-6">
+          <div className="mt-4">
             <label
               htmlFor="playerName"
               className="block text-sm font-medium mb-2 text-white"
@@ -242,7 +247,7 @@ export default function ShipSelection() {
               <input
                 type="text"
                 id="playerName"
-                className="px-3 py-2 bg-gray-100 border border-amber-300 rounded-md w-full text-sm"
+                className="px-3 py-2 bg-gray-100 text-black border border-amber-300 rounded-md w-full text-sm"
                 value={playerName}
                 onChange={(e) => {
                   setPlayerName(e.target.value);
@@ -252,14 +257,16 @@ export default function ShipSelection() {
               />
               <Button
                 onClick={generatePirateName}
-                className="bg-amber-700 hover:bg-amber-600 text-white py-2 px-4 rounded-md transition text-sm"
+                className="bg-amber-700 hover:bg-amber-600 text-white py-2 px-4 rounded-md transition text-sm whitespace-nowrap"
                 data-testid="cypress-generate-random-name-button"
               >
                 Random Name
               </Button>
             </div>
           </div>
+        </CardHeader>
 
+        <CardContent className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
           {(shipError || socketError) && (
             <Alert variant="destructive" className="mb-4 text-white">
               <AlertCircle className="h-4 w-4" />
@@ -276,57 +283,61 @@ export default function ShipSelection() {
             {[
               {
                 type: SHIP_TYPES.SLOOP,
-                name: "The Sloop",
+                name: SHIP_DISPLAY_NAMES[SHIP_TYPES.SLOOP],
                 tier: "Free",
                 color: "blue-100",
                 stats: {
                   price: "Free",
                   ttl: `${SHIP_STATS[SHIP_TYPES.SLOOP].playerTTL / 60} min`,
-                  hull: "50 HP",
-                  cargo: "20 units",
-                  cannons: "1 (5 dmg)",
+                  hull: `${SHIP_STATS[SHIP_TYPES.SLOOP].hullStrength} HP`,
+                  cargo: `${SHIP_STATS[SHIP_TYPES.SLOOP].cargoCapacity} units`,
+                  cannons: `${SHIP_STATS[SHIP_TYPES.SLOOP].cannonCount} (${SHIP_STATS[SHIP_TYPES.SLOOP].cannonDamage} dmg)`,
+                  startingGold: `${SHIP_STATS[SHIP_TYPES.SLOOP].startingGold}`,
                 },
                 testId: "cypress-sloop-card",
               },
               {
                 type: SHIP_TYPES.BRIGANTINE,
-                name: "The Brigantine",
+                name: SHIP_DISPLAY_NAMES[SHIP_TYPES.BRIGANTINE],
                 tier: "Premium Tier 1",
                 color: "green-100",
                 stats: {
                   price: `$${(SHIP_PRICES[SHIP_TYPES.BRIGANTINE] / 100).toFixed(2)}`,
                   ttl: `${(SHIP_STATS[SHIP_TYPES.BRIGANTINE].playerTTL / 60) / 60} hour`,
-                  hull: "150 HP",
-                  cargo: "40 units",
-                  cannons: "2 (8 dmg)",
+                  hull: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].hullStrength} HP`,
+                  cargo: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cargoCapacity} units`,
+                  cannons: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cannonCount} (${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cannonDamage} dmg)`,
+                  startingGold: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].startingGold}`,
                 },
                 testId: "cypress-brigantine-card",
               },
               {
                 type: SHIP_TYPES.GALLEON,
-                name: "The Galleon",
+                name: SHIP_DISPLAY_NAMES[SHIP_TYPES.GALLEON],
                 tier: "Premium Tier 2",
                 color: "yellow-100",
                 stats: {
                   price: `$${(SHIP_PRICES[SHIP_TYPES.GALLEON] / 100).toFixed(2)}`,
                   ttl: `${(SHIP_STATS[SHIP_TYPES.GALLEON].playerTTL / 60) / 60} hours`,
-                  hull: "300 HP",
-                  cargo: "60 units",
-                  cannons: "3 (12 dmg)",
+                  hull: `${SHIP_STATS[SHIP_TYPES.GALLEON].hullStrength} HP`,
+                  cargo: `${SHIP_STATS[SHIP_TYPES.GALLEON].cargoCapacity} units`,
+                  cannons: `${SHIP_STATS[SHIP_TYPES.GALLEON].cannonCount} (${SHIP_STATS[SHIP_TYPES.GALLEON].cannonDamage} dmg)`,
+                  startingGold: `${SHIP_STATS[SHIP_TYPES.GALLEON].startingGold}`,
                 },
                 testId: "cypress-galleon-card",
               },
               {
                 type: SHIP_TYPES.MAN_O_WAR,
-                name: "The Man-o'-War",
+                name: SHIP_DISPLAY_NAMES[SHIP_TYPES.MAN_O_WAR],
                 tier: "Premium Tier 3",
                 color: "red-100",
                 stats: {
                   price: `$${(SHIP_PRICES[SHIP_TYPES.MAN_O_WAR] / 100).toFixed(2)}`,
                   ttl: `${(SHIP_STATS[SHIP_TYPES.MAN_O_WAR].playerTTL / 60) / 60} hours`,
-                  hull: "500 HP",
-                  cargo: "80 units",
-                  cannons: "4 (15 dmg)",
+                  hull: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].hullStrength} HP`,
+                  cargo: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cargoCapacity} units`,
+                  cannons: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cannonCount} (${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cannonDamage} dmg)`,
+                  startingGold: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].startingGold}`,
                 },
                 testId: "cypress-man-o-war-card",
               },
@@ -365,6 +376,7 @@ export default function ShipSelection() {
                       <li><span className="font-semibold">Hull:</span> {ship.stats.hull}</li>
                       <li><span className="font-semibold">Cargo:</span> {ship.stats.cargo}</li>
                       <li><span className="font-semibold">Cannons:</span> {ship.stats.cannons}</li>
+                      <li><span className="font-semibold">Starting Gold:</span> {ship.stats.startingGold}</li>
                     </ul>
                   </div>
                 </CardContent>
@@ -374,7 +386,8 @@ export default function ShipSelection() {
         </CardContent>
 
         <CardFooter className="flex flex-col sm:flex-row items-center justify-center p-4 bg-amber-900 rounded-b-xl sticky bottom-0 gap-4" style={{
-          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 20px))'
+          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 20px))',
+          zIndex: 1
         }}>
           <Button
             onClick={handleStartGame}
@@ -393,14 +406,16 @@ export default function ShipSelection() {
         </CardFooter>
       </Card>
       {showPaymentModal && clientSecret && (
-        <PaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          onSuccess={handlePaymentSuccess}
-          clientSecret={clientSecret}
-          shipName={selectedShip?.name || ''}
-          amount={selectedShip ? SHIP_PRICES[selectedShip.name] : 0}
-        />
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
+          <PaymentModal
+            isOpen={showPaymentModal}
+            onClose={() => setShowPaymentModal(false)}
+            onSuccess={handlePaymentSuccess}
+            clientSecret={clientSecret}
+            shipName={selectedShip?.name || ''}
+            amount={selectedShip ? SHIP_PRICES[selectedShip.name] : 0}
+          />
+        </div>
       )}
     </div>
   );

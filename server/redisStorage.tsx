@@ -263,32 +263,6 @@ export class RedisStorage {
         return newEntry;
     }
 
-    // Ship type operations
-    async getShipTypes(): Promise<ShipType[]> {
-        const shipTypes = await this.redis.hgetall('ship_types');
-        const entries = Object.entries(shipTypes);
-        const result: ShipType[] = [];
-
-        for (const [_, data] of entries) {
-            const parsedData = JSON.parse(data as string);
-            result.push(this.deserializeShipType(parsedData));
-        }
-
-        return result;
-    }
-
-    async getShipType(name: string): Promise<ShipType | undefined> {
-        const data = await this.redis.hget('ship_types', name);
-        return data ? this.deserializeShipType(JSON.parse(data)) : undefined;
-    }
-
-    async createShipType(shipType: Omit<ShipType, 'id'>): Promise<ShipType> {
-        const id = await this.redis.incr('ship_type:next_id');
-        const newShipType = { ...shipType, id };
-        await this.redis.hset('ship_types', shipType.name, JSON.stringify(newShipType));
-        return newShipType;
-    }
-
     // Port operations
     async getPorts(): Promise<Port[]> {
         const ports = await this.redis.hgetall('ports');
@@ -548,23 +522,6 @@ export class RedisStorage {
         }
 
         return player;
-    }
-
-    private deserializeShipType(data: any): ShipType {
-        //console.log("deserializing ship type:", data.isPaid)
-        return {
-            ...data,
-            id: parseInt(data.id),
-            hullStrength: parseInt(data.hullStrength),
-            armor: parseInt(data.armor),
-            cargoCapacity: parseInt(data.cargoCapacity),
-            speed: parseInt(data.speed),
-            cannonCount: parseInt(data.cannonCount),
-            cannonDamage: parseInt(data.cannonDamage),
-            cannonReload: parseInt(data.cannonReload),
-            repairCost: parseInt(data.repairCost),
-            isPaid: data.isPaid
-        };
     }
 
     private deserializePort(data: Record<string, string>): Port {

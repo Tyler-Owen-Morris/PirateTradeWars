@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { ShipStats } from "@/types";
-import { apiRequest } from "../queryClient";
 import { SHIP_TYPES, SHIP_DISPLAY_NAMES, SHIP_DESCRIPTIONS, SHIP_STATS } from "@shared/gameConstants";
 
 interface ShipState {
@@ -23,28 +22,7 @@ export const useShip = create<ShipState>((set, get) => ({
     try {
       set({ loading: true, error: null });
 
-      const response = await apiRequest('GET', '/api/ship-types', undefined);
-      const ships = await response.json();
-      console.log("API returned ships:", ships)
-
-      set({ ships, loading: false });
-
-      // Default to sloop if no ship is selected
-      if (!get().selectedShip && ships.length > 0) {
-        const sloop = ships.find((ship: ShipStats) => ship.name === 'sloop');
-        if (sloop) {
-          set({ selectedShip: sloop });
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch ships:', error);
-      set({
-        loading: false,
-        error: 'Failed to load ship types. Please try again.'
-      });
-
-      // Fallback to hardcoded ship types if API fails
-      const fallbackShips: ShipStats[] = [
+      const ships: ShipStats[] = [
         {
           id: 1,
           name: SHIP_TYPES.SLOOP,
@@ -75,10 +53,18 @@ export const useShip = create<ShipState>((set, get) => ({
         }
       ];
 
-      set({ ships: fallbackShips });
+      set({ ships, loading: false });
 
-      // Default to sloop
-      set({ selectedShip: fallbackShips[0] });
+      // Default to sloop if no ship is selected
+      if (!get().selectedShip) {
+        set({ selectedShip: ships[0] });
+      }
+    } catch (error) {
+      console.error('Failed to initialize ships:', error);
+      set({
+        loading: false,
+        error: 'Failed to initialize ship types.'
+      });
     }
   },
 

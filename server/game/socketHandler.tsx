@@ -4,7 +4,7 @@ import { WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { Or } from "drizzle-orm";
 import { PlayerState } from "../game/gameState";
-import { SHIP_UPGRADE_PATH, SHIP_STATS, MAP_WIDTH, MAP_HEIGHT } from "@shared/gameConstants";
+import { SHIP_UPGRADE_PATH, SHIP_STATS, MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES } from "@shared/gameConstants";
 
 interface ConnectMessage {
   type: "connect";
@@ -106,24 +106,21 @@ export function handleSocketConnection(ws: WebSocket) {
     if (await redisStorage.isNameActive(data.name)) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
-    const shipType = await redisStorage.getShipType(data.shipType);
-    if (!shipType) {
+    const shipStats = SHIP_STATS[data.shipType];
+    if (!shipStats) {
       return sendError(ws, "Invalid ship type");
     }
-    //console.log("ship type:", shipType)
 
-    const addedPlayer = await gameState.addPlayer(data.name, data.shipType, shipType);
+    const addedPlayer = await gameState.addPlayer(data.name, data.shipType, shipStats);
     // TODO : THESE redis updates should be in the gameState.tsx file, and not here.
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
     } else {
-      //console.log("adding player to redis:", addedPlayer)
       await redisStorage.createPlayer(addedPlayer)
       await redisStorage.addActiveName(addedPlayer.name, addedPlayer.id);
     }
 
     gameState.registerClient(addedPlayer.id, ws as any);
-
 
     console.log(`Total players connected: ${Object.keys(gameState.state.players).length}`);
 
@@ -131,7 +128,7 @@ export function handleSocketConnection(ws: WebSocket) {
       type: "connected",
       playerId: addedPlayer.id,
       name: data.name,
-      ship: shipType,
+      ship: shipStats,
       gold: addedPlayer.gold,
       players: gameState.state.players,
       cannonBalls: gameState.state.cannonBalls,
@@ -142,20 +139,15 @@ export function handleSocketConnection(ws: WebSocket) {
 
   async function handleReconnect(ws: WebSocket, data: ReconnectMessage) {
     let existingPlayer = gameState.state.players[data.id];
-    //console.log("looking for reconnecting to player:", data)
-    // console.log("existing players:", gameState.state.players)
     if (!existingPlayer) {
       existingPlayer = await redisStorage.getPlayer(data.id);
-      //console.log("existing player from redis:", existingPlayer)
       if (!existingPlayer) {
         return sendError(ws, "Player ID not found");
       } else {
-        // Don't forget to put the player object into the game state
         existingPlayer = existingPlayer as PlayerState;
         gameState.state.players[data.id] = existingPlayer;
       }
     }
-    //console.log("existing player:", existingPlayer)
     if (data.name !== existingPlayer.name && await redisStorage.isNameActive(data.name)) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
@@ -168,11 +160,16 @@ export function handleSocketConnection(ws: WebSocket) {
     existingPlayer.lastSeen = Date.now();
     gameState.registerClient(playerId, ws as any);
 
+    const shipStats = SHIP_STATS[existingPlayer.shipType];
+    if (!shipStats) {
+      return sendError(ws, "Invalid ship type for reconnecting player");
+    }
+
     ws.send(JSON.stringify({
       type: "reconnected",
       playerId,
       name: existingPlayer.name,
-      ship: await redisStorage.getShipType(existingPlayer.shipType),
+      ship: shipStats,
       gold: existingPlayer.gold,
       players: gameState.state.players,
       cannonBalls: gameState.state.cannonBalls,

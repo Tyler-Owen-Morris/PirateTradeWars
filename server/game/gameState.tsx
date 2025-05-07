@@ -154,7 +154,7 @@ class GameState {
       direction: { x: 0, y: 0, z: 1 },
       hp: ship.hullStrength,
       maxHp: ship.hullStrength,
-      gold: 500,
+      gold: SHIP_STATS[shipType].startingGold,
       cargoCapacity: ship.cargoCapacity,
       cargoUsed: 0,
       repairCost: ship.repairCost,

@@ -13,6 +13,7 @@ export interface ShipStats {
   cannonReload: number;
   cannonRange: number;
   repairCost: number;
+  startingGold: number;
   isPaid: boolean;
   playerTTL: number;
 }

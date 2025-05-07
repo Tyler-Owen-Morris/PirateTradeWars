@@ -9,6 +9,7 @@ import { setupShipTypes } from "../game/shipTypes";
 import crypto from "crypto";
 import { validate as isUUID } from "uuid";
 import { registerStripeRoutes } from "./stripeRoutes";
+import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
@@ -92,16 +93,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get ship types
-  app.get('/api/ship-types', async (req, res) => {
-    try {
-      const shipTypes = await redisStorage.getShipTypes();
-      //console.log("server sees database with ship types:", shipTypes);
-      res.json(shipTypes);
-    } catch (error) {
-      console.error('Error fetching ship types:', error);
-      res.status(500).json({ message: 'Failed to fetch ship types' });
-    }
-  });
+  const shipTypes = Object.entries(SHIP_STATS).map(([name, stats]) => ({
+    name,
+    ...stats
+  }));
 
   // Get leaderboard
   app.get('/api/leaderboard', async (req, res) => {

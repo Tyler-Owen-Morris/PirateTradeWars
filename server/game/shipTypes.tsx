@@ -1,6 +1,6 @@
 import { redisStorage } from "../redisStorage";
 import { ShipType } from "@shared/schema";
-import { DEFAULT_PORTS } from "@shared/gameConstants";
+import { DEFAULT_PORTS, SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
 
 export const defaultShipTypes: Omit<ShipType, "id">[] = [
     {
@@ -78,7 +78,10 @@ export const defaultPorts = DEFAULT_PORTS;
 
 export async function setupShipTypes() {
     try {
-        const existingShipTypes = await redisStorage.getShipTypes();
+        const existingShipTypes = Object.entries(SHIP_STATS).map(([name, stats]) => ({
+            name,
+            ...stats
+        }));
         if (existingShipTypes.length === 0) {
             console.log("Initializing ship types...");
             for (const shipType of defaultShipTypes) {
