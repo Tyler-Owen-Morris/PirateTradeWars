@@ -12,12 +12,13 @@ interface PaymentModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    onError: (error: { message: string; type?: string; code?: string }) => void;
     clientSecret: string; // From backend Payment Intent
     shipName: string;
     amount: number; // Price in the smallest currency unit (e.g., cents)
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, clientSecret, shipName }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, onError, clientSecret, shipName }) => {
     if (!isOpen) return null;
     const SHIP_PRICES: { [key: string]: number } = {
         brigantine: 100, // $1.00
@@ -113,14 +114,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
                     </div>
                 </div>
                 <Elements stripe={stripePromise} options={{ clientSecret }}>
-                    <CheckoutForm onSuccess={onSuccess} onClose={onClose} />
+                    <CheckoutForm onSuccess={onSuccess} onClose={onClose} onError={onError} />
                 </Elements>
             </div>
         </div>
     );
 };
 
-const CheckoutForm: React.FC<{ onSuccess: () => void; onClose: () => void }> = ({ onSuccess, onClose }) => {
+const CheckoutForm: React.FC<{ onSuccess: () => void; onClose: () => void; onError: (error: { message: string; type?: string; code?: string }) => void }> = ({ onSuccess, onClose, onError }) => {
     const stripe = useStripe();
     const elements = useElements();
     const [error, setError] = useState<string | null>(null);
@@ -134,15 +135,21 @@ const CheckoutForm: React.FC<{ onSuccess: () => void; onClose: () => void }> = (
         const { error, paymentIntent } = await stripe.confirmPayment({
             elements,
             confirmParams: {
-                return_url: window.location.href, // Not strictly needed for modal, but included for compatibility
+                return_url: window.location.href,
             },
-            redirect: 'if_required', // Prevents redirect for card payments
+            redirect: 'if_required',
         });
 
         setProcessing(false);
 
         if (error) {
-            setError(error.message || 'Payment failed');
+            const errorDetails = {
+                message: error.message || 'Payment failed',
+                type: error.type,
+                code: error.code,
+            };
+            setError(errorDetails.message);
+            onError(errorDetails);
         } else if (paymentIntent?.status === 'succeeded') {
             onSuccess();
             onClose();

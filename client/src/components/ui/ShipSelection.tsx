@@ -116,6 +116,7 @@ export default function ShipSelection() {
       return { available: true, tempPlayerId: data.tempPlayerId };
     } catch (error) {
       console.error('Error checking name availability:', error);
+      setNameError("Name already in use by an active player");
       //alert('Failed to check name availability. Please try again.');
       return { available: false };
     }
@@ -159,6 +160,28 @@ export default function ShipSelection() {
       return;
     }
     register(playerName, selectedShip.name, tempPlayerId);
+  };
+
+  const handlePaymentError = (error: { message: string; type?: string; code?: string }) => {
+    const errorMessage = error.message || 'Payment failed. Please try again.';
+    setNameError(errorMessage);
+    console.error("Payment error:", {
+      message: errorMessage,
+      type: error.type,
+      code: error.code,
+    });
+    // Clear tempPlayerId to prevent reuse
+    setTempPlayerId(null);
+    // Release name reservation
+    if (playerName && tempPlayerId) {
+      fetch('/api/release-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: playerName, tempPlayerId }),
+      }).catch((err) => console.error('Error releasing name:', err));
+    }
+    // Clear any premature playerId in localStorage
+    localStorage.removeItem('playerId');
   };
 
   // Start game with selected ship
@@ -295,14 +318,16 @@ export default function ShipSelection() {
 
         <CardContent className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
           {(shipError || socketError || nameError) && (
-            <Alert variant="destructive" className="mb-4 text-white">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {shipError || socketError || nameError}
-                {socketError && socketError.includes("Name already in use") && (
-                  <p className="mt-2">Please try a different name</p>
-                )}
-              </AlertDescription>
+            <Alert variant="destructive" className="mb-4 bg-red-900/90 border-red-700">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 mt-0.5 text-red-200" />
+                <AlertDescription className="text-red-100">
+                  {shipError || socketError || nameError}
+                  {/* {socketError && socketError.includes("Name already in use") && (
+                    <p className="mt-2 text-red-200">Please try a different name</p>
+                  )} */}
+                </AlertDescription>
+              </div>
             </Alert>
           )}
 
@@ -448,6 +473,7 @@ export default function ShipSelection() {
               }
             }}
             onSuccess={handlePaymentSuccess}
+            onError={handlePaymentError}
             clientSecret={clientSecret}
             shipName={selectedShip?.name || ''}
             amount={selectedShip ? SHIP_PRICES[selectedShip.name] : 0}
