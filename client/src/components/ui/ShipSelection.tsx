@@ -30,17 +30,19 @@ export default function ShipSelection() {
   const [playerName, setPlayerName] = useState("");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [tempPlayerId, setTempPlayerId] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   // Log current state for debugging
   useEffect(() => {
-    console.log("ShipSelection component state:", {
-      selectedShip,
-      playerName,
-      connected,
-      isRegistered,
-      socketError,
-      shipError,
-    });
+    // console.log("ShipSelection component state:", {
+    //   selectedShip,
+    //   playerName,
+    //   connected,
+    //   isRegistered,
+    //   socketError,
+    //   shipError,
+    // });
   }, [
     selectedShip,
     playerName,
@@ -101,42 +103,62 @@ export default function ShipSelection() {
     localStorage.setItem("playerName", randomName);
   }
 
-  const launchStripeCheckout = async (ship: any) => {
+  const checkNameAvailability = async (name: string): Promise<{ available: boolean; tempPlayerId?: string }> => {
     try {
-      // Clear any existing Stripe link auth session
-      localStorage.removeItem('link_auth_session_client_secret');
+      const response = await fetch(`/api/check-name?name=${encodeURIComponent(name)}`);
+      if (!response.ok) throw new Error('Server error checking name');
+      const data = await response.json();
+      console.log("checkNameAvailability response:", data)
+      if (!data.available) {
+        alert('This name is already in use. Please choose a different name.');
+        return { available: false };
+      }
+      return { available: true, tempPlayerId: data.tempPlayerId };
+    } catch (error) {
+      console.error('Error checking name availability:', error);
+      //alert('Failed to check name availability. Please try again.');
+      return { available: false };
+    }
+  };
 
-      // Call backend to create a Payment Intent
+  const launchStripeCheckout = async (ship: any, tempPlayerId: string) => {
+    try {
+      localStorage.removeItem('link_auth_session_client_secret');
       const response = await fetch('/api/stripe/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           shipName: ship.name,
-          amount: SHIP_PRICES[ship.name], // Amount in cents (e.g., $10.00 = 1000)
+          amount: SHIP_PRICES[ship.name],
           currency: 'usd',
           playerName: playerName,
+          tempPlayerId,
         }),
       });
       console.log("initiate payment response:", response)
       const { clientSecret } = await response.json();
       if (!clientSecret) throw new Error('Failed to create payment intent');
-
-      // Open the payment modal
       setClientSecret(clientSecret);
       setShowPaymentModal(true);
     } catch (error) {
       console.error('Error initiating payment:', error);
-      alert('Failed to initiate payment. Please try again.');
+      //alert('Failed to initiate payment. Please try again.');
+      setNameError("Failed to initiate payment. Please try again.");
+      // Release the name reservation on failure
+      await fetch('/api/release-name', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: playerName, tempPlayerId }),
+      });
     }
   };
 
   const handlePaymentSuccess = () => {
-    if (!selectedShip) {
-      console.error('Cannot start game: missing ship');
+    if (!selectedShip || !tempPlayerId) {
+      console.error('Cannot start game: missing ship or tempPlayerId');
       return;
     }
-    // Called when payment succeeds
-    register(playerName, selectedShip.name); // Proceed with registration
+    register(playerName, selectedShip.name, tempPlayerId);
   };
 
   // Start game with selected ship
@@ -153,10 +175,15 @@ export default function ShipSelection() {
 
     // Clear any previous errors
     useSocket.getState().resetError();
+    setNameError(null);
 
     if (selectedShip.isPaid) {
-      // Launch Stripe checkout
-      launchStripeCheckout(selectedShip);
+      const { available, tempPlayerId } = await checkNameAvailability(playerName);
+      console.log("checkNameAvailability:", { available, tempPlayerId })
+      if (available && tempPlayerId) {
+        setTempPlayerId(tempPlayerId);
+        launchStripeCheckout(selectedShip, tempPlayerId);
+      }
     } else {
       // No payment required for free ship
       console.log(
@@ -267,12 +294,12 @@ export default function ShipSelection() {
         </CardHeader>
 
         <CardContent className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
-          {(shipError || socketError) && (
+          {(shipError || socketError || nameError) && (
             <Alert variant="destructive" className="mb-4 text-white">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                {shipError || socketError}
-                {socketError && socketError.includes("Name already taken") && (
+                {shipError || socketError || nameError}
+                {socketError && socketError.includes("Name already in use") && (
                   <p className="mt-2">Please try a different name</p>
                 )}
               </AlertDescription>
@@ -409,7 +436,17 @@ export default function ShipSelection() {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
           <PaymentModal
             isOpen={showPaymentModal}
-            onClose={() => setShowPaymentModal(false)}
+            onClose={async () => {
+              setShowPaymentModal(false);
+              // Release name if payment was not successful
+              if (!useSocket.getState().playerId) {
+                await fetch('/api/release-name', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ name: playerName, tempPlayerId: tempPlayerId }),
+                });
+              }
+            }}
             onSuccess={handlePaymentSuccess}
             clientSecret={clientSecret}
             shipName={selectedShip?.name || ''}

@@ -10,12 +10,14 @@ interface ConnectMessage {
   type: "connect";
   name: string;
   shipType: string;
+  tempPlayerId?: string;
 }
 
 interface ReconnectMessage {
   type: "reconnect";
   id: string;
   name: string;
+  tempPlayerId?: string;
 }
 
 interface InputMessage {
@@ -103,20 +105,23 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!data.name || data.name.trim().length < 3) {
       return sendError(ws, "Name must be at least 3 characters");
     }
-    if (await redisStorage.isNameActive(data.name)) {
+    const reservedPlayerId = await redisStorage.getActiveNamePlayerId(data.name);
+    if (reservedPlayerId && reservedPlayerId !== data.tempPlayerId) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
     const shipStats = SHIP_STATS[data.shipType];
     if (!shipStats) {
       return sendError(ws, "Invalid ship type");
     }
-
-    const addedPlayer = await gameState.addPlayer(data.name, data.shipType, shipStats);
-    // TODO : THESE redis updates should be in the gameState.tsx file, and not here.
+    const addedPlayer = await gameState.addPlayer(data.name, data.shipType, shipStats, data.tempPlayerId);
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
+    }
+    await redisStorage.createPlayer(addedPlayer);
+    // Update the active_name entry with the final player ID if it was a temporary reservation
+    if (reservedPlayerId === data.tempPlayerId) {
+      await redisStorage.addActiveName(data.name, addedPlayer.id);
     } else {
-      await redisStorage.createPlayer(addedPlayer)
       await redisStorage.addActiveName(addedPlayer.name, addedPlayer.id);
     }
 
@@ -132,6 +137,7 @@ export function handleSocketConnection(ws: WebSocket) {
       gold: addedPlayer.gold,
       players: gameState.state.players,
       cannonBalls: gameState.state.cannonBalls,
+      goldObjects: gameState.state.goldObjects,
       timestamp: Date.now(),
     }));
     console.log(`Player ${addedPlayer.name} connected with ID ${addedPlayer.id}`);
@@ -148,8 +154,11 @@ export function handleSocketConnection(ws: WebSocket) {
         gameState.state.players[data.id] = existingPlayer;
       }
     }
-    if (data.name !== existingPlayer.name && await redisStorage.isNameActive(data.name)) {
-      return sendError(ws, "Name already in use by an active player", "nameError");
+    if (data.name !== existingPlayer.name) {
+      const reservedPlayerId = await redisStorage.getActiveNamePlayerId(data.name);
+      if (reservedPlayerId && reservedPlayerId !== data.tempPlayerId) {
+        return sendError(ws, "Name already in use by an active player", "nameError");
+      }
     }
 
     playerId = data.id;

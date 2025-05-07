@@ -15,7 +15,7 @@ interface SocketState {
   disconnect: () => void;
   resetError: () => void;
 
-  register: (name: string, shipType: string) => void;
+  register: (name: string, shipType: string, tempPlayerId?: string) => void;
   sendInput: (speed: number, direction: Vector3, firing: boolean, rotationY?: number) => void;
   sendTrade: (portId: number, action: "buy" | "sell", goodId: number, quantity: number) => void;
   sendUpgradeShip: (portId: number) => void;
@@ -80,15 +80,29 @@ export const useSocket = create<SocketState>((set, get) => ({
               break;
 
             case "connected":
+            case "connected":
               console.log("Successfully connected:", message);
               set({ playerId: message.playerId, playerName: message.name, error: null });
               localStorage.setItem("playerId", message.playerId);
               localStorage.setItem("playerName", message.name);
-              useGameState.setState({ isRegistered: true });
-              //setTimeout(() => { useGameState.setState({ isPlaying: true }) }, 1000)
               if (message.players) {
+                console.log("Initial game state received:", {
+                  players: Object.keys(message.players).length,
+                  cannonBalls: message.cannonBalls?.length || 0,
+                  goldObjects: message.goldObjects?.length || 0,
+                });
                 get().onGameUpdate(message.players, message.cannonBalls || [], message.goldObjects || []);
+                if (message.playerId && message.players[message.playerId]) {
+                  useGameState.getState().updatePlayer(message.players[message.playerId]);
+                } else {
+                  console.warn("Own player data missing in initial state");
+                }
+              } else {
+                console.warn("No players data in connected message");
               }
+              useGameState.setState({ isRegistered: true });
+              // Store the final player ID in localStorage to replace tempPlayerId
+              localStorage.setItem("finalPlayerId", message.playerId);
               break;
 
             case "reconnected":
@@ -218,18 +232,17 @@ export const useSocket = create<SocketState>((set, get) => ({
     set({ error: null });
   },
 
-  register: (name, shipType) => {
+  register: (name, shipType, tempPlayerId?: string) => {
     const { socket, connected } = get();
     if (!socket || !connected) {
       set({ error: "Not connected. Please refresh and try again." });
       return;
     }
-
     const storedPlayerId = localStorage.getItem("playerId");
     if (storedPlayerId) {
-      socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name }));
+      socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name, tempPlayerId }));
     } else {
-      socket.send(JSON.stringify({ type: "connect", name, shipType }));
+      socket.send(JSON.stringify({ type: "connect", name, shipType, tempPlayerId }));
       console.log("sending connect event from client")
     }
   },

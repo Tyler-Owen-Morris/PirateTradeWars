@@ -131,14 +131,18 @@ class GameState {
     }
   }
 
-  async addPlayer(name: string, shipType: string, ship: any) {
+  async addPlayer(name: string, shipType: string, ship: any, tempPlayerId?: string) {
     //console.log("addPlayer", name, shipType, ship);
-    if (await redisStorage.isNameActive(name)) return null;
+    const reservedPlayerId = await redisStorage.getActiveNamePlayerId(name);
+    if (reservedPlayerId && reservedPlayerId !== tempPlayerId) {
+      console.log(`Name conflict: ${name} is reserved with ID ${reservedPlayerId}, but tempPlayerId is ${tempPlayerId}`);
+      return null;
+    }
     const x = Math.random() * MAP_WIDTH;
     const z = Math.random() * MAP_HEIGHT;
     //const x = 1194;
     //const z = 5685;
-    const uuid = uuidv4();
+    const uuid = tempPlayerId || uuidv4();
 
     const player: PlayerState = {
       id: uuid,
@@ -171,7 +175,6 @@ class GameState {
       dead: false,
     };
     this.state.players[uuid] = player;
-    //await redisStorage.addActiveName(name, uuid);
     return player;
   }
 

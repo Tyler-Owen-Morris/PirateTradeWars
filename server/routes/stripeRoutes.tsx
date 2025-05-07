@@ -3,6 +3,7 @@ import express from "express";
 import Stripe from "stripe";
 import { redisStorage } from '../redisStorage';
 import { SHIP_PRICES } from '@shared/gameConstants';
+import { v4 as uuidv4 } from 'uuid';
 
 // Initialize Stripe with your secret key (loaded from environment variable)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -24,46 +25,37 @@ export function registerStripeRoutes(app: Express) {
 
     // Route to create a Payment Intent for a premium ship
     app.post('/api/stripe/create-payment-intent', async (req: Request, res: Response) => {
-        const { shipName, amount, currency, playerName } = req.body;
+        const { shipName, amount, currency, playerName, tempPlayerId } = req.body;
         console.log("create-payment-intent request:", req.body)
-        // Validate request
-        if (!shipName || !amount || !currency) {
+        if (!shipName || !amount || !currency || !playerName || !tempPlayerId) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
-
         const normalizedShipName = shipName.toLowerCase();
         if (!SHIP_PRICES[normalizedShipName]) {
             return res.status(400).json({ error: 'Invalid ship name' });
         }
-
         if (amount !== SHIP_PRICES[normalizedShipName]) {
             return res.status(400).json({ error: 'Invalid amount for this ship' });
         }
-
         if (currency !== 'usd') {
             return res.status(400).json({ error: 'Unsupported currency' });
         }
-
+        // Verify the name reservation
+        const reservedPlayerId = await redisStorage.getActiveNamePlayerId(playerName);
+        if (reservedPlayerId !== tempPlayerId) {
+            return res.status(400).json({ error: 'Name reservation invalid or expired' });
+        }
         try {
-            // Check if player already owns the ship
-            // const purchaseKey = `purchase:${playerName}:${normalizedShipName}`;
-            // const hasPurchased = await redisStorage.get(purchaseKey);
-            // if (hasPurchased) {
-            //     return res.status(400).json({ error: 'You already own this ship' });
-            // }
-
-            // Create Payment Intent
             const paymentIntent = await stripe.paymentIntents.create({
-                amount, // Amount in cents
+                amount,
                 currency,
                 payment_method_types: ['card'],
                 metadata: {
                     shipName,
                     playerName,
+                    tempPlayerId,
                 },
             });
-
-            // Return client secret to frontend
             res.json({ clientSecret: paymentIntent.client_secret });
         } catch (error) {
             console.error('Error creating Payment Intent:', error);
@@ -102,6 +94,46 @@ export function registerStripeRoutes(app: Express) {
         } catch (error: any) {
             console.error('Webhook error:', error.message);
             res.status(400).json({ error: 'Webhook error' });
+        }
+    });
+
+    // Check if a name is available and reserve it if it is
+    app.get('/api/check-name', async (req: Request, res: Response) => {
+        const { name } = req.query;
+        if (!name || typeof name !== 'string') {
+            return res.status(400).json({ error: 'Invalid name' });
+        }
+        try {
+            const isActive = await redisStorage.isNameActive(name);
+            if (isActive) {
+                return res.status(400).json({ error: 'Name already in use' });
+            }
+            const tempPlayerId = uuidv4();
+            await redisStorage.reserveName(name, tempPlayerId);
+            res.json({ available: true, tempPlayerId });
+        } catch (error) {
+            console.error('Error checking name availability:', error);
+            res.status(500).json({ error: 'Server error' });
+        }
+    });
+
+    // Release a name reservation
+    app.post('/api/release-name', async (req: Request, res: Response) => {
+        const { name, tempPlayerId } = req.body;
+        if (!name || !tempPlayerId) {
+            return res.status(400).json({ error: 'Missing name or tempPlayerId' });
+        }
+        try {
+            const reservedPlayerId = await redisStorage.redis.get(`active_name:${name}`);
+            if (reservedPlayerId === tempPlayerId) {
+                await redisStorage.removeActiveName(name);
+                res.json({ success: true });
+            } else {
+                res.status(400).json({ error: 'Invalid tempPlayerId for this name' });
+            }
+        } catch (error) {
+            console.error('Error releasing name:', error);
+            res.status(500).json({ error: 'Server error' });
         }
     });
 }

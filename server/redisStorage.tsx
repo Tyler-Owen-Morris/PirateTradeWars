@@ -201,8 +201,20 @@ export class RedisStorage {
         await this.redis.expire(`player:${id}`, currentPlayer.playerTTL + this.EXPIRATION_OFFSET);
     }
 
+    // reserve a name from a stripe checkout begin
+    async reserveName(name: string, tempPlayerId: string, ttlSeconds: number = 300): Promise<void> {
+        const multi = this.redis.multi();
+        multi.set(`active_name:${name}`, tempPlayerId);
+        multi.expire(`active_name:${name}`, ttlSeconds);
+        await multi.exec();
+    }
 
-    // Modified setPlayerActive
+    async getActiveNamePlayerId(name: string): Promise<string | null> {
+        const playerId = await this.redis.get(`active_name:${name}`);
+        return playerId || null;
+    }
+
+    // Reset TTL for player, inventory, and name records.
     async setPlayerActive(id: string, isActive: boolean): Promise<void> {
         const player = await this.getPlayer(id);
         if (!player) {
