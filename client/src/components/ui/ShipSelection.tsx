@@ -363,11 +363,8 @@ export default function ShipSelection() {
               </Button>
             </div>
           </div>
-        </CardHeader>
-
-        <CardContent className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
           {(shipError || socketError || nameError) && (
-            <Alert variant="destructive" className="mb-4 bg-red-900/90 border-red-700">
+            <Alert onClick={() => { setNameError(null); useSocket.getState().resetError(); }} variant="destructive" className="mb-4 bg-red-900/90 border-red-700">
               <div className="flex items-start gap-3">
                 <AlertCircle className="h-5 w-5 mt-0.5 text-red-200" />
                 <AlertDescription className="text-red-100">
@@ -379,6 +376,10 @@ export default function ShipSelection() {
               </div>
             </Alert>
           )}
+        </CardHeader>
+
+        <CardContent className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
