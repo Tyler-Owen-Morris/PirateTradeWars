@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from "./alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES, SHIP_STATS, SHIP_DISPLAY_NAMES } from "@shared/gameConstants";
 import PaymentModal from "./PaymentModal";
+import pirateNamesData from "./pirateNames.json";
 
 export default function ShipSelection() {
   const {
@@ -95,13 +96,61 @@ export default function ShipSelection() {
   // }, [])
 
   // generate random pirate name
+  // const generatePirateName = () => {
+  //   // Reset error and generate a random name
+  //   useSocket.getState().resetError();
+  //   const randomName = `pirate${Math.floor(Math.random() * 10000)}`;
+  //   setPlayerName(randomName);
+  //   localStorage.setItem("playerName", randomName);
+  // }
   const generatePirateName = () => {
     // Reset error and generate a random name
     useSocket.getState().resetError();
-    const randomName = `pirate${Math.floor(Math.random() * 10000)}`;
-    setPlayerName(randomName);
-    localStorage.setItem("playerName", randomName);
-  }
+
+    // Load name parts from JSON
+    const { prefixes, middleNames, suffixes } = pirateNamesData;
+
+    // Decide name structure with probabilities
+    const structure = Math.random();
+    let usePrefix = false;
+    let useSuffix = false;
+    if (structure < 0.3) {
+      usePrefix = true; // Prefix + Middle Name (30%)
+    } else if (structure < 0.6) {
+      useSuffix = true; // Middle Name + Suffix (30%)
+    } else {
+      usePrefix = true;
+      useSuffix = true; // Prefix + Middle Name + Suffix (40%)
+    }
+
+    // Select middle name
+    const middleName = middleNames[Math.floor(Math.random() * middleNames.length)];
+
+    let prefix = '';
+    let prefixTags: string[] = [];
+    if (usePrefix) {
+      const prefixObj = prefixes[Math.floor(Math.random() * prefixes.length)];
+      prefix = prefixObj.name;
+      prefixTags = prefixObj.tags;
+    }
+
+    let suffix = '';
+    if (useSuffix) {
+      let availableSuffixes = suffixes;
+      if (usePrefix && prefixTags.includes('descriptor')) {
+        // If prefix is a descriptor, filter out descriptor suffixes
+        availableSuffixes = suffixes.filter(s => !s.tags.includes('descriptor'));
+      }
+      const suffixObj = availableSuffixes[Math.floor(Math.random() * availableSuffixes.length)];
+      suffix = suffixObj.name;
+    }
+
+    // Construct the full name, filtering out empty parts
+    const fullName = [prefix, middleName, suffix].filter(part => part !== '').join(' ');
+
+    setPlayerName(fullName);
+    localStorage.setItem("playerName", fullName);
+  };
 
   const checkNameAvailability = async (name: string): Promise<{ available: boolean; tempPlayerId?: string }> => {
     try {
