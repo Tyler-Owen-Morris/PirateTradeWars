@@ -95,6 +95,8 @@ export function handleSocketConnection(ws: WebSocket) {
       gameState.removeClient(playerId);
       console.log(`Player ${playerId} disconnected`);
       console.log(`Total players connected: ${Object.keys(gameState.state.players).length}`);
+    } else {
+      console.log("Player ID is null");
     }
   });
 
@@ -124,6 +126,8 @@ export function handleSocketConnection(ws: WebSocket) {
     } else {
       await redisStorage.addActiveName(addedPlayer.name, addedPlayer.id);
     }
+
+    playerId = addedPlayer.id;
 
     gameState.registerClient(addedPlayer.id, ws as any);
 
