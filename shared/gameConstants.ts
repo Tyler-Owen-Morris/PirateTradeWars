@@ -62,7 +62,7 @@ export const SHIP_STATS = {
         repairCost: 300,
         isPaid: true,
         startingGold: 500,
-        playerTTL: 1 * 60 * 60  // 1 hour in seconds
+        playerTTL: 2 * 60 * 60  // 1 hour in seconds
     },
     [SHIP_TYPES.GALLEON]: {
         hullStrength: 300,

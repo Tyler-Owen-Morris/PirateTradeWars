@@ -80,7 +80,6 @@ export const useSocket = create<SocketState>((set, get) => ({
               break;
 
             case "connected":
-            case "connected":
               console.log("Successfully connected:", message);
               set({ playerId: message.playerId, playerName: message.name, error: null });
               localStorage.setItem("playerId", message.playerId);

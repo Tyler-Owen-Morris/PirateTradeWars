@@ -10,6 +10,13 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: '2025-04-30.basil',
 });
 
+// Map of ship names to their corresponding Price IDs
+const SHIP_PRICE_IDS: { [key: string]: string } = {
+    brigantine: 'price_1RMZWLEa5C1LC1J5STg2lVqq', // Replace with actual Price ID
+    galleon: 'price_1RMZX2Ea5C1LC1J5jmx5r6Fs',
+    'man-o-war': 'price_1RMZXvEa5C1LC1J5OIyXOxY4'
+};
+
 // Webhook secret for verifying Stripe webhook signatures
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 

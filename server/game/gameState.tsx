@@ -567,7 +567,7 @@ class GameState {
     try {
       await redisStorage.removePlayer(player.playerId);
     } catch (err) {
-      console.error("Error removing player:", err);
+      console.warn("Error removing player:", err); // This is not necessarily an error, it's just that the player is not in the database, which can be from TTL
     }
   }
 
