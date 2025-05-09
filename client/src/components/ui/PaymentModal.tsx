@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
+import { SHIP_PRICES } from '@shared/gameConstants';
 // import dotenv from 'dotenv';
 // dotenv.config();
 
@@ -20,11 +21,11 @@ interface PaymentModalProps {
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, onError, clientSecret, shipName }) => {
     if (!isOpen) return null;
-    const SHIP_PRICES: { [key: string]: number } = {
-        brigantine: 100, // $1.00
-        galleon: 200,    // $2.00
-        'man-o-war': 400 // $4.00
-    };
+    // const SHIP_PRICES: { [key: string]: number } = {
+    //     brigantine: 100, // $1.00
+    //     galleon: 200,    // $2.00
+    //     'man-o-war': 400 // $4.00
+    // };
     const price = SHIP_PRICES[shipName];
 
 

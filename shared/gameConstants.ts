@@ -62,7 +62,7 @@ export const SHIP_STATS = {
         repairCost: 300,
         isPaid: true,
         startingGold: 500,
-        playerTTL: 2 * 60 * 60  // 1 hour in seconds
+        playerTTL: 2 * 60 * 60  // 2 hours in seconds
     },
     [SHIP_TYPES.GALLEON]: {
         hullStrength: 300,
@@ -101,9 +101,9 @@ export const SHIP_UPGRADE_PATH = [
 ];
 
 export const SHIP_PRICES = {
-    [SHIP_TYPES.BRIGANTINE]: 100,
-    [SHIP_TYPES.GALLEON]: 200,
-    [SHIP_TYPES.MAN_O_WAR]: 400
+    [SHIP_TYPES.BRIGANTINE]: 50,
+    [SHIP_TYPES.GALLEON]: 100,
+    [SHIP_TYPES.MAN_O_WAR]: 200
 };
 
 // Game goods

@@ -12,9 +12,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 // Map of ship names to their corresponding Price IDs
 const SHIP_PRICE_IDS: { [key: string]: string } = {
-    brigantine: 'price_1RMZWLEa5C1LC1J5STg2lVqq', // Replace with actual Price ID
-    galleon: 'price_1RMZX2Ea5C1LC1J5jmx5r6Fs',
-    'man-o-war': 'price_1RMZXvEa5C1LC1J5OIyXOxY4'
+    brigantine: process.env.STRIPE_BRIGANTINE_PRICE_ID!,
+    galleon: process.env.STRIPE_GALLEON_PRICE_ID!,
+    'man-o-war': process.env.STRIPE_MANOWAR_PRICE_ID!
 };
 
 // Webhook secret for verifying Stripe webhook signatures
@@ -38,14 +38,20 @@ export function registerStripeRoutes(app: Express) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         const normalizedShipName = shipName.toLowerCase();
-        if (!SHIP_PRICES[normalizedShipName]) {
+        const priceId = SHIP_PRICE_IDS[normalizedShipName];
+        if (!priceId) {
             return res.status(400).json({ error: 'Invalid ship name' });
         }
-        if (amount !== SHIP_PRICES[normalizedShipName]) {
-            return res.status(400).json({ error: 'Invalid amount for this ship' });
-        }
-        if (currency !== 'usd') {
-            return res.status(400).json({ error: 'Unsupported currency' });
+
+        // Validate amount and currency
+        try {
+            const price = await stripe.prices.retrieve(priceId);
+            if (!price.unit_amount || price.currency !== currency || price.unit_amount !== amount) {
+                return res.status(400).json({ error: 'Invalid amount or currency for this ship' });
+            }
+        } catch (error) {
+            console.error('Error retrieving price:', error);
+            return res.status(500).json({ error: 'Failed to validate price' });
         }
         // Verify the name reservation
         const reservedPlayerId = await redisStorage.getActiveNamePlayerId(playerName);
@@ -61,6 +67,7 @@ export function registerStripeRoutes(app: Express) {
                     shipName,
                     playerName,
                     tempPlayerId,
+                    priceId
                 },
             });
             res.json({ clientSecret: paymentIntent.client_secret });
