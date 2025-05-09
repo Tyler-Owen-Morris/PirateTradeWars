@@ -58,6 +58,20 @@ export const defaultShipTypes: Omit<ShipType, "id">[] = [
         cannonReload: 1.2,
         repairCost: 1000,
         isPaid: true
+    },
+    {
+        name: "dreadnaught",
+        displayName: "The Dreadnaught",
+        description: "A legendary vessel of immense power, only attainable through mastery of the seas.",
+        hullStrength: 800,
+        armor: 30,
+        cargoCapacity: 100,
+        speed: 4,
+        cannonCount: 5,
+        cannonDamage: 20,
+        cannonReload: 1.0,
+        repairCost: 2000,
+        isPaid: true
     }
 ];
 

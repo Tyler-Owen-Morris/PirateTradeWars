@@ -57,6 +57,7 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
       shipRef.current.rotation.z = Math.min(Math.PI / 4, shipRef.current.rotation.z + 0.005);
     }
   });
+  // console.log("SHIP_DIMENSIONS", SHIP_DIMENSIONS, type);
 
   const dims = SHIP_DIMENSIONS[type];
   const numMasts = SHIP_MAST_COUNTS[type];
