@@ -46,6 +46,12 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
         model.scale.set(scaleFactor, scaleFactor, scaleFactor);
 
         model.position.y = dims.height + 10;
+        if (type === 'galleon') {
+          model.rotation.y = Math.PI / 2 + Math.PI;
+        }
+        if (type === 'man-o-war') {
+          model.rotation.y = Math.PI
+        }
 
         // Enable shadows
         model.traverse((child) => {
