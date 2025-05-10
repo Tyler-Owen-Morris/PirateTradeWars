@@ -8,6 +8,10 @@ const islandModels = [
   'island_1.glb',
   'island_2.glb',
   'island_3.glb',
+  'island_4.glb',
+  'island_5.glb',
+  'island_6.glb',
+  'island_7.glb',
   // Add more as needed, e.g., 'island_4.glb'
 ];
 
@@ -39,6 +43,7 @@ export function Island({ position, name, size = 300, seed = 1, lowTide = false }
   // Select model based on name hash
   const modelIndex = stringHash(name) % islandModels.length;
   const modelPath = `/island_models/${islandModels[modelIndex]}`;
+  //const modelPath = `/island_models/island_6.glb`;
 
   // Load glTF model
   useEffect(() => {
@@ -56,6 +61,37 @@ export function Island({ position, name, size = 300, seed = 1, lowTide = false }
         // Adjust Y-position to align base with water (tune as needed)
         model.position.y = 5; // Raise island slightly above water (y=0)
 
+        if (islandModels[modelIndex] === 'island_4.glb') {
+          model.position.y = -52;
+          model.position.z -= 100
+          const scaleFactor = size / 1.5;
+          model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        }
+
+        if (islandModels[modelIndex] === 'island_5.glb') {
+          model.position.y = -20;
+          model.position.z -= 100
+          model.position.x += 25
+          const scaleFactor = size / 1.7;
+          model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        }
+
+        if (modelPath === '/island_models/island_6.glb') {
+          model.position.y = -10;
+          model.position.z += 80
+          model.position.x -= 0
+          const scaleFactor = size / 1.5;
+          model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        }
+
+        if (modelPath === '/island_models/island_7.glb') {
+          model.position.y = -10;
+          model.position.z += 0
+          model.position.x -= 0
+          const scaleFactor = size / 4;
+          model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        }
+
         // Enable shadows
         model.traverse((child) => {
           if (child instanceof THREE.Mesh) {
@@ -68,7 +104,7 @@ export function Island({ position, name, size = 300, seed = 1, lowTide = false }
         meshRef.current.add(model);
       },
       (progress) => {
-        console.log(`Loading ${modelPath}: ${(progress.loaded / progress.total * 100).toFixed(2)}%`);
+        //console.log(`Loading ${modelPath}: ${(progress.loaded / progress.total * 100).toFixed(2)}%`);
       },
       (error) => {
         console.error(`Error loading ${modelPath}:`, error);

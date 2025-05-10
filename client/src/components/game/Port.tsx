@@ -68,6 +68,7 @@ export function Port({ port }: PortProps) {
         position={[port.x, -15, port.z]}
         size={350}
         seed={islandSeed}
+        name={port.name}
       />
 
       {/* Simple port marker */}

@@ -57,7 +57,7 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
         }
         if (type === 'dreadnaught') {
           model.rotation.y = Math.PI / 2 + Math.PI;
-          model.position.y = dims.height + 30;
+          model.position.y = dims.height + 20;
           let localScaleFactor = dims.length / 1.6;
           model.scale.set(localScaleFactor, localScaleFactor, localScaleFactor);
         }
