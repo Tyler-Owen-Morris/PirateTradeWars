@@ -74,19 +74,19 @@ export function Port({ port }: PortProps) {
       {/* Simple port marker */}
       <group ref={portRef} position={[port.x, port.y || 25, port.z]}>
         {/* Port base */}
-        <mesh castShadow receiveShadow position={[0, 0, 0]}>
+        {/* <mesh castShadow receiveShadow position={[0, 0, 0]}>
           <cylinderGeometry args={[40, 40, 10, 32]} />
           <meshStandardMaterial color="#8B4513" />
-        </mesh>
+        </mesh> */}
 
         {/* Port pillar */}
-        <mesh castShadow receiveShadow position={[0, 30, 0]}>
+        {/* <mesh castShadow receiveShadow position={[0, 30, 0]}>
           <cylinderGeometry args={[5, 5, 50, 16]} />
           <meshStandardMaterial color="#A0522D" />
-        </mesh>
+        </mesh> */}
 
         {/* Beacon on top (rotating) */}
-        <group ref={beaconRef} position={[0, 55, 0]}>
+        {/* <group ref={beaconRef} position={[0, 55, 0]}>
           <mesh castShadow>
             <sphereGeometry args={[10, 16, 16]} />
             <meshStandardMaterial
@@ -102,10 +102,10 @@ export function Port({ port }: PortProps) {
             color="#FFD700"
             castShadow
           />
-        </group>
+        </group> */}
 
         {/* Port name display */}
-        <Billboard position={[0, 80, 0]} follow={true}>
+        <Billboard position={[0, 200, 0]} follow={true}>
           <Text
             fontSize={20}
             color="#FFD700"
@@ -113,7 +113,7 @@ export function Port({ port }: PortProps) {
             anchorY="middle"
             outlineWidth={2}
             outlineColor="#000000"
-            renderOrder={101}
+            renderOrder={1000}
           >
             {port.name}
           </Text>

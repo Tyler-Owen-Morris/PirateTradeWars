@@ -61,9 +61,17 @@ export function Island({ position, name, size = 300, seed = 1, lowTide = false }
         // Adjust Y-position to align base with water (tune as needed)
         model.position.y = 5; // Raise island slightly above water (y=0)
 
+        if (modelPath === '/island_models/island_3.glb') {
+          model.position.y += 30;
+          model.position.z += 0
+          model.position.x -= 0
+          const scaleFactor = size / 1.5;
+          model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        }
+
         if (islandModels[modelIndex] === 'island_4.glb') {
           model.position.y = -52;
-          model.position.z -= 100
+          model.position.z -= 20
           const scaleFactor = size / 1.5;
           model.scale.set(scaleFactor, scaleFactor, scaleFactor);
         }
@@ -78,7 +86,7 @@ export function Island({ position, name, size = 300, seed = 1, lowTide = false }
 
         if (modelPath === '/island_models/island_6.glb') {
           model.position.y = -10;
-          model.position.z += 80
+          model.position.z += 0
           model.position.x -= 0
           const scaleFactor = size / 1.5;
           model.scale.set(scaleFactor, scaleFactor, scaleFactor);
