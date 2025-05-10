@@ -45,12 +45,21 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
         const scaleFactor = dims.length / 1; // Adjust if model’s native length differs
         model.scale.set(scaleFactor, scaleFactor, scaleFactor);
 
+        // Position model for each type that needs specific tweaks
         model.position.y = dims.height + 10;
         if (type === 'galleon') {
           model.rotation.y = Math.PI / 2 + Math.PI;
+          let localScaleFactor = dims.length / 1.4;
+          model.scale.set(localScaleFactor, localScaleFactor, localScaleFactor);
         }
         if (type === 'man-o-war') {
           model.rotation.y = Math.PI
+        }
+        if (type === 'dreadnaught') {
+          model.rotation.y = Math.PI / 2 + Math.PI;
+          model.position.y = dims.height + 30;
+          let localScaleFactor = dims.length / 1.6;
+          model.scale.set(localScaleFactor, localScaleFactor, localScaleFactor);
         }
 
         // Enable shadows
@@ -67,7 +76,7 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
         }
       },
       (progress) => {
-        console.log(`Loading ${type} model: ${(progress.loaded / progress.total * 100).toFixed(2)}%`);
+        //console.log(`Loading ${type} model: ${(progress.loaded / progress.total * 100).toFixed(2)}%`);
       },
       (error) => {
         console.error(`Error loading ${type} model:`, error);
