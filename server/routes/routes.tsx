@@ -10,6 +10,7 @@ import crypto from "crypto";
 import { validate as isUUID } from "uuid";
 import { registerStripeRoutes } from "./stripeRoutes";
 import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
+import { identifyPlayer, trackEvent, flushSegment } from "../segmentClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
@@ -67,6 +68,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username,
         password: hashedPassword
       });
+      // Identify user and track registration
+      identifyPlayer(user.id, { name: user.username, createdAt: new Date() });
+      trackEvent(user.id, 'User Registered', { username: user.username });
+      await flushSegment();
 
       res.status(201).json({ id: user.id, username: user.username });
     } catch (error) {

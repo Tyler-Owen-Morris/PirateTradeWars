@@ -2,6 +2,7 @@ import { redisStorage } from "../redisStorage";
 import { defaultPorts, goodTypes } from "./shipTypes";
 import { v4 as uuidv4 } from "uuid";
 import { MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES, SHIP_STATS, GOODS, DEFAULT_PORTS } from "@shared/gameConstants";
+import { trackEvent, flushSegment } from "../segmentClient";
 
 export const TICK_RATE = 100; // ms (5 updates/second)
 export const BROADCAST_RATE = 100; // ms (5 updates/second)
@@ -387,6 +388,15 @@ class GameState {
           // update the player's gold in redis
           redisStorage.updatePlayerGold(playerId, player.gold);
 
+          // Track gold collection
+          trackEvent(playerId, 'Gold Collected', {
+            goldAmount: gold.gold,
+            newTotalGold: player.gold,
+            x: gold.x,
+            z: gold.z,
+          });
+          await flushSegment();
+
           // Notify the collecting player immediately
           const ws = this.connectedClients.get(playerId);
           let message = {
@@ -560,6 +570,14 @@ class GameState {
       }));
       await this.updateLeaderboard(leaderboard);
       console.log(`Player ${player.name} sunk with score ${player.gold}`);
+      // Track player sunk
+      trackEvent(player.playerId, 'Player Sunk', {
+        score: player.gold,
+        gold: player.gold,
+        x: player.x,
+        z: player.z,
+      });
+      await flushSegment();
     } catch (err) {
       console.error("Error handling sunk player:", err);
     }

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Or } from "drizzle-orm";
 import { PlayerState } from "../game/gameState";
 import { SHIP_UPGRADE_PATH, SHIP_STATS, MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES } from "@shared/gameConstants";
+import { identifyPlayer, trackEvent, flushSegment } from "../segmentClient";
 
 interface ConnectMessage {
   type: "connect";
@@ -129,6 +130,19 @@ export function handleSocketConnection(ws: WebSocket) {
 
     playerId = addedPlayer.id;
 
+    // Identify player and track connection
+    identifyPlayer(playerId, {
+      name: data.name,
+      shipType: data.shipType,
+      gold: addedPlayer.gold,
+      createdAt: new Date(),
+    });
+    trackEvent(playerId, 'Player Connected', {
+      name: data.name,
+      shipType: data.shipType,
+    });
+    await flushSegment();
+
     gameState.registerClient(addedPlayer.id, ws as any);
 
     console.log(`Total players connected: ${Object.keys(gameState.state.players).length}`);
@@ -177,6 +191,13 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!shipStats) {
       return sendError(ws, "Invalid ship type for reconnecting player");
     }
+
+    // Track reconnection
+    trackEvent(playerId, 'Player Reconnected', {
+      name: existingPlayer.name,
+      shipType: existingPlayer.shipType,
+    });
+    await flushSegment();
 
     ws.send(JSON.stringify({
       type: "reconnected",
@@ -238,6 +259,15 @@ export function handleSocketConnection(ws: WebSocket) {
       await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity + data.quantity);
       await redisStorage.updatePlayerGold(player.playerId, player.gold)
       const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
+      // Track buy trade
+      trackEvent(playerId, 'Trade Buy', {
+        portId: data.portId,
+        goodId: data.goodId,
+        quantity: data.quantity,
+        totalCost,
+        gold: player.gold,
+      });
+      await flushSegment();
 
       ws.send(JSON.stringify({
         type: "tradeSuccess",
@@ -260,6 +290,16 @@ export function handleSocketConnection(ws: WebSocket) {
       await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity - data.quantity);
       await redisStorage.updatePlayerGold(player.playerId, player.gold)
       const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
+
+      // Track sell trade
+      trackEvent(playerId, 'Trade Sell', {
+        portId: data.portId,
+        goodId: data.goodId,
+        quantity: data.quantity,
+        totalEarnings,
+        gold: player.gold,
+      });
+      await flushSegment();
 
       ws.send(JSON.stringify({
         type: "tradeSuccess",
@@ -310,6 +350,16 @@ export function handleSocketConnection(ws: WebSocket) {
 
     await redisStorage.updatePlayerState(player);
 
+    // Track ship upgrade
+    trackEvent(playerId, 'Ship Upgraded', {
+      portId,
+      fromShipType: currentShip,
+      toShipType: nextShipType,
+      upgradeCost,
+      gold: player.gold,
+    });
+    await flushSegment();
+
     ws.send(JSON.stringify({
       type: "upgradeSuccess",
       newShipType: nextShipType,
@@ -339,6 +389,15 @@ export function handleSocketConnection(ws: WebSocket) {
 
     await redisStorage.updatePlayerState(player);
 
+    // Track ship repair
+    trackEvent(playerId, 'Ship Repaired', {
+      portId,
+      repairCost,
+      gold: player.gold,
+      hp: player.hp,
+    });
+    await flushSegment();
+
     ws.send(JSON.stringify({
       type: "repairSuccess",
       gold: player.gold,
@@ -365,6 +424,13 @@ export function handleSocketConnection(ws: WebSocket) {
     // TODO: Fetch the leaderboard ranks NEAR the player's rank.
     const leaderboard = await redisStorage.getLeaderboard(10);
     await gameState.updateLeaderboard(leaderboard);
+
+    // Track scuttle
+    trackEvent(playerId, 'Ship Scuttled', {
+      score: post_scuttle_gold,
+      gold: player.gold,
+    });
+    await flushSegment();
 
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({

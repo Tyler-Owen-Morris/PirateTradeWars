@@ -60,6 +60,11 @@ export function Island({ position, name, size = 300, seed = 1, lowTide = false }
 
         // Adjust Y-position to align base with water (tune as needed)
         model.position.y = 5; // Raise island slightly above water (y=0)
+        if (modelPath === '/island_models/island_1.glb') {
+          model.position.y += 10;
+          const scaleFactor = size / 2.2;
+          model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        }
 
         if (modelPath === '/island_models/island_3.glb') {
           model.position.y += 30;

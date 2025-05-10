@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { redisStorage } from '../redisStorage';
 import { SHIP_PRICES } from '@shared/gameConstants';
 import { v4 as uuidv4 } from 'uuid';
+import { identifyPlayer, trackEvent, flushSegment } from '../segmentClient';
 
 // Initialize Stripe with your secret key (loaded from environment variable)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -70,6 +71,15 @@ export function registerStripeRoutes(app: Express) {
                     priceId
                 },
             });
+            // Track payment intent creation
+            trackEvent(tempPlayerId, 'Purchase Initiated', {
+                shipName,
+                playerName,
+                amount,
+                currency,
+                paymentIntentId: paymentIntent.id,
+            });
+            await flushSegment();
             res.json({ clientSecret: paymentIntent.client_secret });
         } catch (error) {
             console.error('Error creating Payment Intent:', error);
@@ -93,13 +103,22 @@ export function registerStripeRoutes(app: Express) {
             // Handle specific events
             if (event.type === 'payment_intent.succeeded') {
                 const paymentIntent = event.data.object as Stripe.PaymentIntent;
-                const { shipName, playerName } = paymentIntent.metadata;
+                const { shipName, playerName, tempPlayerId } = paymentIntent.metadata;
 
-                if (shipName && playerName) {
+                if (shipName && playerName && tempPlayerId) {
                     // Store purchase in redis
                     const purchaseKey = `purchase:${playerName}:${shipName.toLowerCase()}`;
                     //await redisStorage.set(purchaseKey, 'true');
                     console.log(`Purchase recorded for ${playerName}: ${shipName}`);
+                    // Track successful purchase
+                    trackEvent(tempPlayerId, 'Purchase Completed', {
+                        shipName,
+                        playerName,
+                        amount: paymentIntent.amount,
+                        currency: paymentIntent.currency,
+                        paymentIntentId: paymentIntent.id,
+                    });
+                    await flushSegment();
                 }
             }
 
@@ -124,6 +143,9 @@ export function registerStripeRoutes(app: Express) {
             }
             const tempPlayerId = uuidv4();
             await redisStorage.reserveName(name, tempPlayerId);
+            // Identify player upon name reservation
+            identifyPlayer(tempPlayerId, { name });
+            await flushSegment();
             res.json({ available: true, tempPlayerId });
         } catch (error) {
             console.error('Error checking name availability:', error);
@@ -141,6 +163,9 @@ export function registerStripeRoutes(app: Express) {
             const reservedPlayerId = await redisStorage.redis.get(`active_name:${name}`);
             if (reservedPlayerId === tempPlayerId) {
                 await redisStorage.removeActiveName(name);
+                // Track name release
+                trackEvent(tempPlayerId, 'Name Released', { name });
+                await flushSegment();
                 res.json({ success: true });
             } else {
                 res.status(400).json({ error: 'Invalid tempPlayerId for this name' });
