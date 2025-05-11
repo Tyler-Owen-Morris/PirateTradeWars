@@ -98,10 +98,10 @@ export function Island({ position, name, size = 300, seed = 1, lowTide = false }
         }
 
         if (modelPath === '/island_models/island_7.glb') {
-          model.position.y = -10;
+          model.position.y = -20;
           model.position.z += 0
           model.position.x -= 0
-          const scaleFactor = size / 4;
+          const scaleFactor = size / 2.8;
           model.scale.set(scaleFactor, scaleFactor, scaleFactor);
         }
 

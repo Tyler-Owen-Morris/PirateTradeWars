@@ -72,8 +72,8 @@ const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
               <Button
                 key={tab}
                 className={`px-4 py-2 text-sm font-bold rounded-md ${activeTab === tab
-                    ? "bg-amber-600 text-white"
-                    : "bg-amber-900 text-amber-200 hover:bg-amber-700"
+                  ? "bg-amber-600 text-white"
+                  : "bg-amber-900 text-amber-200 hover:bg-amber-700"
                   }`}
                 onClick={() => handleTabChange(tab)}
               >
