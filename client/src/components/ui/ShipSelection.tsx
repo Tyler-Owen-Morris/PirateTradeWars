@@ -12,10 +12,174 @@ import { useShip } from "@/lib/stores/useShip";
 import { useGameState } from "@/lib/stores/useGameState";
 import { useSocket } from "@/lib/stores/useSocket";
 import { Alert, AlertDescription } from "./alert";
-import { AlertCircle, Loader2 } from "lucide-react";
-import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES, SHIP_STATS, SHIP_DISPLAY_NAMES } from "@shared/gameConstants";
+import { AlertCircle, Loader2, HelpCircle } from "lucide-react";
+import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES, SHIP_STATS, SHIP_DISPLAY_NAMES, SHIP_UPGRADE_PATH } from "@shared/gameConstants";
 import PaymentModal from "./PaymentModal";
 import pirateNamesData from "./pirateNames.json";
+
+const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000] p-4"
+      onClick={onClose}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
+      <Card
+        className="w-full max-w-3xl bg-gray-900 border-amber-500 border-2 rounded-xl flex flex-col"
+        style={{ height: "80vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <CardHeader className="bg-amber-900 text-amber-100 rounded-t-xl relative flex-none">
+          <CardTitle className="text-2xl text-center">Game Instructions</CardTitle>
+          <button
+            className="absolute top-4 right-4 text-amber-200 hover:text-amber-400"
+            onClick={onClose}
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </CardHeader>
+        <div className="flex-none bg-amber-900/50 px-4 py-2">
+          <div className="flex flex-wrap gap-2">
+            {["overview", "ships", "rules", "faq"].map((tab) => (
+              <Button
+                key={tab}
+                className={`px-4 py-2 text-sm font-bold rounded-md ${activeTab === tab
+                    ? "bg-amber-600 text-white"
+                    : "bg-amber-900 text-amber-200 hover:bg-amber-700"
+                  }`}
+                onClick={() => handleTabChange(tab)}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <CardContent className="flex-1 overflow-y-auto p-4">
+          {activeTab === "overview" && (
+            <div className="text-amber-100">
+              <h3 className="text-xl font-bold mb-2">Welcome to Pirate Trade Wars</h3>
+              <p>Sail an infinite ocean, battle rival ships, and claim riches across 16 scattered islands. Choose your starting ship, upgrade to larger more formidable ships, and become the ultimate pirate legend!</p>
+              <ul className="list-disc ml-6 mt-2">
+                <li><span className="font-semibold">Objective</span>: Amass wealth through combat or trade.</li>
+                <li><span className="font-semibold">World</span>: A seamless, infinite, wrapping WaterWorld with no landmasses, only islands.</li>
+                <li><span className="font-semibold">Gameplay</span>: Real-time naval combat and economic trading between islands.</li>
+              </ul>
+            </div>
+          )}
+
+          {activeTab === "ships" && (
+            <div className="text-amber-100">
+              <h3 className="text-xl font-bold mb-2">Ships & Stats</h3>
+              <p>There are 5 ships, each with unique stats. The sloop is free; others require purchase via Stripe, and the dreadnaught can only acquired with ingame money. Game currency can be earned by winning battles or trading at islands (not available for purchase).</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse mt-4 text-sm">
+                  <thead>
+                    <tr className="bg-amber-900 text-amber-100">
+                      <th className="p-2">Ship</th>
+                      <th className="p-2">Speed</th>
+                      <th className="p-2">Cannons</th>
+                      <th className="p-2">Hull</th>
+                      <th className="p-2">Armor</th>
+                      <th className="p-2">Cost</th>
+                      <th className="p-2">Upgrade Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(SHIP_STATS).map(([shipType, stats], index) => {
+                      const upgradeInfo = SHIP_UPGRADE_PATH.find(upgrade => upgrade.to === shipType);
+                      return (
+                        <tr key={shipType} className={index % 2 === 0 ? "bg-gray-800" : "bg-gray-700"}>
+                          <td className="p-2">{SHIP_DISPLAY_NAMES[shipType]}</td>
+                          <td>{stats.speed}</td>
+                          <td>{stats.cannonCount} ({stats.cannonDamage} dmg)</td>
+                          <td>{stats.hullStrength} HP</td>
+                          <td>{stats.armor}</td>
+                          <td>{shipType === SHIP_TYPES.SLOOP ? "Free" :
+                            shipType === SHIP_TYPES.DREADNAUGHT ? "In-game upgrade" :
+                              `$${(SHIP_PRICES[shipType] / 100).toFixed(2)}`}</td>
+                          <td>{shipType === SHIP_TYPES.SLOOP ? "-" :
+                            upgradeInfo ? `${upgradeInfo.cost.toLocaleString()} gold` : "-"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4"><span className="font-semibold">Upgrades</span>: Upgrade to the next ship tier to increase your trade capacity and combat power.</p>
+            </div>
+          )}
+
+          {activeTab === "rules" && (
+            <div className="text-amber-100">
+              <h3 className="text-xl font-bold mb-2">Gameplay Rules</h3>
+              <ul className="list-disc ml-6">
+                <li><span className="font-semibold">Combat</span>: All ships have cannons firing 90° to their bow. Position strategically to hit enemies.</li>
+                <li><span className="font-semibold">Navigation</span>: Sail an infinite ocean that wraps around. Find 16 islands for resources or search for other pirates to do battle.</li>
+                <li><span className="font-semibold">Stats</span>:
+                  <ul className="list-circle ml-6">
+                    <li><span className="font-semibold">Speed</span>: Determines movement rate.</li>
+                    <li><span className="font-semibold">Cannons</span>: Number of guns for damage output.</li>
+                    <li><span className="font-semibold">Hull</span>: Cargo and crew capacity.</li>
+                    <li><span className="font-semibold">Armor</span>: Damage resistance.</li>
+                  </ul>
+                </li>
+                <li><span className="font-semibold">Islands</span>: Visit for trade, repairs, or quests. No permanent landmasses exist.</li>
+              </ul>
+            </div>
+          )}
+
+          {activeTab === "faq" && (
+            <div className="text-amber-100">
+              <h3 className="text-xl font-bold mb-2">FAQ</h3>
+              <ul className="list-disc ml-6">
+                <li><span className="font-semibold">What happens if my ship sinks?</span> Your score is recorded on the leaderboard (only if it's greater than 0), and your game is over. You will return to the main menu, and you can start a new game.</li>
+                <li><span className="font-semibold">How do I earn money?</span> The safest way to earn money is to buy low and sell high, sailing between islands to find the best deals. Players drop their gold when they are destroyed though, so you can also get rich by sinking other players after their hulls are full of gold!</li>
+                <li><span className="font-semibold">Can I play with friends?</span> Yes! PTW is a multiplayer game. Every player you see is another person playing the game. You can use the QR code in the game to easily add people to the game, or they can visit <a href="https://play.piratetradewars.com" target="_blank" rel="noopener noreferrer">piratetradewars.com</a> to join the game.</li>
+                <li><span className="font-semibold">What is this?</span> This is a simple passion project made for fun by one person. The idea was to lean as heavily on AI as possible, and see how far I could get with my coding skills (I'm a software engineer by trade). After a few short weeks, I made something I enjoyed - so here it is, and I hope you enjoy it too! (Don't go too hard on me! I'm only one person...)</li>
+              </ul>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="bg-amber-900 p-4 rounded-b-xl flex-none">
+          <Button
+            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold"
+            onClick={onClose}
+          >
+            Close
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+};
 
 export default function ShipSelection() {
   const {
@@ -33,6 +197,7 @@ export default function ShipSelection() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [tempPlayerId, setTempPlayerId] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   // Log current state for debugging
   useEffect(() => {
@@ -55,7 +220,6 @@ export default function ShipSelection() {
 
   // Get player name from URL parameter or local storage
   useEffect(() => {
-    // Try to get from URL first
     const params = new URLSearchParams(window.location.search);
     const name = params.get("name");
 
@@ -63,7 +227,6 @@ export default function ShipSelection() {
       console.log("Found name in URL:", name);
       setPlayerName(name);
     } else {
-      // Try to get from localStorage
       const storedName = localStorage.getItem("playerName");
       if (storedName) {
         console.log("Found name in localStorage:", storedName);
@@ -84,48 +247,27 @@ export default function ShipSelection() {
 
   // Listen for successful registration
   useEffect(() => {
-    // When isRegistered becomes true, it means registration was successful
     if (isRegistered && !socketError) {
       console.log("Registration confirmed successful, starting game");
       startGame();
     }
   }, [isRegistered, socketError, startGame]);
 
-  // useEffect(() => {
-  //   generatePirateName();
-  // }, [])
-
-  // generate random pirate name
-  // const generatePirateName = () => {
-  //   // Reset error and generate a random name
-  //   useSocket.getState().resetError();
-  //   const randomName = `pirate${Math.floor(Math.random() * 10000)}`;
-  //   setPlayerName(randomName);
-  //   localStorage.setItem("playerName", randomName);
-  // }
   const generatePirateName = () => {
-    // Reset error and generate a random name
     useSocket.getState().resetError();
-
-    // Load name parts from JSON
     const { prefixes, middleNames, suffixes } = pirateNamesData;
-
-    // Decide name structure with probabilities
     const structure = Math.random();
     let usePrefix = false;
     let useSuffix = false;
     if (structure < 0.3) {
-      usePrefix = true; // Prefix + Middle Name (30%)
+      usePrefix = true;
     } else if (structure < 0.6) {
-      useSuffix = true; // Middle Name + Suffix (30%)
+      useSuffix = true;
     } else {
       usePrefix = true;
-      useSuffix = true; // Prefix + Middle Name + Suffix (40%)
+      useSuffix = true;
     }
-
-    // Select middle name
     const middleName = middleNames[Math.floor(Math.random() * middleNames.length)];
-
     let prefix = '';
     let prefixTags: string[] = [];
     if (usePrefix) {
@@ -133,21 +275,16 @@ export default function ShipSelection() {
       prefix = prefixObj.name;
       prefixTags = prefixObj.tags;
     }
-
     let suffix = '';
     if (useSuffix) {
       let availableSuffixes = suffixes;
       if (usePrefix && prefixTags.includes('descriptor')) {
-        // If prefix is a descriptor, filter out descriptor suffixes
         availableSuffixes = suffixes.filter(s => !s.tags.includes('descriptor'));
       }
       const suffixObj = availableSuffixes[Math.floor(Math.random() * availableSuffixes.length)];
       suffix = suffixObj.name;
     }
-
-    // Construct the full name, filtering out empty parts
     const fullName = [prefix, middleName, suffix].filter(part => part !== '').join(' ');
-
     setPlayerName(fullName);
     localStorage.setItem("playerName", fullName);
   };
@@ -157,7 +294,7 @@ export default function ShipSelection() {
       const response = await fetch(`/api/check-name?name=${encodeURIComponent(name)}`);
       if (!response.ok) throw new Error('Server error checking name');
       const data = await response.json();
-      console.log("checkNameAvailability response:", data)
+      console.log("checkNameAvailability response:", data);
       if (!data.available) {
         alert('This name is already in use. Please choose a different name.');
         return { available: false };
@@ -166,7 +303,6 @@ export default function ShipSelection() {
     } catch (error) {
       console.error('Error checking name availability:', error);
       setNameError("Name already in use by an active player");
-      //alert('Failed to check name availability. Please try again.');
       return { available: false };
     }
   };
@@ -181,20 +317,18 @@ export default function ShipSelection() {
           shipName: ship.name,
           amount: SHIP_PRICES[ship.name],
           currency: 'usd',
-          playerName: playerName,
+          playerName,
           tempPlayerId,
         }),
       });
-      console.log("initiate payment response:", response)
+      console.log("initiate payment response:", response);
       const { clientSecret } = await response.json();
       if (!clientSecret) throw new Error('Failed to create payment intent');
       setClientSecret(clientSecret);
       setShowPaymentModal(true);
     } catch (error) {
       console.error('Error initiating payment:', error);
-      //alert('Failed to initiate payment. Please try again.');
       setNameError("Failed to initiate payment. Please try again.");
-      // Release the name reservation on failure
       await fetch('/api/release-name', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -219,9 +353,7 @@ export default function ShipSelection() {
       type: error.type,
       code: error.code,
     });
-    // Clear tempPlayerId to prevent reuse
     setTempPlayerId(null);
-    // Release name reservation
     if (playerName && tempPlayerId) {
       fetch('/api/release-name', {
         method: 'POST',
@@ -229,11 +361,9 @@ export default function ShipSelection() {
         body: JSON.stringify({ name: playerName, tempPlayerId }),
       }).catch((err) => console.error('Error releasing name:', err));
     }
-    // Clear any premature playerId in localStorage
     localStorage.removeItem('playerId');
   };
 
-  // Start game with selected ship
   const handleStartGame = async () => {
     if (!selectedShip || !playerName || playerName.length < 3) {
       console.log("Cannot start game: missing requirements", {
@@ -243,21 +373,19 @@ export default function ShipSelection() {
       });
       return;
     }
-    console.log("selectedShip:", selectedShip)
+    console.log("selectedShip:", selectedShip);
 
-    // Clear any previous errors
     useSocket.getState().resetError();
     setNameError(null);
 
     if (selectedShip.isPaid) {
       const { available, tempPlayerId } = await checkNameAvailability(playerName);
-      console.log("checkNameAvailability:", { available, tempPlayerId })
+      console.log("checkNameAvailability:", { available, tempPlayerId });
       if (available && tempPlayerId) {
         setTempPlayerId(tempPlayerId);
         launchStripeCheckout(selectedShip, tempPlayerId);
       }
     } else {
-      // No payment required for free ship
       console.log(
         "Starting game with ship:",
         selectedShip.name,
@@ -266,25 +394,15 @@ export default function ShipSelection() {
       );
       setLoading(true);
       try {
-        // First connect to WebSocket if not connected
         if (!connected) {
           console.log("Connecting to WebSocket...");
           useSocket.getState().connect();
         }
-
-        // Wait a moment for connection to establish if needed
         setTimeout(
           () => {
             try {
-              // Register player with server through WebSocket
               console.log("Registering player with WebSocket...");
               register(playerName, selectedShip.name);
-
-              // We don't immediately call startGame() here anymore
-              // Instead, we wait for the registered event to be confirmed by the server
-              // The useEffect above will handle starting the game when registration is successful
-
-              // If there's an error, the loading state will be reset in the useEffect below
             } catch (innerError) {
               console.error("Error during game start sequence:", innerError);
               setLoading(false);
@@ -297,12 +415,8 @@ export default function ShipSelection() {
         setLoading(false);
       }
     }
-
-
-
   };
 
-  // Reset loading state if there's an error
   useEffect(() => {
     if (socketError) {
       setLoading(false);
@@ -369,9 +483,6 @@ export default function ShipSelection() {
                 <AlertCircle className="h-5 w-5 mt-0.5 text-red-200" />
                 <AlertDescription className="text-red-100">
                   {shipError || socketError || nameError}
-                  {/* {socketError && socketError.includes("Name already in use") && (
-                    <p className="mt-2 text-red-200">Please try a different name</p>
-                  )} */}
                 </AlertDescription>
               </div>
             </Alert>
@@ -379,8 +490,6 @@ export default function ShipSelection() {
         </CardHeader>
 
         <CardContent className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
-
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               {
@@ -505,6 +614,16 @@ export default function ShipSelection() {
           {playerName && playerName.length < 3 && (
             <p className="text-sm text-amber-200 text-center">Name must be at least 3 characters</p>
           )}
+          <button
+            onClick={() => setShowInstructions(true)}
+            className="fixed bottom-6 right-6 w-10 h-10 rounded-full bg-amber-600 hover:bg-amber-700 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-110 z-50"
+            style={{
+              marginBottom: 'env(safe-area-inset-bottom, 0)',
+              marginRight: 'env(safe-area-inset-right, 0)'
+            }}
+          >
+            <HelpCircle className="w-5 h-5" />
+          </button>
         </CardFooter>
       </Card>
       {showPaymentModal && clientSecret && (
@@ -513,7 +632,6 @@ export default function ShipSelection() {
             isOpen={showPaymentModal}
             onClose={async () => {
               setShowPaymentModal(false);
-              // Release name if payment was not successful
               if (!useSocket.getState().playerId) {
                 await fetch('/api/release-name', {
                   method: 'POST',
@@ -530,6 +648,10 @@ export default function ShipSelection() {
           />
         </div>
       )}
+      <InstructionsModal
+        isOpen={showInstructions}
+        onClose={() => setShowInstructions(false)}
+      />
     </div>
   );
 }
