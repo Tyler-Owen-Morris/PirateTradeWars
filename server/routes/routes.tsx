@@ -19,66 +19,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerStripeRoutes(app)
 
-  // Start game server for AWS Autoscaling
-  app.post('/start-game', async (req, res) => {
-    const AWS = require('aws-sdk');
-    const autoscaling = new AWS.AutoScaling({ region: 'us-east-2' });
-    await autoscaling.updateAutoScalingGroup({
-      AutoScalingGroupName: 'PirateTradeWarsGameAsg',
-      DesiredCapacity: 1,
-    }).promise();
-    const serverId = generateServerId(); // e.g., 'abcdef'
-    res.json({ wsUrl: `wss://piratetradewars.com/server-${serverId}` });
-  });
-
-  app.post('/no-players', async (req, res) => {
-    await autoscaling.updateAutoScalingGroup({
-      AutoScalingGroupName: 'PirateTradeWarsGameAsg',
-      DesiredCapacity: 0,
-    }).promise();
-    res.sendStatus(200);
-  });
-
   // API Routes
   app.get('/api/health', (req, res) => {
     res.json({ status: 'healthy' });
   });
 
-  // User registration and authentication
-  app.post('/api/register', async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Username and password are required' });
-    }
-
-    try {
-      // Check if username already exists
-      const existingUser = await redisStorage.getUserByUsername(username);
-
-      if (existingUser) {
-        return res.status(409).json({ message: 'Username already taken' });
-      }
-
-      // Hash password
-      const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
-
-      // Create user
-      const user = await redisStorage.createUser({
-        username,
-        password: hashedPassword
-      });
-      // Identify user and track registration
-      identifyPlayer(user.id, { name: user.username, createdAt: new Date() });
-      trackEvent(user.id, 'User Registered', { username: user.username });
-      await flushSegment();
-
-      res.status(201).json({ id: user.id, username: user.username });
-    } catch (error) {
-      console.error('Error creating user:', error);
-      res.status(500).json({ message: 'Failed to create user' });
-    }
-  });
 
   // Player name verification
   app.get('/api/check-player-name', async (req, res) => {
