@@ -228,17 +228,17 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           />
 
           {/* Stars with adjusted parameters */}
-          {/* <Stars
-            radius={1000}
+          <Stars
+            radius={2000}
             depth={50}
             count={5000}
             factor={4}
             saturation={0}
             fade={true}
-          /> */}
+          />
 
           {/* Fog with adjusted distances */}
-          <Fog color="#b3d9ff" near={500} far={1800} />
+          <Fog color="#b3d9ff" near={600} far={1800} />
 
           {/* Ocean */}
           <Ocean />
