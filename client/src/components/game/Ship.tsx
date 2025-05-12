@@ -56,6 +56,9 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
 
         // Position model for each type that needs specific tweaks
         model.position.y = dims.height + 10;
+        if (type === 'sloop') {
+          model.position.y = dims.height - 5;
+        }
         if (type === 'galleon') {
           model.rotation.y = Math.PI / 2 + Math.PI;
           let localScaleFactor = dims.length / 1.4;
