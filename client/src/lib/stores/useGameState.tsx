@@ -85,6 +85,9 @@ export const useGameState = create<GameStateStore>()(
 
     restartGame: () => {
       console.log("restart game called")
+      if (window.stripe) {
+        window.stripe._elements = null;
+      }
       set({
         isRegistered: false,
         isPlaying: false,
@@ -108,6 +111,16 @@ export const useGameState = create<GameStateStore>()(
       });
       localStorage.removeItem("playerId");
       localStorage.removeItem("playerName");
+      //localStorage.removeItem("finalPlayerId");
+
+      // Force a new Stripe instance to be created on next payment
+      const stripeScript = document.querySelector('script[src*="stripe"]');
+      if (stripeScript) {
+        stripeScript.remove();
+      }
+      setTimeout(() => {
+        window.location.reload();
+      }, 100)
     },
 
     updatePlayer: (player: PlayerState) => {
