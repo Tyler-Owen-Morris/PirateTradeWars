@@ -6,8 +6,8 @@ import { SHIP_PRICES } from '@shared/gameConstants';
 // dotenv.config();
 
 // Initialize Stripe with your publishable key
-// console.log("VITE_STRIPE_PUBLISHABLE_KEY:", import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+console.log("VITE_STRIPE_PUBLISHABLE_KEY:", import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
 interface PaymentModalProps {
     isOpen: boolean;
@@ -21,19 +21,19 @@ interface PaymentModalProps {
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, onError, clientSecret, shipName }) => {
     // Add cleanup effect
-    React.useEffect(() => {
-        return () => {
-            // Cleanup function when component unmounts
-            if (stripePromise) {
-                // Force a new instance to be created next time
-                stripePromise.then(stripe => {
-                    if (stripe) {
-                        stripe._elements = null;
-                    }
-                });
-            }
-        };
-    }, []);
+    // React.useEffect(() => {
+    //     return () => {
+    //         // Cleanup function when component unmounts
+    //         if (stripePromise) {
+    //             // Force a new instance to be created next time
+    //             stripePromise.then(stripe => {
+    //                 if (stripe) {
+    //                     stripe._elements = null;
+    //                 }
+    //             });
+    //         }
+    //     };
+    // }, []);
 
     if (!isOpen) return null;
     const price = SHIP_PRICES[shipName];
@@ -55,6 +55,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
     }).format(priceInDollars);
 
     console.log('Formatted price:', formattedPrice);
+    console.log("clientSecret:", clientSecret)
 
     return (
         <div style={{
@@ -141,6 +142,8 @@ const CheckoutForm: React.FC<{ onSuccess: () => void; onClose: () => void; onErr
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
         if (!stripe || !elements) return;
+        console.log("stripe:", stripe)
+        console.log("elements:", elements)
 
         setProcessing(true);
         const { error, paymentIntent } = await stripe.confirmPayment({
