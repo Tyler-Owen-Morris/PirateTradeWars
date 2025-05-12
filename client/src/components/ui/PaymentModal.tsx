@@ -7,7 +7,7 @@ import { SHIP_PRICES } from '@shared/gameConstants';
 
 // Initialize Stripe with your publishable key
 console.log("VITE_STRIPE_PUBLISHABLE_KEY:", import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_live_51RMYdZEa5C1LC1J5o9To6cGUEqAwViLuUTxGvrqMCFo1RITtuPWGitMpW4KfCdZii37FU7kEjnjyQRUvKM9MeEbj00A3SeWAha');
 
 interface PaymentModalProps {
     isOpen: boolean;
