@@ -2,12 +2,15 @@ import { redisStorage } from "../redisStorage";
 import { defaultPorts, goodTypes } from "./shipTypes";
 import { v4 as uuidv4 } from "uuid";
 import { MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES, SHIP_STATS, GOODS, DEFAULT_PORTS } from "@shared/gameConstants";
+import { trackEvent, flushSegment } from "../segmentClient";
 
 export const TICK_RATE = 100; // ms (5 updates/second)
 export const BROADCAST_RATE = 100; // ms (5 updates/second)
 export const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 export const MAX_PLAYERS = 1000;
 export const GRACE_PERIOD = 60000; // 1 minute
+export const GOLD_COLLECTION_RADIUS = 50;
+export const GOLD_OBJECT_LIFETIME = 60 * 1000; // 1 minute
 
 export interface PlayerState {
   id: string;
@@ -53,9 +56,19 @@ export interface CannonBall {
   created: number;
 }
 
+export interface GoldObject {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  gold: number;
+  created: number;
+}
+
 export interface GameStateData {
   players: Record<string, PlayerState>;
   cannonBalls: CannonBall[];
+  goldObjects: GoldObject[];
   lastUpdate: number;
   activeNames: Set<string>;
   leaderboard: { id: number; playerId: string; playerName: string; score: number; achievedAt: Date }[];
@@ -72,6 +85,7 @@ class GameState {
     this.state = {
       players: {},
       cannonBalls: [],
+      goldObjects: [],
       lastUpdate: Date.now(),
       activeNames: new Set(),
       leaderboard: [],
@@ -118,12 +132,18 @@ class GameState {
     }
   }
 
-  async addPlayer(name: string, shipType: string, ship: any) {
+  async addPlayer(name: string, shipType: string, ship: any, tempPlayerId?: string) {
     //console.log("addPlayer", name, shipType, ship);
-    if (await redisStorage.isNameActive(name)) return null;
+    const reservedPlayerId = await redisStorage.getActiveNamePlayerId(name);
+    if (reservedPlayerId && reservedPlayerId !== tempPlayerId) {
+      console.log(`Name conflict: ${name} is reserved with ID ${reservedPlayerId}, but tempPlayerId is ${tempPlayerId}`);
+      return null;
+    }
     const x = Math.random() * MAP_WIDTH;
     const z = Math.random() * MAP_HEIGHT;
-    const uuid = uuidv4();
+    //const x = 1194;
+    //const z = 5685;
+    const uuid = tempPlayerId || uuidv4();
 
     const player: PlayerState = {
       id: uuid,
@@ -139,7 +159,7 @@ class GameState {
       direction: { x: 0, y: 0, z: 1 },
       hp: ship.hullStrength,
       maxHp: ship.hullStrength,
-      gold: 500,
+      gold: SHIP_STATS[shipType].startingGold,
       cargoCapacity: ship.cargoCapacity,
       cargoUsed: 0,
       repairCost: ship.repairCost,
@@ -156,7 +176,6 @@ class GameState {
       dead: false,
     };
     this.state.players[uuid] = player;
-    //await redisStorage.addActiveName(name, uuid);
     return player;
   }
 
@@ -251,6 +270,7 @@ class GameState {
     const deltaTime = (now - this.state.lastUpdate) / 1000;
     this.state.lastUpdate = now;
 
+    // handle player state updates
     for (const playerId in this.state.players) {
       const player = this.state.players[playerId];
 
@@ -290,9 +310,15 @@ class GameState {
       }
     }
 
+    // handle cannonball state updates
     const cannonballs = this.state.cannonBalls;
     for (let i = cannonballs.length - 1; i >= 0; i--) {
       const ball = cannonballs[i];
+
+      // Skip if ball is null/undefined or has been removed
+      if (!ball || ball.ownerId === null || ball.x === null || ball.y === null || ball.z === null) {
+        continue;
+      }
 
       // Store previous position before moving
       const prevPos = { x: ball.x, y: ball.y, z: ball.z };
@@ -311,7 +337,7 @@ class GameState {
 
       for (const playerId in this.state.players) {
         const player = this.state.players[playerId];
-        if (ball.ownerId === playerId || player.sunk || player.dead) continue;
+        if (!player || ball.ownerId === playerId || player.sunk || player.dead) continue;
 
         // Use continuous collision detection
         const newPos = { x: ball.x, y: ball.y, z: ball.z };
@@ -333,6 +359,59 @@ class GameState {
         }
       }
     }
+
+    // Handle gold objects
+    for (let i = this.state.goldObjects.length - 1; i >= 0; i--) {
+      const gold = this.state.goldObjects[i];
+
+      // Check if gold object is expired (older than 1 minute)
+      if (now - gold.created > GOLD_OBJECT_LIFETIME) {
+        console.log("gold object expired", gold);
+        this.state.goldObjects.splice(i, 1);
+        continue;
+      }
+
+      // Check for player collisions
+      for (const playerId in this.state.players) {
+        const player = this.state.players[playerId];
+        if (player.sunk || player.dead) continue; // Skip sunk or dead players
+
+        const dx = Math.min(Math.abs(player.x - gold.x), MAP_WIDTH - Math.abs(player.x - gold.x));
+        const dz = Math.min(Math.abs(player.z - gold.z), MAP_HEIGHT - Math.abs(player.z - gold.z));
+        const distance = Math.sqrt(dx * dx + dz * dz);
+
+        if (distance < GOLD_COLLECTION_RADIUS) {
+          // update the player's gold in the game state
+          player.gold += gold.gold;
+          this.state.goldObjects.splice(i, 1); // Remove collected gold
+
+          // update the player's gold in redis
+          redisStorage.updatePlayerGold(playerId, player.gold);
+
+          // Track gold collection
+          trackEvent(playerId, 'Gold Collected', {
+            goldAmount: gold.gold,
+            newTotalGold: player.gold,
+            x: gold.x,
+            z: gold.z,
+          });
+          await flushSegment();
+
+          // Notify the collecting player immediately
+          const ws = this.connectedClients.get(playerId);
+          let message = {
+            type: "goldCollected",
+            gold: gold.gold,
+            newTotalGold: player.gold,
+            timestamp: now,
+          }
+          if (ws && ws.readyState === 1) {
+            ws.send(JSON.stringify(message));
+          }
+          break; // Exit player loop since gold was collected
+        }
+      }
+    }
   }
 
   broadcast() {
@@ -348,7 +427,7 @@ class GameState {
           const dx = Math.min(Math.abs(player.x - otherPlayer.x), MAP_WIDTH - Math.abs(player.x - otherPlayer.x));
           const dz = Math.min(Math.abs(player.z - otherPlayer.z), MAP_HEIGHT - Math.abs(player.z - otherPlayer.z));
           const distance = Math.sqrt(dx * dx + dz * dz);
-          if (distance < 1000 || id === playerId) {
+          if (distance < 2000 || id === playerId) {
             nearbyPlayers[id] = otherPlayer;
           }
         }
@@ -360,11 +439,20 @@ class GameState {
         return Math.sqrt(dx * dx + dz * dz) < 1000;
       });
 
+      // Calculate nearby gold objects (within 1000 units)
+      //console.log("this.state.goldObjects:", this.state.goldObjects);
+      const nearbyGoldObjects = this.state.goldObjects.filter((gold) => {
+        const dx = Math.min(Math.abs(player.x - gold.x), MAP_WIDTH - Math.abs(player.x - gold.x));
+        const dz = Math.min(Math.abs(player.z - gold.z), MAP_HEIGHT - Math.abs(player.z - gold.z));
+        return Math.sqrt(dx * dx + dz * dz) < 1000;
+      });
+
       try {
         ws.send(JSON.stringify({
           type: "gameUpdate",
           players: nearbyPlayers,
           cannonBalls: nearbyCannonBalls,
+          goldObjects: nearbyGoldObjects,
           timestamp: Date.now(),
         }));
       } catch (err) {
@@ -451,17 +539,53 @@ class GameState {
 
   private async handlePlayerSunk(player: PlayerState) {
     try {
+      if (player.gold > 0) {
+
+        const goldObject: GoldObject = {
+          id: uuidv4(),
+          x: player.x,
+          y: player.y,
+          z: player.z,
+          gold: player.gold,
+          created: Date.now(),
+        };
+        //console.log("CREATING goldObject", goldObject);
+        this.state.goldObjects.push(goldObject);
+      }
+    } catch (e) {
+      console.error("Error handling sunk player:", e);
+    }
+    // add the player to the leaderboard
+    try {
       const leaderboardEntry = await redisStorage.addToLeaderboard({
         playerId: player.playerId,
         playerName: player.name,
         score: player.gold,
         achievedAt: new Date()
       });
-      const leaderboard = await redisStorage.getLeaderboard(10);
+      const leaderboardRaw = await redisStorage.getLeaderboard(10);
+      const leaderboard = leaderboardRaw.map(entry => ({
+        ...entry,
+        playerId: entry.playerId ?? "", // or use a placeholder like "unknown"
+      }));
       await this.updateLeaderboard(leaderboard);
       console.log(`Player ${player.name} sunk with score ${player.gold}`);
+      // Track player sunk
+      trackEvent(player.playerId, 'Player Sunk', {
+        score: player.gold,
+        gold: player.gold,
+        x: player.x,
+        z: player.z,
+      });
+      await flushSegment();
     } catch (err) {
       console.error("Error handling sunk player:", err);
+    }
+
+    try {
+      await redisStorage.removePlayer(player.playerId);
+    } catch (err) {
+      console.warn("Error removing player:", err); // This is not necessarily an error, it's just that the player is not in the database, which can be from TTL
     }
   }
 

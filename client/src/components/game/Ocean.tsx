@@ -1,53 +1,59 @@
 import { useRef, useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { extend, useThree, useLoader, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { useTexture } from "@react-three/drei";
+import { Water } from "three/examples/jsm/objects/Water.js";
 import { MAP_WIDTH, MAP_HEIGHT } from "../../lib/constants";
 
-// Highly simplified Ocean component to fix rendering issues
+// Extend Water class to use it as a JSX component
+extend({ Water });
+
 export function Ocean() {
-  const oceanRef = useRef<THREE.Mesh>(null);
+  const ref = useRef();
+  const gl = useThree((state) => state.gl);
 
-  // Load textures for water (much simpler)
-  const waterTexture = useTexture("/textures/sky.png");
+  // Load water normals texture
+  const waterNormals = useLoader(
+    THREE.TextureLoader,
+    "/textures/waternormals.jpg"
+  );
+  waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
 
-  // Configure texture for better performance
-  waterTexture.wrapS = THREE.RepeatWrapping;
-  waterTexture.wrapT = THREE.RepeatWrapping;
-  waterTexture.repeat.set(20, 20);
+  // Create plane geometry for the water surface
+  const geom = useMemo(
+    () => new THREE.PlaneGeometry(MAP_WIDTH * 3, MAP_HEIGHT * 3),
+    []
+  );
 
-  // Create a simple material with minimal processing
-  const waterMaterial = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: "#1a6ea0", // Deeper blue color
-      map: waterTexture,
-      roughness: 0.6,
-      metalness: 0.2,
-    });
-  }, [waterTexture]);
+  // Configure water properties
+  const config = useMemo(
+    () => ({
+      textureWidth: 512,
+      textureHeight: 512,
+      waterNormals,
+      sunDirection: new THREE.Vector3(0, 1, 0), // Sun above
+      sunColor: 0xffffff, // White sunlight
+      waterColor: 0x001e0f, // Deep blue-green
+      distortionScale: 3.7, // Wave distortion
+      fog: false,
+      format: gl.encoding,
+    }),
+    [waterNormals, gl.encoding]
+  );
 
-  // Simple animation that doesn't require vertex manipulation
-  useFrame(({ clock }) => {
-    if (oceanRef.current) {
-      const time = clock.getElapsedTime();
-      // Only animate texture coordinates for performance
-      waterTexture.offset.y = time * 0.02;
-      waterTexture.offset.x = time * 0.01;
+  // Animate water (update time for wave movement)
+  useFrame((state, delta) => {
+    if (ref.current) {
+      ref.current.material.uniforms.time.value += delta;
     }
   });
 
   return (
-    <group>
-      {/* Single large ocean plane */}
-      <mesh
-        ref={oceanRef}
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[MAP_WIDTH / 2, -10, MAP_HEIGHT / 2]}
-        receiveShadow
-      >
-        <planeGeometry args={[MAP_WIDTH * 3, MAP_HEIGHT * 3, 1, 1]} />
-        <primitive object={waterMaterial} attach="material" />
-      </mesh>
-    </group>
+    <water
+      ref={ref}
+      args={[geom, config]}
+      rotation-x={-Math.PI / 2}
+      position={[MAP_WIDTH / 2, -10, MAP_HEIGHT / 2]}
+      receiveShadow
+    />
   );
 }

@@ -29,12 +29,20 @@ interface HUDProps {
   onShowLeaderboard: () => void;
 }
 
+interface GoldAnimation {
+  id: number;
+  value: number;
+  key: string;
+}
+
 export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
   const { gameState } = useGameState();
   const { isSunk } = useGameState();
   const player = gameState.player;
   const [nearestPort, setNearestPort] = useState<Port | null>(null);
   const [distance, setDistance] = useState<number>(0);
+  const [goldAnimations, setGoldAnimations] = useState<GoldAnimation[]>([]);
+  const [prevGold, setPrevGold] = useState<number | null>(null);
 
   // Update nearest port info
   useEffect(() => {
@@ -50,6 +58,24 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
     }
   }, [player?.x, player?.z, gameState.ports]);
 
+  // Track gold changes and create animations
+  useEffect(() => {
+    if (player && player.gold !== prevGold && prevGold !== null) {
+      const difference = player.gold - prevGold;
+      const newAnimation: GoldAnimation = {
+        id: Date.now(),
+        value: difference,
+        key: `gold-anim-${Date.now()}`,
+      };
+      setGoldAnimations((prev) => [...prev, newAnimation]);
+
+      // Remove animation after 3 seconds
+      setTimeout(() => {
+        setGoldAnimations((prev) => prev.filter((anim) => anim.id !== newAnimation.id));
+      }, 3000);
+    }
+    setPrevGold(player?.gold ?? null);
+  }, [player?.gold, prevGold]);
   // Fire button handler
   const handleFire = () => {
     if (!controlsRef?.current) {
@@ -112,11 +138,23 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
           />
         </div>
 
-        {/* Gold */}
-        <div className="flex items-center mt-0.5 sm:mt-3">
+        {/* Gold with animations */}
+        <div className="relative flex items-center mt-0.5 sm:mt-3">
           <Coins className="h-2.5 w-2.5 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-yellow-400" />
           <span className="font-bold text-xs sm:text-base">{player.gold}</span>
           <span className="ml-1 text-[0.5rem] sm:text-xs">gold</span>
+          {goldAnimations.map((anim) => (
+            <span
+              key={anim.key}
+              className={`absolute left-20 text-xs sm:text-sm font-bold animate-gold ${anim.value >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}
+              style={{
+                animation: 'goldAnimation 3s ease-out forwards',
+              }}
+            >
+              {anim.value >= 0 ? '+' : ''}{anim.value}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -166,38 +204,72 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
               <Button
                 data-testid="cypress-scuttle-ship-request-button"
                 variant="destructive"
-                className="flex items-center gap-1 sm:gap-2 shadow-lg bg-red-700 hover:bg-red-800 text-white font-bold border-2 border-red-900 pointer-events-auto text-xs sm:text-base py-1 sm:py-2 px-2 sm:px-4"
+                className="flex items-center gap-1 sm:gap-2 shadow-lg bg-red-700 hover:bg-red-800 text-white font-bold border-2 border-red-900 pointer-events-auto text-xs sm:text-base py-1 sm:py-2 px-2 sm:px-4 transition-all duration-200"
               >
                 <Skull size={12} className="sm:h-4 sm:w-4" />
-                <span>Scuttle Ship</span>
+                <span>Retire</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-black/90 border-amber-500 text-white w-[90vw] sm:w-auto max-w-[90vw] sm:max-w-md">
+            <DialogContent className="relative bg-gradient-to-br from-amber-900/80 to-amber-800/80 border-amber-500/50 text-white w-[90vw] sm:w-auto max-w-[90vw] sm:max-w-lg p-6 rounded-lg shadow-lg">
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-600 to-amber-400 rounded-t-lg" />
               <DialogHeader>
-                <DialogTitle className="text-amber-400 text-base sm:text-xl">
-                  Scuttle Your Ship?
-                </DialogTitle>
-                <DialogDescription className="text-gray-300 text-xs sm:text-sm">
-                  This will end your current game and register your score on the
-                  leaderboard. Your ship and all cargo will be lost forever.
-                  This action cannot be undone.
+                <div className="flex items-center mb-4">
+                  <Skull className="h-6 w-6 mr-2 text-amber-300" />
+                  <DialogTitle className="text-amber-400 text-lg sm:text-xl font-bold">
+                    Retire from Piracy?
+                  </DialogTitle>
+                </div>
+                <DialogDescription className="text-amber-100 text-sm sm:text-base italic">
+                  Your crew demands 500 gold as their final payment. Your ship and cargo will be lost forever. <span className="text-red-400 font-bold">This action cannot be undone!</span>
                 </DialogDescription>
               </DialogHeader>
-              <DialogFooter className="flex gap-2 justify-end mt-2 sm:mt-4">
+              <div className="mt-4 space-y-4">
+                <div className="flex justify-end">
+                  <div className="text-right text-amber-200">
+                    <div className="flex items-center justify-end mb-1">
+                      <span className="mr-4">Current Gold:</span>
+                      <span className="w-20 text-right">{gameState.player?.gold || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-end mb-1">
+                      <span className="mr-4">Crew Payment:</span>
+                      <span className="w-20 text-right text-red-400">-500</span>
+                    </div>
+                    <div className="flex items-center justify-end border-t-2 border-amber-500 pt-1">
+                      <span className="mr-4 font-bold">Final Score:</span>
+                      <span className="w-20 text-right font-bold text-yellow-400 bg-amber-900/50 px-2 py-1 rounded">
+                        {gameState.player?.gold ? gameState.player.gold - 500 : 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-red-400 text-sm text-center">
+                  Are you sure you want to end your journey?
+                </p>
+              </div>
+              <DialogFooter className="flex flex-col sm:flex-row gap-2 justify-end mt-4">
                 <DialogClose asChild>
-                  <Button data-testid="cypress-scuttle-ship-cancel-button" variant="outline" className="border-gray-500 text-gray-300 hover:bg-gray-800 text-xs sm:text-sm">
+                  <Button
+                    data-testid="cypress-scuttle-ship-cancel-button"
+                    variant="outline"
+                    className="w-full sm:w-auto border-amber-500/50 text-amber-200 hover:bg-amber-900/50 text-sm font-semibold py-2 px-4 rounded-md transition-all duration-200"
+                  >
+                    <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                     Cancel
                   </Button>
                 </DialogClose>
                 <Button
                   variant="destructive"
-                  className="bg-red-700 hover:bg-red-800 text-xs sm:text-sm"
+                  className="w-full sm:w-auto bg-red-700 hover:bg-red-800 text-white text-sm font-semibold py-2 px-4 rounded-md transition-all duration-200 disabled:bg-gray-600 disabled:cursor-not-allowed"
                   onClick={() => {
                     useSocket.getState().scuttleShip();
                   }}
+                  //disabled={gameState.player?.gold && gameState.player.gold < 500}
                   data-testid="cypress-scuttle-ship-confirm-button"
                 >
-                  Scuttle Ship
+                  <Skull className="h-5 w-5 mr-2" />
+                  Retire
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -240,6 +312,24 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
           </div>
         </div>
       </div>
+      {/* CSS for gold animation */}
+      <style>
+        {`
+          @keyframes goldAnimation {
+            0% {
+              transform: translateY(0);
+              opacity: 1;
+            }
+            100% {
+              transform: translateY(-30px);
+              opacity: 0;
+            }
+          }
+          .animate-gold {
+            animation: goldAnimation 3s ease-out forwards;
+          }
+        `}
+      </style>
     </div>
   );
 }

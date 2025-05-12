@@ -13,6 +13,7 @@ interface GameStateStore {
   isNearPort: boolean;
   nearPortId: number | null;
   currentPortGoods: PortGood[];
+  goldDrops: Array<{ id: string; position: [number, number, number]; value: number }>;
 
   registerPlayer: (name: string) => void;
   selectShip: (shipType: string) => void;
@@ -22,6 +23,7 @@ interface GameStateStore {
   updatePlayer: (player: PlayerState) => void;
   updateOtherPlayers: (players: Record<string, PlayerState>) => void;
   updateCannonBalls: (cannonBalls: any[]) => void;
+  updateGoldObjects: (goldObjects: any[]) => void;
   updatePlayerInventory: (inventory: InventoryItem[]) => void;
 
   loadPorts: () => Promise<void>;
@@ -36,6 +38,10 @@ interface GameStateStore {
   getNearestPort: () => Port | null;
   isPlayerNearPort: () => boolean;
   calculateDistance: (x1: number, z1: number, x2: number, z2: number) => number;
+
+  addGoldDrop: (position: [number, number, number], value: number) => void;
+  removeGoldDrop: (id: string) => void;
+  addGold: (amount: number) => void;
 }
 
 export const useGameState = create<GameStateStore>()(
@@ -44,6 +50,7 @@ export const useGameState = create<GameStateStore>()(
       player: null,
       otherPlayers: {},
       cannonBalls: [],
+      goldObjects: [],
       ports: [],
       goods: [],
       inventory: [],
@@ -58,6 +65,7 @@ export const useGameState = create<GameStateStore>()(
     isNearPort: false,
     nearPortId: null,
     currentPortGoods: [],
+    goldDrops: [],
 
     registerPlayer: (name: string) => {
       set({ isRegistered: true });
@@ -69,14 +77,17 @@ export const useGameState = create<GameStateStore>()(
 
     startGame: () => {
       // this somehow prevents a websocket disconnect error - do not remove it
-      setTimeout(() => {
-        window.location.reload(false);
-      }, 100)
+      // setTimeout(() => {
+      //   window.location.reload();
+      // }, 100)
       set({ isPlaying: true });
     },
 
     restartGame: () => {
       console.log("restart game called")
+      if (window.stripe) {
+        window.stripe._elements = null;
+      }
       set({
         isRegistered: false,
         isPlaying: false,
@@ -89,6 +100,7 @@ export const useGameState = create<GameStateStore>()(
           player: null,
           otherPlayers: {},
           cannonBalls: [],
+          goldObjects: [],
           ports: get().gameState.ports, // Preserve ports
           goods: get().gameState.goods, // Preserve goods
           inventory: [],
@@ -99,13 +111,41 @@ export const useGameState = create<GameStateStore>()(
       });
       localStorage.removeItem("playerId");
       localStorage.removeItem("playerName");
+      //localStorage.removeItem("finalPlayerId");
+
+      // Force a new Stripe instance to be created on next payment
+      const stripeScript = document.querySelector('script[src*="stripe"]');
+      if (stripeScript) {
+        stripeScript.remove();
+      }
+      setTimeout(() => {
+        window.location.reload();
+      }, 100)
     },
 
     updatePlayer: (player: PlayerState) => {
-      set((state) => ({
-        gameState: { ...state.gameState, player },
-        isSunk: player.sunk,
-      }));
+      set((state) => {
+        const oldPlayer = state.gameState.player;
+        const newState: Partial<GameStateStore> = {
+          gameState: { ...state.gameState, player },
+          isSunk: player.sunk,
+        };
+
+        // If player just died from cannon fire (not scuttle), create a gold drop
+        if (oldPlayer && !oldPlayer.sunk && player.sunk && !player.scuttled) {
+          const goldValue = Math.floor(oldPlayer.gold * 0.5); // Drop 50% of gold
+          if (goldValue > 0) {
+            const goldDrop = {
+              id: `gold-${Date.now()}-${Math.random()}`,
+              position: [oldPlayer.x, oldPlayer.y, oldPlayer.z] as [number, number, number],
+              value: goldValue
+            };
+            newState.goldDrops = [...state.goldDrops, goldDrop];
+          }
+        }
+
+        return newState as GameStateStore;
+      });
     },
 
     updateOtherPlayers: (players: Record<string, PlayerState>) => {
@@ -116,7 +156,7 @@ export const useGameState = create<GameStateStore>()(
       const otherPlayers: Record<string, PlayerState> = {};
 
       Object.entries(players).forEach(([id, player]) => {
-        if (id !== currentPlayerId && !player.dead) {
+        if (id !== currentPlayerId && !player.sunk) {
           otherPlayers[id] = player;
         }
       });
@@ -133,6 +173,12 @@ export const useGameState = create<GameStateStore>()(
     updateCannonBalls: (cannonBalls) => {
       set((state) => ({
         gameState: { ...state.gameState, cannonBalls },
+      }));
+    },
+
+    updateGoldObjects: (goldObjects) => {
+      set((state) => ({
+        gameState: { ...state.gameState, goldObjects },
       }));
     },
 
@@ -290,6 +336,37 @@ export const useGameState = create<GameStateStore>()(
       const dx = Math.min(Math.abs(x1 - x2), MAP_WIDTH - Math.abs(x1 - x2));
       const dz = Math.min(Math.abs(z1 - z2), MAP_HEIGHT - Math.abs(z1 - z2));
       return Math.sqrt(dx * dx + dz * dz);
+    },
+
+    addGoldDrop: (position: [number, number, number], value: number) => {
+      set((state) => ({
+        goldDrops: [...state.goldDrops, {
+          id: `gold-${Date.now()}-${Math.random()}`,
+          position,
+          value
+        }]
+      }));
+    },
+
+    removeGoldDrop: (id: string) => {
+      set((state) => ({
+        goldDrops: state.goldDrops.filter(drop => drop.id !== id)
+      }));
+    },
+
+    addGold: (amount: number) => {
+      set((state) => {
+        if (!state.gameState.player) return state;
+        return {
+          gameState: {
+            ...state.gameState,
+            player: {
+              ...state.gameState.player,
+              gold: state.gameState.player.gold + amount
+            }
+          }
+        };
+      });
     },
   }))
 );

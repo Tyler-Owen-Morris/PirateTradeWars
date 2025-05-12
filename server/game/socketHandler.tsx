@@ -4,17 +4,21 @@ import { WebSocket } from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { Or } from "drizzle-orm";
 import { PlayerState } from "../game/gameState";
+import { SHIP_UPGRADE_PATH, SHIP_STATS, MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES } from "@shared/gameConstants";
+import { identifyPlayer, trackEvent, flushSegment } from "../segmentClient";
 
 interface ConnectMessage {
   type: "connect";
   name: string;
   shipType: string;
+  tempPlayerId?: string;
 }
 
 interface ReconnectMessage {
   type: "reconnect";
   id: string;
   name: string;
+  tempPlayerId?: string;
 }
 
 interface InputMessage {
@@ -33,11 +37,21 @@ interface TradeMessage {
   quantity: number;
 }
 
+interface UpgradeShipMessage {
+  type: "upgradeShip";
+  portId: number;
+}
+
+interface RepairShipMessage {
+  type: "repairShip";
+  portId: number;
+}
+
 interface ScuttleMessage {
   type: "scuttle";
 }
 
-type ClientMessage = ConnectMessage | ReconnectMessage | InputMessage | TradeMessage | ScuttleMessage;
+type ClientMessage = ConnectMessage | ReconnectMessage | InputMessage | TradeMessage | ScuttleMessage | UpgradeShipMessage | RepairShipMessage;
 
 export function handleSocketConnection(ws: WebSocket) {
   let playerId: string | null = null;
@@ -59,6 +73,12 @@ export function handleSocketConnection(ws: WebSocket) {
         case "trade":
           if (playerId) await handleTrade(playerId, data);
           break;
+        case "upgradeShip":
+          if (playerId && data.portId) await handleUpgradeShip(playerId, data.portId, ws);
+          break;
+        case "repairShip":
+          if (playerId && data.portId) await handleRepairShip(playerId, data.portId, ws);
+          break;
         case "scuttle":
           if (playerId) await handleScuttle(playerId, ws);
           break;
@@ -76,6 +96,8 @@ export function handleSocketConnection(ws: WebSocket) {
       gameState.removeClient(playerId);
       console.log(`Player ${playerId} disconnected`);
       console.log(`Total players connected: ${Object.keys(gameState.state.players).length}`);
+    } else {
+      console.log("Player ID is null");
     }
   });
 
@@ -86,27 +108,42 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!data.name || data.name.trim().length < 3) {
       return sendError(ws, "Name must be at least 3 characters");
     }
-    if (await redisStorage.isNameActive(data.name)) {
+    const reservedPlayerId = await redisStorage.getActiveNamePlayerId(data.name);
+    if (reservedPlayerId && reservedPlayerId !== data.tempPlayerId) {
       return sendError(ws, "Name already in use by an active player", "nameError");
     }
-    const shipType = await redisStorage.getShipType(data.shipType);
-    if (!shipType) {
+    const shipStats = SHIP_STATS[data.shipType];
+    if (!shipStats) {
       return sendError(ws, "Invalid ship type");
     }
-    //console.log("ship type:", shipType)
-
-    const addedPlayer = await gameState.addPlayer(data.name, data.shipType, shipType);
-    // TODO : THESE redis updates should be in the gameState.tsx file, and not here.
+    const addedPlayer = await gameState.addPlayer(data.name, data.shipType, shipStats, data.tempPlayerId);
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
+    }
+    await redisStorage.createPlayer(addedPlayer);
+    // Update the active_name entry with the final player ID if it was a temporary reservation
+    if (reservedPlayerId === data.tempPlayerId) {
+      await redisStorage.addActiveName(data.name, addedPlayer.id);
     } else {
-      //console.log("adding player to redis:", addedPlayer)
-      await redisStorage.createPlayer(addedPlayer)
       await redisStorage.addActiveName(addedPlayer.name, addedPlayer.id);
     }
 
-    gameState.registerClient(addedPlayer.id, ws as any);
+    playerId = addedPlayer.id;
 
+    // Identify player and track connection
+    identifyPlayer(playerId, {
+      name: data.name,
+      shipType: data.shipType,
+      gold: addedPlayer.gold,
+      createdAt: new Date(),
+    });
+    trackEvent(playerId, 'Player Connected', {
+      name: data.name,
+      shipType: data.shipType,
+    });
+    await flushSegment();
+
+    gameState.registerClient(addedPlayer.id, ws as any);
 
     console.log(`Total players connected: ${Object.keys(gameState.state.players).length}`);
 
@@ -114,10 +151,11 @@ export function handleSocketConnection(ws: WebSocket) {
       type: "connected",
       playerId: addedPlayer.id,
       name: data.name,
-      ship: shipType,
+      ship: shipStats,
       gold: addedPlayer.gold,
       players: gameState.state.players,
       cannonBalls: gameState.state.cannonBalls,
+      goldObjects: gameState.state.goldObjects,
       timestamp: Date.now(),
     }));
     console.log(`Player ${addedPlayer.name} connected with ID ${addedPlayer.id}`);
@@ -125,22 +163,20 @@ export function handleSocketConnection(ws: WebSocket) {
 
   async function handleReconnect(ws: WebSocket, data: ReconnectMessage) {
     let existingPlayer = gameState.state.players[data.id];
-    //console.log("looking for reconnecting to player:", data)
-    // console.log("existing players:", gameState.state.players)
     if (!existingPlayer) {
       existingPlayer = await redisStorage.getPlayer(data.id);
-      //console.log("existing player from redis:", existingPlayer)
       if (!existingPlayer) {
         return sendError(ws, "Player ID not found");
       } else {
-        // Don't forget to put the player object into the game state
         existingPlayer = existingPlayer as PlayerState;
         gameState.state.players[data.id] = existingPlayer;
       }
     }
-    console.log("existing player:", existingPlayer)
-    if (data.name !== existingPlayer.name && await redisStorage.isNameActive(data.name)) {
-      return sendError(ws, "Name already in use by an active player", "nameError");
+    if (data.name !== existingPlayer.name) {
+      const reservedPlayerId = await redisStorage.getActiveNamePlayerId(data.name);
+      if (reservedPlayerId && reservedPlayerId !== data.tempPlayerId) {
+        return sendError(ws, "Name already in use by an active player", "nameError");
+      }
     }
 
     playerId = data.id;
@@ -151,11 +187,23 @@ export function handleSocketConnection(ws: WebSocket) {
     existingPlayer.lastSeen = Date.now();
     gameState.registerClient(playerId, ws as any);
 
+    const shipStats = SHIP_STATS[existingPlayer.shipType];
+    if (!shipStats) {
+      return sendError(ws, "Invalid ship type for reconnecting player");
+    }
+
+    // Track reconnection
+    trackEvent(playerId, 'Player Reconnected', {
+      name: existingPlayer.name,
+      shipType: existingPlayer.shipType,
+    });
+    await flushSegment();
+
     ws.send(JSON.stringify({
       type: "reconnected",
       playerId,
       name: existingPlayer.name,
-      ship: await redisStorage.getShipType(existingPlayer.shipType),
+      ship: shipStats,
       gold: existingPlayer.gold,
       players: gameState.state.players,
       cannonBalls: gameState.state.cannonBalls,
@@ -211,6 +259,15 @@ export function handleSocketConnection(ws: WebSocket) {
       await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity + data.quantity);
       await redisStorage.updatePlayerGold(player.playerId, player.gold)
       const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
+      // Track buy trade
+      trackEvent(playerId, 'Trade Buy', {
+        portId: data.portId,
+        goodId: data.goodId,
+        quantity: data.quantity,
+        totalCost,
+        gold: player.gold,
+      });
+      await flushSegment();
 
       ws.send(JSON.stringify({
         type: "tradeSuccess",
@@ -234,6 +291,16 @@ export function handleSocketConnection(ws: WebSocket) {
       await redisStorage.updatePlayerGold(player.playerId, player.gold)
       const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
 
+      // Track sell trade
+      trackEvent(playerId, 'Trade Sell', {
+        portId: data.portId,
+        goodId: data.goodId,
+        quantity: data.quantity,
+        totalEarnings,
+        gold: player.gold,
+      });
+      await flushSegment();
+
       ws.send(JSON.stringify({
         type: "tradeSuccess",
         action: "sell",
@@ -249,20 +316,121 @@ export function handleSocketConnection(ws: WebSocket) {
     // await redisStorage.updatePlayerGold(player.playerId, player.gold);
   }
 
+  async function handleUpgradeShip(playerId: string, portId: number, ws: WebSocket) {
+    const player = gameState.state.players[playerId];
+    if (!player) return sendError(ws, "Player not found");
+
+    const port = await redisStorage.getPort(portId);
+    if (!port) return sendError(ws, "Port not found");
+
+    const dx = Math.min(Math.abs(player.x - port.x), MAP_WIDTH - Math.abs(player.x - port.x));
+    const dz = Math.min(Math.abs(player.z - port.z), MAP_HEIGHT - Math.abs(player.z - port.z));
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    if (distance > port.safeRadius) return sendError(ws, "Too far from port");
+
+    const currentShip = player.shipType;
+    const upgradeOption = SHIP_UPGRADE_PATH.find(option => option.from === currentShip);
+    if (!upgradeOption) return sendError(ws, "No upgrade available");
+
+    const nextShipType = upgradeOption.to;
+    const upgradeCost = upgradeOption.cost;
+    if (player.gold < upgradeCost) return sendError(ws, "Not enough gold");
+
+    player.gold -= upgradeCost;
+    player.shipType = nextShipType;
+
+    const newShipStats = SHIP_STATS[nextShipType];
+    player.maxHp = newShipStats.hullStrength;
+    player.hp = newShipStats.hullStrength; // Fully repair on upgrade
+    player.cargoCapacity = newShipStats.cargoCapacity;
+    player.maxSpeed = newShipStats.speed;
+    player.reloadTime = newShipStats.cannonReload * 1000;
+    player.damage = newShipStats.cannonDamage;
+    player.cannonCount = newShipStats.cannonCount;
+
+    await redisStorage.updatePlayerState(player);
+
+    // Track ship upgrade
+    trackEvent(playerId, 'Ship Upgraded', {
+      portId,
+      fromShipType: currentShip,
+      toShipType: nextShipType,
+      upgradeCost,
+      gold: player.gold,
+    });
+    await flushSegment();
+
+    ws.send(JSON.stringify({
+      type: "upgradeSuccess",
+      newShipType: nextShipType,
+      gold: player.gold,
+      timestamp: Date.now(),
+    }));
+  }
+
+  async function handleRepairShip(playerId: string, portId: number, ws: WebSocket) {
+    const player = gameState.state.players[playerId];
+    if (!player) return sendError(ws, "Player not found");
+    if (player.dead || player.sunk) return sendError(ws, "Cannot repair a sunk or dead ship");
+
+    const port = await redisStorage.getPort(portId);
+    if (!port) return sendError(ws, "Port not found");
+
+    const dx = Math.min(Math.abs(player.x - port.x), MAP_WIDTH - Math.abs(player.x - port.x));
+    const dz = Math.min(Math.abs(player.z - port.z), MAP_HEIGHT - Math.abs(player.z - port.z));
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    if (distance > port.safeRadius) return sendError(ws, "Too far from port");
+
+    const repairCost = SHIP_STATS[player.shipType].repairCost;
+    if (player.gold < repairCost) return sendError(ws, "Not enough gold");
+
+    player.gold -= repairCost;
+    player.hp = player.maxHp; // Restore to full HP
+
+    await redisStorage.updatePlayerState(player);
+
+    // Track ship repair
+    trackEvent(playerId, 'Ship Repaired', {
+      portId,
+      repairCost,
+      gold: player.gold,
+      hp: player.hp,
+    });
+    await flushSegment();
+
+    ws.send(JSON.stringify({
+      type: "repairSuccess",
+      gold: player.gold,
+      hp: player.hp,
+      timestamp: Date.now(),
+    }));
+  }
+
   async function handleScuttle(playerId: string, ws: WebSocket) {
     const player = gameState.state.players[playerId];
     if (!player) return sendError(ws, "Player not found");
     let post_scuttle_gold = player.gold - 500;
     console.log(`Player ${player.name} scuttled their ship with score ${post_scuttle_gold}`);
-    const leaderboardEntry = await redisStorage.addToLeaderboard({
-      playerId: player.playerId,
-      playerName: player.name,
-      score: post_scuttle_gold,
-      achievedAt: new Date()
-    });
+    if (post_scuttle_gold <= 0) {
+      //post_scuttle_gold = 0;
+    } else {
+      const leaderboardEntry = await redisStorage.addToLeaderboard({
+        playerId: player.playerId,
+        playerName: player.name,
+        score: post_scuttle_gold,
+        achievedAt: new Date()
+      });
+    }
     // TODO: Fetch the leaderboard ranks NEAR the player's rank.
     const leaderboard = await redisStorage.getLeaderboard(10);
     await gameState.updateLeaderboard(leaderboard);
+
+    // Track scuttle
+    trackEvent(playerId, 'Ship Scuttled', {
+      score: post_scuttle_gold,
+      gold: player.gold,
+    });
+    await flushSegment();
 
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({

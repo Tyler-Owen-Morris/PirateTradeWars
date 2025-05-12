@@ -15,7 +15,8 @@ export const SHIP_TYPES = {
     SLOOP: "sloop",
     BRIGANTINE: "brigantine",
     GALLEON: "galleon",
-    MAN_O_WAR: "man-o-war"
+    MAN_O_WAR: "man-o-war",
+    DREADNAUGHT: "dreadnaught"
 };
 
 // Ship display names
@@ -23,15 +24,17 @@ export const SHIP_DISPLAY_NAMES = {
     [SHIP_TYPES.SLOOP]: "The Sloop",
     [SHIP_TYPES.BRIGANTINE]: "The Brigantine",
     [SHIP_TYPES.GALLEON]: "The Galleon",
-    [SHIP_TYPES.MAN_O_WAR]: "The Man-o'-War"
+    [SHIP_TYPES.MAN_O_WAR]: "The Man-o'-War",
+    [SHIP_TYPES.DREADNAUGHT]: "The Dreadnaught"
 };
 
 // Ship descriptions
 export const SHIP_DESCRIPTIONS = {
-    [SHIP_TYPES.SLOOP]: "A small, rickety vessel for new pirates. Cheap but vulnerable, it's a starting point for all free players.",
+    [SHIP_TYPES.SLOOP]: "A small, rickety vessel for new pirates.It's a starting point for all free players.",
     [SHIP_TYPES.BRIGANTINE]: "A sturdy ship for aspiring captains, offering a balanced upgrade over the free Sloop.",
     [SHIP_TYPES.GALLEON]: "A formidable merchant vessel, blending cargo capacity with combat strength.",
-    [SHIP_TYPES.MAN_O_WAR]: "The ultimate warship, a terror of the seas built for dominance."
+    [SHIP_TYPES.MAN_O_WAR]: "The ultimate warship, a terror of the seas built for dominance.",
+    [SHIP_TYPES.DREADNAUGHT]: "The ultimate warship, a terror of the seas built for dominance."
 };
 
 // Ship stats
@@ -40,12 +43,13 @@ export const SHIP_STATS = {
         hullStrength: 50,
         armor: 5,
         cargoCapacity: 20,
-        speed: 2.5,
+        speed: 4,
         cannonCount: 1,
         cannonDamage: 5,
         cannonReload: 2.0,
         cannonRange: 300,
         repairCost: 100,
+        startingGold: 200,
         isPaid: false,
         playerTTL: 1 * 15 * 60  // 15 minutes in seconds
     },
@@ -53,41 +57,72 @@ export const SHIP_STATS = {
         hullStrength: 150,
         armor: 10,
         cargoCapacity: 40,
-        speed: 3.5,
+        speed: 5,
         cannonCount: 2,
         cannonDamage: 8,
         cannonReload: 1.8,
         cannonRange: 250,
         repairCost: 300,
         isPaid: true,
-        playerTTL: 1 * 60 * 60  // 1 hour in seconds
+        startingGold: 500,
+        playerTTL: 2 * 60 * 60  // 2 hours in seconds
     },
     [SHIP_TYPES.GALLEON]: {
         hullStrength: 300,
         armor: 15,
         cargoCapacity: 60,
-        speed: 4,
+        speed: 5.5,
         cannonCount: 3,
         cannonDamage: 12,
         cannonReload: 1.5,
         cannonRange: 200,
         repairCost: 600,
         isPaid: true,
+        startingGold: 800,
         playerTTL: 4 * 60 * 60  // 4 hours in seconds
     },
     [SHIP_TYPES.MAN_O_WAR]: {
         hullStrength: 500,
         armor: 20,
         cargoCapacity: 80,
-        speed: 4.5,
+        speed: 7,
         cannonCount: 4,
         cannonDamage: 15,
         cannonReload: 1.2,
         cannonRange: 150,
         repairCost: 1000,
         isPaid: true,
+        startingGold: 1000,
         playerTTL: 24 * 60 * 60  // 24 hours in seconds
+    },
+    [SHIP_TYPES.DREADNAUGHT]: {
+        hullStrength: 800,
+        armor: 30,
+        cargoCapacity: 100,
+        speed: 9,
+        cannonCount: 5,
+        cannonDamage: 20,
+        cannonReload: 1.0,
+        cannonRange: 200,
+        repairCost: 2000,
+        isPaid: true,
+        startingGold: 2000,
+        playerTTL: 48 * 60 * 60  // 48 hours in seconds
     }
+};
+
+export const SHIP_UPGRADE_PATH = [
+    { from: SHIP_TYPES.SLOOP, to: SHIP_TYPES.BRIGANTINE, cost: 5000 },
+    { from: SHIP_TYPES.BRIGANTINE, to: SHIP_TYPES.GALLEON, cost: 9000 },
+    { from: SHIP_TYPES.GALLEON, to: SHIP_TYPES.MAN_O_WAR, cost: 12000 },
+    { from: SHIP_TYPES.MAN_O_WAR, to: SHIP_TYPES.DREADNAUGHT, cost: 15000 }
+];
+
+export const SHIP_PRICES = {
+    [SHIP_TYPES.BRIGANTINE]: 50,
+    [SHIP_TYPES.GALLEON]: 100,
+    [SHIP_TYPES.MAN_O_WAR]: 200,
+    //[SHIP_TYPES.DREADNAUGHT]: 400 // not actually purchasable, just a placeholder to prevent possible errors
 };
 
 // Game goods

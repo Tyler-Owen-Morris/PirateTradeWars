@@ -15,12 +15,14 @@ interface SocketState {
   disconnect: () => void;
   resetError: () => void;
 
-  register: (name: string, shipType: string) => void;
+  register: (name: string, shipType: string, tempPlayerId?: string) => void;
   sendInput: (speed: number, direction: Vector3, firing: boolean, rotationY?: number) => void;
   sendTrade: (portId: number, action: "buy" | "sell", goodId: number, quantity: number) => void;
+  sendUpgradeShip: (portId: number) => void;
+  sendRepairShip: (portId: number) => void;
   scuttleShip: () => void;
 
-  onGameUpdate: (players: Record<string, PlayerState>, cannonBalls: any[]) => void;
+  onGameUpdate: (players: Record<string, PlayerState>, cannonBalls: any[], goldObjects: any[]) => void;
 }
 
 export const useSocket = create<SocketState>((set, get) => ({
@@ -82,11 +84,24 @@ export const useSocket = create<SocketState>((set, get) => ({
               set({ playerId: message.playerId, playerName: message.name, error: null });
               localStorage.setItem("playerId", message.playerId);
               localStorage.setItem("playerName", message.name);
-              useGameState.setState({ isRegistered: true });
-              //setTimeout(() => { useGameState.setState({ isPlaying: true }) }, 1000)
               if (message.players) {
-                get().onGameUpdate(message.players, message.cannonBalls || []);
+                console.log("Initial game state received:", {
+                  players: Object.keys(message.players).length,
+                  cannonBalls: message.cannonBalls?.length || 0,
+                  goldObjects: message.goldObjects?.length || 0,
+                });
+                get().onGameUpdate(message.players, message.cannonBalls || [], message.goldObjects || []);
+                if (message.playerId && message.players[message.playerId]) {
+                  useGameState.getState().updatePlayer(message.players[message.playerId]);
+                } else {
+                  console.warn("Own player data missing in initial state");
+                }
+              } else {
+                console.warn("No players data in connected message");
               }
+              useGameState.setState({ isRegistered: true });
+              // Store the final player ID in localStorage to replace tempPlayerId
+              localStorage.setItem("finalPlayerId", message.playerId);
               break;
 
             case "reconnected":
@@ -94,12 +109,12 @@ export const useSocket = create<SocketState>((set, get) => ({
               set({ playerId: message.playerId, playerName: message.name, error: null });
               useGameState.setState({ isPlaying: true });
               if (message.players) {
-                get().onGameUpdate(message.players, message.cannonBalls || []);
+                get().onGameUpdate(message.players, message.cannonBalls || [], []);
               }
               break;
 
             case "fullSync":
-              get().onGameUpdate(message.players, message.cannonBalls || []);
+              get().onGameUpdate(message.players, message.cannonBalls || [], message.goldObjects || []);
               break;
 
             case "registered":
@@ -109,7 +124,7 @@ export const useSocket = create<SocketState>((set, get) => ({
               break;
 
             case "gameUpdate":
-              get().onGameUpdate(message.players, message.cannonBalls);
+              get().onGameUpdate(message.players, message.cannonBalls, message.goldObjects);
               break;
 
             case "playerDead":
@@ -153,6 +168,21 @@ export const useSocket = create<SocketState>((set, get) => ({
               }
               break;
 
+            case "upgradeSuccess":
+              console.log("Ship upgraded successfully to", message?.newShipType);
+              break;
+
+            case "repairSuccess":
+              console.log("Ship repaired successfully");
+              if (message.gold !== undefined && message.hp !== undefined) {
+                const gameState = useGameState.getState();
+                if (gameState.gameState.player) {
+                  gameState.gameState.player.gold = message.gold;
+                  gameState.gameState.player.hp = message.hp;
+                }
+              }
+              break;
+
             case "gameEnd":
               console.log("Game ended:", message);
               if (message.leaderboard && Array.isArray(message.leaderboard)) {
@@ -160,9 +190,18 @@ export const useSocket = create<SocketState>((set, get) => ({
                   gameState: { ...state.gameState, leaderboard: message.leaderboard },
                 }));
               }
-              useGameState.setState({ isSunk: true, gold: message.score });
+              useGameState.setState((state) => ({
+                isSunk: true,
+                gameState: {
+                  ...state.gameState,
+                  player: state.gameState.player ? {
+                    ...state.gameState.player,
+                    gold: message.score
+                  } : null
+                }
+              }));
               useAudio.getState().playPlayerSinks();
-              console.log("Game state updated - isSunk:", useGameState.getState().isSunk, useGameState.getState().gold);
+              console.log("Game state updated - isSunk:", useGameState.getState().isSunk);
               break;
 
             default:
@@ -192,18 +231,17 @@ export const useSocket = create<SocketState>((set, get) => ({
     set({ error: null });
   },
 
-  register: (name, shipType) => {
+  register: (name, shipType, tempPlayerId?: string) => {
     const { socket, connected } = get();
     if (!socket || !connected) {
       set({ error: "Not connected. Please refresh and try again." });
       return;
     }
-
     const storedPlayerId = localStorage.getItem("playerId");
     if (storedPlayerId) {
-      socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name }));
+      socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name, tempPlayerId }));
     } else {
-      socket.send(JSON.stringify({ type: "connect", name, shipType }));
+      socket.send(JSON.stringify({ type: "connect", name, shipType, tempPlayerId }));
       console.log("sending connect event from client")
     }
   },
@@ -228,6 +266,25 @@ export const useSocket = create<SocketState>((set, get) => ({
     socket.send(JSON.stringify(message));
   },
 
+  sendUpgradeShip: (portId: number) => {
+    const { socket, connected } = get();
+    if (!socket || !connected) {
+      set({ error: "Not connected. Please refresh and try again." });
+      return;
+    }
+    socket.send(JSON.stringify({ type: "upgradeShip", portId }));
+  },
+
+  sendRepairShip: (portId: number) => {
+    const { socket, connected } = get();
+    if (!socket || !connected) {
+      set({ error: "Not connected. Please refresh and try again." });
+      return;
+    }
+    console.log("sending repair ship message to server")
+    socket.send(JSON.stringify({ type: "repairShip", portId }));
+  },
+
   scuttleShip: () => {
     const { socket, connected } = get();
     if (!socket || !connected) {
@@ -239,9 +296,11 @@ export const useSocket = create<SocketState>((set, get) => ({
     socket.send(JSON.stringify(message));
   },
 
-  onGameUpdate: (players, cannonBalls) => {
+  onGameUpdate: (players, cannonBalls, goldObjects) => {
+    //console.log("onGameUpdate called with goldObjects:", goldObjects);
     useGameState.getState().updateOtherPlayers(players);
     useGameState.getState().updateCannonBalls(cannonBalls);
+    useGameState.getState().updateGoldObjects(goldObjects);
 
     const playerId = get().playerId;
     if (playerId && players[playerId]) {
