@@ -5,6 +5,7 @@ import { redisStorage } from '../redisStorage';
 import { SHIP_PRICES } from '@shared/gameConstants';
 import { v4 as uuidv4 } from 'uuid';
 import { identifyPlayer, trackEvent, flushSegment } from '../segmentClient';
+import { PROMOTION_CODE_MAPPING } from './promotionCodes';
 
 // Initialize Stripe with your secret key (loaded from environment variable)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -33,8 +34,8 @@ export function registerStripeRoutes(app: Express) {
 
     // Route to create a Payment Intent for a premium ship
     app.post('/api/stripe/create-payment-intent', async (req: Request, res: Response) => {
-        const { shipName, amount, currency, playerName, tempPlayerId } = req.body;
-        console.log("create-payment-intent request:", req.body)
+        const { shipName, amount, currency, playerName, tempPlayerId, promotionCode } = req.body;
+        console.log("create-payment-intent request:", req.body);
         if (!shipName || !amount || !currency || !playerName || !tempPlayerId) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
@@ -45,42 +46,95 @@ export function registerStripeRoutes(app: Express) {
         }
 
         // Validate amount and currency
+        let finalAmount = amount;
+        let appliedCoupon: Stripe.Coupon | null = null;
+        let couponError: string | null = null;
+        let couponApplied = false;
+
         try {
             const price = await stripe.prices.retrieve(priceId);
             if (!price.unit_amount || price.currency !== currency || price.unit_amount !== amount) {
                 return res.status(400).json({ error: 'Invalid amount or currency for this ship' });
             }
+
+            // Validate promotion code if provided
+            if (promotionCode && PROMOTION_CODE_MAPPING[promotionCode]) {
+                try {
+                    const promotionCodeId = PROMOTION_CODE_MAPPING[promotionCode];
+                    const promotionCodeObj = await stripe.promotionCodes.retrieve(promotionCodeId);
+                    if (!promotionCodeObj.active || !promotionCodeObj.coupon) {
+                        couponError = 'Promotion code is inactive';
+                    } else {
+                        const coupon = await stripe.coupons.retrieve(promotionCodeObj.coupon.id);
+                        if (!coupon.valid || (coupon.redeem_by && coupon.redeem_by * 1000 < Date.now())) {
+                            couponError = 'Coupon expired or invalid';
+                        } else {
+                            // Check if coupon applies to the product
+                            const product = await stripe.products.retrieve(price.product as string);
+                            if (coupon.applies_to && !coupon.applies_to.products.includes(product.id)) {
+                                couponError = 'Coupon not applicable to this ship';
+                            } else if (coupon.percent_off === 100) {
+                                finalAmount = 0;
+                                appliedCoupon = coupon;
+                                couponApplied = true;
+                            } else {
+                                couponError = 'Coupon does not provide a full discount';
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error validating promotion code:', error);
+                    couponError = 'Invalid promotion code';
+                }
+            } else if (promotionCode) {
+                couponError = 'Promotion code not recognized';
+            }
         } catch (error) {
             console.error('Error retrieving price:', error);
             return res.status(500).json({ error: 'Failed to validate price' });
         }
+
         // Verify the name reservation
         const reservedPlayerId = await redisStorage.getActiveNamePlayerId(playerName);
         if (reservedPlayerId !== tempPlayerId) {
             return res.status(400).json({ error: 'Name reservation invalid or expired' });
         }
+
         try {
+            // Create PaymentIntent with adjusted amount
             const paymentIntent = await stripe.paymentIntents.create({
-                amount,
+                amount: finalAmount,
                 currency,
                 payment_method_types: ['card'],
                 metadata: {
                     shipName,
                     playerName,
                     tempPlayerId,
-                    priceId
+                    priceId,
+                    promotionCode: promotionCode || '',
+                    couponId: appliedCoupon ? appliedCoupon.id : '',
                 },
             });
-            // Track payment intent creation
+
+            // Track purchase initiation
             trackEvent(tempPlayerId, 'Purchase Initiated', {
                 shipName,
                 playerName,
-                amount,
+                amount: finalAmount,
                 currency,
                 paymentIntentId: paymentIntent.id,
+                promotionCode: promotionCode || null,
+                couponApplied,
+                couponError: couponError || null,
             });
             await flushSegment();
-            res.json({ clientSecret: paymentIntent.client_secret });
+
+            res.json({
+                clientSecret: paymentIntent.client_secret,
+                amount: finalAmount,
+                couponApplied,
+                couponError: couponError || null,
+            });
         } catch (error) {
             console.error('Error creating Payment Intent:', error);
             res.status(500).json({ error: 'Failed to create payment intent' });
@@ -98,18 +152,19 @@ export function registerStripeRoutes(app: Express) {
                 sig,
                 WEBHOOK_SECRET
             );
-            console.log("stripe webhook event:", event)
+            console.log("stripe webhook event:", event);
 
             // Handle specific events
             if (event.type === 'payment_intent.succeeded') {
                 const paymentIntent = event.data.object as Stripe.PaymentIntent;
-                const { shipName, playerName, tempPlayerId } = paymentIntent.metadata;
+                const { shipName, playerName, tempPlayerId, promotionCode, couponId } = paymentIntent.metadata;
 
                 if (shipName && playerName && tempPlayerId) {
                     // Store purchase in redis
                     const purchaseKey = `purchase:${playerName}:${shipName.toLowerCase()}`;
                     //await redisStorage.set(purchaseKey, 'true');
                     console.log(`Purchase recorded for ${playerName}: ${shipName}`);
+
                     // Track successful purchase
                     trackEvent(tempPlayerId, 'Purchase Completed', {
                         shipName,
@@ -117,6 +172,9 @@ export function registerStripeRoutes(app: Express) {
                         amount: paymentIntent.amount,
                         currency: paymentIntent.currency,
                         paymentIntentId: paymentIntent.id,
+                        promotionCode: promotionCode || null,
+                        couponId: couponId || null,
+                        freeTrial: paymentIntent.amount === 0,
                     });
                     await flushSegment();
                 }

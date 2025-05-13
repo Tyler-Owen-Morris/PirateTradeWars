@@ -198,6 +198,10 @@ export default function ShipSelection() {
   const [tempPlayerId, setTempPlayerId] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [promotionCode, setPromotionCode] = useState("");
+  const [discountedAmount, setDiscountedAmount] = useState<number | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [couponApplied, setCouponApplied] = useState(false);
 
   // Log current state for debugging
   useEffect(() => {
@@ -319,16 +323,23 @@ export default function ShipSelection() {
           currency: 'usd',
           playerName,
           tempPlayerId,
+          promotionCode: promotionCode || '',
         }),
       });
       console.log("initiate payment response:", response);
-      const { clientSecret } = await response.json();
+      const { clientSecret, error, amount, couponApplied, couponError } = await response.json();
+      if (error) {
+        throw new Error(error);
+      }
       if (!clientSecret) throw new Error('Failed to create payment intent');
       setClientSecret(clientSecret);
+      setDiscountedAmount(amount);
+      setCouponApplied(couponApplied || false);
+      setCouponError(couponError);
       setShowPaymentModal(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error initiating payment:', error);
-      setNameError("Failed to initiate payment. Please try again.");
+      setNameError(error.message || "Failed to initiate payment. Please try again.");
       await fetch('/api/release-name', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -600,6 +611,22 @@ export default function ShipSelection() {
           paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 20px))',
           zIndex: 1
         }}>
+          <div className="w-full sm:w-1/3 mb-4">
+            <label
+              htmlFor="promotionCode"
+              className="block text-sm font-medium mb-2 text-white"
+            >
+              Promotion Code (optional):
+            </label>
+            <input
+              type="text"
+              id="promotionCode"
+              className="px-3 py-2 bg-gray-100 text-black border border-amber-300 rounded-md w-full text-sm"
+              value={promotionCode}
+              onChange={(e) => setPromotionCode(e.target.value.toUpperCase())}
+              placeholder="Enter promotion code (e.g., FREESHIP2025)"
+            />
+          </div>
           <Button
             onClick={handleStartGame}
             disabled={!selectedShip || !playerName || playerName.length < 3 || loading}
@@ -644,7 +671,10 @@ export default function ShipSelection() {
             onError={handlePaymentError}
             clientSecret={clientSecret}
             shipName={selectedShip?.name || ''}
-            amount={selectedShip ? SHIP_PRICES[selectedShip.name] : 0}
+            amount={discountedAmount || SHIP_PRICES[selectedShip?.name || '']}
+            originalAmount={SHIP_PRICES[selectedShip?.name || '']}
+            couponApplied={couponApplied}
+            couponError={couponError}
           />
         </div>
       )}

@@ -17,9 +17,12 @@ interface PaymentModalProps {
     clientSecret: string; // From backend Payment Intent
     shipName: string;
     amount: number; // Price in the smallest currency unit (e.g., cents)
+    originalAmount: number;
+    couponApplied: boolean;
+    couponError: string | null;
 }
 
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, onError, clientSecret, shipName }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, onError, clientSecret, shipName, amount, originalAmount, couponApplied, couponError }) => {
     // Add cleanup effect
     // React.useEffect(() => {
     //     return () => {
@@ -93,6 +96,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
                     }}>
                         Complete Your Purchase
                     </h2>
+                    {couponError && (
+                        <div style={{
+                            backgroundColor: '#fee2e2',
+                            color: '#b91c1c',
+                            padding: '8px',
+                            borderRadius: '4px',
+                            marginBottom: '12px',
+                            fontSize: '14px'
+                        }}>
+                            {couponError}. Proceeding with full price.
+                        </div>
+                    )}
                     <div style={{
                         display: 'flex',
                         justifyContent: 'space-between',
@@ -115,13 +130,28 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess,
                             }}>
                                 Ship Purchase
                             </div>
+                            {couponApplied && amount < originalAmount && (
+                                <div style={{
+                                    fontSize: '14px',
+                                    color: '#059669',
+                                    marginTop: '4px'
+                                }}>
+                                    Promotion applied! Original price: {new Intl.NumberFormat('en-US', {
+                                        style: 'currency',
+                                        currency: 'USD'
+                                    }).format(originalAmount / 100)}
+                                </div>
+                            )}
                         </div>
                         <div style={{
                             fontSize: '20px',
                             fontWeight: '600',
-                            color: '#059669'
+                            color: amount === 0 ? '#059669' : '#059669'
                         }}>
-                            {formattedPrice}
+                            {amount === 0 ? 'Free' : new Intl.NumberFormat('en-US', {
+                                style: 'currency',
+                                currency: 'USD'
+                            }).format(amount / 100)}
                         </div>
                     </div>
                 </div>
@@ -142,8 +172,8 @@ const CheckoutForm: React.FC<{ onSuccess: () => void; onClose: () => void; onErr
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
         if (!stripe || !elements) return;
-        console.log("stripe:", stripe)
-        console.log("elements:", elements)
+        console.log("stripe:", stripe);
+        console.log("elements:", elements);
 
         setProcessing(true);
         const { error, paymentIntent } = await stripe.confirmPayment({
@@ -164,9 +194,12 @@ const CheckoutForm: React.FC<{ onSuccess: () => void; onClose: () => void; onErr
             };
             setError(errorDetails.message);
             onError(errorDetails);
-        } else if (paymentIntent?.status === 'succeeded') {
-            onSuccess();
-            onClose();
+        } else {
+            // Handle both paid and no-cost ($0) payments
+            if (paymentIntent?.status === 'succeeded' || paymentIntent?.status === 'requires_payment_method') {
+                onSuccess();
+                onClose();
+            }
         }
     };
 
