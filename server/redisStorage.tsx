@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
-import { type User, type Player, type ShipType, type Port, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
+import { type User, type Player as SharedPlayer, type ShipType, type Port, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
 import { PlayerState } from '@/types';
 import { SHIP_STATS } from '@shared/gameConstants';
 import { set } from 'node_modules/cypress/types/lodash';
@@ -44,7 +44,6 @@ interface Player {
 export class RedisStorage {
     private redis: Redis;
     private pubsub: Redis;
-    private readonly EXPIRATION_OFFSET = 30; // Player expires 30 seconds after inventory - so we use the inventory event to store the player's high score and expire both records.
 
     constructor() {
         //console.log("env", process.env)
@@ -67,23 +66,19 @@ export class RedisStorage {
 
             this.pubsub.on('message', async (channel, expiredKey) => {
                 console.log("channel:", channel, "expiredKey:", expiredKey)
-                if (channel === '__keyevent@0__:expired' && expiredKey.startsWith('player_inventory:')) {
+                if (channel === '__keyevent@0__:expired' && expiredKey.startsWith('player:')) {
                     const playerId = expiredKey.split(':')[1];
                     console.log(`>>>>>>>>>>>>>> Detected expiration of player:${playerId}`);
-                    // fetch the player
-                    const player = await this.getPlayer(playerId);
-                    console.log("got player to be removed player:", player)
-                    if (player) {
-                        // add the player to the leaderboard
-                        const lederboardentry = await this.addToLeaderboard({
-                            playerId: player.playerId,
-                            playerName: player.name,
-                            score: player.gold,
+                    const scoreData = await this.redis.hgetall(`player_score:${playerId}`);
+                    if (scoreData && scoreData.name && scoreData.gold && parseInt(scoreData.gold) > 0) {
+                        const leaderboardEntry = await this.addToLeaderboard({
+                            playerId,
+                            playerName: scoreData.name,
+                            score: parseInt(scoreData.gold),
                             achievedAt: new Date()
                         });
-                        console.log("leaderboard entry for expired player:", lederboardentry)
-                        // delete the player
-                        await this.removePlayer(playerId);
+                        console.log("leaderboard entry for expired player:", leaderboardEntry);
+                        await this.redis.del(`player_score:${playerId}`);
                     }
 
                 }
@@ -162,12 +157,17 @@ export class RedisStorage {
         // Start a transaction to ensure atomicity
         const multi = this.redis.multi();
         multi.hmset(`player:${id}`, this.serializePlayer(newPlayer));
-        multi.expire(`player:${id}`, newPlayer.playerTTL + this.EXPIRATION_OFFSET);
+        multi.expire(`player:${id}`, newPlayer.playerTTL);
         multi.set(`player_inventory:${id}`, JSON.stringify([]));
         multi.expire(`player_inventory:${id}`, newPlayer.playerTTL);
         //multi.sadd('player_names', id);
         multi.set(`active_name:${newPlayer.name}`, `${id}`);
         multi.expire(`active_name:${newPlayer.name}`, newPlayer.playerTTL);
+        multi.hmset(`player_score:${id}`, {
+            name: newPlayer.name,
+            gold: newPlayer.gold.toString()
+        });
+        multi.expire(`player_score:${id}`, newPlayer.playerTTL + 24 * 60 * 60);
         await multi.exec();
 
         return newPlayer;
@@ -188,6 +188,11 @@ export class RedisStorage {
         multi.expire(`player:${player.id}`, currentPlayer.playerTTL);
         multi.expire(`player_inventory:${player.id}`, currentPlayer.playerTTL);
         multi.expire(`active_name:${player.name}`, currentPlayer.playerTTL);
+        multi.hmset(`player_score:${player.id}`, {
+            name: player.name,
+            gold: player.gold.toString()
+        });
+        multi.expire(`player_score:${player.id}`, currentPlayer.playerTTL + 24 * 60 * 60);
         await multi.exec();
     }
 
@@ -197,8 +202,12 @@ export class RedisStorage {
         if (!currentPlayer) {
             throw new Error(`Player ${id} not found`);
         }
-        await this.redis.hset(`player:${id}`, 'gold', gold.toString());
-        await this.redis.expire(`player:${id}`, currentPlayer.playerTTL + this.EXPIRATION_OFFSET);
+        const multi = this.redis.multi();
+        multi.hset(`player:${id}`, 'gold', gold.toString());
+        multi.expire(`player:${id}`, currentPlayer.playerTTL);
+        multi.hset(`player_score:${id}`, 'gold', gold.toString());
+        multi.expire(`player_score:${id}`, currentPlayer.playerTTL + 24 * 60 * 60);
+        await multi.exec();
     }
 
     // reserve a name from a stripe checkout begin
@@ -228,7 +237,7 @@ export class RedisStorage {
         multi.hmset(`player:${id}`, this.serializePlayer(player));
         multi.set(`active_name:${player_name}`, `${id}`);
         if (isActive) {
-            multi.expire(`player:${id}`, player.playerTTL + this.EXPIRATION_OFFSET);
+            multi.expire(`player:${id}`, player.playerTTL);
             multi.expire(`player_inventory:${id}`, player.playerTTL);
             multi.expire(`active_name:${player_name}`, player.playerTTL);
         }
@@ -599,6 +608,7 @@ export class RedisStorage {
         multi.del(`player_inventory:${playerId}`);
         // Delete the active name record using the player's name
         multi.del(`active_name:${player.name}`);
+        multi.del(`player_score:${playerId}`);
         await multi.exec();
     }
 }
