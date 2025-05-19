@@ -113,9 +113,30 @@ function App() {
       isTrading,
     });
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Reset controls state when tab becomes visible
+        controlsRef.current = {
+          forward: false,
+          backward: false,
+          left: false,
+          right: false,
+          fire: false
+        };
+
+        // Reconnect socket if needed
+        if (!socketState.connected) {
+          socketState.connect();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       // Disconnect socket when unmounting
       socketState.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
