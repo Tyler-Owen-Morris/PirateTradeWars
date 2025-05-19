@@ -17,6 +17,10 @@ import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES, SHIP_STATS, SHIP_DISPLAY_NA
 import PaymentModal from "./PaymentModal";
 import pirateNamesData from "./pirateNames.json";
 
+
+// Add constant to control purchases
+const PURCHASES_ENABLED = false;
+
 const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -378,7 +382,7 @@ export default function ShipSelection() {
     useSocket.getState().resetError();
     setNameError(null);
 
-    if (selectedShip.isPaid) {
+    if (selectedShip.isPaid && PURCHASES_ENABLED) {
       const { available, tempPlayerId } = await checkNameAvailability(playerName);
       console.log("checkNameAvailability:", { available, tempPlayerId });
       if (available && tempPlayerId) {
@@ -565,8 +569,13 @@ export default function ShipSelection() {
                 <CardHeader className="p-3 bg-amber-100 relative">
                   <CardTitle className="text-lg text-amber-900 pr-16">{ship.name}</CardTitle>
                   <CardDescription className="text-xs text-amber-700">{ship.tier}</CardDescription>
-                  <div className="absolute top-3 right-3 bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded-full">
-                    {ship.stats.price}
+                  <div className="absolute top-3 right-3 flex flex-col items-end">
+                    {!PURCHASES_ENABLED && ship.type !== SHIP_TYPES.SLOOP && (
+                      <span className="text-white bg-green-600 text-xs font-bold px-2 py-1 rounded-full mb-1">Free</span>
+                    )}
+                    <div className={`bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded-full ${!PURCHASES_ENABLED && ship.type !== SHIP_TYPES.SLOOP ? 'line-through text-red-200' : ''}`}>
+                      {ship.stats.price}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="p-3">
