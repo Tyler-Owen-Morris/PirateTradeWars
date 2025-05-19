@@ -249,7 +249,8 @@ export const useSocket = create<SocketState>((set, get) => ({
   sendInput: (speed, direction, firing, rotationY) => {
     const { socket, connected } = get();
     //console.log("sending input to:", socket, connected)
-    if (!socket || !connected) return;
+    if (!socket || !connected || socket.readyState !== WebSocket.OPEN) return;
+
     const message = { type: "input", rotationY, speed, direction, firing };
     //console.log("sending input:", message)
     socket.send(JSON.stringify(message));
