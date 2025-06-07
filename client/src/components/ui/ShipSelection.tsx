@@ -19,7 +19,7 @@ import pirateNamesData from "./pirateNames.json";
 
 
 // Add constant to control purchases
-const PURCHASES_ENABLED = false;
+const PURCHASES_ENABLED = true;
 
 const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState("overview");
