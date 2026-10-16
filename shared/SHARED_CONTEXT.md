@@ -17,6 +17,11 @@ The shared directory contains code and types that are used by both the client an
     (`packEntityRow`/`unpackEntityRow`), flag bits, netcode constants (interest radius, grid cell,
     interpolation delay, input queue cap) and `parseClientMessage` (validates/clamps untrusted frames).
   - `__tests__/` - vitest unit tests (`npm test`).
+  - `world/` - generated world data (do not hand-edit; regenerate with `npm run world:build`, see
+    `docs/world/DATA_PIPELINE.md`): `ports.json` (27 real ports with town/dock/spawn, spec §5),
+    `lanes.json` (sea lanes, spec §6), `versions.json` (content hashes: land/ports/lanes). The land
+    SDF tiles + manifest live in `client/public/world/land/` (gzipped, `encoding: "gzip"`), the map
+    textures in `client/public/world/map_*.png`. `world/__tests__/data.test.ts` validates them.
 
 The netcode contract is `docs/netcode/PROTOCOL.md`; `physics.ts` and `protocol.ts` implement it.
 Keep both files free of imports from `client/` or `server/` (they are bundled by Vite and esbuild).
