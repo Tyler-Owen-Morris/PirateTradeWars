@@ -12,6 +12,7 @@ import { useGameState } from "./lib/stores/useGameState";
 import TradeMenu from "./components/ui/TradeMenu";
 // import TouchControls from './components/ui/TouchControls'
 import { isMobile } from 'react-device-detect';
+import { net } from "./lib/net";
 
 // Define control keys for the game
 const controls = [
@@ -114,6 +115,9 @@ function App() {
     });
 
     const handleVisibilityChange = () => {
+      // Hidden tab: the net layer sends one neutral input and stops sending, so the ship coasts
+      // to a stop server-side instead of repeating the last held input (PROTOCOL §7).
+      net.setHidden(document.visibilityState === 'hidden');
       if (document.visibilityState === 'visible') {
         // Reset controls state when tab becomes visible
         controlsRef.current = {

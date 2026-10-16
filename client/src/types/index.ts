@@ -18,20 +18,50 @@ export interface ShipStats {
   playerTTL: number;
 }
 
-// Player state
+// Own player state as seen by React UI (HUD, Minimap, TradeMenu, ...).
+// Populated by useSocket from the netcode layer at ~5 Hz (immediately when hp/gold/sunk change):
+// stats come from the snapshot `me`, x/z/rotationY/speed from the client's predicted ship.
+// Rendering of the ship itself never reads this — Player.tsx reads `net` inside useFrame.
 export interface PlayerState {
   id: string;
   name: string;
   x: number;
   y: number;
   z: number;
-  rotation: number;
+  /** radians */
+  rotationY: number;
+  /** velocity, units per 1/60 s (negative = forward) */
+  speed: number;
+  maxSpeed: number;
   shipType: string;
-  health: number;
+  hp: number;
+  maxHp: number;
   gold: number;
+  cargoUsed: number;
+  cargoCapacity: number;
+  canFire: boolean;
+  /** ms until cannons are reloaded (0 = ready) */
+  reloadMs: number;
+  /** full reload duration in ms for this ship type */
+  reloadTime: number;
   sunk: boolean;
-  scuttled: boolean;
-  inventory: InventoryItem[];
+  scuttled?: boolean;
+  /** own entity id (snapshot me.eid), if the server sent it */
+  eid?: number;
+}
+
+// Another ship, summarized for low-frequency UI (Minimap). 3D rendering uses the net layer.
+export interface RemoteShipSummary {
+  id: string;
+  eid: number;
+  name: string;
+  shipType: string;
+  x: number;
+  z: number;
+  rotationY: number;
+  hp: number;
+  maxHp: number;
+  sunk: boolean;
 }
 
 // Cannon ball
@@ -110,7 +140,8 @@ export interface Vector3 {
 // Game state
 export interface GameState {
   player: PlayerState | null;
-  otherPlayers: Record<string, PlayerState>;
+  /** keyed by player id; refreshed at ~5 Hz for the Minimap */
+  otherPlayers: Record<string, RemoteShipSummary>;
   cannonBalls: CannonBall[];
   goldObjects: GoldObject[];
   ports: Port[];

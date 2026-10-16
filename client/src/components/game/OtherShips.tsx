@@ -1,89 +1,100 @@
+/**
+ * Remote ships, rendered from the net layer's interpolation buffers (lib/net/interpolation.ts).
+ *
+ * React state here is only the SET of ships and their metadata (`ent`/`gone`, sunk flag) via
+ * `useSyncExternalStore(net.remote)`. Positions/rotations are written straight to the Three groups in
+ * useFrame at `serverNow − INTERP_DELAY_MS` — no per-snapshot props. Positions are placed relative to
+ * the local ship's rendered position (shortest wrapped delta) so ships across the map seam render
+ * next to us instead of 10000 units away.
+ */
+import { memo, useCallback, useRef, useSyncExternalStore } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useRef } from 'react';
-import { Ship } from './Ship';
-import { PlayerState } from '@/types';
 import * as THREE from 'three';
+import { Ship } from './Ship';
+import { ShipType } from '@/lib/constants';
+import { net, type RemotePose } from '@/lib/net';
+import { wrappedDelta, type ShipKinematics } from '@shared/physics';
 import { MAP_WIDTH, MAP_HEIGHT } from '@shared/gameConstants';
+import { FLAG_SUNK } from '@shared/protocol';
 
-interface OtherShipsProps {
-  players: Record<string, PlayerState>;
-}
+const subscribe = (fn: () => void) => net.remote.subscribe(fn);
+const getVersion = () => net.remote.version;
 
-export function OtherShips({ players }: OtherShipsProps) {
-  const shipsRef = useRef<Record<string, THREE.Group>>({});
+const ORIGIN: [number, number, number] = [0, -10000, 0];
 
-  // Smoothly interpolate other ships' positions
-  useFrame((_, delta) => {
-    Object.entries(players).forEach(([id, player]) => {
-      const ship = shipsRef.current[id];
+export const OtherShips = memo(function OtherShips() {
+  useSyncExternalStore(subscribe, getVersion, getVersion);
+  const entities = net.remote.renderable();
+  const shipsRef = useRef<Map<number, THREE.Group>>(new Map());
+  const pose = useRef<RemotePose>({ x: 0, z: 0, r: 0, v: 0, hp: 0, flags: 0, extrapolated: false });
+  const own = useRef<ShipKinematics>({ x: 0, z: 0, rotationY: 0, velocity: 0 });
 
-      if (ship) {
-        // Calculate wrapped distance to target
-        const targetX = player.x;
-        const targetZ = player.z;
-
-        // Get current position
-        const currentX = ship.position.x;
-        const currentZ = ship.position.z;
-
-        // Calculate direct and wrapped distances for x
-        const directDx = targetX - currentX;
-        const wrappedDx = targetX > currentX
-          ? targetX - MAP_WIDTH - currentX
-          : targetX + MAP_WIDTH - currentX;
-
-        // Use the shortest path
-        const dx = Math.abs(directDx) < Math.abs(wrappedDx) ? directDx : wrappedDx;
-
-        // Calculate direct and wrapped distances for z
-        const directDz = targetZ - currentZ;
-        const wrappedDz = targetZ > currentZ
-          ? targetZ - MAP_HEIGHT - currentZ
-          : targetZ + MAP_HEIGHT - currentZ;
-
-        // Use the shortest path
-        const dz = Math.abs(directDz) < Math.abs(wrappedDz) ? directDz : wrappedDz;
-
-        // Interpolate position (lerp)
-        ship.position.x += dx * 5 * delta; // Faster interpolation for network smoothness
-        ship.position.z += dz * 5 * delta;
-
-        // Wrap around map edges
-        ship.position.x = (ship.position.x % MAP_WIDTH + MAP_WIDTH) % MAP_WIDTH;
-        ship.position.z = (ship.position.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
-
-        // Interpolate rotation (smoother turning)
-        const currentAngle = ship.rotation.y;
-        let targetAngle = player.rotationY;
-
-        // Ensure we take the shortest path around the circle
-        if (targetAngle - currentAngle > Math.PI) targetAngle -= Math.PI * 2;
-        if (currentAngle - targetAngle > Math.PI) targetAngle += Math.PI * 2;
-
-        ship.rotation.y += (targetAngle - currentAngle) * 5 * delta;
+  useFrame(() => {
+    const renderTime = net.remoteRenderTime();
+    const haveOwn = net.predictor.initialized;
+    if (haveOwn) net.getOwnRenderState(own.current);
+    shipsRef.current.forEach((group, eid) => {
+      const p = net.remote.sample(eid, renderTime, pose.current);
+      if (!p) return;
+      let x = p.x;
+      let z = p.z;
+      if (haveOwn) {
+        x = own.current.x + wrappedDelta(own.current.x, p.x, MAP_WIDTH);
+        z = own.current.z + wrappedDelta(own.current.z, p.z, MAP_HEIGHT);
       }
+      group.position.set(x, 0, z);
+      group.rotation.y = p.r;
     });
   });
 
   return (
     <>
-      {Object.entries(players).map(([id, player]) => (
-        <Ship
-          key={id}
-          ref={(el) => {
-            if (el) {
-              shipsRef.current[id] = el;
-            }
+      {entities.map((e) => (
+        <RemoteShip
+          key={e.eid}
+          eid={e.eid}
+          shipType={e.meta!.shipType}
+          name={e.meta!.name}
+          maxHp={e.meta!.maxHp}
+          sunk={(e.flags & FLAG_SUNK) !== 0}
+          register={(eid, el) => {
+            if (el) shipsRef.current.set(eid, el);
+            else shipsRef.current.delete(eid);
           }}
-          position={[player.x, player.y, player.z]}
-          rotation={player.rotationY}
-          type={player.shipType}
-          name={player.name}
-          hp={player.hp}
-          maxHp={player.maxHp}
-          sunk={player.sunk}
         />
       ))}
     </>
   );
+});
+
+interface RemoteShipProps {
+  eid: number;
+  shipType: string;
+  name: string;
+  maxHp: number;
+  sunk: boolean;
+  register: (eid: number, el: THREE.Group | null) => void;
 }
+
+const RemoteShip = memo(
+  function RemoteShip({ eid, shipType, name, maxHp, sunk, register }: RemoteShipProps) {
+    const getHp = useCallback(() => net.remote.entities.get(eid)?.hp ?? 0, [eid]);
+    const refCb = useCallback((el: THREE.Group | null) => register(eid, el), [eid, register]);
+    return (
+      <Ship
+        ref={refCb}
+        position={ORIGIN}
+        rotation={0}
+        type={shipType as ShipType}
+        name={name}
+        hp={net.remote.entities.get(eid)?.hp ?? maxHp}
+        getHp={getHp}
+        maxHp={maxHp}
+        sunk={sunk}
+        playerId={String(eid)}
+      />
+    );
+  },
+  // `register` is recreated on every parent render; it is behaviourally identical, so ignore it.
+  (a, b) => a.eid === b.eid && a.shipType === b.shipType && a.name === b.name && a.maxHp === b.maxHp && a.sunk === b.sunk,
+);

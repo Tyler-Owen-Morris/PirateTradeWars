@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { apiRequest } from "../queryClient";
 import { MAP_HEIGHT, MAP_WIDTH } from "../constants";
-import { GameState, Port, Good, PortGood, LeaderboardEntry, InventoryItem, PlayerState } from "@/types";
+import { GameState, Port, Good, PortGood, LeaderboardEntry, InventoryItem, PlayerState, RemoteShipSummary } from "@/types";
 
 interface GameStateStore {
   gameState: GameState;
@@ -21,7 +21,8 @@ interface GameStateStore {
   restartGame: () => void;
 
   updatePlayer: (player: PlayerState) => void;
-  updateOtherPlayers: (players: Record<string, PlayerState>) => void;
+  /** Minimap summaries of other ships (set by useSocket at ~5 Hz; not used for 3D rendering). */
+  updateOtherPlayers: (players: Record<string, RemoteShipSummary>) => void;
   updateCannonBalls: (cannonBalls: any[]) => void;
   updateGoldObjects: (goldObjects: any[]) => void;
   updatePlayerInventory: (inventory: InventoryItem[]) => void;
@@ -148,25 +149,9 @@ export const useGameState = create<GameStateStore>()(
       });
     },
 
-    updateOtherPlayers: (players: Record<string, PlayerState>) => {
-      const currentPlayerId = get().gameState.player?.id;
-      if (!currentPlayerId) return;
-
-      const currentPlayer = players[currentPlayerId];
-      const otherPlayers: Record<string, PlayerState> = {};
-
-      Object.entries(players).forEach(([id, player]) => {
-        if (id !== currentPlayerId && !player.sunk) {
-          otherPlayers[id] = player;
-        }
-      });
-
+    updateOtherPlayers: (players: Record<string, RemoteShipSummary>) => {
       set((state) => ({
-        gameState: {
-          ...state.gameState,
-          player: currentPlayer || state.gameState.player,
-          otherPlayers,
-        },
+        gameState: { ...state.gameState, otherPlayers: players },
       }));
     },
 
@@ -331,8 +316,7 @@ export const useGameState = create<GameStateStore>()(
     },
 
     calculateDistance: (x1, z1, x2, z2) => {
-      const MAP_WIDTH = 5000;
-      const MAP_HEIGHT = 5000;
+      // Wrapped (torus) distance on the real map size (was hard-coded to 5000).
       const dx = Math.min(Math.abs(x1 - x2), MAP_WIDTH - Math.abs(x1 - x2));
       const dz = Math.min(Math.abs(z1 - z2), MAP_HEIGHT - Math.abs(z1 - z2));
       return Math.sqrt(dx * dx + dz * dz);

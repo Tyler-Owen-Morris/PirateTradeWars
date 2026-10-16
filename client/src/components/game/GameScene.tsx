@@ -1,8 +1,13 @@
+/**
+ * Main 3D scene. Netcode lives in `@/lib/net`:
+ *  - Player.tsx drives prediction (`net.frame`) and draws the predicted own ship (useFrame, prio -1);
+ *  - OtherShips.tsx / CannonBall.tsx read interpolated / simulated positions in useFrame;
+ *  - this component only makes the camera follow the rendered own ship and runs the (throttled)
+ *    port-proximity check. Inputs are sent by the net layer, not from here.
+ */
 import { useEffect, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Sky, Stars } from "@react-three/drei";
-import { useKeyboardControls } from "@react-three/drei";
-import { useSocket } from "@/lib/stores/useSocket";
+import { Sky } from "@react-three/drei";
 import { useGameState } from "@/lib/stores/useGameState";
 import { useAudio } from "@/lib/stores/useAudio";
 import { Ocean } from "./Ocean";
@@ -10,56 +15,34 @@ import { Player } from "./Player";
 import { Ports } from "./Ports";
 import { OtherShips } from "./OtherShips";
 import * as THREE from "three";
-import { CannonBall } from "./CannonBall";
-import { Vector3 } from "@/types";
+import { CannonBalls } from "./CannonBall";
 import { Fog } from "./Fog";
 import { GoldObject } from "./GoldObject";
+import type { ControlState } from "@/lib/net";
+import { MAP_WIDTH, MAP_HEIGHT } from "@shared/gameConstants";
 
-// Interface for control state
-interface ControlState {
-  forward: boolean;
-  backward: boolean;
-  left: boolean;
-  right: boolean;
-  fire: boolean;
-}
-
-// GameScene component
 interface GameSceneProps {
+  /** touch joystick / HUD fire button state (keyboard is read inside Player) */
   controlsRef: React.MutableRefObject<ControlState>;
 }
-// GameScene component
+
+const CAMERA_OFFSET = new THREE.Vector3(0, 250, 400);
+const CAMERA_LERP = 0.05;
+const POSITION_LERP = 0.1;
+const PORT_CHECK_INTERVAL_MS = 100;
+
 export function GameScene({ controlsRef }: GameSceneProps) {
-  // Refs
   const playerRef = useRef<THREE.Group>(null);
-  const lastInputTime = useRef<number>(0);
-  const lastRotationUpdateTime = useRef<number>(0);
-  const lastSentRotation = useRef<number>(0);
-  const direction = useRef<Vector3>({ x: 0, y: 0, z: 1 });
+  const lastPortCheck = useRef(0);
+  const lastPlayerPos = useRef<THREE.Vector3 | null>(null);
 
-  // Game state
-  const { gameState, isNearPort } = useGameState();
-  const socket = useSocket();
+  const player = useGameState((s) => s.gameState.player);
+  const goldObjects = useGameState((s) => s.gameState.goldObjects);
 
-  // Camera
-  const smoothedPlayerPosition = useRef<THREE.Vector3>(new THREE.Vector3());
+  const smoothedPlayerPosition = useRef(new THREE.Vector3());
+  const tmpOffset = useRef(new THREE.Vector3());
+  const tmpTarget = useRef(new THREE.Vector3());
   const { camera } = useThree();
-  const cameraLerpFactor = 0.05;
-  const positionLerpFactor = 0.1;
-
-  // Keyboard controls - simplified
-  const forward = useKeyboardControls((state) => state.forward);
-  const backward = useKeyboardControls((state) => state.backward);
-  const left = useKeyboardControls((state) => state.left);
-  const right = useKeyboardControls((state) => state.right);
-  const fire = useKeyboardControls((state) => state.fire);
-  const [effectiveControlsState, setEffectiveControls] = useState({
-    forward: false,
-    backward: false,
-    left: false,
-    right: false,
-    fire: false
-  });
 
   // Load initial game data
   useEffect(() => {
@@ -77,134 +60,43 @@ export function GameScene({ controlsRef }: GameSceneProps) {
     setIsVisualTest(!noVisualTest);
   }, []);
 
-  // Handle camera following player with smooth interpolation
-  useFrame((_, delta) => {
-    //aconsole.log("gameState.goldObjects:", gameState.goldObjects);
-    if (playerRef.current && gameState.player) {
-      // Ensure consistent physics step for better stability
-      const physicsDelta = Math.min(delta, 0.1);
+  // Camera follows the rendered (predicted) own ship. Runs after Player's useFrame (priority -1).
+  useFrame(() => {
+    const group = playerRef.current;
+    if (!group) return;
+    const playerPosition = group.position;
 
-      // Get player position
-      const playerPosition = playerRef.current.position;
-      smoothedPlayerPosition.current.lerp(playerPosition, positionLerpFactor);
-      // console.log("player ref current:", playerRef.current);
-      //console.log("game state player:", gameState.player);
-
-      // Calculate camera target position - pulled back further for a wider view
-      const cameraOffset = new THREE.Vector3(0, 250, 400); // Increased height and distance
-      const rotatedCameraOffset = cameraOffset.clone().applyQuaternion(playerRef.current.quaternion);;
-      //cameraOffset.applyQuaternion(playerRef.current.quaternion);
-      const targetCameraPosition = smoothedPlayerPosition.current.clone().add(rotatedCameraOffset);
-
-      // Smoothly interpolate camera position (lerp) for smoother camera movement
-      camera.position.lerp(targetCameraPosition, cameraLerpFactor);
-      camera.lookAt(smoothedPlayerPosition.current);
-
-      // Send input updates to server (throttled to 10 times per second)
-      const now = Date.now();
-      if (now - lastInputTime.current > 100) {
-        lastInputTime.current = now;
-
-        // Combine keyboard and touch controls
-        const effectiveControls = {
-          forward: forward || controlsRef.current.forward,
-          backward: backward || controlsRef.current.backward,
-          left: left || controlsRef.current.left,
-          right: right || controlsRef.current.right,
-          fire: fire || controlsRef.current.fire,
-        };
-        //console.log("effective controls:", effectiveControls)
-        if (effectiveControls != effectiveControlsState) {
-          setEffectiveControls(effectiveControls)
-        }
-
-        // Simplified controls - forward/backward directly control speed
-        const maxSpeed = gameState.player?.maxSpeed || 3.5;
-        //console.log("max speed:", maxSpeed)
-        let speed = 0;
-        if (effectiveControls.backward) speed = (maxSpeed / 2); // S key goes forward at max speed
-        if (effectiveControls.forward) speed = -maxSpeed; // W key goes backward at half speed
-
-        // Get the current visual rotation from the player model
-        const currentRotation = playerRef.current.rotation.y;
-
-        // Calculate the forward direction vector based on this rotation
-        const dirVector = new THREE.Vector3(0, 0, 1);
-        dirVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), currentRotation);
-        dirVector.normalize();
-
-        // Store the current direction for server updates
-        direction.current = {
-          x: dirVector.x,
-          y: dirVector.y,
-          z: dirVector.z
-        };
-
-        // Determine if we need to send a rotation update to the server
-        // Only send when rotation changes significantly or periodically
-        // This reduces network traffic while maintaining accuracy
-        const rotationDiff = Math.abs(currentRotation - lastSentRotation.current);
-        const shouldUpdateRotation = rotationDiff > 0.05 || (now - lastRotationUpdateTime.current > 250);
-
-        // Debug when moving to help diagnose issues
-        if (effectiveControls.forward || effectiveControls.backward || effectiveControls.left || effectiveControls.right) {
-          //console.log("Server input - Speed:", speed, "Direction:", direction.current);
-        }
-
-        if (shouldUpdateRotation) {
-          // Send complete input including rotation
-          lastRotationUpdateTime.current = now;
-          lastSentRotation.current = currentRotation;
-          socket.sendInput(speed, direction.current, effectiveControls.fire, currentRotation);
-        } else {
-          // Send just speed and direction updates without rotation
-          // This keeps the rotation on the server until we need to change it
-          socket.sendInput(speed, direction.current, effectiveControls.fire);
-        }
-
-        // Update client-side game state for smooth local rendering
-        if (gameState.player) {
-          gameState.player.rotationY = currentRotation;
-        }
-
-        // Check if near port
-        const nearestPort = useGameState.getState().getNearestPort();
-        if (nearestPort) {
-          const isNearPort = useGameState.getState().isPlayerNearPort();
-          const player = gameState.player;
-
-          if (isNearPort) {
-            if (!gameState.isNearPort) {
-              useGameState.getState().setNearPort(nearestPort.id);
-
-              // Play sound effect when entering port range
-              const { playSound } = useAudio.getState();
-              if (typeof playSound === 'function') {
-                playSound('bell', 0.4);
-              }
-
-              // Calculate distance for debug purposes
-              if (player) {
-                const distance = useGameState.getState().calculateDistance(
-                  player.x, player.z, nearestPort.x, nearestPort.z
-                );
-                console.log(`Approaching ${nearestPort.name} port! Distance: ${Math.round(distance)} units`);
-              }
-            }
-          } else if (gameState.isNearPort) {
-            useGameState.getState().setNearPort(null);
-
-            // Calculate distance for debug purposes
-            if (player) {
-              const distance = useGameState.getState().calculateDistance(
-                player.x, player.z, nearestPort.x, nearestPort.z
-              );
-              console.log(`Leaving ${nearestPort.name} port area. Distance: ${Math.round(distance)} units`);
-            }
-          }
-        }
+    // Map seam: when the ship wraps (x or z jumps by ~MAP size), shift the camera and its
+    // smoothing state by the same amount so the camera doesn't fly across the map.
+    const last = lastPlayerPos.current;
+    if (!last) {
+      lastPlayerPos.current = playerPosition.clone();
+      smoothedPlayerPosition.current.copy(playerPosition);
+    } else {
+      const jx = playerPosition.x - last.x;
+      const jz = playerPosition.z - last.z;
+      const shiftX = Math.abs(jx) > MAP_WIDTH / 2 ? Math.sign(jx) * MAP_WIDTH : 0;
+      const shiftZ = Math.abs(jz) > MAP_HEIGHT / 2 ? Math.sign(jz) * MAP_HEIGHT : 0;
+      if (shiftX || shiftZ) {
+        smoothedPlayerPosition.current.x += shiftX;
+        smoothedPlayerPosition.current.z += shiftZ;
+        camera.position.x += shiftX;
+        camera.position.z += shiftZ;
       }
+      last.copy(playerPosition);
     }
+
+    smoothedPlayerPosition.current.lerp(playerPosition, POSITION_LERP);
+    tmpOffset.current.copy(CAMERA_OFFSET).applyQuaternion(group.quaternion);
+    tmpTarget.current.copy(smoothedPlayerPosition.current).add(tmpOffset.current);
+    camera.position.lerp(tmpTarget.current, CAMERA_LERP);
+    camera.lookAt(smoothedPlayerPosition.current);
+
+    // Port proximity (throttled). Uses the ~5 Hz player mirror in useGameState.
+    const now = performance.now();
+    if (now - lastPortCheck.current < PORT_CHECK_INTERVAL_MS) return;
+    lastPortCheck.current = now;
+    checkPortProximity();
   });
 
   return (
@@ -215,7 +107,6 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           <ambientLight intensity={0.3} />
           <directionalLight position={[50, 100, 50]} intensity={1} castShadow />
 
-          {/* Sky setup with better parameters */}
           <Sky
             distance={450000}
             sunPosition={[100, 20, 100]}
@@ -227,42 +118,20 @@ export function GameScene({ controlsRef }: GameSceneProps) {
             azimuth={0.25}
           />
 
-          {/* Stars with adjusted parameters */}
-          {/* <Stars
-            radius={2000}
-            depth={50}
-            count={5000}
-            factor={4}
-            saturation={0}
-            fade={true}
-          /> */}
-
-          {/* Fog with adjusted distances */}
           <Fog color="#b3d9ff" near={600} far={1800} />
 
-          {/* Ocean */}
           <Ocean />
 
-          {/* Ports */}
           <Ports />
 
-          {/* Other player ships */}
-          <OtherShips players={gameState.otherPlayers} />
+          {/* Other player ships (interpolated, positions written in useFrame) */}
+          <OtherShips />
 
-          {/* Cannon balls */}
-          {gameState.cannonBalls?.map((ball) => (
-            <CannonBall
-              key={ball.id}
-              position={[ball.x, ball.y, ball.z]}
-              direction={ball.direction}
-              ownerId={ball.ownerId}
-              localPlayerId={gameState.player?.id || ""}
-              range={ball.range}
-            />
-          ))}
+          {/* Cannon balls (locally simulated from `fire` events) */}
+          <CannonBalls />
 
-          {/* Gold objects */}
-          {gameState.goldObjects?.map((gold) => (
+          {/* Gold objects (snapshot `g` rows, every 10th tick) */}
+          {goldObjects?.map((gold) => (
             <GoldObject
               key={gold.id}
               id={gold.id}
@@ -274,19 +143,30 @@ export function GameScene({ controlsRef }: GameSceneProps) {
       )}
 
       {/* Player ship - always render */}
-      {gameState.player && (
-        <Player
-          player={gameState.player}
-          ref={playerRef}
-          controls={{
-            forward: (effectiveControlsState.forward || false),
-            backward: (effectiveControlsState.backward || false),
-            left: (effectiveControlsState.left || false),
-            right: (effectiveControlsState.right || false),
-            fire: (effectiveControlsState.fire || false)
-          }}
-        />
-      )}
+      {player && <Player player={player} ref={playerRef} controlsRef={controlsRef} />}
     </>
   );
+}
+
+/** Enter/leave the nearest port's interaction radius (unchanged behaviour from before the netcode work). */
+function checkPortProximity() {
+  const store = useGameState.getState();
+  const player = store.gameState.player;
+  const nearestPort = store.getNearestPort();
+  if (!player || !nearestPort) return;
+
+  const isNear = store.isPlayerNearPort();
+  if (isNear) {
+    if (!store.gameState.isNearPort) {
+      store.setNearPort(nearestPort.id);
+      const { playSound } = useAudio.getState() as unknown as { playSound?: (name: string, vol: number) => void };
+      if (typeof playSound === 'function') playSound('bell', 0.4);
+      const distance = store.calculateDistance(player.x, player.z, nearestPort.x, nearestPort.z);
+      console.log(`Approaching ${nearestPort.name} port! Distance: ${Math.round(distance)} units`);
+    }
+  } else if (store.gameState.isNearPort) {
+    store.setNearPort(null);
+    const distance = store.calculateDistance(player.x, player.z, nearestPort.x, nearestPort.z);
+    console.log(`Leaving ${nearestPort.name} port area. Distance: ${Math.round(distance)} units`);
+  }
 }

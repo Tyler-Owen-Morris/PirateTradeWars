@@ -17,12 +17,14 @@ interface ShipProps {
   isPlayer?: boolean;
   playerId?: string;
   onRotationChange?: (rotation: number) => void;
+  /** Live hp source read every frame (remote ships: hp changes without React re-renders). */
+  getHp?: () => number;
 }
 
 export type { ShipProps };
 
 export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
-  { position, rotation, type, name, hp, maxHp, sunk, isPlayer = false, playerId, onRotationChange },
+  { position, rotation, type, name, hp, maxHp, sunk, isPlayer = false, playerId, onRotationChange, getHp },
   ref
 ) {
   const healthBarRef = useRef<THREE.Mesh>(null);
@@ -124,8 +126,10 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
     }
 
     if (healthBarRef.current) {
-      const healthPercent = Math.max(0, hp / maxHp);
+      const liveHp = getHp ? getHp() : hp;
+      const healthPercent = Math.max(0, Math.min(1, liveHp / maxHp));
       healthBarRef.current.scale.x = healthPercent;
+      healthBarRef.current.position.x = -20 + 20 * healthPercent; // keep the bar left-aligned
       if (healthPercent > 0.6) {
         (healthBarRef.current.material as THREE.MeshBasicMaterial).color.set('#4CAF50');
       } else if (healthPercent > 0.3) {

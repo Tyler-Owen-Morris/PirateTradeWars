@@ -1,11 +1,27 @@
+/**
+ * useSocket: React/zustand façade over the framework-free netcode layer (`@/lib/net`).
+ *
+ * - Transport, prediction, interpolation and cannonballs live in `net` (see lib/net/netClient.ts).
+ *   3D components read from `net` inside useFrame; nothing here runs per frame.
+ * - This store exposes connection status / player id / errors and the UI actions (register, trade,
+ *   upgrade, repair, scuttle).
+ * - It bridges net events into useGameState for the HUD/Minimap/TradeMenu/GameOver UI:
+ *   `me` → gameState.player at ~5 Hz (immediately when hp/gold/sunk/shipType/cargo change), other
+ *   ships → gameState.otherPlayers at ~5 Hz, gold rows → gameState.goldObjects when they change.
+ * - Never import from `server/` here (it would bundle server code into the client).
+ */
 import { create } from "zustand";
 import { useGameState } from "./useGameState";
-import { PlayerState, SocketMessage, Vector3 } from "@/types";
 import { useAudio } from "./useAudio";
-import { gameState } from "server/game/gameState";
+import type { PlayerState, RemoteShipSummary, GoldObject } from "@/types";
+import { net } from "@/lib/net";
+import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
+import { FLAG_SUNK, type GoldRow, type SelfState } from "@shared/protocol";
+
+/** UI mirror refresh period (ms) for position-ish fields of the own ship and the minimap. */
+export const UI_SYNC_INTERVAL_MS = 200;
 
 interface SocketState {
-  socket: WebSocket | null;
   connected: boolean;
   playerId: string | null;
   playerName: string | null;
@@ -16,215 +32,280 @@ interface SocketState {
   resetError: () => void;
 
   register: (name: string, shipType: string, tempPlayerId?: string) => void;
-  sendInput: (speed: number, direction: Vector3, firing: boolean, rotationY?: number) => void;
   sendTrade: (portId: number, action: "buy" | "sell", goodId: number, quantity: number) => void;
   sendUpgradeShip: (portId: number) => void;
   sendRepairShip: (portId: number) => void;
   scuttleShip: () => void;
+}
 
-  onGameUpdate: (players: Record<string, PlayerState>, cannonBalls: any[], goldObjects: any[]) => void;
+// ---------------------------------------------------------------------------------------------
+// net → useGameState bridge
+// ---------------------------------------------------------------------------------------------
+
+let wired = false;
+let lastUiSync = 0;
+/** Set after `gameEnd` so later snapshots don't overwrite the final score shown by GameOver. */
+let gameEnded = false;
+
+function buildPlayer(me: SelfState): PlayerState {
+  const { playerId, playerName } = useSocket.getState();
+  const stats = SHIP_STATS[me.shipType] ?? SHIP_STATS[SHIP_TYPES.SLOOP];
+  const r = net.getOwnRenderState();
+  return {
+    id: playerId ?? "",
+    name: playerName ?? "",
+    x: r.x,
+    y: 0,
+    z: r.z,
+    rotationY: r.rotationY,
+    speed: r.velocity,
+    maxSpeed: stats.speed,
+    shipType: me.shipType,
+    hp: me.hp,
+    maxHp: me.maxHp,
+    gold: me.gold,
+    cargoUsed: me.cargoUsed,
+    cargoCapacity: me.cargoCapacity,
+    canFire: me.canFire,
+    reloadMs: me.reloadMs,
+    reloadTime: stats.cannonReload * 1000,
+    sunk: me.sunk,
+    eid: me.eid,
+  };
+}
+
+function otherShipsSummary(): Record<string, RemoteShipSummary> {
+  const out: Record<string, RemoteShipSummary> = {};
+  for (const e of net.remote.renderable()) {
+    const s = e.buffer.latest;
+    if (!s || !e.meta) continue;
+    out[e.meta.id] = {
+      id: e.meta.id,
+      eid: e.eid,
+      name: e.meta.name,
+      shipType: e.meta.shipType,
+      x: s.x,
+      z: s.z,
+      rotationY: s.r,
+      hp: e.hp,
+      maxHp: e.meta.maxHp,
+      sunk: (e.flags & FLAG_SUNK) !== 0,
+    };
+  }
+  return out;
+}
+
+/** Push `me` into useGameState; `force` skips the 5 Hz throttle. */
+function syncSelf(me: SelfState, force: boolean): void {
+  if (gameEnded) return;
+  const now = net.now();
+  const prev = useGameState.getState().gameState.player;
+  const important =
+    !prev ||
+    prev.hp !== me.hp ||
+    prev.gold !== me.gold ||
+    prev.sunk !== me.sunk ||
+    prev.shipType !== me.shipType ||
+    prev.cargoUsed !== me.cargoUsed ||
+    prev.canFire !== me.canFire;
+  if (!force && !important && now - lastUiSync < UI_SYNC_INTERVAL_MS) return;
+  const periodic = now - lastUiSync >= UI_SYNC_INTERVAL_MS;
+  lastUiSync = now;
+  useGameState.getState().updatePlayer(buildPlayer(me));
+  if (periodic || force) useGameState.getState().updateOtherPlayers(otherShipsSummary());
+}
+
+function goldRowsToObjects(rows: GoldRow[]): GoldObject[] {
+  return rows.map(([id, x, z, gold]) => ({ id, x, y: 0, z, gold }));
+}
+
+function sameGold(a: GoldObject[], rows: GoldRow[]): boolean {
+  if (a.length !== rows.length) return false;
+  for (let i = 0; i < rows.length; i++) {
+    const g = a[i];
+    const r = rows[i];
+    if (g.id !== r[0] || g.x !== r[1] || g.z !== r[2] || g.gold !== r[3]) return false;
+  }
+  return true;
+}
+
+function wireNet(): void {
+  if (wired) return;
+  wired = true;
+
+  net.on("open", () => {
+    console.log("WebSocket connection established");
+    useSocket.setState({ connected: true, error: null });
+    const storedPlayerId = localStorage.getItem("playerId");
+    const storedName = localStorage.getItem("playerName");
+    if (storedPlayerId && storedName) {
+      net.send({ type: "reconnect", id: storedPlayerId, name: storedName });
+    }
+  });
+
+  net.on("close", (willReconnect) => {
+    console.log(`WebSocket connection closed${willReconnect ? " — reconnecting" : ""}`);
+    useSocket.setState({ connected: false });
+  });
+
+  net.on("error", (err) => {
+    console.error("WebSocket error:", err);
+    useSocket.setState({ error: "Connection error. Please try again." });
+  });
+
+  net.on("spawned", (me) => syncSelf(me, true));
+  net.on("self", (me) => syncSelf(me, false));
+
+  net.on("hit", (_m, isMe) => {
+    if (isMe) {
+      useAudio.getState().playPlayerGetsHit();
+      if (net.me) syncSelf(net.me, true);
+    }
+  });
+
+  net.on("sunk", (_m, isMe) => {
+    if (isMe && net.me) syncSelf(net.me, true);
+  });
+
+  net.on("goldCollected", () => {
+    useAudio.getState().playPlayerHit();
+    if (net.me) syncSelf(net.me, true);
+  });
+
+  net.on("fire", () => {
+    useAudio.getState().playCannonFire();
+  });
+
+  net.on("gold", (rows) => {
+    const current = useGameState.getState().gameState.goldObjects ?? [];
+    if (!sameGold(current, rows)) useGameState.getState().updateGoldObjects(goldRowsToObjects(rows));
+  });
+
+  net.on("legacy", (message) => handleLegacyMessage(message));
+}
+
+/** Legacy `type` messages (PROTOCOL §3) — world dumps are gone; the first snapshot spawns us. */
+function handleLegacyMessage(message: any): void {
+  switch (message.type) {
+    case "welcome":
+      console.log("Received welcome message:", message.message);
+      break;
+
+    case "connected":
+      console.log("Successfully connected:", message.playerId);
+      gameEnded = false;
+      net.resetSession();
+      useSocket.setState({ playerId: message.playerId, playerName: message.name, error: null });
+      localStorage.setItem("playerId", message.playerId);
+      localStorage.setItem("playerName", message.name);
+      // Store the final player ID in localStorage to replace tempPlayerId
+      localStorage.setItem("finalPlayerId", message.playerId);
+      useGameState.setState({ isRegistered: true });
+      break;
+
+    case "reconnected":
+      console.log("Successfully reconnected:", message.playerId);
+      gameEnded = false;
+      net.resetSession();
+      useSocket.setState({ playerId: message.playerId, playerName: message.name, error: null });
+      useGameState.setState({ isPlaying: true });
+      break;
+
+    case "nameError":
+      console.error("Name error:", message.message);
+      useSocket.setState({ error: message.message });
+      localStorage.removeItem("playerName");
+      break;
+
+    case "error":
+      console.error("Server error:", message.message);
+      if (message.message === "Player ID not found") {
+        localStorage.removeItem("playerId");
+        localStorage.removeItem("playerName");
+        useSocket.setState({
+          playerId: null,
+          playerName: null,
+          error: "Invalid player ID. Please provide a new name to join.",
+        });
+        useGameState.getState().restartGame();
+      } else {
+        useSocket.setState({ error: message.message });
+      }
+      break;
+
+    case "tradeSuccess": {
+      useAudio.getState().playPlayerHit();
+      const player = useGameState.getState().gameState.player;
+      if (player && typeof message.gold === "number") {
+        useGameState.getState().updatePlayer({ ...player, gold: message.gold });
+      }
+      if (Array.isArray(message.inventory)) {
+        useGameState.getState().updatePlayerInventory(message.inventory);
+      } else {
+        console.warn("tradeSuccess without inventory");
+      }
+      break;
+    }
+
+    case "upgradeSuccess":
+      // The next snapshot carries the new shipType / maxHp / cargo; prediction picks up new stats.
+      console.log("Ship upgraded successfully to", message?.newShipType);
+      if (net.me) syncSelf(net.me, true);
+      break;
+
+    case "repairSuccess": {
+      const player = useGameState.getState().gameState.player;
+      if (player && typeof message.gold === "number" && typeof message.hp === "number") {
+        useGameState.getState().updatePlayer({ ...player, gold: message.gold, hp: message.hp });
+      }
+      break;
+    }
+
+    case "gameEnd":
+      console.log("Game ended:", message);
+      gameEnded = true;
+      if (Array.isArray(message.leaderboard)) {
+        useGameState.setState((state) => ({
+          gameState: { ...state.gameState, leaderboard: message.leaderboard },
+        }));
+      }
+      useGameState.setState((state) => ({
+        isSunk: true,
+        gameState: {
+          ...state.gameState,
+          player: state.gameState.player ? { ...state.gameState.player, gold: message.score } : null,
+        },
+      }));
+      useAudio.getState().playPlayerSinks();
+      break;
+
+    default:
+      console.log("Unknown message type:", message);
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------------------------
+
+function notConnectedError() {
+  useSocket.setState({ error: "Not connected. Please refresh and try again." });
 }
 
 export const useSocket = create<SocketState>((set, get) => ({
-  socket: null,
   connected: false,
   playerId: null,
   playerName: null,
   error: null,
 
   connect: () => {
-    try {
-      if (get().socket) {
-        get().socket?.close();
-      }
-
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/game-ws`;
-      console.log("Connecting to WebSocket URL:", wsUrl);
-
-      const socket = new WebSocket(wsUrl);
-
-      socket.onopen = () => {
-        console.log("WebSocket connection established");
-        set({ connected: true, error: null });
-
-        const storedPlayerId = localStorage.getItem("playerId");
-        const storedName = localStorage.getItem("playerName");
-
-        if (storedPlayerId && storedName) {
-          socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name: storedName }));
-        } else {
-          //set({ error: "Please provide a name to join the game" });
-          console.log("not attempting to rejoin the game")
-        }
-      };
-
-      socket.onclose = () => {
-        console.log("WebSocket connection closed");
-        set({ connected: false });
-      };
-
-      socket.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        set({ error: "Connection error. Please try again." });
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data) as SocketMessage;
-          //console.log("getting message", message)
-
-          switch (message.type) {
-            case "welcome":
-              console.log("Received welcome message:", message);
-              break;
-
-            case "connected":
-              console.log("Successfully connected:", message);
-              set({ playerId: message.playerId, playerName: message.name, error: null });
-              localStorage.setItem("playerId", message.playerId);
-              localStorage.setItem("playerName", message.name);
-              if (message.players) {
-                console.log("Initial game state received:", {
-                  players: Object.keys(message.players).length,
-                  cannonBalls: message.cannonBalls?.length || 0,
-                  goldObjects: message.goldObjects?.length || 0,
-                });
-                get().onGameUpdate(message.players, message.cannonBalls || [], message.goldObjects || []);
-                if (message.playerId && message.players[message.playerId]) {
-                  useGameState.getState().updatePlayer(message.players[message.playerId]);
-                } else {
-                  console.warn("Own player data missing in initial state");
-                }
-              } else {
-                console.warn("No players data in connected message");
-              }
-              useGameState.setState({ isRegistered: true });
-              // Store the final player ID in localStorage to replace tempPlayerId
-              localStorage.setItem("finalPlayerId", message.playerId);
-              break;
-
-            case "reconnected":
-              console.log("Successfully reconnected:", message);
-              set({ playerId: message.playerId, playerName: message.name, error: null });
-              useGameState.setState({ isPlaying: true });
-              if (message.players) {
-                get().onGameUpdate(message.players, message.cannonBalls || [], []);
-              }
-              break;
-
-            case "fullSync":
-              get().onGameUpdate(message.players, message.cannonBalls || [], message.goldObjects || []);
-              break;
-
-            case "registered":
-              console.log("Successfully registered:", message);
-              set({ playerId: message.playerId, error: null });
-              useGameState.setState({ isRegistered: true });
-              break;
-
-            case "gameUpdate":
-              get().onGameUpdate(message.players, message.cannonBalls, message.goldObjects);
-              break;
-
-            case "playerDead":
-              console.log("Player dead:", message.id);
-              useGameState.getState().updateOtherPlayers(message.players);
-              break;
-
-            case "nameError":
-              console.error("Name error:", message.message);
-              set({ error: message.message });
-              localStorage.removeItem("playerName");
-              break;
-
-            case "error":
-              console.error("Server error:", message.message);
-              if (message.message === "Player ID not found") {
-                // Clear invalid player data and reset
-                localStorage.removeItem("playerId");
-                localStorage.removeItem("playerName");
-                set({ playerId: null, playerName: null, error: "Invalid player ID. Please provide a new name to join." });
-                useGameState.getState().restartGame(); // Reset game state
-              } else {
-                set({ error: message.message });
-              }
-              break;
-
-            case "tradeSuccess":
-              useAudio.getState().playPlayerHit();
-              if (message.gold !== undefined) {
-                const gameState = useGameState.getState();
-                if (gameState.gameState.player) {
-                  gameState.gameState.player.gold = message.gold;
-                  // useGameState.getState().loadPlayerInventory(gameState.gameState.player.id)
-                }
-              }
-              console.log("trade success message", message)
-              if (message.inventory && Array.isArray(message.inventory)) {
-                useGameState.getState().updatePlayerInventory(message.inventory);
-              } else {
-                console.warn("websocket back to client did not catch inventory")
-              }
-              break;
-
-            case "upgradeSuccess":
-              console.log("Ship upgraded successfully to", message?.newShipType);
-              break;
-
-            case "repairSuccess":
-              console.log("Ship repaired successfully");
-              if (message.gold !== undefined && message.hp !== undefined) {
-                const gameState = useGameState.getState();
-                if (gameState.gameState.player) {
-                  gameState.gameState.player.gold = message.gold;
-                  gameState.gameState.player.hp = message.hp;
-                }
-              }
-              break;
-
-            case "gameEnd":
-              console.log("Game ended:", message);
-              if (message.leaderboard && Array.isArray(message.leaderboard)) {
-                useGameState.setState((state) => ({
-                  gameState: { ...state.gameState, leaderboard: message.leaderboard },
-                }));
-              }
-              useGameState.setState((state) => ({
-                isSunk: true,
-                gameState: {
-                  ...state.gameState,
-                  player: state.gameState.player ? {
-                    ...state.gameState.player,
-                    gold: message.score
-                  } : null
-                }
-              }));
-              useAudio.getState().playPlayerSinks();
-              console.log("Game state updated - isSunk:", useGameState.getState().isSunk);
-              break;
-
-            default:
-              console.log("Unknown message type:", message);
-          }
-        } catch (error) {
-          console.error("Error parsing WebSocket message:", error);
-        }
-      };
-
-      set({ socket });
-    } catch (error) {
-      console.error("Failed to connect WebSocket:", error);
-      set({ error: "Failed to establish connection. Please refresh and try again." });
-    }
+    wireNet();
+    net.connect();
   },
 
   disconnect: () => {
-    const { socket } = get();
-    if (socket) {
-      socket.close();
-      set({ socket: null, connected: false });
-    }
+    net.disconnect();
+    set({ connected: false });
   },
 
   resetError: () => {
@@ -232,85 +313,31 @@ export const useSocket = create<SocketState>((set, get) => ({
   },
 
   register: (name, shipType, tempPlayerId?: string) => {
-    const { socket, connected } = get();
-    if (!socket || !connected) {
-      set({ error: "Not connected. Please refresh and try again." });
+    if (!get().connected || !net.conn.isOpen) {
+      notConnectedError();
       return;
     }
     const storedPlayerId = localStorage.getItem("playerId");
     if (storedPlayerId) {
-      socket.send(JSON.stringify({ type: "reconnect", id: storedPlayerId, name, tempPlayerId }));
+      net.send({ type: "reconnect", id: storedPlayerId, name, tempPlayerId });
     } else {
-      socket.send(JSON.stringify({ type: "connect", name, shipType, tempPlayerId }));
-      console.log("sending connect event from client")
+      net.send({ type: "connect", name, shipType, tempPlayerId });
     }
-  },
-
-  sendInput: (speed, direction, firing, rotationY) => {
-    const { socket, connected } = get();
-    //console.log("sending input to:", socket, connected)
-    if (!socket || !connected || socket.readyState !== WebSocket.OPEN) return;
-
-    const message = { type: "input", rotationY, speed, direction, firing };
-    //console.log("sending input:", message)
-    socket.send(JSON.stringify(message));
   },
 
   sendTrade: (portId, action, goodId, quantity) => {
-    const { socket, connected } = get();
-    if (!socket || !connected) {
-      set({ error: "Not connected. Please refresh and try again." });
-      return;
-    }
-
-    const message = { type: "trade", portId, action, goodId, quantity };
-    socket.send(JSON.stringify(message));
+    if (!net.send({ type: "trade", portId, action, goodId, quantity })) notConnectedError();
   },
 
   sendUpgradeShip: (portId: number) => {
-    const { socket, connected } = get();
-    if (!socket || !connected) {
-      set({ error: "Not connected. Please refresh and try again." });
-      return;
-    }
-    socket.send(JSON.stringify({ type: "upgradeShip", portId }));
+    if (!net.send({ type: "upgradeShip", portId })) notConnectedError();
   },
 
   sendRepairShip: (portId: number) => {
-    const { socket, connected } = get();
-    if (!socket || !connected) {
-      set({ error: "Not connected. Please refresh and try again." });
-      return;
-    }
-    console.log("sending repair ship message to server")
-    socket.send(JSON.stringify({ type: "repairShip", portId }));
+    if (!net.send({ type: "repairShip", portId })) notConnectedError();
   },
 
   scuttleShip: () => {
-    const { socket, connected } = get();
-    if (!socket || !connected) {
-      set({ error: "Not connected. Please refresh and try again." });
-      return;
-    }
-
-    const message = { type: "scuttle" };
-    socket.send(JSON.stringify(message));
-  },
-
-  onGameUpdate: (players, cannonBalls, goldObjects) => {
-    //console.log("onGameUpdate called with goldObjects:", goldObjects);
-    useGameState.getState().updateOtherPlayers(players);
-    useGameState.getState().updateCannonBalls(cannonBalls);
-    useGameState.getState().updateGoldObjects(goldObjects);
-
-    const playerId = get().playerId;
-    if (playerId && players[playerId]) {
-      const player = players[playerId];
-      const gameState = useGameState.getState();
-      if (gameState.gameState.player && player.hp < gameState.gameState.player.hp) {
-        useAudio.getState().playPlayerGetsHit();
-      }
-      gameState.updatePlayer(player);
-    }
+    if (!net.send({ type: "scuttle" })) notConnectedError();
   },
 }));

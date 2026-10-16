@@ -93,6 +93,36 @@ The client never sends position, speed, direction or rotation. The server is aut
   `segmentHitsCircle` (2D, wrap-aware, `SHIP_HIT_RADIUS = 20`), replacing the old 3D sphere test.
 - Ship rotation from `stepShip` is normalized to [-π, π).
 
+**N2 clarifications (server behaviour the client can rely on; implemented in `server/game/world.ts`):**
+- **Frame order.** Per tick, each client gets its frames in this order: `ent`/`gone` → events
+  (`fire`/`hit`/`sunk`/`goldCollected`) → `s`. An `ent` always arrives before the first row, `fire`,
+  `hit` or `sunk` for that eid.
+  - Your own ship never gets an `ent`, and it is never in `e`. Use `me.eid` to recognise your own
+    `fire` events.
+- **Sequence numbers.**
+  - `a` is `-1` until the first input of this connection is processed.
+  - Seq tracking resets on every `connected`/`reconnected`, so a reconnecting client may restart its
+    seq at 0. Replay inputs with `seq > a`.
+- **`me` is NOT rounded:** x, z, r and v are full precision, for exact reconciliation. Only `e` rows
+  are rounded.
+  - `me.canFire` and `me.reloadMs` are computed with the server's simulation clock.
+- **Fire events.**
+  - `fire.balls` rows are `[id, x, z, dx, dz]`, with x and z rounded to 1 decimal and dx, dz to 4.
+  - A ball fired at tick `k` is still at its spawn point in that tick's state, and moves 45 units
+    per tick after that. Compute `p(t) = p0 + dir * spd * 60 * (t - t_k)`.
+  - Events go to clients that can see the shooter, plus the shooter itself.
+- **Hit and sunk events.**
+  - `hit` goes to the target (`target:"me"`), to clients that see the target, and to the shooter even
+    when the target is out of its view (so it can remove the ball).
+  - `sunk` goes to the ship itself (`eid:"me"`) and to clients that see it.
+- **Visibility of sunk and disconnected ships.** Both stay visible, with flags 1 and 2. Velocity is
+  0 once sunk. A disconnected ship coasts to exactly 0.
+- **`connected.playerId` equals the `id` field of that player's `ent` on other clients.**
+- **Snapshots under congestion.** The server skips `s` (never events, `ent` or `gone`) for a socket
+  whose send buffer is above 512 KB.
+- **Invalid frames** are dropped without an `error` reply. Legacy business errors (trade, upgrade,
+  etc.) still reply with `{type:"error"}`.
+
 ## 7. Client netcode
 - **Own ship = prediction + reconciliation.** Client runs `stepShip` at the same fixed 20 Hz step with an
   accumulator in `useFrame`, sends each step's input with a seq, keeps unacked inputs. On snapshot:
@@ -107,6 +137,20 @@ The client never sends position, speed, direction or rotation. The server is aut
 - Reconnect: exponential backoff (0.5 s → 8 s), then `reconnect` with stored id; inputs are
   zeroed while hidden (visibilitychange) so the ship coasts to a stop rather than keeping old speed.
 - Remove `import { gameState } from "server/game/gameState"` from the client.
+
+**N3 clarifications (client behaviour; implemented in `client/src/lib/net/`):**
+- **Seq.** The client restarts its seq at 1 and drops all unacked inputs whenever the socket closes
+  and on every `connected`/`reconnected`. It sends no inputs until the first snapshot of the session.
+  `a = -1` replays every pending input.
+- **Hidden tab.** One `{th:0,ru:0,f:0}` input is sent, then nothing until the tab is visible again.
+- **Cannonball timelines.** A ball's spawn time is the estimated server time when its `fire` arrives
+  (≈ that tick's `st`). Own balls are drawn on the undelayed timeline. Other ships' balls are drawn
+  `INTERP_DELAY_MS` behind, like the remote ships. On `hit`, own balls vanish at once. Other balls keep
+  flying until their delayed timeline reaches the hit moment.
+- **Entities are never pruned locally.** Only `gone` removes one, because snapshots may be skipped
+  under backpressure and `ent` is only re-sent when the entity re-enters view.
+- **Self in events.** A `hit`/`sunk` whose id equals `me.eid` is treated as `"me"`. As a guard, an
+  `ent`/row with the own eid is ignored.
 
 ## 8. Wave 2 (deferred): Colyseus
 Wave 1 fixes the transport-independent causes (split worlds, physics mismatch, snapping, tick stalls,

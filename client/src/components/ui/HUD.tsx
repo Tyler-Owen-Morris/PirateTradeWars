@@ -303,7 +303,7 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
                   <div
                     className="h-full bg-red-500"
                     style={{
-                      width: `${100 - ((Date.now() - player.lastFired) / player.reloadTime) * 100}%`,
+                      width: `${player.reloadTime > 0 ? Math.min(100, (player.reloadMs / player.reloadTime) * 100) : 0}%`,
                     }}
                   ></div>
                 </div>

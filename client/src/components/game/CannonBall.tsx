@@ -1,126 +1,102 @@
-import { useRef, useEffect, useState } from 'react';
+/**
+ * Cannonballs, rendered from the net layer's local simulation (lib/net/cannonballs.ts).
+ *
+ * `fire` events spawn balls in `net.balls`; each ball's position is analytic (spawn + dir·speed·t),
+ * so a ball is just read every frame. Balls are removed on `hit` or when their lifetime ends.
+ * React state is only the set of ball ids (useSyncExternalStore on `net.balls`). Positions are placed
+ * relative to the local ship (shortest wrapped delta) so balls near the map seam render correctly.
+ * The fire sound is played once per `fire` event by useSocket, not per ball.
+ */
+import { memo, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Vector3 } from '@/types';
+import { net } from '@/lib/net';
+import { wrappedDelta, type ShipKinematics } from '@shared/physics';
 import { MAP_WIDTH, MAP_HEIGHT } from '@shared/gameConstants';
-import { useAudio } from '../../lib/stores/useAudio';
 
-interface CannonBallProps {
-  position: [number, number, number];
-  direction: Vector3;
-  ownerId: string;
-  localPlayerId: string;
-  allCannonBalls?: number;
-  range: number;
-}
+const BALL_Y = 10;
+const TRAIL_POINTS = 20;
 
-export function CannonBall({ position, direction, ownerId, localPlayerId, allCannonBalls = 1, range }: CannonBallProps) {
+const subscribe = (fn: () => void) => net.balls.subscribe(fn);
+const getVersion = () => net.balls.version;
+
+export const CannonBalls = memo(function CannonBalls() {
+  useSyncExternalStore(subscribe, getVersion, getVersion);
+  const ids = net.balls.ids();
+  return (
+    <>
+      {ids.map((id) => (
+        <CannonBall key={id} id={id} />
+      ))}
+    </>
+  );
+});
+
+const own: ShipKinematics = { x: 0, z: 0, rotationY: 0, velocity: 0 };
+
+export function CannonBall({ id }: { id: number }) {
   const ballRef = useRef<THREE.Mesh>(null);
   const trailRef = useRef<THREE.Points>(null);
-  const particlesRef = useRef<THREE.BufferAttribute | null>(null);
-  const particleCount = 20;
-  const particles = new Float32Array(particleCount * 3);
-  const [distanceTraveled, setDistanceTraveled] = useState(0);
-  const [isSinking, setIsSinking] = useState(false);
-  const [sinkProgress, setSinkProgress] = useState(0);
-  const [hasPlayedSound, setHasPlayedSound] = useState(false);
-  const [time, setTime] = useState(0);
+  // The trail's position attribute array; mutated in place every frame.
+  const trail = useMemo(() => new Float32Array(TRAIL_POINTS * 3), []);
+  const primed = useRef(false);
 
-  const { cannonBangSound, isSfxMuted, sfxVolume } = useAudio();
-
-  useEffect(() => {
-    // Play sound only once on creation
-    if (!hasPlayedSound && cannonBangSound && !isSfxMuted) {
-      const scaledVolume = Math.min(1.0, sfxVolume * (1 + (allCannonBalls - 1) * 0.2));
-      useAudio.getState().playCannonFire();
-      setHasPlayedSound(true);
+  useFrame(() => {
+    const ball = ballRef.current;
+    if (!ball) return;
+    // null = not yet spawned on this ball's timeline (remote balls are drawn INTERP_DELAY_MS behind)
+    // or already past its hit / lifetime.
+    const p = net.balls.position(id, net.clock.serverNow(net.now()));
+    ball.visible = !!p;
+    if (trailRef.current) trailRef.current.visible = !!p;
+    if (!p) {
+      primed.current = false;
+      return;
     }
-  }, []);
+    let x = p.x;
+    let z = p.z;
+    if (net.predictor.initialized) {
+      net.getOwnRenderState(own);
+      x = own.x + wrappedDelta(own.x, p.x, MAP_WIDTH);
+      z = own.z + wrappedDelta(own.z, p.z, MAP_HEIGHT);
+    }
+    ball.position.set(x, BALL_Y, z);
 
-  useFrame((_, delta) => {
-    if (ballRef.current && trailRef.current) {
-      if (isSinking) {
-        // Sinking animation
-        setSinkProgress(prev => prev + delta);
-        if (sinkProgress < 1) {
-          ballRef.current.position.y -= 2 * delta;
-          ballRef.current.scale.setScalar(1 - sinkProgress);
-        } else {
-          // Remove the cannon ball after sinking
-          // console.log("cannonball removing itself")
-          ballRef.current.visible = false;
-          return;
-        }
-      } else {
-        const moveSpeed = 5 * delta * 60;
-        const moveVector = new THREE.Vector3(
-          direction.x * moveSpeed,
-          direction.y * moveSpeed,
-          direction.z * moveSpeed
-        );
-
-        ballRef.current.position.add(moveVector);
-        setDistanceTraveled(prev => prev + moveVector.length());
-
-        // Check if we've reached the range limit
-        if (distanceTraveled >= range) {
-          //console.log("Cannonball is at range limit")
-          setIsSinking(true);
-        }
-
-        // Handle map wrapping
-        if (ballRef.current.position.x < 0) {
-          ballRef.current.position.x += MAP_WIDTH;
-        } else if (ballRef.current.position.x > MAP_WIDTH) {
-          ballRef.current.position.x -= MAP_WIDTH;
-        }
-        if (ballRef.current.position.z < 0) {
-          ballRef.current.position.z += MAP_HEIGHT;
-        } else if (ballRef.current.position.z > MAP_HEIGHT) {
-          ballRef.current.position.z -= MAP_HEIGHT;
-        }
-
-        // Update trail particles
-        if (!particlesRef.current) {
-          const positions = trailRef.current.geometry.attributes.position;
-          particlesRef.current = positions as THREE.BufferAttribute;
-        }
-        for (let i = particleCount - 1; i > 0; i--) {
-          particles[i * 3] = particles[(i - 1) * 3];
-          particles[i * 3 + 1] = particles[(i - 1) * 3 + 1];
-          particles[i * 3 + 2] = particles[(i - 1) * 3 + 2];
-        }
-        particles[0] = ballRef.current.position.x;
-        particles[1] = ballRef.current.position.y;
-        particles[2] = ballRef.current.position.z;
-        particlesRef.current.set(particles);
-        particlesRef.current.needsUpdate = true;
+    const points = trailRef.current;
+    if (!points) return;
+    const arr = trail;
+    if (!primed.current) {
+      for (let i = 0; i < TRAIL_POINTS; i++) {
+        arr[i * 3] = x;
+        arr[i * 3 + 1] = BALL_Y;
+        arr[i * 3 + 2] = z;
       }
+      primed.current = true;
+    } else {
+      arr.copyWithin(3, 0, (TRAIL_POINTS - 1) * 3);
+      arr[0] = x;
+      arr[1] = BALL_Y;
+      arr[2] = z;
     }
+    (points.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
   });
 
   return (
     <group>
-      <mesh ref={ballRef} position={position} castShadow>
+      <mesh ref={ballRef} position={[0, -10000, 0]} castShadow>
         <sphereGeometry args={[3, 16, 16]} />
         <meshStandardMaterial color="#333333" />
       </mesh>
-      <points ref={trailRef}>
+      <points ref={trailRef} frustumCulled={false}>
         <bufferGeometry>
           <bufferAttribute
             attach="attributes-position"
-            count={particleCount}
-            array={particles}
+            count={TRAIL_POINTS}
+            array={trail}
             itemSize={3}
           />
         </bufferGeometry>
-        <pointsMaterial
-          size={2}
-          color="#ff8c00"
-          sizeAttenuation={true}
-          transparent
-          opacity={0.8}
-        />
+        <pointsMaterial size={2} color="#ff8c00" sizeAttenuation={true} transparent opacity={0.8} />
       </points>
     </group>
   );
