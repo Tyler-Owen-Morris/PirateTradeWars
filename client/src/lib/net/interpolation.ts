@@ -3,17 +3,18 @@
  *
  * Each remote entity (eid) has an InterpolationBuffer of timestamped samples (server time `st`, ms).
  * The renderer samples it at `renderTime = serverNow − INTERP_DELAY_MS`:
- *   - between two samples → wrap-aware lerp of x/z (`lerpWrapped`) and shortest-arc `lerpAngle` of r;
+ *   - between two samples → lerp of x across the wrap seam (`lerpWrapped`, x only — z does not wrap),
+ *     plain lerp of z, and shortest-arc `lerpAngle` of r;
  *   - past the newest sample (underrun) → extrapolate along the heading with the last velocity for at
- *     most MAX_EXTRAPOLATION_MS, then hold;
+ *     most MAX_EXTRAPOLATION_MS (metric motion: x advances by v·sin r / metricX(z)), then hold;
  *   - before the oldest sample → hold the oldest.
  *
  * `RemoteWorld` owns the buffers plus entity metadata from `ent` / `gone`, and exposes a
  * `version` counter that bumps only when the set of renderable entities or their metadata changes —
  * React subscribes to that, never to positions.
  */
-import { lerpAngle, lerpWrapped, wrap, FRAMES_PER_SECOND } from "@shared/physics";
-import { MAP_HEIGHT, MAP_WIDTH } from "@shared/gameConstants";
+import { lerpAngle, lerpWrapped, FRAMES_PER_SECOND } from "@shared/physics";
+import { WORLD_C, clampZ, metricX, wrap } from "@shared/world/geo";
 import {
   MAX_EXTRAPOLATION_MS,
   FLAG_SUNK,
@@ -48,11 +49,6 @@ export const MAX_SAMPLES = 32;
 
 export class InterpolationBuffer {
   samples: RemoteSample[] = [];
-
-  constructor(
-    private readonly mapWidth: number = MAP_WIDTH,
-    private readonly mapHeight: number = MAP_HEIGHT,
-  ) {}
 
   /** Add a sample. Out-of-order or duplicate timestamps are ignored. */
   push(s: RemoteSample): void {
@@ -94,8 +90,8 @@ export class InterpolationBuffer {
       assign(o, last, renderTime > last.t);
       if (dtMs > 0 && last.v !== 0 && !(last.flags & FLAG_SUNK)) {
         const dist = last.v * FRAMES_PER_SECOND * (dtMs / 1000);
-        o.x = wrap(last.x + Math.sin(last.r) * dist, this.mapWidth);
-        o.z = wrap(last.z + Math.cos(last.r) * dist, this.mapHeight);
+        o.z = clampZ(last.z + Math.cos(last.r) * dist);
+        o.x = wrap(last.x + (Math.sin(last.r) * dist) / metricX(o.z), WORLD_C);
       }
       return o;
     }
@@ -107,8 +103,8 @@ export class InterpolationBuffer {
     const b = this.samples[j];
     const span = b.t - a.t;
     const t = span > 0 ? (renderTime - a.t) / span : 1;
-    o.x = lerpWrapped(a.x, b.x, t, this.mapWidth);
-    o.z = lerpWrapped(a.z, b.z, t, this.mapHeight);
+    o.x = lerpWrapped(a.x, b.x, t, WORLD_C);
+    o.z = a.z + (b.z - a.z) * t;
     o.r = lerpAngle(a.r, b.r, t);
     o.v = a.v + (b.v - a.v) * t;
     o.hp = t < 1 ? a.hp : b.hp;
@@ -155,11 +151,6 @@ export class RemoteWorld {
   version = 0;
   private listeners = new Set<() => void>();
 
-  constructor(
-    private readonly mapWidth: number = MAP_WIDTH,
-    private readonly mapHeight: number = MAP_HEIGHT,
-  ) {}
-
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -176,7 +167,7 @@ export class RemoteWorld {
       e = {
         eid,
         meta: null,
-        buffer: new InterpolationBuffer(this.mapWidth, this.mapHeight),
+        buffer: new InterpolationBuffer(),
         lastSeenLocal: localNow,
         hp: 0,
         flags: 0,

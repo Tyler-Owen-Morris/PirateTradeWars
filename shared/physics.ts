@@ -1,26 +1,37 @@
 /**
- * Shared deterministic simulation for Pirate Trade Wars (see docs/netcode/PROTOCOL.md §2).
+ * Shared deterministic simulation for Pirate Trade Wars (see docs/netcode/PROTOCOL.md §2 and
+ * docs/world/WORLD_SPEC.md §3, §4.3).
  *
  * This module is imported by BOTH the server (authoritative tick) and the client (prediction +
  * reconciliation + remote interpolation). It must stay pure and dependency-free: no imports from
- * `client/` or `server/`, no DOM / Node APIs, no randomness, no clocks. The only import is the
- * sibling `./gameConstants` (relative, so it resolves under Vite, esbuild and vitest without aliases).
+ * `client/` or `server/`, no DOM / Node APIs, no randomness, no clocks. Imports are relative
+ * (`./gameConstants`, `./world/*`) so they resolve under Vite, esbuild and vitest without aliases.
  *
- * Units (unchanged from the pre-netcode game):
- * - Distance: world units. The world is a torus of MAP_WIDTH x MAP_HEIGHT (10000 x 10000) that wraps.
+ * World (wrapping Earth, WORLD_SPEC §2): x is longitude and wraps in [0, WORLD_C = 400 000);
+ * z is latitude in [0, WORLD_H = 200 000] (north pole at 0, north = −z) and does NOT wrap — it is
+ * closed by polar ice, which `LandField` reports as land. Movement uses the sphere metric: a ship's
+ * velocity is a ground (metric) speed, so moving east at latitude φ advances x by v / cos φ.
+ *
+ * Units:
+ * - Distance: world units (≈ 100 m). Gameplay distances are METRIC (`metricDistSq` in geo.ts).
  * - Speed / velocity: "units per 1/60 s frame". Displacement over dt seconds = velocity * dt * 60.
  * - Angles: radians. `rotationY` is the rotation about +Y; the heading (bow) vector is
- *   (sin(rotationY), cos(rotationY)) in (x, z) — i.e. (0,0,1) rotated about Y, same as three.js.
+ *   (sin(rotationY), cos(rotationY)) in metric (east, south) — i.e. (0,0,1) rotated about Y.
  * - Time: TICK_DT and the `elapsedSec` arguments are seconds; *_MS constants are milliseconds.
  *
  * Sign convention (preserved from the live game): NEGATIVE velocity = sailing forward (W key).
  *
- * Determinism: given the same starting state and the same input sequence, `stepShip` produces
+ * Determinism: given the same starting state, input sequence and land tiles, `stepShip` produces
  * bit-identical results in the same JS engine. Math.sin/Math.cos may differ in the last ulp between
  * engines (browser vs Node); that is fine because the server is authoritative and the client
  * reconciles to every snapshot.
  */
-import { MAP_HEIGHT, MAP_WIDTH, SHIP_STATS, SHIP_TYPES } from "./gameConstants";
+import { SHIP_STATS, SHIP_TYPES } from "./gameConstants";
+import { WORLD_C, WORLD_H, clampZ, metricDistSq, metricX, wrap, wrappedDelta } from "./world/geo";
+import type { LandQuery } from "./world/land";
+
+export { wrap, wrappedDelta, metricX, metricDelta, metricDistSq } from "./world/geo";
+export type { LandQuery } from "./world/land";
 
 // ---------------------------------------------------------------------------------------------
 // Timing
@@ -54,8 +65,21 @@ export const COAST_DECEL = 0.03;
 /** Reverse top speed as a fraction of maxSpeed (S key). */
 export const REVERSE_SPEED_FACTOR = 0.5;
 
-/** Ship kinematic state. x/z in world units (always wrapped into [0, MAP)), rotationY in radians
- *  normalized to [-π, π), velocity in units per 1/60 s (negative = forward). */
+/** Hull radius (metric units) per ship type, used for land collision (WORLD_SPEC §4.3). */
+export const HULL_RADIUS: Readonly<Record<string, number>> = Object.freeze({
+  [SHIP_TYPES.SLOOP]: 12,
+  [SHIP_TYPES.BRIGANTINE]: 16,
+  [SHIP_TYPES.GALLEON]: 22,
+  [SHIP_TYPES.MAN_O_WAR]: 26,
+  [SHIP_TYPES.DREADNAUGHT]: 30,
+});
+/** Hull radius for unknown ship types (sloop). */
+export const DEFAULT_HULL_RADIUS = 12;
+/** Max push-out iterations per sub-step (concave coasts may need more than one). */
+export const COLLISION_ITERATIONS = 3;
+
+/** Ship kinematic state. x in [0, WORLD_C) (wrapped), z in [0, WORLD_H] (not wrapped), rotationY
+ *  in radians normalized to [-π, π), velocity in metric units per 1/60 s (negative = forward). */
 export interface ShipKinematics {
   x: number;
   z: number;
@@ -78,7 +102,7 @@ export interface ShipInput {
 export const NEUTRAL_INPUT: Readonly<ShipInput> = Object.freeze({ th: 0, ru: 0, f: 0 });
 
 /** Per-ship-type physics parameters. Speeds are units per 1/60 s; turnSpeed is rad per 1/60 s;
- *  accelerations are units/frame per frame. */
+ *  accelerations are units/frame per frame; hullRadius is metric units. */
 export interface ShipPhysicsStats {
   /** Forward top speed (magnitude). Forward velocity tends to −maxSpeed. */
   maxSpeed: number;
@@ -87,22 +111,25 @@ export interface ShipPhysicsStats {
   /** Reverse top speed = maxSpeed * reverseFactor. */
   reverseFactor: number;
   turnSpeed: number;
+  /** Collision radius against land (metric units). */
+  hullRadius: number;
 }
 
 /** Physics stats for a ship type (from SHIP_STATS[shipType].speed). Unknown types fall back to sloop. */
 export function shipPhysicsStats(shipType: string): ShipPhysicsStats {
   const stats = SHIP_STATS[shipType] ?? SHIP_STATS[SHIP_TYPES.SLOOP];
-  return physicsStatsFromMaxSpeed(stats.speed);
+  return physicsStatsFromMaxSpeed(stats.speed, HULL_RADIUS[shipType] ?? DEFAULT_HULL_RADIUS);
 }
 
 /** Physics stats from an explicit max speed (units per 1/60 s), using the default tuning. */
-export function physicsStatsFromMaxSpeed(maxSpeed: number): ShipPhysicsStats {
+export function physicsStatsFromMaxSpeed(maxSpeed: number, hullRadius: number = DEFAULT_HULL_RADIUS): ShipPhysicsStats {
   return {
     maxSpeed,
     forwardAccel: FORWARD_ACCEL,
     reverseAccel: REVERSE_ACCEL,
     reverseFactor: REVERSE_SPEED_FACTOR,
     turnSpeed: TURN_SPEED,
+    hullRadius,
   };
 }
 
@@ -113,18 +140,23 @@ export function physicsStatsFromMaxSpeed(maxSpeed: number): ShipPhysicsStats {
  *  2. velocity moves toward the throttle target (−maxSpeed for th=1, +maxSpeed*reverseFactor for
  *     th=−1) by the accel; with th=0 it is multiplied by DRAG_COEFFICIENT, then reduced by
  *     COAST_DECEL toward 0 and snapped to exactly 0 once |v| < COAST_DECEL.
- *  3. position += heading(rotationY) * velocity (one frame of displacement), wrapped to the map.
+ *  3. metric integration: z += cos(r)·v, then x += sin(r)·v / metricX(z) (x wrapped, z clamped
+ *     to [0, H]; the ice keeps ships far from the poles).
+ *  4. land (if `land` given, WORLD_SPEC §4.3, no damage): if distance(x,z) < hullRadius, push the
+ *     ship out along the land normal by (hullRadius − d) (up to COLLISION_ITERATIONS times), and
+ *     if it was moving into the land scale velocity by |cos(angle between heading and coast)| so
+ *     it slides along the coast; head-on stops. Heading never changes.
  * Inputs are defensively clamped to {-1,0,1}, so malformed values cannot speed a ship up.
  */
 export function stepShip(
   state: ShipKinematics,
   input: ShipInput,
   stats: ShipPhysicsStats,
-  mapWidth: number = MAP_WIDTH,
-  mapHeight: number = MAP_HEIGHT,
+  land?: LandQuery,
 ): ShipKinematics {
   const th = clampUnit(input.th);
   const ru = clampUnit(input.ru);
+  const hull = stats.hullRadius ?? DEFAULT_HULL_RADIUS;
   let { x, z, rotationY, velocity } = state;
 
   for (let i = 0; i < SUBSTEPS; i++) {
@@ -142,10 +174,30 @@ export function stepShip(
       else velocity -= Math.sign(velocity) * COAST_DECEL;
     }
 
-    // 3. Integrate (one 1/60 s frame: displacement = velocity * 1)
+    // 3. Integrate (one 1/60 s frame: metric displacement = velocity * 1)
+    const hx = Math.sin(rotationY);
+    const hz = Math.cos(rotationY);
     if (velocity !== 0) {
-      x = wrap(x + Math.sin(rotationY) * velocity, mapWidth);
-      z = wrap(z + Math.cos(rotationY) * velocity, mapHeight);
+      z = clampZ(z + hz * velocity);
+      x = wrap(x + (hx * velocity) / metricX(z), WORLD_C);
+    }
+
+    // 4. Land: push out + slide (no damage).
+    if (land) {
+      for (let k = 0; k < COLLISION_ITERATIONS; k++) {
+        const d = land.distance(x, z);
+        if (d >= hull) break;
+        const n = land.normal(x, z);
+        if (n.nx === 0 && n.nz === 0) break; // flat field (deep inland): nothing to push along
+        const push = hull - d;
+        z = clampZ(z + n.nz * push);
+        x = wrap(x + (n.nx * push) / metricX(z), WORLD_C);
+        if (k === 0 && velocity !== 0) {
+          // Motion is heading*velocity; it goes into the land when (heading·n)*velocity < 0.
+          const hn = hx * n.nx + hz * n.nz;
+          if (hn * velocity < 0) velocity *= Math.sqrt(Math.max(0, 1 - hn * hn));
+        }
+      }
     }
   }
 
@@ -165,36 +217,18 @@ function approach(value: number, target: number, step: number): number {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Wrap / angle helpers (the world is a torus)
+// Wrap / angle helpers (wrap and wrappedDelta live in world/geo.ts and are re-exported above)
 // ---------------------------------------------------------------------------------------------
 
 const TWO_PI = Math.PI * 2;
 
-/** Wrap a coordinate into [0, size). */
-export function wrap(v: number, size: number): number {
-  const r = ((v % size) + size) % size;
-  // (-tiny % size) + size can round to exactly `size`; keep the half-open interval.
-  return r >= size ? 0 : r;
-}
-
-/** Shortest signed delta from a to b on a ring of length `size`; result in [-size/2, size/2).
- *  b ≈ a + wrappedDelta(a, b, size) (mod size). */
-export function wrappedDelta(a: number, b: number, size: number): number {
-  return wrap(b - a + size / 2, size) - size / 2;
-}
-
-/** Squared shortest distance between two points on the wrapped map (units²). */
-export function wrappedDistSq(
-  ax: number,
-  az: number,
-  bx: number,
-  bz: number,
-  mapWidth: number = MAP_WIDTH,
-  mapHeight: number = MAP_HEIGHT,
-): number {
-  const dx = wrappedDelta(ax, bx, mapWidth);
-  const dz = wrappedDelta(az, bz, mapHeight);
-  return dx * dx + dz * dz;
+/**
+ * @deprecated The world is no longer a torus. Use `metricDistSq` (geo.ts). Kept as an alias that
+ * returns the METRIC squared distance so older call sites keep gameplay-correct behaviour; the
+ * extra size arguments are ignored.
+ */
+export function wrappedDistSq(ax: number, az: number, bx: number, bz: number, _mapWidth?: number, _mapHeight?: number): number {
+  return metricDistSq(ax, az, bx, bz);
 }
 
 /** Interpolate from a to b (t in [0,1]) along the shortest path across the seam; result wrapped. */
@@ -212,23 +246,40 @@ export function lerpAngle(a: number, b: number, t: number): number {
   return normalizeAngle(a + normalizeAngle(b - a) * t);
 }
 
+/**
+ * Coordinate-x advance of a straight metric path: a body moving `dist` metric units with unit
+ * metric direction (dx, dz) from z0 moves x by dx · ∫₀^dist ds / metricX(z0 + dz·s).
+ * Exact (closed form ∫ csc = ln tan(θ/2)), so stepping in pieces equals one big step.
+ */
+export function metricXAdvance(z0: number, dx: number, dz: number, dist: number): number {
+  if (dx === 0 || dist === 0) return 0;
+  const k = Math.PI / WORLD_H; // θ = k·z, metricX = sin θ
+  const dzDist = dz * dist;
+  if (Math.abs(dzDist) < 1e-6) return (dx * dist) / metricX(z0 + dzDist / 2);
+  const eps = 1e-6;
+  const th0 = Math.min(Math.PI - eps, Math.max(eps, k * z0));
+  const th1 = Math.min(Math.PI - eps, Math.max(eps, k * (z0 + dzDist)));
+  const integral = (Math.log(Math.tan(th1 / 2)) - Math.log(Math.tan(th0 / 2))) / (k * dz);
+  return dx * integral;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Cannonballs
 // ---------------------------------------------------------------------------------------------
 
-/** Cannonball speed, units per 1/60 s (= 900 units/s). */
+/** Cannonball speed, metric units per 1/60 s (= 900 units/s). */
 export const BALL_SPEED = 15;
 /** Cannonball lifetime in milliseconds. */
 export const BALL_LIFETIME_MS = 3000;
 /** Angular spacing between balls of one broadside, radians. */
 export const BALL_SPREAD = 0.1;
-/** Distance from ship center at which balls spawn, world units. */
+/** Metric distance from ship center at which balls spawn. */
 export const BALL_SPAWN_OFFSET = 10;
-/** Ship hit radius for cannonball collisions, world units (same as the old server). */
+/** Ship hit radius for cannonball collisions, metric units (same as the old server). */
 export const SHIP_HIT_RADIUS = 20;
 
-/** A cannonball's analytic trajectory: spawn point (x, z) in world units and unit direction
- *  (dx, dz). `speed` is units per 1/60 s (defaults to BALL_SPEED). */
+/** A cannonball's trajectory: spawn point (x, z) in coordinates and unit METRIC direction
+ *  (dx, dz). `speed` is metric units per 1/60 s (defaults to BALL_SPEED). */
 export interface BallSpawn {
   x: number;
   z: number;
@@ -240,14 +291,9 @@ export interface BallSpawn {
 /**
  * Spawn one broadside, identical to the old server `fireCannonBall`: `cannonCount` balls fanned
  * BALL_SPREAD rad apart, centered on the broadside direction `rotationY + π/2`, each starting
- * BALL_SPAWN_OFFSET units from the ship center along its own direction (wrapped).
+ * BALL_SPAWN_OFFSET metric units from the ship center along its own direction (x wrapped).
  */
-export function spawnBroadside(
-  ship: Pick<ShipKinematics, "x" | "z" | "rotationY">,
-  cannonCount: number,
-  mapWidth: number = MAP_WIDTH,
-  mapHeight: number = MAP_HEIGHT,
-): BallSpawn[] {
+export function spawnBroadside(ship: Pick<ShipKinematics, "x" | "z" | "rotationY">, cannonCount: number): BallSpawn[] {
   const balls: BallSpawn[] = [];
   const n = Math.max(0, Math.floor(cannonCount));
   for (let i = 0; i < n; i++) {
@@ -256,8 +302,8 @@ export function spawnBroadside(
     const dx = Math.sin(angle);
     const dz = Math.cos(angle);
     balls.push({
-      x: wrap(ship.x + dx * BALL_SPAWN_OFFSET, mapWidth),
-      z: wrap(ship.z + dz * BALL_SPAWN_OFFSET, mapHeight),
+      x: wrap(ship.x + metricXAdvance(ship.z, dx, dz, BALL_SPAWN_OFFSET), WORLD_C),
+      z: ship.z + dz * BALL_SPAWN_OFFSET,
       dx,
       dz,
       speed: BALL_SPEED,
@@ -266,41 +312,35 @@ export function spawnBroadside(
   return balls;
 }
 
-/** Position of a ball `elapsedSec` seconds after spawning: p0 + dir * speed * 60 * t (wrapped). */
-export function ballPositionAt(
-  ball: BallSpawn,
-  elapsedSec: number,
-  mapWidth: number = MAP_WIDTH,
-  mapHeight: number = MAP_HEIGHT,
-): { x: number; z: number } {
-  const dist = (ball.speed ?? BALL_SPEED) * FRAMES_PER_SECOND * elapsedSec;
-  return {
-    x: wrap(ball.x + ball.dx * dist, mapWidth),
-    z: wrap(ball.z + ball.dz * dist, mapHeight),
-  };
+/** Position of a ball `elapsedSec` seconds after spawning (metric straight line, x wrapped). */
+export function ballPositionAt(ball: BallSpawn, elapsedSec: number): { x: number; z: number } {
+  return stepBall(ball, ball, elapsedSec);
 }
 
-/** Advance a ball's current position by `dt` seconds along its direction (wrapped). */
+/** Advance a ball's current position by `dt` seconds along its direction (metric, x wrapped).
+ *  Exact: stepping n times by dt equals ballPositionAt(n·dt) up to float rounding. */
 export function stepBall(
   pos: { x: number; z: number },
   ball: Pick<BallSpawn, "dx" | "dz" | "speed">,
   dt: number,
-  mapWidth: number = MAP_WIDTH,
-  mapHeight: number = MAP_HEIGHT,
 ): { x: number; z: number } {
   const dist = (ball.speed ?? BALL_SPEED) * FRAMES_PER_SECOND * dt;
   return {
-    x: wrap(pos.x + ball.dx * dist, mapWidth),
-    z: wrap(pos.z + ball.dz * dist, mapHeight),
+    x: wrap(pos.x + metricXAdvance(pos.z, ball.dx, ball.dz, dist), WORLD_C),
+    z: pos.z + ball.dz * dist,
   };
 }
 
+/** True if a ball at (x, z) has hit land (distance < 0; includes the polar ice). */
+export function ballHitsLand(land: LandQuery, x: number, z: number): boolean {
+  return land.distance(x, z) < 0;
+}
+
 /**
- * Swept 2D hit test: does the segment (x0,z0)→(x1,z1) come within `r` of the circle center
- * (cx,cz)? Wrap-aware: the segment is taken as the shortest path from p0 to p1 across the seam,
- * and the circle is measured relative to p0 by shortest delta, so hits across the map edge count.
- * Unlike the old 3D sphere test this also returns true when the whole segment is inside the circle.
- * Segments are assumed shorter than half the map (true for any one-tick ball move).
+ * Swept 2D hit test in METRIC space: does the segment (x0,z0)→(x1,z1) come within metric `r` of
+ * the circle center (cx,cz)? Everything is taken relative to p0 with x deltas scaled by metricX at
+ * the segment midpoint (segments are one tick long, so the scale is constant to ~1e-4). Seam-aware;
+ * also true when the whole segment is inside the circle.
  */
 export function segmentHitsCircle(
   x0: number,
@@ -310,14 +350,12 @@ export function segmentHitsCircle(
   cx: number,
   cz: number,
   r: number,
-  mapWidth: number = MAP_WIDTH,
-  mapHeight: number = MAP_HEIGHT,
 ): boolean {
-  // Everything relative to p0.
-  const dx = wrappedDelta(x0, x1, mapWidth);
-  const dz = wrappedDelta(z0, z1, mapHeight);
-  const ccx = wrappedDelta(x0, cx, mapWidth);
-  const ccz = wrappedDelta(z0, cz, mapHeight);
+  const k = metricX((z0 + z1) / 2);
+  const dx = wrappedDelta(x0, x1, WORLD_C) * k;
+  const dz = z1 - z0;
+  const ccx = wrappedDelta(x0, cx, WORLD_C) * k;
+  const ccz = cz - z0;
   const lenSq = dx * dx + dz * dz;
   let t = lenSq > 0 ? (ccx * dx + ccz * dz) / lenSq : 0;
   if (t < 0) t = 0;

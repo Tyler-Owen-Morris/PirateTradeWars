@@ -11,7 +11,10 @@
  * - `getRenderState()` interpolates between the previous and current fixed step by the
  *   accumulator fraction (render alpha) and adds the error offset.
  *
- * Positions are world units on the wrapped map; rotation radians; velocity units per 1/60 s.
+ * Positions are world coordinates (x wraps at WORLD_C, z does not wrap); rotation radians; velocity
+ * metric units per 1/60 s. The predictor steps with the same `LandQuery` semantics as the server
+ * (client LandField from lib/world/landTiles.ts, set by NetClient), so coast slides predict exactly;
+ * tiles still loading count as water and reconciliation corrects the difference.
  */
 import {
   TICK_DT,
@@ -21,13 +24,12 @@ import {
   normalizeAngle,
   shipPhysicsStats,
   stepShip,
-  wrap,
-  wrappedDelta,
   type ShipInput,
   type ShipKinematics,
   type ShipPhysicsStats,
 } from "@shared/physics";
-import { MAP_HEIGHT, MAP_WIDTH } from "@shared/gameConstants";
+import { WORLD_C, clampZ, metricX, wrap, wrappedDelta } from "@shared/world/geo";
+import { ALWAYS_WATER_TEST_FIELD, type LandQuery } from "@shared/world/land";
 import { MAX_SEQ, SNAP_ERROR_DISTANCE, type InputMessage } from "@shared/protocol";
 
 /** Visual error offset decays as exp(−t/τ). */
@@ -71,7 +73,7 @@ export class Predictor {
   /** Last sequence number used; restarts at 0 on reset() (the server resets seq tracking per (re)connect). */
   seq = 0;
   pending: PendingInput[] = [];
-  /** Visual error offset (world units / radians) added to the rendered state. */
+  /** Visual error offset (coordinate units / radians) added to the rendered state. */
   errX = 0;
   errZ = 0;
   errR = 0;
@@ -81,10 +83,12 @@ export class Predictor {
   /** Count of hard snaps (diagnostics / tests). */
   snaps = 0;
 
-  constructor(
-    private readonly mapWidth: number = MAP_WIDTH,
-    private readonly mapHeight: number = MAP_HEIGHT,
-  ) {}
+  /**
+   * @param land land/ice used for prediction; must sample like the server's field. Default: open
+   *   ocean + polar ice (what the server runs when it has no tiles). NetClient passes the client
+   *   LandField.
+   */
+  constructor(public land: LandQuery = ALWAYS_WATER_TEST_FIELD) {}
 
   setShipType(shipType: string): void {
     if (shipType && shipType !== this.shipType) {
@@ -126,7 +130,7 @@ export class Predictor {
       this.pushPending(s, input);
       send({ t: "input", s, th: input.th, ru: input.ru, f: input.f });
       this.prev = this.cur;
-      this.cur = stepShip(this.cur, input, this.stats, this.mapWidth, this.mapHeight);
+      this.cur = stepShip(this.cur, input, this.stats, this.land);
       this.acc -= TICK_DT;
       steps++;
     }
@@ -158,7 +162,7 @@ export class Predictor {
 
     let s: ShipKinematics = { x: me.x, z: me.z, rotationY: me.r, velocity: me.v };
     for (const p of this.pending) {
-      s = stepShip(s, me.sunk ? NEUTRAL_INPUT : p.input, this.stats, this.mapWidth, this.mapHeight);
+      s = stepShip(s, me.sunk ? NEUTRAL_INPUT : p.input, this.stats, this.land);
     }
 
     if (!this.initialized) {
@@ -170,11 +174,11 @@ export class Predictor {
       return 0;
     }
 
-    // Correction d = new − old (wrap-aware).
-    const dx = wrappedDelta(this.cur.x, s.x, this.mapWidth);
-    const dz = wrappedDelta(this.cur.z, s.z, this.mapHeight);
+    // Correction d = new − old (x wrap-aware, coordinate units); its size is measured metrically.
+    const dx = wrappedDelta(this.cur.x, s.x, WORLD_C);
+    const dz = s.z - this.cur.z;
     const dr = normalizeAngle(s.rotationY - this.cur.rotationY);
-    const dist = Math.hypot(dx, dz);
+    const dist = Math.hypot(dx * metricX((s.z + this.cur.z) / 2), dz);
 
     if (dist > SNAP_ERROR_DISTANCE) {
       this.cur = s;
@@ -187,8 +191,8 @@ export class Predictor {
     // Shift prev by the same correction and absorb it into the error offset, so the rendered
     // position is continuous: lerp(prev+d, cur+d, a) + (err−d) == lerp(prev, cur, a) + err.
     this.prev = {
-      x: wrap(this.prev.x + dx, this.mapWidth),
-      z: wrap(this.prev.z + dz, this.mapHeight),
+      x: wrap(this.prev.x + dx, WORLD_C),
+      z: this.prev.z + dz,
       rotationY: normalizeAngle(this.prev.rotationY + dr),
       velocity: this.prev.velocity + (s.velocity - this.cur.velocity),
     };
@@ -197,7 +201,7 @@ export class Predictor {
     this.errZ -= dz;
     this.errR = normalizeAngle(this.errR - dr);
     // Keep the residual error itself bounded.
-    if (Math.hypot(this.errX, this.errZ) > SNAP_ERROR_DISTANCE) {
+    if (Math.hypot(this.errX * metricX(s.z), this.errZ) > SNAP_ERROR_DISTANCE) {
       this.errX = this.errZ = 0;
       this.snaps++;
     }
@@ -212,8 +216,8 @@ export class Predictor {
   /** State to draw this frame: interpolated between the last two fixed steps plus the error offset. */
   getRenderState(out: ShipKinematics = { x: 0, z: 0, rotationY: 0, velocity: 0 }): ShipKinematics {
     const a = this.alpha;
-    out.x = wrap(lerpWrapped(this.prev.x, this.cur.x, a, this.mapWidth) + this.errX, this.mapWidth);
-    out.z = wrap(lerpWrapped(this.prev.z, this.cur.z, a, this.mapHeight) + this.errZ, this.mapHeight);
+    out.x = wrap(lerpWrapped(this.prev.x, this.cur.x, a, WORLD_C) + this.errX, WORLD_C);
+    out.z = clampZ(this.prev.z + (this.cur.z - this.prev.z) * a + this.errZ);
     out.rotationY = normalizeAngle(lerpAngle(this.prev.rotationY, this.cur.rotationY, a) + this.errR);
     out.velocity = this.prev.velocity + (this.cur.velocity - this.prev.velocity) * a;
     return out;

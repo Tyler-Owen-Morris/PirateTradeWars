@@ -13,13 +13,13 @@
 // Constants
 // ---------------------------------------------------------------------------------------------
 
-/** Ships within this wrapped distance (world units) of a client are sent in its snapshots. */
+/** Ships within this METRIC distance (world units, geo.ts metricDistSq) of a client are sent in its snapshots. */
 export const INTEREST_RADIUS = 2000;
-/** Gold objects within this wrapped distance (world units) are sent (every GOLD_SNAPSHOT_EVERY ticks). */
+/** Gold objects within this METRIC distance (world units) are sent (every GOLD_SNAPSHOT_EVERY ticks). */
 export const GOLD_INTEREST_RADIUS = 1000;
 /** Gold rows are included in the snapshot only every Nth tick. */
 export const GOLD_SNAPSHOT_EVERY = 10;
-/** Spatial hash grid cell size, world units. */
+/** Spatial hash grid cell size, coordinate units (the grid is sparse; see server/game/world.ts). */
 export const GRID_CELL = 500;
 /** Remote entities are rendered this far (ms) behind the estimated server time. */
 export const INTERP_DELAY_MS = 100;
@@ -222,6 +222,19 @@ export interface HitMessage {
   ball: number;
   hp: number;
 }
+/**
+ * A cannonball hit land (WORLD_SPEC §4.3) and was removed at (x, z). Sent to clients within
+ * INTEREST_RADIUS (metric) of the splash point. `land: 1` = it hit land/ice (clients may render
+ * dust). `ball` = id of the removed ball (from its `fire` row) so clients stop drawing it; treat
+ * it like `hit.ball`.
+ */
+export interface SplashMessage {
+  t: "splash";
+  x: number;
+  z: number;
+  land: 1;
+  ball: number;
+}
 /** A ship sank. `"me"` when the receiver's own ship sank. */
 export interface SunkMessage {
   t: "sunk";
@@ -309,6 +322,7 @@ export type ServerMessage =
   | FireMessage
   | HitMessage
   | SunkMessage
+  | SplashMessage
   | GoldCollectedMessage
   | PongMessage
   | WelcomeMessage

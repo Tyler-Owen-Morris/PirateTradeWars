@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { wrappedDelta } from "@shared/physics";
-import { MAP_WIDTH, MAP_HEIGHT } from "@shared/gameConstants";
+import { MAP_WIDTH } from "@shared/gameConstants";
+import { zOfLat } from "@shared/world/geo";
 import { MAX_EXTRAPOLATION_MS, FLAG_SUNK } from "@shared/protocol";
 import { InterpolationBuffer, RemoteWorld } from "../interpolation";
 
@@ -20,14 +21,14 @@ describe("InterpolationBuffer", () => {
     expect(p.extrapolated).toBe(false);
   });
 
-  it("interpolates across the x and z wrap seam along the short path", () => {
+  it("interpolates across the x wrap seam along the short path; z is a plain lerp (no wrap)", () => {
     const b = new InterpolationBuffer();
-    b.push(sample(0, MAP_WIDTH - 10, 5));
-    b.push(sample(50, 10, MAP_HEIGHT - 5));
+    b.push(sample(0, MAP_WIDTH - 10, 100_000));
+    b.push(sample(50, 10, 100_020));
     const p = b.sample(25)!;
     // Midpoint is the seam itself (0 / MAP_WIDTH), never the map center.
     expect(Math.abs(wrappedDelta(0, p.x, MAP_WIDTH))).toBeLessThan(1e-6);
-    expect(Math.abs(wrappedDelta(0, p.z, MAP_HEIGHT))).toBeLessThan(1e-6);
+    expect(p.z).toBeCloseTo(100_010, 6);
     expect(p.x).toBeGreaterThanOrEqual(0);
     expect(p.x).toBeLessThan(MAP_WIDTH);
     const q = b.sample(12.5)!;
@@ -59,11 +60,13 @@ describe("InterpolationBuffer", () => {
     expect(later.x).toBeCloseTo(atMax.x, 9);
   });
 
-  it("extrapolation wraps across the seam", () => {
+  it("extrapolation wraps x across the seam and is metric (2x in x at lat 60)", () => {
     const b = new InterpolationBuffer();
-    b.push(sample(0, 500, 5, 0, -4));
-    const p = b.sample(100)!; // 24 units in −z from z=5
-    expect(p.z).toBeCloseTo(MAP_HEIGHT - 19, 6);
+    // r = −π/2 → heading (−1, 0); v = −4 (forward) → east (+x)
+    b.push(sample(0, MAP_WIDTH - 5, zOfLat(60), -Math.PI / 2, -4));
+    const p = b.sample(100)!; // 24 metric units east = 48 coordinate units at lat 60
+    expect(p.x).toBeCloseTo(43, 6);
+    expect(p.z).toBeCloseTo(zOfLat(60), 6);
   });
 
   it("does not extrapolate a sunk ship", () => {

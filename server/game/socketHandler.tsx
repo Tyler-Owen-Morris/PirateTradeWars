@@ -11,7 +11,7 @@ import { redisStorage } from "../redisStorage";
 import { gameState, type WorldPlayer } from "./gameState";
 import { WebSocket } from "ws";
 import { SHIP_UPGRADE_PATH, SHIP_STATS } from "@shared/gameConstants";
-import { wrappedDistSq } from "@shared/physics";
+import { metricDistSq } from "@shared/world/geo";
 import {
   parseClientMessage,
   type ConnectMessage,
@@ -326,7 +326,8 @@ export function handleSocketConnection(ws: WebSocket) {
 }
 
 function withinPort(player: WorldPlayer, port: { x: number; z: number; safeRadius: number }): boolean {
-  return wrappedDistSq(player.x, player.z, port.x, port.z) <= port.safeRadius * port.safeRadius;
+  // Metric distance (WORLD_SPEC §3). W4 switches this to the port dock + PORT_INTERACTION_RADIUS.
+  return metricDistSq(player.x, player.z, port.x, port.z) <= port.safeRadius * port.safeRadius;
 }
 
 function send(ws: WebSocket, msg: object) {

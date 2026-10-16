@@ -13,6 +13,11 @@
  * drive the world with plain `step()` calls. `wallClock` (default Date.now) is only used for the
  * `st` snapshot field and the persisted `lastSeen`.
  *
+ * World geometry (docs/world/WORLD_SPEC.md): x wraps at WORLD_C, z is closed by polar ice; every
+ * gameplay distance is METRIC (geo.ts metricDistSq). The world holds a `LandQuery` (default: open
+ * ocean + polar ice; the server passes the real SDF field from landLoader.ts) and hands it to
+ * `stepShip` (no-damage coast collision). Balls that hit land are removed with a `splash` event.
+ *
  * Imports only `shared/` (pure) — safe to unit test without Redis or sockets.
  */
 import {
@@ -21,16 +26,28 @@ import {
   NEUTRAL_INPUT,
   SHIP_HIT_RADIUS,
   TICK_DT,
+  ballHitsLand,
   segmentHitsCircle,
   shipPhysicsStats,
   spawnBroadside,
   stepBall,
   stepShip,
-  wrap,
-  wrappedDistSq,
   type ShipInput,
   type ShipPhysicsStats,
 } from "@shared/physics";
+import {
+  MIN_METRIC_X,
+  WORLD_C,
+  WORLD_H,
+  WORLD_VERSION,
+  clampZ,
+  metricDistSq,
+  metricX,
+  wrap,
+  xOfLon,
+  zOfLat,
+} from "@shared/world/geo";
+import { ALWAYS_WATER_TEST_FIELD, type LandQuery } from "@shared/world/land";
 import {
   GOLD_INTEREST_RADIUS,
   GOLD_SNAPSHOT_EVERY,
@@ -48,7 +65,7 @@ import {
   type ServerMessage,
   type SnapshotMessage,
 } from "@shared/protocol";
-import { MAP_HEIGHT, MAP_WIDTH, SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
+import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
 
 // ---------------------------------------------------------------------------------------------
 // Tuning
@@ -66,6 +83,14 @@ export const GOLD_OBJECT_LIFETIME = 60 * 1000;
 export const DEAD_REMOVAL_MS = 15 * 1000;
 /** The FIRING entity flag stays set for this many ticks after a broadside (300 ms). */
 export const FIRING_FLAG_TICKS = 6;
+/** Spawn points must have at least this much water (metric distance to land), WORLD_SPEC §4.3. */
+export const SPAWN_MIN_WATER = 60;
+/** Default spawn centre until W4 switches to port spawns: the Caribbean, lat 18 / lon −75. */
+export const DEFAULT_SPAWN_CENTER: Readonly<{ x: number; z: number }> = Object.freeze({ x: xOfLon(-75), z: zOfLat(18) });
+/** Default spawn jitter: uniform in ±this metric distance on each axis around the centre. */
+export const DEFAULT_SPAWN_JITTER = 5000;
+/** Attempts before spawnPoint gives up and returns the last candidate. */
+export const SPAWN_ATTEMPTS = 64;
 
 // ---------------------------------------------------------------------------------------------
 // Types
@@ -103,6 +128,8 @@ export interface PlayerState {
   isActive: boolean;
   lastSeen: number;
   dead: boolean;
+  /** Coordinate-system version the position is in (geo.ts WORLD_VERSION); missing = old torus. */
+  worldVersion?: number;
 }
 
 /** A player inside the world: the persisted shape plus netcode bookkeeping. */
@@ -162,7 +189,8 @@ export type WorldEvent =
   | { kind: "fire"; eid: number; balls: BallRow[] }
   | { kind: "hit"; targetEid: number; ownerEid: number; ball: number; hp: number }
   | { kind: "sunk"; eid: number }
-  | { kind: "goldCollected"; playerId: string; gold: number; newTotalGold: number };
+  | { kind: "goldCollected"; playerId: string; gold: number; newTotalGold: number }
+  | { kind: "splash"; ball: number; x: number; z: number };
 
 /** Side effects for the wiring layer (Redis, leaderboard, Segment). Run outside the tick. */
 export type WorldEffect =
@@ -176,8 +204,9 @@ export interface ClientView {
 }
 
 export interface WorldOptions {
-  mapWidth?: number;
-  mapHeight?: number;
+  /** Land/ice for collision, ball splashes and spawn checks (default ALWAYS_WATER_TEST_FIELD:
+   *  open ocean + polar ice). The server passes the SDF field from server/game/landLoader.ts. */
+  land?: LandQuery;
   /** Random source for spawn positions (default Math.random). */
   rng?: () => number;
   /** Wall clock for `st` and `lastSeen` (default Date.now). */
@@ -195,60 +224,82 @@ export interface NewPlayerInit {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Spatial hash grid (wrap-aware)
+// Spatial hash grid (sparse, x wraps, z clamped)
 // ---------------------------------------------------------------------------------------------
 
-/** Uniform grid over the torus. Rebuilt every tick; queries return candidates from all cells
- *  overlapping a radius (callers do the exact wrapped distance test). */
+/**
+ * Sparse uniform grid in COORDINATE space (WORLD_SPEC §3): a Map of non-empty cells keyed
+ * `cz * cols + cx`, cells `cellSize` coordinate units square (800 × 400 cells over the Earth at
+ * the default 500). Rebuilt every tick (cell arrays are pooled). `query` takes a METRIC radius and
+ * widens the x span by 1/metricX at the query edge nearest the pole, so it never misses a ship;
+ * callers do the exact metric distance test.
+ */
 export class SpatialGrid<T extends { x: number; z: number }> {
   readonly cols: number;
   readonly rows: number;
-  private cells: T[][];
+  private readonly cells = new Map<number, T[]>();
+  private readonly pool: T[][] = [];
 
-  constructor(
-    readonly mapWidth: number,
-    readonly mapHeight: number,
-    readonly cellSize: number = GRID_CELL,
-  ) {
-    this.cols = Math.max(1, Math.ceil(mapWidth / cellSize));
-    this.rows = Math.max(1, Math.ceil(mapHeight / cellSize));
-    this.cells = new Array(this.cols * this.rows);
-    for (let i = 0; i < this.cells.length; i++) this.cells[i] = [];
+  constructor(readonly cellSize: number = GRID_CELL) {
+    this.cols = Math.max(1, Math.ceil(WORLD_C / cellSize));
+    this.rows = Math.max(1, Math.ceil(WORLD_H / cellSize));
+  }
+
+  /** Number of non-empty cells (diagnostics / tests). */
+  get cellCount(): number {
+    return this.cells.size;
   }
 
   clear(): void {
-    for (let i = 0; i < this.cells.length; i++) this.cells[i].length = 0;
+    this.cells.forEach((arr) => {
+      arr.length = 0;
+      this.pool.push(arr);
+    });
+    this.cells.clear();
   }
 
   insert(item: T): void {
-    this.cells[this.cellOf(item.x, item.z)].push(item);
+    const key = this.cellRow(item.z) * this.cols + this.cellCol(item.x);
+    let arr = this.cells.get(key);
+    if (!arr) {
+      arr = this.pool.pop() ?? [];
+      this.cells.set(key, arr);
+    }
+    arr.push(item);
   }
 
-  private cellOf(x: number, z: number): number {
-    const cx = Math.min(this.cols - 1, Math.floor(wrap(x, this.mapWidth) / this.cellSize));
-    const cz = Math.min(this.rows - 1, Math.floor(wrap(z, this.mapHeight) / this.cellSize));
-    return cz * this.cols + cx;
+  private cellCol(x: number): number {
+    return Math.min(this.cols - 1, Math.floor(wrap(x, WORLD_C) / this.cellSize));
   }
 
-  /** Push every item in cells within `radius` of (x, z) into `out` (no duplicates, unfiltered). */
+  private cellRow(z: number): number {
+    const r = Math.floor(clampZ(z) / this.cellSize);
+    return r >= this.rows ? this.rows - 1 : r;
+  }
+
+  /** Push every item in cells within metric `radius` of (x, z) into `out` (no duplicates, unfiltered). */
   query(x: number, z: number, radius: number, out: T[]): T[] {
-    const span = Math.ceil(radius / this.cellSize);
-    const spanX = Math.min(span, Math.floor((this.cols - 1) / 2));
-    const spanZ = Math.min(span, Math.floor((this.rows - 1) / 2));
-    const fullX = span * 2 + 1 >= this.cols;
-    const fullZ = span * 2 + 1 >= this.rows;
-    const cx0 = Math.min(this.cols - 1, Math.floor(wrap(x, this.mapWidth) / this.cellSize));
-    const cz0 = Math.min(this.rows - 1, Math.floor(wrap(z, this.mapHeight) / this.cellSize));
-    const xFrom = fullX ? 0 : -spanX;
-    const xTo = fullX ? this.cols - 1 : spanX;
-    const zFrom = fullZ ? 0 : -spanZ;
-    const zTo = fullZ ? this.rows - 1 : spanZ;
-    for (let dz = zFrom; dz <= zTo; dz++) {
-      const cz = fullZ ? dz : (((cz0 + dz) % this.rows) + this.rows) % this.rows;
-      for (let dx = xFrom; dx <= xTo; dx++) {
-        const cx = fullX ? dx : (((cx0 + dx) % this.cols) + this.cols) % this.cols;
-        const cell = this.cells[cz * this.cols + cx];
-        for (let i = 0; i < cell.length; i++) out.push(cell[i]);
+    const z0 = clampZ(z - radius);
+    const z1 = clampZ(z + radius);
+    // metricX = sin(πz/H) is concave, so its minimum over [z0, z1] is at an end (nearest the pole).
+    const mx = Math.max(MIN_METRIC_X, Math.min(metricX(z0), metricX(z1)));
+    const rx = radius / mx;
+    const r0 = this.cellRow(z0);
+    const r1 = this.cellRow(z1);
+    const xw = wrap(x, WORLD_C);
+    let cFrom = Math.floor((xw - rx) / this.cellSize);
+    let cTo = Math.floor((xw + rx) / this.cellSize);
+    const full = cTo - cFrom + 1 >= this.cols;
+    if (full) {
+      cFrom = 0;
+      cTo = this.cols - 1;
+    }
+    for (let r = r0; r <= r1; r++) {
+      const base = r * this.cols;
+      for (let c = cFrom; c <= cTo; c++) {
+        const col = full ? c : ((c % this.cols) + this.cols) % this.cols;
+        const cell = this.cells.get(base + col);
+        if (cell) for (let i = 0; i < cell.length; i++) out.push(cell[i]);
       }
     }
     return out;
@@ -260,8 +311,12 @@ export class SpatialGrid<T extends { x: number; z: number }> {
 // ---------------------------------------------------------------------------------------------
 
 export class World {
-  readonly mapWidth: number;
-  readonly mapHeight: number;
+  /** x wraps at this (WORLD_C). Kept for older call sites. */
+  readonly mapWidth = WORLD_C;
+  /** z extent (WORLD_H); z does not wrap. */
+  readonly mapHeight = WORLD_H;
+  /** Land/ice used by the tick (collision, splashes, spawn checks). */
+  readonly land: LandQuery;
   /** Completed ticks. */
   tick = 0;
   readonly players = new Map<string, WorldPlayer>();
@@ -287,11 +342,26 @@ export class World {
   private viewStamp = 0;
 
   constructor(opts: WorldOptions = {}) {
-    this.mapWidth = opts.mapWidth ?? MAP_WIDTH;
-    this.mapHeight = opts.mapHeight ?? MAP_HEIGHT;
+    this.land = opts.land ?? ALWAYS_WATER_TEST_FIELD;
     this.rng = opts.rng ?? Math.random;
     this.wallClock = opts.wallClock ?? Date.now;
-    this.shipGrid = new SpatialGrid<WorldPlayer>(this.mapWidth, this.mapHeight, GRID_CELL);
+    this.shipGrid = new SpatialGrid<WorldPlayer>(GRID_CELL);
+  }
+
+  /**
+   * A random water point near `center` (uniform jitter of ±`jitter` metric units per axis) with
+   * land distance > SPAWN_MIN_WATER. Retries SPAWN_ATTEMPTS times, then returns the last candidate
+   * (stepShip's push-out moves it off any coast). W4 will call this with port spawn points.
+   */
+  spawnPoint(center: { x: number; z: number } = DEFAULT_SPAWN_CENTER, jitter: number = DEFAULT_SPAWN_JITTER): { x: number; z: number } {
+    let x = center.x;
+    let z = center.z;
+    for (let i = 0; i < SPAWN_ATTEMPTS; i++) {
+      z = clampZ(center.z + (this.rng() * 2 - 1) * jitter);
+      x = wrap(center.x + ((this.rng() * 2 - 1) * jitter) / metricX(z), WORLD_C);
+      if (this.land.distance(x, z) > SPAWN_MIN_WATER) break;
+    }
+    return { x, z };
   }
 
   /** Simulation time in ms (tick * 50). */
@@ -301,18 +371,19 @@ export class World {
 
   // ---- players --------------------------------------------------------------------------
 
-  /** Create a brand-new player with full stats for `shipType` (random position unless given). */
+  /** Create a brand-new player with full stats for `shipType` (spawnPoint() unless x/z given). */
   createPlayer(init: NewPlayerInit): WorldPlayer {
     const stats = SHIP_STATS[init.shipType] ?? SHIP_STATS[SHIP_TYPES.SLOOP];
     const rotationY = init.rotationY ?? 0;
+    const spawn = init.x === undefined || init.z === undefined ? this.spawnPoint() : null;
     const state: PlayerState = {
       id: init.id,
       playerId: init.id,
       name: init.name,
       shipType: init.shipType,
-      x: init.x ?? this.rng() * this.mapWidth,
+      x: spawn ? spawn.x : wrap(init.x!, WORLD_C),
       y: 0,
-      z: init.z ?? this.rng() * this.mapHeight,
+      z: spawn ? spawn.z : clampZ(init.z!),
       rotationY,
       speed: 0,
       maxSpeed: stats.speed,
@@ -334,22 +405,34 @@ export class World {
       isActive: true,
       lastSeen: this.wallClock(),
       dead: false,
+      worldVersion: WORLD_VERSION,
     };
     return this.insert(state);
   }
 
-  /** Re-insert a player loaded from Redis (or any PlayerState-like record). Starts at rest. */
+  /**
+   * Re-insert a player loaded from Redis (or any PlayerState-like record). Starts at rest.
+   * Records from the old torus (no/older `worldVersion`) or whose position is on land are moved to
+   * spawnPoint() (W4 refines this to a starter port).
+   */
   restorePlayer(p: Partial<PlayerState> & { id: string; name: string; shipType: string }): WorldPlayer {
     const stats = SHIP_STATS[p.shipType] ?? SHIP_STATS[SHIP_TYPES.SLOOP];
     const rotationY = p.rotationY ?? 0;
+    let x = wrap(p.x ?? 0, WORLD_C);
+    let z = clampZ(p.z ?? 0);
+    if (Number(p.worldVersion) !== WORLD_VERSION || this.land.distance(x, z) < 0) {
+      const s = this.spawnPoint();
+      x = s.x;
+      z = s.z;
+    }
     const state: PlayerState = {
       id: p.id,
       playerId: p.playerId ?? p.id,
       name: p.name,
       shipType: p.shipType,
-      x: wrap(p.x ?? 0, this.mapWidth),
+      x,
       y: 0,
-      z: wrap(p.z ?? 0, this.mapHeight),
+      z,
       rotationY,
       speed: 0,
       maxSpeed: p.maxSpeed || stats.speed,
@@ -371,6 +454,7 @@ export class World {
       isActive: p.isActive ?? true,
       lastSeen: p.lastSeen ?? this.wallClock(),
       dead: p.dead ?? false,
+      worldVersion: WORLD_VERSION,
     };
     return this.insert(state);
   }
@@ -563,8 +647,7 @@ export class World {
       { x: p.x, z: p.z, rotationY: p.rotationY, velocity: p.speed },
       input,
       p.physics,
-      this.mapWidth,
-      this.mapHeight,
+      this.land,
     );
     p.x = next.x;
     p.z = next.z;
@@ -579,7 +662,7 @@ export class World {
     if (now - p.lastFired < p.reloadTime) return;
     p.lastFired = now;
     p.firedAtTick = this.tick;
-    const spawns = spawnBroadside(p, p.cannonCount, this.mapWidth, this.mapHeight);
+    const spawns = spawnBroadside(p, p.cannonCount);
     const rows: BallRow[] = [];
     for (const s of spawns) {
       const ball: CannonBall = {
@@ -604,19 +687,26 @@ export class World {
     const keep: CannonBall[] = [];
     const cand = this.scratch;
     for (const ball of this.balls) {
-      const next = stepBall(ball, ball, TICK_DT, this.mapWidth, this.mapHeight);
+      const next = stepBall(ball, ball, TICK_DT);
       cand.length = 0;
       this.shipGrid.query(next.x, next.z, SHIP_HIT_RADIUS + ball.speed * 60 * TICK_DT, cand);
       let hit: WorldPlayer | null = null;
       for (const p of cand) {
         if (p.eid === ball.ownerEid || p.sunk || p.dead) continue;
-        if (segmentHitsCircle(ball.x, ball.z, next.x, next.z, p.x, p.z, SHIP_HIT_RADIUS, this.mapWidth, this.mapHeight)) {
+        if (segmentHitsCircle(ball.x, ball.z, next.x, next.z, p.x, p.z, SHIP_HIT_RADIUS)) {
           hit = p;
           break;
         }
       }
       if (hit) {
         this.applyHit(hit, ball, now);
+        continue;
+      }
+      // Land (incl. polar ice): check the midpoint too so a ball cannot skip a thin spit.
+      const mid = stepBall(ball, ball, TICK_DT / 2);
+      const landAt = ballHitsLand(this.land, mid.x, mid.z) ? mid : ballHitsLand(this.land, next.x, next.z) ? next : null;
+      if (landAt) {
+        this.events.push({ kind: "splash", ball: ball.id, x: landAt.x, z: landAt.z });
         continue;
       }
       ball.x = next.x;
@@ -669,7 +759,7 @@ export class World {
       let collector: WorldPlayer | null = null;
       for (const p of cand) {
         if (p.sunk || p.dead) continue;
-        if (wrappedDistSq(p.x, p.z, g.x, g.z, this.mapWidth, this.mapHeight) < r2) {
+        if (metricDistSq(p.x, p.z, g.x, g.z) < r2) {
           collector = p;
           break;
         }
@@ -707,18 +797,17 @@ export class World {
     cand.length = 0;
     this.shipGrid.query(self.x, self.z, radius, cand);
     const r2 = radius * radius;
-    const W = this.mapWidth;
-    const H = this.mapHeight;
     const out: WorldPlayer[] = [];
     for (let i = 0; i < cand.length; i++) {
       const o = cand[i];
       // (the grid is rebuilt in step(); skip players removed since then)
       if (o === self || o.dead || this.byEid.get(o.eid) !== o) continue;
-      // Inline wrapped distance (hot path): positions are always wrapped into [0, size).
+      // Inline metric distance (hot path): x is always wrapped into [0, C).
+      const dz = o.z - self.z;
+      if (dz * dz > r2) continue;
       let dx = Math.abs(o.x - self.x);
-      if (dx > W / 2) dx = W - dx;
-      let dz = Math.abs(o.z - self.z);
-      if (dz > H / 2) dz = H - dz;
+      if (dx > WORLD_C / 2) dx = WORLD_C - dx;
+      dx *= metricX((o.z + self.z) / 2);
       if (dx * dx + dz * dz <= r2) out.push(o);
     }
     return out;
@@ -769,6 +858,11 @@ export class World {
         case "goldCollected":
           if (ev.playerId === p.id) out.push({ t: "goldCollected", gold: ev.gold, newTotalGold: ev.newTotalGold });
           break;
+        case "splash":
+          if (metricDistSq(p.x, p.z, ev.x, ev.z) <= INTEREST_RADIUS * INTEREST_RADIUS) {
+            out.push({ t: "splash", x: roundPos(ev.x), z: roundPos(ev.z), land: 1, ball: ev.ball });
+          }
+          break;
       }
     }
 
@@ -800,7 +894,7 @@ export class World {
       const g: GoldRow[] = [];
       const r2 = GOLD_INTEREST_RADIUS * GOLD_INTEREST_RADIUS;
       for (const gold of this.gold) {
-        if (wrappedDistSq(p.x, p.z, gold.x, gold.z, this.mapWidth, this.mapHeight) <= r2) {
+        if (metricDistSq(p.x, p.z, gold.x, gold.z) <= r2) {
           g.push([gold.id, roundPos(gold.x), roundPos(gold.z), gold.gold]);
         }
       }
@@ -902,6 +996,7 @@ export function toPlayerState(p: WorldPlayer): PlayerState {
     isActive: p.isActive,
     lastSeen: p.lastSeen,
     dead: p.dead,
+    worldVersion: p.worldVersion ?? WORLD_VERSION,
   };
 }
 
