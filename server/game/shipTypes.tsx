@@ -1,6 +1,6 @@
 import { redisStorage } from "../redisStorage";
 import { ShipType } from "@shared/schema";
-import { DEFAULT_PORTS, SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
+import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
 
 export const defaultShipTypes: Omit<ShipType, "id">[] = [
     {
@@ -87,8 +87,6 @@ export const goodTypes = [
     { name: "Silk", basePrice: 100, fluctuation: 50 }
 ];
 
-// Use ports from gameConstants
-export const defaultPorts = DEFAULT_PORTS;
 
 export async function setupShipTypes() {
     try {

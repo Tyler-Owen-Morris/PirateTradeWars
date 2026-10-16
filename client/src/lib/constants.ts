@@ -7,8 +7,7 @@ export {
   SHIP_DISPLAY_NAMES,
   SHIP_DESCRIPTIONS,
   SHIP_STATS,
-  GOODS,
-  DEFAULT_PORTS
+  GOODS
 } from '@shared/gameConstants';
 
 // Game mechanics constants

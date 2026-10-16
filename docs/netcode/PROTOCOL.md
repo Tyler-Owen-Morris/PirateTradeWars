@@ -49,7 +49,7 @@ implementer must deviate, they write the deviation into their progress file AND 
 | `connect` / `reconnect` | unchanged | existing name/ship flow |
 | `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0|1}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). Server clamps values, ignores out-of-order seq, caps queue at 10 (drop oldest). |
 | `ping` | `{t:"ping", c:clientTimeMs}` | every 2 s |
-| `trade`, `upgradeShip`, `repairShip`, `scuttle` | unchanged | |
+| `trade`, `upgradeShip`, `repairShip`, `scuttle` | unchanged shape | W4: trade, upgrade and repair are rejected with `error "Too far from port"` unless the ship is within 300 (metric) of the port's dock. `portId` is the numeric id from `GET /api/ports` (1-based index in ports.json). |
 
 The client never sends position, speed, direction or rotation. The server is authoritative.
 

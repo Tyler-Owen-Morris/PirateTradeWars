@@ -1,43 +1,16 @@
-import { useEffect, useState } from 'react';
-import { Port as PortType } from '@/types';
+import { useGameState } from '@/lib/stores/useGameState';
 import { Port } from './Port';
-import { apiRequest } from '@/lib/queryClient';
-import { DEFAULT_PORTS } from '@shared/gameConstants';
 
+/**
+ * Every port's town + dock (card W4). Ports come from the store (`useGameState.loadPorts`, called by
+ * GameScene: `GET /api/ports`, falling back to the bundled shared/world/ports.json). Each Port culls
+ * itself by render distance, so all 27 can stay mounted.
+ */
 export function Ports() {
-  const [ports, setPorts] = useState<PortType[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Load ports from API
-    const loadPorts = async () => {
-      try {
-        setLoading(true);
-        const response = await apiRequest('GET', '/api/ports', undefined);
-        const portsData = await response.json();
-
-        if (Array.isArray(portsData) && portsData.length > 0) {
-          setPorts(portsData);
-        } else {
-          // Fallback to default ports if API returns empty
-          setPorts(DEFAULT_PORTS);
-        }
-      } catch (error) {
-        console.error('Failed to load ports, using defaults:', error);
-        setPorts(DEFAULT_PORTS);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadPorts();
-  }, []);
-
-  if (loading) return null;
-
+  const ports = useGameState((s) => s.gameState.ports);
   return (
     <>
-      {ports.map(port => (
+      {ports.map((port) => (
         <Port key={port.id} port={port} />
       ))}
     </>

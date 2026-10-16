@@ -10,7 +10,8 @@
  */
 import { redisStorage } from "../redisStorage";
 import { v4 as uuidv4 } from "uuid";
-import { GOODS, DEFAULT_PORTS } from "@shared/gameConstants";
+import { GOODS } from "@shared/gameConstants";
+import { seedPorts, ensurePortGoods, updatePortMarkets } from "./ports";
 import { trackEvent, shutdownSegment } from "../segmentClient";
 import { World, TICK_MS, type WorldEffect, type WorldPlayer } from "./world";
 import { FixedStepLoop } from "./loop";
@@ -202,43 +203,11 @@ class GameState {
     await shutdownSegment().catch((err) => console.error("Segment flush failed:", err));
   }
 
+  /** Periodic market move (regional prices + restock, server/game/ports.ts); creates missing goods. */
   async updatePrices() {
     try {
-      const ports = await redisStorage.getPorts();
-      const goods = await redisStorage.getGoods();
-      for (const port of ports) {
-        const portGoods = await redisStorage.getPortGoods(port.id);
-        if (portGoods.length === 0) {
-          console.log(`Port ${port.name} has no goods. Initializing...`);
-          for (const good of goods) {
-            const basePrice = good.basePrice;
-            const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
-            const initialPrice = Math.round(basePrice * (1 + fluctPercent));
-            const initialStock = Math.floor(Math.random() * 50) + 50;
-            await redisStorage.createPortGood({
-              portId: port.id,
-              goodId: good.id,
-              currentPrice: initialPrice,
-              stock: initialStock,
-              updatedAt: new Date(),
-            });
-          }
-          console.log(`Port ${port.name} goods initialized with ${goods.length} goods`);
-          continue;
-        }
-        for (const portGood of portGoods) {
-          const good = goods.find((g) => g.id === portGood.goodId);
-          if (!good) continue;
-          const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
-          const newPrice = Math.round(good.basePrice * (1 + fluctPercent));
-          await redisStorage.updatePortGoodPrice(port.id, portGood.goodId, newPrice);
-          if (portGood.stock < 10) {
-            const newStock = Math.floor(Math.random() * 30) + 20;
-            await redisStorage.updatePortGoodStock(port.id, portGood.goodId, newStock);
-            console.log(`Replenished stock of good ${good.name} at port ${port.name} to ${newStock} units`);
-          }
-        }
-      }
+      await ensurePortGoods(redisStorage);
+      await updatePortMarkets(redisStorage);
       console.log("Port prices and stock updated");
     } catch (err) {
       console.error("Error updating prices and stock:", err);
@@ -254,43 +223,14 @@ export const gameState = new GameState();
 
 export async function initializeGameState() {
   try {
-    const ports = await redisStorage.getPorts();
-    if (ports.length === 0) {
-      for (const port of DEFAULT_PORTS) await redisStorage.createPort(port);
-      console.log("Ports initialized");
-    }
+    // Ports come from shared/world/ports.json; re-seeded (with fresh goods) when portsVersion changes.
+    await seedPorts(redisStorage);
     const goods = await redisStorage.getGoods();
     if (goods.length === 0) {
       for (const good of GOODS) await redisStorage.createGood(good);
       console.log("Goods initialized");
     }
-    for (const port of await redisStorage.getPorts()) {
-      const portGoods = await redisStorage.getPortGoods(port.id);
-      if (portGoods.length === 0) {
-        for (const good of await redisStorage.getGoods()) {
-          const basePrice = good.basePrice;
-          const fluctPercent = (Math.random() * 2 - 1) * good.fluctuation / 100;
-          const initialPrice = Math.round(basePrice * (1 + fluctPercent));
-          const initialStock = Math.floor(Math.random() * 50) + 50;
-          await redisStorage.createPortGood({
-            portId: port.id,
-            goodId: good.id,
-            currentPrice: initialPrice,
-            stock: initialStock,
-            updatedAt: new Date(),
-          });
-        }
-        console.log(`Port ${port.name} goods initialized with ${(await redisStorage.getGoods()).length} goods`);
-      } else {
-        for (const portGood of portGoods) {
-          if (portGood.stock < 10) {
-            const newStock = Math.floor(Math.random() * 30) + 20;
-            await redisStorage.updatePortGoodStock(port.id, portGood.goodId, newStock);
-            console.log(`Replenished stock of good ${portGood.goodId} at port ${port.id} to ${newStock} units`);
-          }
-        }
-      }
-    }
+    await ensurePortGoods(redisStorage);
     gameState.start();
   } catch (err) {
     console.error("Error initializing game state:", err);

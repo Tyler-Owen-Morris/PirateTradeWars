@@ -97,6 +97,10 @@ export interface Port {
   /** Real-world ports (W2/W4): the point ships dock at. Absent on legacy ports (use x/z). */
   dock?: { x: number; z: number };
   nation?: string;
+  /** W4: generated string id (e.g. "port_royal"), region and deep-water spawn point. */
+  key?: string;
+  region?: string;
+  spawn?: { x: number; z: number };
 }
 
 // Trade good
