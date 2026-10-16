@@ -82,6 +82,17 @@ The client never sends position, speed, direction or rotation. The server is aut
   - `{t:"hit", target:eid|"me", ball:id, hp}` — remove ball, show impact.
   - `{t:"sunk", eid}` ; `{t:"goldCollected", gold, newTotalGold}` (to the collector).
 
+**N1 clarifications (implemented in `shared/protocol.ts`, which is the source of truth for shapes):**
+- `me.eid` (optional number): the receiver's own entity id, so it can recognise its own `fire` events.
+- `sunk.eid` may be `"me"` (like `hit.target`) when the receiver's own ship sank.
+- `pong` is `{t:"pong", c:<echoed client ms>, st:<server ms>}`.
+- Ball ids in `fire`/`hit` are integers; gold row ids are the existing string ids. `v` is rounded to 2 decimals.
+- `goldCollected` moves to the `t` key like the other §6 events.
+- Server validates every frame with `parseClientMessage` (accepts `t` or `type`, clamps th/ru/f, floors
+  seq, drops unknown fields, rejects names > 32 chars and trade quantities < 1). Cannonball hits use
+  `segmentHitsCircle` (2D, wrap-aware, `SHIP_HIT_RADIUS = 20`), replacing the old 3D sphere test.
+- Ship rotation from `stepShip` is normalized to [-π, π).
+
 ## 7. Client netcode
 - **Own ship = prediction + reconciliation.** Client runs `stepShip` at the same fixed 20 Hz step with an
   accumulator in `useFrame`, sends each step's input with a seq, keeps unacked inputs. On snapshot:
