@@ -3,16 +3,16 @@
  *
  * `fire` events spawn balls in `net.balls`; each ball's position is analytic (spawn + dir·speed·t),
  * so a ball is just read every frame. Balls are removed on `hit` or when their lifetime ends.
- * React state is only the set of ball ids (useSyncExternalStore on `net.balls`). Positions are placed
- * relative to the local ship (shortest wrapped delta) so balls near the map seam render correctly.
+ * React state is only the set of ball ids (useSyncExternalStore on `net.balls`). Positions (and the
+ * trail, kept in world coordinates) are converted to floating-origin render space every frame
+ * (lib/world/renderSpace.ts), so balls near the map seam render correctly and trails don't drag.
  * The fire sound is played once per `fire` event by useSocket, not per ball.
  */
 import { memo, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { net } from '@/lib/net';
-import { wrappedDelta, type ShipKinematics } from '@shared/physics';
-import { MAP_WIDTH, MAP_HEIGHT } from '@shared/gameConstants';
+import { toRender } from '@/lib/world/renderSpace';
 
 const BALL_Y = 10;
 const TRAIL_POINTS = 20;
@@ -32,13 +32,13 @@ export const CannonBalls = memo(function CannonBalls() {
   );
 });
 
-const own: ShipKinematics = { x: 0, z: 0, rotationY: 0, velocity: 0 };
-
 export function CannonBall({ id }: { id: number }) {
   const ballRef = useRef<THREE.Mesh>(null);
   const trailRef = useRef<THREE.Points>(null);
-  // The trail's position attribute array; mutated in place every frame.
+  // The trail's position attribute array (render space); rebuilt every frame from `world`.
   const trail = useMemo(() => new Float32Array(TRAIL_POINTS * 3), []);
+  // Trail history in raw world coordinates [x0,z0,x1,z1,…], newest first (float64).
+  const world = useMemo(() => new Float64Array(TRAIL_POINTS * 2), []);
   const primed = useRef(false);
 
   useFrame(() => {
@@ -53,30 +53,27 @@ export function CannonBall({ id }: { id: number }) {
       primed.current = false;
       return;
     }
-    let x = p.x;
-    let z = p.z;
-    if (net.predictor.initialized) {
-      net.getOwnRenderState(own);
-      x = own.x + wrappedDelta(own.x, p.x, MAP_WIDTH);
-      z = own.z + wrappedDelta(own.z, p.z, MAP_HEIGHT);
-    }
-    ball.position.set(x, BALL_Y, z);
+    const r = toRender(p.x, p.z);
+    ball.position.set(r.x, BALL_Y, r.z);
 
     const points = trailRef.current;
     if (!points) return;
-    const arr = trail;
     if (!primed.current) {
       for (let i = 0; i < TRAIL_POINTS; i++) {
-        arr[i * 3] = x;
-        arr[i * 3 + 1] = BALL_Y;
-        arr[i * 3 + 2] = z;
+        world[i * 2] = p.x;
+        world[i * 2 + 1] = p.z;
       }
       primed.current = true;
     } else {
-      arr.copyWithin(3, 0, (TRAIL_POINTS - 1) * 3);
-      arr[0] = x;
-      arr[1] = BALL_Y;
-      arr[2] = z;
+      world.copyWithin(2, 0, (TRAIL_POINTS - 1) * 2);
+      world[0] = p.x;
+      world[1] = p.z;
+    }
+    for (let i = 0; i < TRAIL_POINTS; i++) {
+      const t = toRender(world[i * 2], world[i * 2 + 1]);
+      trail[i * 3] = t.x;
+      trail[i * 3 + 1] = BALL_Y;
+      trail[i * 3 + 2] = t.z;
     }
     (points.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
   });

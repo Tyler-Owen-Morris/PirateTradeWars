@@ -3,9 +3,9 @@
  *
  * React state here is only the SET of ships and their metadata (`ent`/`gone`, sunk flag) via
  * `useSyncExternalStore(net.remote)`. Positions/rotations are written straight to the Three groups in
- * useFrame at `serverNow − INTERP_DELAY_MS` — no per-snapshot props. Positions are placed relative to
- * the local ship's rendered position (shortest wrapped delta) so ships across the map seam render
- * next to us instead of 10000 units away.
+ * useFrame at `serverNow − INTERP_DELAY_MS` — no per-snapshot props. Positions are converted to
+ * floating-origin render space (lib/world/renderSpace.ts) so ships across the map seam render next
+ * to us instead of a circumference away.
  */
 import { memo, useCallback, useRef, useSyncExternalStore } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -13,8 +13,7 @@ import * as THREE from 'three';
 import { Ship } from './Ship';
 import { ShipType } from '@/lib/constants';
 import { net, type RemotePose } from '@/lib/net';
-import { wrappedDelta, type ShipKinematics } from '@shared/physics';
-import { MAP_WIDTH, MAP_HEIGHT } from '@shared/gameConstants';
+import { toRender } from '@/lib/world/renderSpace';
 import { FLAG_SUNK } from '@shared/protocol';
 
 const subscribe = (fn: () => void) => net.remote.subscribe(fn);
@@ -27,22 +26,14 @@ export const OtherShips = memo(function OtherShips() {
   const entities = net.remote.renderable();
   const shipsRef = useRef<Map<number, THREE.Group>>(new Map());
   const pose = useRef<RemotePose>({ x: 0, z: 0, r: 0, v: 0, hp: 0, flags: 0, extrapolated: false });
-  const own = useRef<ShipKinematics>({ x: 0, z: 0, rotationY: 0, velocity: 0 });
 
   useFrame(() => {
     const renderTime = net.remoteRenderTime();
-    const haveOwn = net.predictor.initialized;
-    if (haveOwn) net.getOwnRenderState(own.current);
     shipsRef.current.forEach((group, eid) => {
       const p = net.remote.sample(eid, renderTime, pose.current);
       if (!p) return;
-      let x = p.x;
-      let z = p.z;
-      if (haveOwn) {
-        x = own.current.x + wrappedDelta(own.current.x, p.x, MAP_WIDTH);
-        z = own.current.z + wrappedDelta(own.current.z, p.z, MAP_HEIGHT);
-      }
-      group.position.set(x, 0, z);
+      const r = toRender(p.x, p.z);
+      group.position.set(r.x, 0, r.z);
       group.rotation.y = p.r;
     });
   });

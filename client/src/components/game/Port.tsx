@@ -6,12 +6,19 @@ import * as THREE from 'three';
 import { useGameState } from '@/lib/stores/useGameState';
 import { PORT_INTERACTION_RADIUS } from '../../lib/constants';
 import { Island } from './Island';
+import { toRender, inRenderRange } from '@/lib/world/renderSpace';
+
+/*
+ * A port: island, name label and trade-radius ring. The root group is placed in floating-origin
+ * render space every frame (lib/world/renderSpace.ts) and hidden out of range; children are local.
+ */
 
 interface PortProps {
   port: PortType;
 }
 
 export function Port({ port }: PortProps) {
+  const rootRef = useRef<THREE.Group>(null);
   const portRef = useRef<THREE.Group>(null);
   const beaconRef = useRef<THREE.Group>(null);
   const isNearPort = useRef(false);
@@ -19,6 +26,11 @@ export function Port({ port }: PortProps) {
 
   // Animate the port beacon
   useFrame(({ clock }) => {
+    if (rootRef.current) {
+      const r = toRender(port.x, port.z);
+      rootRef.current.position.set(r.x, 0, r.z);
+      rootRef.current.visible = inRenderRange(r);
+    }
     if (portRef.current) {
       const time = clock.elapsedTime; // NOT getElapsedTime(): it calls getDelta() and steals time from R3F's frame delta
 
@@ -62,17 +74,17 @@ export function Port({ port }: PortProps) {
   //console.log(`Rendering port ${port.name} with island at position [${port.x}, -15, ${port.z}]`);
 
   return (
-    <group>
+    <group ref={rootRef} position={[0, -10000, 0]}>
       {/* Island underneath the port */}
       <Island
-        position={[port.x, -15, port.z]}
+        position={[0, -15, 0]}
         size={350}
         seed={islandSeed}
         name={port.name}
       />
 
       {/* Simple port marker */}
-      <group ref={portRef} position={[port.x, port.y || 25, port.z]}>
+      <group ref={portRef} position={[0, port.y || 25, 0]}>
         {/* Port base */}
         {/* <mesh castShadow receiveShadow position={[0, 0, 0]}>
           <cylinderGeometry args={[40, 40, 10, 32]} />
