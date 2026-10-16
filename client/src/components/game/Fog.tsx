@@ -9,7 +9,7 @@ interface FogProps {
     far?: number;
 }
 
-export function Fog({ color = "#b3d9ff", near = 800, far = 2000 }: FogProps) {
+export function Fog({ color = "#b3d9ff", near = 300, far = 2000 }: FogProps) {
     const { scene } = useThree();
 
     useEffect(() => {

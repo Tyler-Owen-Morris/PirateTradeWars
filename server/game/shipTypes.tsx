@@ -1,6 +1,6 @@
 import { redisStorage } from "../redisStorage";
 import { ShipType } from "@shared/schema";
-import { DEFAULT_PORTS } from "@shared/gameConstants";
+import { DEFAULT_PORTS, SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
 
 export const defaultShipTypes: Omit<ShipType, "id">[] = [
     {
@@ -58,6 +58,20 @@ export const defaultShipTypes: Omit<ShipType, "id">[] = [
         cannonReload: 1.2,
         repairCost: 1000,
         isPaid: true
+    },
+    {
+        name: "dreadnaught",
+        displayName: "The Dreadnaught",
+        description: "A legendary vessel of immense power, only attainable through mastery of the seas.",
+        hullStrength: 800,
+        armor: 30,
+        cargoCapacity: 100,
+        speed: 4,
+        cannonCount: 5,
+        cannonDamage: 20,
+        cannonReload: 1.0,
+        repairCost: 2000,
+        isPaid: true
     }
 ];
 
@@ -78,7 +92,10 @@ export const defaultPorts = DEFAULT_PORTS;
 
 export async function setupShipTypes() {
     try {
-        const existingShipTypes = await redisStorage.getShipTypes();
+        const existingShipTypes = Object.entries(SHIP_STATS).map(([name, stats]) => ({
+            name,
+            ...stats
+        }));
         if (existingShipTypes.length === 0) {
             console.log("Initializing ship types...");
             for (const shipType of defaultShipTypes) {

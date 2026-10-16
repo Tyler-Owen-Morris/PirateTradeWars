@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Billboard, Text } from '@react-three/drei';
 import { useAudio } from '@/lib/stores/useAudio';
 import { SHIP_DIMENSIONS, SHIP_COLORS, SHIP_MAST_COUNTS, ShipType } from '@/lib/constants';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 interface ShipProps {
   position: [number, number, number];
@@ -15,12 +16,13 @@ interface ShipProps {
   sunk: boolean;
   isPlayer?: boolean;
   playerId?: string;
+  onRotationChange?: (rotation: number) => void;
 }
 
 export type { ShipProps };
 
 export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
-  { position, rotation, type, name, hp, maxHp, sunk, isPlayer = false, playerId },
+  { position, rotation, type, name, hp, maxHp, sunk, isPlayer = false, playerId, onRotationChange },
   ref
 ) {
   const healthBarRef = useRef<THREE.Mesh>(null);
@@ -28,6 +30,66 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
   const hasPlayedSunkSound = useRef(false);
 
   const { explosionSound, isSfxMuted, sfxVolume } = useAudio();
+
+  const waveSeed = useRef(playerId ? parseInt(playerId, 36) % 1000 / 1000 : Math.random());
+  const BOB_AMPLITUDE = 2;
+  const BOB_FREQUENCY = 0.12;
+  const ROLL_AMPLITUDE = THREE.MathUtils.degToRad(5);
+  const ROLL_FREQUENCY = 0.1;
+  const PITCH_AMPLITUDE = THREE.MathUtils.degToRad(3);
+  const PITCH_FREQUENCY = 0.09;
+
+  useEffect(() => {
+    const loader = new GLTFLoader();
+    const modelPath = `/ship_models/${type}.glb`;
+
+    loader.load(
+      modelPath,
+      (gltf) => {
+        const model = gltf.scene;
+        const dims = SHIP_DIMENSIONS[type];
+        const scaleFactor = dims.length / 1;
+        model.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        model.position.y = dims.height + 10;
+        if (type === 'sloop') {
+          model.position.y = dims.height - 5;
+        }
+        if (type === 'galleon') {
+          model.rotation.y = Math.PI / 2 + Math.PI;
+          let localScaleFactor = dims.length / 1.4;
+          model.scale.set(localScaleFactor, localScaleFactor, localScaleFactor);
+        }
+        if (type === 'man-o-war') {
+          model.rotation.y = Math.PI;
+        }
+        if (type === 'dreadnaught') {
+          model.rotation.y = Math.PI / 2 + Math.PI;
+          model.position.y = dims.height + 20;
+          let localScaleFactor = dims.length / 1.6;
+          model.scale.set(localScaleFactor, localScaleFactor, localScaleFactor);
+        }
+        model.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+        if (shipRef.current) {
+          shipRef.current.add(model);
+        }
+      },
+      (progress) => { },
+      (error) => {
+        console.error(`Error loading ${type} model:`, error);
+      }
+    );
+
+    return () => {
+      if (shipRef.current) {
+        shipRef.current.clear();
+      }
+    };
+  }, [type]);
 
   useEffect(() => {
     if (sunk && !hasPlayedSunkSound.current) {
@@ -39,7 +101,28 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
     }
   }, [sunk, isPlayer, explosionSound, isSfxMuted, sfxVolume]);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
+    if (shipRef.current) {
+      const time = clock.getElapsedTime();
+      const dims = SHIP_DIMENSIONS[type];
+
+      if (!isPlayer) {
+        shipRef.current.rotation.y = rotation;
+      }
+
+      if (!sunk) {
+        const bobOffset = Math.sin(time * BOB_FREQUENCY * 2 * Math.PI + waveSeed.current * Math.PI) * BOB_AMPLITUDE;
+        shipRef.current.position.y = bobOffset;
+        const rollAngle = Math.sin(time * ROLL_FREQUENCY * 2 * Math.PI + waveSeed.current * Math.PI * 0.5) * ROLL_AMPLITUDE;
+        shipRef.current.rotation.z = rollAngle;
+        const pitchAngle = Math.cos(time * PITCH_FREQUENCY * 2 * Math.PI + waveSeed.current * Math.PI * 0.7) * PITCH_AMPLITUDE;
+        shipRef.current.rotation.x = pitchAngle;
+      } else {
+        shipRef.current.position.y = Math.max(-40, shipRef.current.position.y - 0.2);
+        shipRef.current.rotation.z = Math.min(Math.PI / 4, shipRef.current.rotation.z + 0.005);
+      }
+    }
+
     if (healthBarRef.current) {
       const healthPercent = Math.max(0, hp / maxHp);
       healthBarRef.current.scale.x = healthPercent;
@@ -51,64 +134,13 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
         (healthBarRef.current.material as THREE.MeshBasicMaterial).color.set('#F44336');
       }
     }
-
-    if (sunk && shipRef.current) {
-      shipRef.current.position.y = Math.max(-40, shipRef.current.position.y - 0.2);
-      shipRef.current.rotation.z = Math.min(Math.PI / 4, shipRef.current.rotation.z + 0.005);
-    }
   });
 
   const dims = SHIP_DIMENSIONS[type];
-  const numMasts = SHIP_MAST_COUNTS[type];
 
   return (
-    <group ref={ref} position={position} rotation={[0, rotation, 0]}>
-      <group ref={shipRef} position={[0, 0, 0]}>
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[dims.width, dims.height, dims.length]} />
-          <meshStandardMaterial color={SHIP_COLORS[type]} />
-        </mesh>
-        <mesh position={[0, dims.height / 2 + 1, 0]} castShadow>
-          <boxGeometry args={[dims.width, 2, dims.length]} />
-          <meshStandardMaterial color="#D2B48C" />
-        </mesh>
-        {Array.from({ length: numMasts }).map((_, index) => {
-          const spacing = dims.length / (numMasts + 1);
-          const zPos = -dims.length / 2 + spacing * (index + 1);
-          return (
-            <group key={index} position={[0, 0, zPos]}>
-              <mesh position={[0, dims.height / 2 + dims.mastHeight / 2, 0]} castShadow>
-                <cylinderGeometry args={[2, 2, dims.mastHeight]} />
-                <meshStandardMaterial color="#8B4513" />
-              </mesh>
-              <mesh position={[0, dims.height / 2 + dims.mastHeight / 3, 0]} castShadow>
-                <planeGeometry args={[dims.width + 10, dims.mastHeight * 0.7]} />
-                <meshStandardMaterial color="#F5F5F5" side={THREE.DoubleSide} transparent opacity={0.9} />
-              </mesh>
-            </group>
-          );
-        })}
-        <mesh position={[0, dims.height / 4, -dims.length / 2 - dims.length / 8]} castShadow>
-          <coneGeometry args={[dims.width / 2, dims.length / 4, 32]} />
-          <meshStandardMaterial color={SHIP_COLORS[type]} />
-        </mesh>
-        {Array.from({ length: numMasts }).map((_, index) => {
-          const spacing = dims.length / (numMasts * 2);
-          const zPos = -dims.length / 4 + spacing * (index * 2);
-          return (
-            <group key={`cannons-${index}`}>
-              <mesh position={[-dims.width / 2 - 2, dims.height / 4, zPos]} rotation={[0, -Math.PI / 2, 0]} castShadow>
-                <cylinderGeometry args={[2, 3, 8]} />
-                <meshStandardMaterial color="#2F4F4F" />
-              </mesh>
-              <mesh position={[dims.width / 2 + 2, dims.height / 4, zPos]} rotation={[0, Math.PI / 2, 0]} castShadow>
-                <cylinderGeometry args={[2, 3, 8]} />
-                <meshStandardMaterial color="#2F4F4F" />
-              </mesh>
-            </group>
-          );
-        })}
-      </group>
+    <group ref={ref} position={position} rotation={[0, 0, 0]}>
+      <group ref={shipRef} position={[0, 0, 0]} />
       <Billboard position={[0, dims.height + 70, 0]} follow={true} lockX={false} lockY={false} lockZ={false} renderOrder={2}>
         <Text fontSize={12} color="#ffffff" anchorX="center" anchorY="bottom" outlineWidth={0.5} outlineColor="#000000" renderOrder={3}>
           {name} {isPlayer ? "(You)" : ""}

@@ -1,0 +1,658 @@
+{
+    "prefixes": [
+        {
+            "name": "Sir",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Captain",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Redbeard",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Blackheart",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Mad",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Lady",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Admiral",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Iron",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Storm",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Bloody",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Duke",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Baron",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Long",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Grim",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Salt",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Dread",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Ghost",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Scurvy",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Lord",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Mistress",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "One-Eye",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Pegleg",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Rusty",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Dark",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Wild",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Fierce",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Crimson",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Shadow",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Viper",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Raven",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Commodore",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Skull",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Bone",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Cutlass",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Gunner",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Bosun",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Shark",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Tide",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Crow",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Hawk",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Silver",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Gold",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Brine",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Mist",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Wave",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Chief",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Mate",
+            "tags": [
+                "title"
+            ]
+        },
+        {
+            "name": "Scourge",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Fang",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Claw",
+            "tags": [
+                "descriptor"
+            ]
+        }
+    ],
+    "middleNames": [
+        "Ian",
+        "John",
+        "Mary",
+        "Anne",
+        "William",
+        "James",
+        "Elizabeth",
+        "Thomas",
+        "Grace",
+        "Henry",
+        "Margaret",
+        "Edward",
+        "Katherine",
+        "Charles",
+        "Sarah",
+        "George",
+        "Jane",
+        "Robert",
+        "Ellen",
+        "Francis",
+        "Alice",
+        "Samuel",
+        "Rose",
+        "Benjamin",
+        "Martha",
+        "Richard",
+        "Isabel",
+        "Philip",
+        "Joan",
+        "David",
+        "Bridget",
+        "Andrew",
+        "Lucy",
+        "Matthew",
+        "Agnes",
+        "Daniel",
+        "Maud",
+        "Stephen",
+        "Cecily",
+        "Roger",
+        "Eleanor",
+        "Walter",
+        "Dorothy",
+        "Nicholas",
+        "Beatrice",
+        "Hugh",
+        "Sybil",
+        "Gilbert",
+        "Emma",
+        "Ralph"
+    ],
+    "suffixes": [
+        {
+            "name": "the Black",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "the Brave",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "McDougal",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "O'Malley",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "of the High Seas",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Fierce",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "MacGregor",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "of Tortuga",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Grim",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "O'Connor",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Bold",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of Nassau",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Red",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Murphy",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Cursed",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of Port Royal",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Wild",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Kelly",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Shadow",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of the Caribbean",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Iron",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Sullivan",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Storm",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of Barbados",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Dread",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "O'Brien",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Ghost",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of Jamaica",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Cruel",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Doyle",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Silent",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of the Abyss",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Swift",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Ryan",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Dark",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of the Maelstrom",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Rogue",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Flynn",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Vengeful",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of the Deep",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Sly",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Burke",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Fearless",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of the Horizon",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Phantom",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Quinn",
+            "tags": [
+                "name"
+            ]
+        },
+        {
+            "name": "the Terrible",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "of the Seven Seas",
+            "tags": [
+                "location"
+            ]
+        },
+        {
+            "name": "the Mad",
+            "tags": [
+                "descriptor"
+            ]
+        },
+        {
+            "name": "Walsh",
+            "tags": [
+                "name"
+            ]
+        }
+    ]
+}

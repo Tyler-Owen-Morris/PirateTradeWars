@@ -19,9 +19,9 @@ describe('homepage spec', () => {
         // Randomly select a ship
         const ships = [
           { id: 'cypress-sloop-card', type: 'sloop' },
-          { id: 'cypress-brigantine-card', type: 'brigantine' },
-          { id: 'cypress-galleon-card', type: 'galleon' },
-          { id: 'cypress-man-o-war-card', type: 'man-o-war' }
+          // { id: 'cypress-brigantine-card', type: 'brigantine' },
+          // { id: 'cypress-galleon-card', type: 'galleon' },
+          // { id: 'cypress-man-o-war-card', type: 'man-o-war' }
         ]
         const selectedShip = ships[Math.floor(Math.random() * ships.length)]
         cy.log(`Bot ${i + 1} - Selected ship: ${selectedShip.type}`);

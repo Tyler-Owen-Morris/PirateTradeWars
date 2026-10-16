@@ -1,77 +1,29 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
-// import { storage } from "./storage";
-import { redisStorage } from './redisStorage'
+import { redisStorage } from '../redisStorage'
 import { WebSocketServer } from "ws";
-import { handleSocketConnection } from "./game/socketHandler";
-import { initializeGameState, gameState } from "./game/gameState";
-import { setupShipTypes } from "./game/shipTypes";
+import { handleSocketConnection } from "../game/socketHandler";
+import { initializeGameState, gameState } from "../game/gameState";
+import { setupShipTypes } from "../game/shipTypes";
 import crypto from "crypto";
-
 import { validate as isUUID } from "uuid";
-
+import { registerStripeRoutes } from "./stripeRoutes";
+import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
+import { identifyPlayer, trackEvent, flushSegment } from "../segmentClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
   await setupShipTypes();
   await initializeGameState();
 
-  // Start game server for AWS Autoscaling
-  app.post('/start-game', async (req, res) => {
-    const AWS = require('aws-sdk');
-    const autoscaling = new AWS.AutoScaling({ region: 'us-east-2' });
-    await autoscaling.updateAutoScalingGroup({
-      AutoScalingGroupName: 'PirateTradeWarsGameAsg',
-      DesiredCapacity: 1,
-    }).promise();
-    const serverId = generateServerId(); // e.g., 'abcdef'
-    res.json({ wsUrl: `wss://piratetradewars.com/server-${serverId}` });
-  });
-
-  app.post('/no-players', async (req, res) => {
-    await autoscaling.updateAutoScalingGroup({
-      AutoScalingGroupName: 'PirateTradeWarsGameAsg',
-      DesiredCapacity: 0,
-    }).promise();
-    res.sendStatus(200);
-  });
+  registerStripeRoutes(app)
 
   // API Routes
   app.get('/api/health', (req, res) => {
     res.json({ status: 'healthy' });
   });
 
-  // User registration and authentication
-  app.post('/api/register', async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ message: 'Username and password are required' });
-    }
-
-    try {
-      // Check if username already exists
-      const existingUser = await redisStorage.getUserByUsername(username);
-
-      if (existingUser) {
-        return res.status(409).json({ message: 'Username already taken' });
-      }
-
-      // Hash password
-      const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
-
-      // Create user
-      const user = await redisStorage.createUser({
-        username,
-        password: hashedPassword
-      });
-
-      res.status(201).json({ id: user.id, username: user.username });
-    } catch (error) {
-      console.error('Error creating user:', error);
-      res.status(500).json({ message: 'Failed to create user' });
-    }
-  });
 
   // Player name verification
   app.get('/api/check-player-name', async (req, res) => {
@@ -91,16 +43,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get ship types
-  app.get('/api/ship-types', async (req, res) => {
-    try {
-      const shipTypes = await redisStorage.getShipTypes();
-      //console.log("server sees database with ship types:", shipTypes);
-      res.json(shipTypes);
-    } catch (error) {
-      console.error('Error fetching ship types:', error);
-      res.status(500).json({ message: 'Failed to fetch ship types' });
-    }
-  });
+  const shipTypes = Object.entries(SHIP_STATS).map(([name, stats]) => ({
+    name,
+    ...stats
+  }));
 
   // Get leaderboard
   app.get('/api/leaderboard', async (req, res) => {

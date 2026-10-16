@@ -4,8 +4,6 @@ import * as THREE from 'three';
 import { Vector3 } from '@/types';
 import { MAP_WIDTH, MAP_HEIGHT } from '@shared/gameConstants';
 import { useAudio } from '../../lib/stores/useAudio';
-import { ShipProps } from './Ship';
-import { SHIP_DIMENSIONS, ShipType } from '@/lib/constants';
 
 interface CannonBallProps {
   position: [number, number, number];
@@ -13,12 +11,10 @@ interface CannonBallProps {
   ownerId: string;
   localPlayerId: string;
   allCannonBalls?: number;
-  ships: ShipProps[];
-  onHit: (shipIndex: number, damage: number) => void;
   range: number;
 }
 
-export function CannonBall({ position, direction, ownerId, localPlayerId, allCannonBalls = 1, ships, onHit, range }: CannonBallProps) {
+export function CannonBall({ position, direction, ownerId, localPlayerId, allCannonBalls = 1, range }: CannonBallProps) {
   const ballRef = useRef<THREE.Mesh>(null);
   const trailRef = useRef<THREE.Points>(null);
   const particlesRef = useRef<THREE.BufferAttribute | null>(null);
@@ -30,7 +26,7 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
   const [hasPlayedSound, setHasPlayedSound] = useState(false);
   const [time, setTime] = useState(0);
 
-  const { cannonBangSound, hitSound, successSound, explosionSound, isSfxMuted, sfxVolume } = useAudio();
+  const { cannonBangSound, isSfxMuted, sfxVolume } = useAudio();
 
   useEffect(() => {
     // Play sound only once on creation
@@ -40,46 +36,6 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
       setHasPlayedSound(true);
     }
   }, []);
-
-  const checkCollision = () => {
-    if (!ballRef.current) return;
-
-    const ballPosition = ballRef.current.position;
-    const ballRadius = 5;
-
-    if (ships != undefined && ships.length > 0) {
-      ships.forEach((ship, index) => {
-        if (ship.sunk) return;
-
-        const shipDims = SHIP_DIMENSIONS[ship.type];
-        const shipPos = new THREE.Vector3(...ship.position);
-
-        const shipHalfWidth = shipDims.width / 2;
-        const shipHalfLength = shipDims.length / 2;
-
-        const dx = Math.abs(ballPosition.x - shipPos.x);
-        const dz = Math.abs(ballPosition.z - shipPos.z);
-
-        if (
-          dx < shipHalfWidth + ballRadius &&
-          dz < shipHalfLength + ballRadius &&
-          ballPosition.y < shipDims.height + ballRadius
-        ) {
-          if (!isSfxMuted) {
-            useAudio.getState().playPlayerHit();
-            hitSound?.play();
-
-            if (ownerId === localPlayerId && ship.playerId !== localPlayerId) {
-              successSound?.play();
-            } else if (ship.playerId === localPlayerId) {
-              explosionSound?.play();
-            }
-          }
-          onHit(index, 10);
-        }
-      });
-    }
-  };
 
   useFrame((_, delta) => {
     if (ballRef.current && trailRef.current) {
@@ -91,7 +47,7 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
           ballRef.current.scale.setScalar(1 - sinkProgress);
         } else {
           // Remove the cannon ball after sinking
-          console.log("cannonball removing itself")
+          // console.log("cannonball removing itself")
           ballRef.current.visible = false;
           return;
         }
@@ -108,7 +64,7 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
 
         // Check if we've reached the range limit
         if (distanceTraveled >= range) {
-          console.log("Cannonball is at range limit")
+          //console.log("Cannonball is at range limit")
           setIsSinking(true);
         }
 
@@ -139,8 +95,6 @@ export function CannonBall({ position, direction, ownerId, localPlayerId, allCan
         particles[2] = ballRef.current.position.z;
         particlesRef.current.set(particles);
         particlesRef.current.needsUpdate = true;
-
-        checkCollision();
       }
     }
   });

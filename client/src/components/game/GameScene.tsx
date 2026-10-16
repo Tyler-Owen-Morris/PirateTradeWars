@@ -13,6 +13,7 @@ import * as THREE from "three";
 import { CannonBall } from "./CannonBall";
 import { Vector3 } from "@/types";
 import { Fog } from "./Fog";
+import { GoldObject } from "./GoldObject";
 
 // Interface for control state
 interface ControlState {
@@ -78,6 +79,7 @@ export function GameScene({ controlsRef }: GameSceneProps) {
 
   // Handle camera following player with smooth interpolation
   useFrame((_, delta) => {
+    //aconsole.log("gameState.goldObjects:", gameState.goldObjects);
     if (playerRef.current && gameState.player) {
       // Ensure consistent physics step for better stability
       const physicsDelta = Math.min(delta, 0.1);
@@ -226,17 +228,17 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           />
 
           {/* Stars with adjusted parameters */}
-          <Stars
-            radius={1000}
+          {/* <Stars
+            radius={2000}
             depth={50}
             count={5000}
             factor={4}
             saturation={0}
             fade={true}
-          />
+          /> */}
 
           {/* Fog with adjusted distances */}
-          <Fog color="#b3d9ff" near={500} far={1800} />
+          <Fog color="#b3d9ff" near={600} far={1800} />
 
           {/* Ocean */}
           <Ocean />
@@ -248,11 +250,24 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           <OtherShips players={gameState.otherPlayers} />
 
           {/* Cannon balls */}
-          {gameState.cannonBalls.map((ball) => (
+          {gameState.cannonBalls?.map((ball) => (
             <CannonBall
               key={ball.id}
               position={[ball.x, ball.y, ball.z]}
               direction={ball.direction}
+              ownerId={ball.ownerId}
+              localPlayerId={gameState.player?.id || ""}
+              range={ball.range}
+            />
+          ))}
+
+          {/* Gold objects */}
+          {gameState.goldObjects?.map((gold) => (
+            <GoldObject
+              key={gold.id}
+              id={gold.id}
+              position={[gold.x, gold.y, gold.z]}
+              gold={gold.gold}
             />
           ))}
         </>
