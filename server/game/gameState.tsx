@@ -1,479 +1,203 @@
+/**
+ * Game-state wiring layer: owns the single in-memory `World` (server/game/world.ts), drives it with
+ * the drift-free 20 Hz `FixedStepLoop`, fans each tick out to connected sockets (per-client
+ * interest-filtered messages built by the world), and runs the world's side effects (Redis,
+ * leaderboard, Segment) fire-and-forget OUTSIDE the tick. See docs/netcode/PROTOCOL.md §5–§6 and
+ * server/SERVER_CONTEXT.md "Netcode (server)".
+ *
+ * Nothing in the tick awaits: `runTick()` is synchronous; every async side effect goes through
+ * `background()`, which logs failures and never rethrows into the loop.
+ */
 import { redisStorage } from "../redisStorage";
-import { defaultPorts, goodTypes } from "./shipTypes";
 import { v4 as uuidv4 } from "uuid";
-import { MAP_WIDTH, MAP_HEIGHT, SHIP_TYPES, SHIP_STATS, GOODS, DEFAULT_PORTS } from "@shared/gameConstants";
-import { trackEvent, flushSegment } from "../segmentClient";
+import { GOODS, DEFAULT_PORTS } from "@shared/gameConstants";
+import { trackEvent, shutdownSegment } from "../segmentClient";
+import { World, TICK_MS, type WorldEffect, type WorldPlayer } from "./world";
+import { FixedStepLoop } from "./loop";
 
-export const TICK_RATE = 100; // ms (5 updates/second)
-export const BROADCAST_RATE = 100; // ms (5 updates/second)
+export type { PlayerState, WorldPlayer } from "./world";
+export { GRACE_PERIOD, GOLD_COLLECTION_RADIUS, GOLD_OBJECT_LIFETIME } from "./world";
+
 export const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 minutes
 export const MAX_PLAYERS = 1000;
-export const GRACE_PERIOD = 60000; // 1 minute
-export const GOLD_COLLECTION_RADIUS = 50;
-export const GOLD_OBJECT_LIFETIME = 60 * 1000; // 1 minute
+/** Skip a client's per-tick snapshot (never its events) while its socket buffer is above this. */
+export const MAX_BUFFERED_BYTES = 512 * 1024;
 
-export interface PlayerState {
-  id: string;
-  playerId: string;
-  name: string;
-  shipType: string;
-  x: number;
-  y: number;
-  z: number;
-  rotationY: number;
-  speed: number;
-  maxSpeed: number;
-  direction: { x: number, y: number, z: number };
-  hp: number;
-  maxHp: number;
-  gold: number;
-  cargoCapacity: number;
-  cargoUsed: number;
-  repairCost: number;
-  firing: boolean;
-  canFire: boolean;
-  lastFired: number;
-  reloadTime: number;
-  damage: number;
-  cannonCount: number;
-  sunk: boolean;
-  connected: boolean;
-  isActive: boolean;
-  lastSeen: number;
-  dead: boolean;
+/** Minimal socket surface we need (keeps this module free of a runtime `ws` import). */
+export interface ClientSocket {
+  readyState: number;
+  bufferedAmount?: number;
+  send(data: string): void;
 }
 
-export interface CannonBall {
-  id: string;
-  ownerId: string;
-  damage: number;
-  x: number;
-  y: number;
-  z: number;
-  direction: { x: number, y: number, z: number };
-  speed: number;
-  range: number;
-  created: number;
-}
+type LeaderboardRow = { id: number; playerId: string; playerName: string; score: number; achievedAt: Date };
 
-export interface GoldObject {
-  id: string;
-  x: number;
-  y: number;
-  z: number;
-  gold: number;
-  created: number;
-}
+const OPEN = 1;
 
-export interface GameStateData {
-  players: Record<string, PlayerState>;
-  cannonBalls: CannonBall[];
-  goldObjects: GoldObject[];
-  lastUpdate: number;
-  activeNames: Set<string>;
-  leaderboard: { id: number; playerId: string; playerName: string; score: number; achievedAt: Date }[];
+/** Run an async side effect without awaiting it; log (never throw) on failure. */
+export function background(label: string, work: () => Promise<unknown>): void {
+  try {
+    work().catch((err) => console.error(`[bg] ${label} failed:`, err));
+  } catch (err) {
+    console.error(`[bg] ${label} failed:`, err);
+  }
 }
 
 class GameState {
-  state: GameStateData;
-  private tickInterval: NodeJS.Timeout | null;
-  private broadcastInterval: NodeJS.Timeout | null;
-  private priceUpdateInterval: NodeJS.Timeout | null;
-  private connectedClients: Map<string, WebSocket>;
+  readonly world = new World();
+  state: { leaderboard: LeaderboardRow[] } = { leaderboard: [] };
+  private loop: FixedStepLoop;
+  private priceUpdateInterval: NodeJS.Timeout | null = null;
+  private readonly sockets = new Map<string, ClientSocket>();
+  private tickCount = 0;
+  private tickTimeTotal = 0;
 
   constructor() {
-    this.state = {
-      players: {},
-      cannonBalls: [],
-      goldObjects: [],
-      lastUpdate: Date.now(),
-      activeNames: new Set(),
-      leaderboard: [],
-    };
-    this.tickInterval = null;
-    this.broadcastInterval = null;
-    this.priceUpdateInterval = null;
-    this.connectedClients = new Map();
+    this.loop = new FixedStepLoop(() => this.runTick(), { stepMs: TICK_MS, maxCatchUp: 5 });
   }
 
   start() {
-    if (!this.tickInterval) {
-      this.tickInterval = setInterval(() => this.tick(), TICK_RATE);
-      console.log("Game tick started");
-    }
-    if (!this.broadcastInterval) {
-      this.broadcastInterval = setInterval(() => this.broadcast(), BROADCAST_RATE);
-      console.log("Game broadcast started");
+    if (!this.loop.running) {
+      this.loop.start();
+      console.log("Game tick started (20 Hz fixed step)");
     }
     if (!this.priceUpdateInterval) {
-      this.priceUpdateInterval = setInterval(() => this.updatePrices(), PRICE_UPDATE_INTERVAL);
+      this.priceUpdateInterval = setInterval(() => background("updatePrices", () => this.updatePrices()), PRICE_UPDATE_INTERVAL);
       console.log("Price updates started");
     }
   }
 
   stop() {
-    if (this.tickInterval) clearInterval(this.tickInterval);
-    if (this.broadcastInterval) clearInterval(this.broadcastInterval);
+    this.loop.stop();
     if (this.priceUpdateInterval) clearInterval(this.priceUpdateInterval);
-    this.tickInterval = this.broadcastInterval = this.priceUpdateInterval = null;
+    this.priceUpdateInterval = null;
     console.log("Game stopped");
   }
 
-  registerClient(playerId: string, ws: WebSocket) {
-    this.connectedClients.set(playerId, ws);
+  /** Player by id (live world object; mutations are visible to the next tick). */
+  getPlayer(id: string): WorldPlayer | undefined {
+    return this.world.getPlayer(id);
   }
 
-  removeClient(playerId: string) {
-    this.connectedClients.delete(playerId);
-    const player = this.state.players[playerId];
-    if (player) {
-      player.connected = false;
-      player.lastSeen = Date.now();
-    }
+  get playerCount(): number {
+    return this.world.players.size;
   }
 
-  async addPlayer(name: string, shipType: string, ship: any, tempPlayerId?: string) {
-    //console.log("addPlayer", name, shipType, ship);
+  /** Attach a socket to a player: starts its view (fresh known-set, seq tracking) and marks the
+   *  player connected. Replaces any previous socket for the same player. */
+  registerClient(playerId: string, ws: ClientSocket) {
+    this.sockets.set(playerId, ws);
+    this.world.setConnected(playerId, true);
+    this.world.attachClient(playerId);
+  }
+
+  /** Detach a player's socket. If `ws` is given, only detaches when it is still the registered
+   *  socket (a stale socket closing after a reconnect must not disconnect the new one). */
+  removeClient(playerId: string, ws?: ClientSocket) {
+    const current = this.sockets.get(playerId);
+    if (ws && current !== ws) return;
+    this.sockets.delete(playerId);
+    this.world.detachClient(playerId);
+    this.world.setConnected(playerId, false);
+  }
+
+  /** Name check against Redis, then create the player in the world. Null on name conflict. */
+  async addPlayer(name: string, shipType: string, _ship: unknown, tempPlayerId?: string): Promise<WorldPlayer | null> {
     const reservedPlayerId = await redisStorage.getActiveNamePlayerId(name);
     if (reservedPlayerId && reservedPlayerId !== tempPlayerId) {
       console.log(`Name conflict: ${name} is reserved with ID ${reservedPlayerId}, but tempPlayerId is ${tempPlayerId}`);
       return null;
     }
-    const x = Math.random() * MAP_WIDTH;
-    const z = Math.random() * MAP_HEIGHT;
-    //const x = 1194;
-    //const z = 5685;
-    const uuid = tempPlayerId || uuidv4();
-
-    const player: PlayerState = {
-      id: uuid,
-      playerId: uuid,
-      name,
-      shipType,
-      x,
-      y: 0,
-      z,
-      rotationY: 0,
-      speed: 0,
-      maxSpeed: ship.speed,
-      direction: { x: 0, y: 0, z: 1 },
-      hp: ship.hullStrength,
-      maxHp: ship.hullStrength,
-      gold: SHIP_STATS[shipType].startingGold,
-      cargoCapacity: ship.cargoCapacity,
-      cargoUsed: 0,
-      repairCost: ship.repairCost,
-      firing: false,
-      canFire: true,
-      lastFired: 0,
-      reloadTime: ship.cannonReload * 1000,
-      damage: ship.cannonDamage,
-      cannonCount: ship.cannonCount,
-      sunk: false,
-      connected: true,
-      isActive: true,
-      lastSeen: Date.now(),
-      dead: false,
-    };
-    this.state.players[uuid] = player;
-    return player;
+    return this.world.createPlayer({ id: tempPlayerId || uuidv4(), name, shipType });
   }
 
-  updatePlayer(id: string, update: Partial<PlayerState>) {
-    const player = this.state.players[id];
-    if (player && !player.sunk && !player.dead) {
-      if (update.rotationY !== undefined) player.rotationY = update.rotationY;
-      if (update.speed !== undefined) player.speed = Math.min(update.speed, this.getShipSpeed(player.shipType));
-      if (update.firing !== undefined) player.firing = update.firing;
-      if (update.direction) {
-        const magnitude = Math.sqrt(update.direction.x ** 2 + update.direction.y ** 2 + update.direction.z ** 2);
-        if (magnitude > 0) {
-          player.direction = {
-            x: update.direction.x / magnitude,
-            y: update.direction.y / magnitude,
-            z: update.direction.z / magnitude,
-          };
-        }
-      }
-      player.connected = true;
-      player.lastSeen = Date.now();
-    }
-  }
+  /** One fixed tick: step the world, send every attached client its messages, run effects. */
+  private runTick() {
+    const t0 = performance.now();
+    this.world.step();
 
-  fireCannonBall(playerId: string) {
-    const player = this.state.players[playerId];
-    if (!player || player.sunk || player.dead || !player.canFire) return;
-
-    const now = Date.now();
-    if (now - player.lastFired < player.reloadTime) return;
-
-    player.canFire = false;
-    player.lastFired = now;
-    setTimeout(() => {
-      if (this.state.players[playerId]) this.state.players[playerId].canFire = true;
-    }, player.reloadTime);
-
-    const shipType = this.state.players[playerId].shipType;
-    const cannonRange = this.getShipCannonRange(shipType);
-    const cannonDamage = this.getShipDamage(shipType);
-
-    for (let i = 0; i < player.cannonCount; i++) {
-      const offsetAngle = (i - (player.cannonCount - 1) / 2) * 0.1;
-      const angle = player.rotationY + Math.PI / 2 + offsetAngle;
-      const direction = { x: Math.sin(angle), y: 0, z: Math.cos(angle) };
-      const cannonBall: CannonBall = {
-        id: `${playerId}_${now}_${i}`,
-        ownerId: playerId,
-        damage: cannonDamage,
-        x: player.x + direction.x * 10,
-        y: 5,
-        z: player.z + direction.z * 10,
-        direction,
-        speed: 15,
-        range: cannonRange,
-        created: now,
-      };
-      this.state.cannonBalls.push(cannonBall);
-    }
-  }
-
-  private segmentIntersectsSphere(
-    p0: { x: number, y: number, z: number },
-    p1: { x: number, y: number, z: number },
-    center: { x: number, y: number, z: number },
-    r: number
-  ): boolean {
-    // d = p1 - p0
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    const dz = p1.z - p0.z;
-    // f = p0 - center
-    const fx = p0.x - center.x;
-    const fy = p0.y - center.y;
-    const fz = p0.z - center.z;
-
-    const a = dx * dx + dy * dy + dz * dz;
-    const b = 2 * (fx * dx + fy * dy + fz * dz);
-    const c = fx * fx + fy * fy + fz * fz - r * r;
-
-    const disc = b * b - 4 * a * c;
-    if (disc < 0) return false;            // no real roots → miss
-    const sqrtD = Math.sqrt(disc);
-    const t1 = (-b - sqrtD) / (2 * a);
-    const t2 = (-b + sqrtD) / (2 * a);
-    // if either intersection point lies between p0 (t=0) and p1 (t=1), it hit
-    return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1);
-  }
-
-  async tick() {
-    const now = Date.now();
-    const deltaTime = (now - this.state.lastUpdate) / 1000;
-    this.state.lastUpdate = now;
-
-    // handle player state updates
-    for (const playerId in this.state.players) {
-      const player = this.state.players[playerId];
-
-      // if the player has been dead for 15 seconds, remove them from the active names
-      if (player.dead && now - player.lastSeen > 15 * 1000) {
-        console.log(`Removing dead player ${player.name} (${playerId})`);
-        await redisStorage.removeActiveName(player.name);
-        delete this.state.players[playerId];
-        continue;
-      }
-
-      if (!player.connected && now - player.lastSeen > GRACE_PERIOD) {
-        // update the record in redis, and remove the player from the game state
-        console.log(`Removing disconnected player ${player.name} (${playerId})`);
-        await redisStorage.updatePlayerState(player);
-        delete this.state.players[playerId];
-        continue;
-      }
-
-      // old disconnect logic marked the player as dead, we're not doing that anymore
-      // if (!player.connected && !player.dead && now - player.lastSeen > GRACE_PERIOD) {
-      //   console.log(`Marking player ${player.name} (${playerId}) as dead`);
-      //   player.dead = true;
-      //   await redisStorage.addToLeaderboard({ playerId: player.playerId, playerName: player.name, score: player.gold, achievedAt: new Date() });
-      //   this.state.leaderboard = await redisStorage.getLeaderboard(10);
-      //   this.broadcastDead(playerId);
-      //   continue;
-      // }
-
-      if (player.sunk || player.dead) continue;
-
-      if (player.speed !== 0) {
-        player.x += player.direction.x * player.speed * deltaTime * 60;
-        player.z += player.direction.z * player.speed * deltaTime * 60;
-        player.x = (player.x % MAP_WIDTH + MAP_WIDTH) % MAP_WIDTH;
-        player.z = (player.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
-      }
-    }
-
-    // handle cannonball state updates
-    const cannonballs = this.state.cannonBalls;
-    for (let i = cannonballs.length - 1; i >= 0; i--) {
-      const ball = cannonballs[i];
-
-      // Skip if ball is null/undefined or has been removed
-      if (!ball || ball.ownerId === null || ball.x === null || ball.y === null || ball.z === null) {
-        continue;
-      }
-
-      // Store previous position before moving
-      const prevPos = { x: ball.x, y: ball.y, z: ball.z };
-
-      // Move the cannonball
-      ball.x += ball.direction.x * ball.speed * deltaTime * 60;
-      ball.y += ball.direction.y * ball.speed * deltaTime * 60;
-      ball.z += ball.direction.z * ball.speed * deltaTime * 60;
-      ball.x = (ball.x % MAP_WIDTH + MAP_WIDTH) % MAP_WIDTH;
-      ball.z = (ball.z % MAP_HEIGHT + MAP_HEIGHT) % MAP_HEIGHT;
-
-      if (now - ball.created > 3000) {
-        this.state.cannonBalls.splice(i, 1);
-        continue;
-      }
-
-      for (const playerId in this.state.players) {
-        const player = this.state.players[playerId];
-        if (!player || ball.ownerId === playerId || player.sunk || player.dead) continue;
-
-        // Use continuous collision detection
-        const newPos = { x: ball.x, y: ball.y, z: ball.z };
-        const shipCenter = { x: player.x, y: player.y, z: player.z };
-        const hitRadius = 20; // Same as before, but now used for sphere radius
-
-        if (this.segmentIntersectsSphere(prevPos, newPos, shipCenter, hitRadius)) {
-          const armorFactor = 1 - this.getShipArmor(player.shipType) / 100;
-          const damageDealt = Math.round(ball.damage * armorFactor);
-          //console.log("damageDealt", damageDealt);
-          player.hp -= damageDealt;
-          if (player.hp <= 0) {
-            player.hp = 0;
-            player.sunk = true;
-            await this.handlePlayerSunk(player);
-          }
-          this.state.cannonBalls.splice(i, 1);
+    this.sockets.forEach((ws, playerId) => {
+      if (ws.readyState !== OPEN) return;
+      // ent/gone + events first, snapshot `s` last.
+      const frames = this.world.buildFrames(playerId);
+      const congested = (ws.bufferedAmount ?? 0) > MAX_BUFFERED_BYTES;
+      const n = congested ? frames.length - 1 : frames.length;
+      for (let i = 0; i < n; i++) {
+        try {
+          ws.send(frames[i]);
+        } catch (err) {
+          console.error(`Error sending to ${playerId}:`, err);
           break;
         }
       }
+    });
+
+    const effects = this.world.drainEffects();
+    for (const e of effects) this.runEffect(e);
+
+    this.tickTimeTotal += performance.now() - t0;
+    if (++this.tickCount % (20 * 60) === 0) {
+      console.log(
+        `[tick] avg ${(this.tickTimeTotal / (20 * 60)).toFixed(2)} ms over 60 s, players=${this.world.players.size}, ` +
+          `sockets=${this.sockets.size}, balls=${this.world.balls.length}, dropped=${this.loop.dropped}`,
+      );
+      this.tickTimeTotal = 0;
     }
+  }
 
-    // Handle gold objects
-    for (let i = this.state.goldObjects.length - 1; i >= 0; i--) {
-      const gold = this.state.goldObjects[i];
-
-      // Check if gold object is expired (older than 1 minute)
-      if (now - gold.created > GOLD_OBJECT_LIFETIME) {
-        console.log("gold object expired", gold);
-        this.state.goldObjects.splice(i, 1);
-        continue;
-      }
-
-      // Check for player collisions
-      for (const playerId in this.state.players) {
-        const player = this.state.players[playerId];
-        if (player.sunk || player.dead) continue; // Skip sunk or dead players
-
-        const dx = Math.min(Math.abs(player.x - gold.x), MAP_WIDTH - Math.abs(player.x - gold.x));
-        const dz = Math.min(Math.abs(player.z - gold.z), MAP_HEIGHT - Math.abs(player.z - gold.z));
-        const distance = Math.sqrt(dx * dx + dz * dz);
-
-        if (distance < GOLD_COLLECTION_RADIUS) {
-          // update the player's gold in the game state
-          player.gold += gold.gold;
-          this.state.goldObjects.splice(i, 1); // Remove collected gold
-
-          // update the player's gold in redis
-          redisStorage.updatePlayerGold(playerId, player.gold);
-
-          // Track gold collection
-          trackEvent(playerId, 'Gold Collected', {
-            goldAmount: gold.gold,
-            newTotalGold: player.gold,
-            x: gold.x,
-            z: gold.z,
+  private runEffect(e: WorldEffect) {
+    switch (e.type) {
+      case "playerSunk":
+        background("playerSunk", async () => {
+          await redisStorage.addToLeaderboard({
+            playerId: e.playerId,
+            playerName: e.name,
+            score: e.gold,
+            achievedAt: new Date(),
           });
-          await flushSegment();
-
-          // Notify the collecting player immediately
-          const ws = this.connectedClients.get(playerId);
-          let message = {
-            type: "goldCollected",
-            gold: gold.gold,
-            newTotalGold: player.gold,
-            timestamp: now,
+          const raw = await redisStorage.getLeaderboard(10);
+          this.state.leaderboard = raw.map((entry) => ({ ...entry, playerId: entry.playerId ?? "" }));
+          console.log(`Player ${e.name} sunk with score ${e.gold}`);
+          trackEvent(e.playerId, "Player Sunk", { score: e.gold, gold: e.gold, x: e.x, z: e.z });
+          try {
+            await redisStorage.removePlayer(e.playerId);
+          } catch (err) {
+            // Not necessarily an error: the record may already have expired (TTL).
+            console.warn("Error removing player:", err);
           }
-          if (ws && ws.readyState === 1) {
-            ws.send(JSON.stringify(message));
-          }
-          break; // Exit player loop since gold was collected
+        });
+        break;
+      case "goldCollected":
+        background("goldCollected", () => redisStorage.updatePlayerGold(e.playerId, e.newTotalGold));
+        trackEvent(e.playerId, "Gold Collected", { goldAmount: e.gold, newTotalGold: e.newTotalGold, x: e.x, z: e.z });
+        break;
+      case "playerRemoved":
+        if (e.reason === "disconnected") {
+          console.log(`Removing disconnected player ${e.player.name} (${e.player.id})`);
+          background("persist removed player", () => redisStorage.updatePlayerState(e.player));
+        } else {
+          console.log(`Removing dead player ${e.player.name} (${e.player.id})`);
+          background("removeActiveName", () => redisStorage.removeActiveName(e.player.name));
         }
-      }
+        break;
     }
   }
 
-  broadcast() {
-    const clientEntries = Array.from(this.connectedClients.entries());
-    for (const [playerId, ws] of clientEntries) {
-      if (ws.readyState !== 1) continue;
-      const player = this.state.players[playerId];
-      if (!player) continue;
-
-      const nearbyPlayers: Record<string, PlayerState> = {};
-      Object.entries(this.state.players).forEach(([id, otherPlayer]) => {
-        if (id === playerId || !otherPlayer.dead) {
-          const dx = Math.min(Math.abs(player.x - otherPlayer.x), MAP_WIDTH - Math.abs(player.x - otherPlayer.x));
-          const dz = Math.min(Math.abs(player.z - otherPlayer.z), MAP_HEIGHT - Math.abs(player.z - otherPlayer.z));
-          const distance = Math.sqrt(dx * dx + dz * dz);
-          if (distance < 2000 || id === playerId) {
-            nearbyPlayers[id] = otherPlayer;
-          }
-        }
-      });
-
-      const nearbyCannonBalls = this.state.cannonBalls.filter((ball) => {
-        const dx = Math.min(Math.abs(player.x - ball.x), MAP_WIDTH - Math.abs(player.x - ball.x));
-        const dz = Math.min(Math.abs(player.z - ball.z), MAP_HEIGHT - Math.abs(player.z - ball.z));
-        return Math.sqrt(dx * dx + dz * dz) < 1000;
-      });
-
-      // Calculate nearby gold objects (within 1000 units)
-      //console.log("this.state.goldObjects:", this.state.goldObjects);
-      const nearbyGoldObjects = this.state.goldObjects.filter((gold) => {
-        const dx = Math.min(Math.abs(player.x - gold.x), MAP_WIDTH - Math.abs(player.x - gold.x));
-        const dz = Math.min(Math.abs(player.z - gold.z), MAP_HEIGHT - Math.abs(player.z - gold.z));
-        return Math.sqrt(dx * dx + dz * dz) < 1000;
-      });
-
-      try {
-        ws.send(JSON.stringify({
-          type: "gameUpdate",
-          players: nearbyPlayers,
-          cannonBalls: nearbyCannonBalls,
-          goldObjects: nearbyGoldObjects,
-          timestamp: Date.now(),
-        }));
-      } catch (err) {
-        console.error(`Error sending to ${playerId}:`, err);
-        this.removeClient(playerId);
-      }
-    }
+  /** Persist every in-world player (used on graceful shutdown). */
+  async persistAll(): Promise<void> {
+    const players = Array.from(this.world.players.values());
+    const results = await Promise.allSettled(
+      players.filter((p) => !p.sunk && !p.dead).map((p) => redisStorage.updatePlayerState({ ...p, lastSeen: Date.now() })),
+    );
+    const failed = results.filter((r) => r.status === "rejected").length;
+    console.log(`Persisted ${results.length - failed}/${results.length} players${failed ? ` (${failed} failed)` : ""}`);
   }
 
-  broadcastDead(playerId: string) {
-    const clientEntries = Array.from(this.connectedClients.entries());
-    for (const [_, ws] of clientEntries) {
-      if (ws.readyState === 1) {
-        ws.send(JSON.stringify({
-          type: "playerDead",
-          id: playerId,
-          players: this.state.players,
-          timestamp: Date.now(),
-        }));
-      }
-    }
+  /** Graceful shutdown: stop the loop, persist players, flush Segment. Sockets are closed by the caller. */
+  async shutdown(): Promise<void> {
+    this.stop();
+    await this.persistAll().catch((err) => console.error("persistAll failed:", err));
+    await shutdownSegment().catch((err) => console.error("Segment flush failed:", err));
   }
 
   async updatePrices() {
@@ -519,77 +243,7 @@ class GameState {
     }
   }
 
-  private getShipSpeed(shipType: string): number {
-    //console.log("ship type-speed", shipType, SHIP_STATS[shipType]?.speed);
-    return SHIP_STATS[shipType]?.speed || SHIP_STATS[SHIP_TYPES.SLOOP].speed;
-  }
-
-  private getShipArmor(shipType: string): number {
-    //console.log("ship type-armor", shipType, SHIP_STATS[shipType]?.armor);
-    return SHIP_STATS[shipType]?.armor || SHIP_STATS[SHIP_TYPES.SLOOP].armor;
-  }
-
-  private getShipCannonRange(shipType: string): number {
-    return SHIP_STATS[shipType]?.cannonRange || SHIP_STATS[SHIP_TYPES.SLOOP].cannonRange;
-  }
-
-  private getShipDamage(shipType: string): number {
-    return SHIP_STATS[shipType]?.cannonDamage || SHIP_STATS[SHIP_TYPES.SLOOP].cannonDamage;
-  }
-
-  private async handlePlayerSunk(player: PlayerState) {
-    try {
-      if (player.gold > 0) {
-
-        const goldObject: GoldObject = {
-          id: uuidv4(),
-          x: player.x,
-          y: player.y,
-          z: player.z,
-          gold: player.gold,
-          created: Date.now(),
-        };
-        //console.log("CREATING goldObject", goldObject);
-        this.state.goldObjects.push(goldObject);
-      }
-    } catch (e) {
-      console.error("Error handling sunk player:", e);
-    }
-    // add the player to the leaderboard
-    try {
-      const leaderboardEntry = await redisStorage.addToLeaderboard({
-        playerId: player.playerId,
-        playerName: player.name,
-        score: player.gold,
-        achievedAt: new Date()
-      });
-      const leaderboardRaw = await redisStorage.getLeaderboard(10);
-      const leaderboard = leaderboardRaw.map(entry => ({
-        ...entry,
-        playerId: entry.playerId ?? "", // or use a placeholder like "unknown"
-      }));
-      await this.updateLeaderboard(leaderboard);
-      console.log(`Player ${player.name} sunk with score ${player.gold}`);
-      // Track player sunk
-      trackEvent(player.playerId, 'Player Sunk', {
-        score: player.gold,
-        gold: player.gold,
-        x: player.x,
-        z: player.z,
-      });
-      await flushSegment();
-    } catch (err) {
-      console.error("Error handling sunk player:", err);
-    }
-
-    try {
-      await redisStorage.removePlayer(player.playerId);
-    } catch (err) {
-      console.warn("Error removing player:", err); // This is not necessarily an error, it's just that the player is not in the database, which can be from TTL
-    }
-  }
-
-  async updateLeaderboard(leaderboard: { id: number; playerId: string; playerName: string; score: number; achievedAt: Date }[]) {
+  async updateLeaderboard(leaderboard: LeaderboardRow[]) {
     this.state.leaderboard = leaderboard;
   }
 }
