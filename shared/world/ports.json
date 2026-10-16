@@ -1,0 +1,515 @@
+[
+  {
+    "id": "port_royal",
+    "name": "Port Royal",
+    "lat": 17.94,
+    "lon": -76.84,
+    "nation": "england",
+    "region": "caribbean",
+    "x": 114575.2,
+    "z": 80053.7,
+    "dock": {
+      "x": 114672.9,
+      "z": 80151.4
+    },
+    "spawn": {
+      "x": 114721.7,
+      "z": 80249
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "havana",
+    "name": "Havana",
+    "lat": 23.14,
+    "lon": -82.36,
+    "nation": "spain",
+    "region": "caribbean",
+    "x": 108488.9,
+    "z": 74288.9,
+    "dock": {
+      "x": 108471.7,
+      "z": 74145.5
+    },
+    "spawn": {
+      "x": 108471.7,
+      "z": 74096.7
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "cartagena",
+    "name": "Cartagena",
+    "lat": 10.42,
+    "lon": -75.55,
+    "nation": "spain",
+    "region": "caribbean",
+    "x": 116088.9,
+    "z": 88452.1,
+    "dock": {
+      "x": 115991.2,
+      "z": 88354.5
+    },
+    "spawn": {
+      "x": 115893.6,
+      "z": 88354.5
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "veracruz",
+    "name": "Veracruz",
+    "lat": 19.2,
+    "lon": -96.13,
+    "nation": "spain",
+    "region": "caribbean",
+    "x": 93188.9,
+    "z": 78666.7,
+    "dock": {
+      "x": 93335,
+      "z": 78686.5
+    },
+    "spawn": {
+      "x": 93383.8,
+      "z": 78637.7
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "nassau",
+    "name": "Nassau",
+    "lat": 25.08,
+    "lon": -77.34,
+    "nation": "pirates",
+    "region": "caribbean",
+    "x": 114066.7,
+    "z": 72133.3,
+    "dock": {
+      "x": 114086.9,
+      "z": 71997.1
+    },
+    "spawn": {
+      "x": 114086.9,
+      "z": 71948.2
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "tortuga",
+    "name": "Tortuga",
+    "lat": 20.03,
+    "lon": -72.8,
+    "nation": "pirates",
+    "region": "caribbean",
+    "x": 119116.2,
+    "z": 77710,
+    "dock": {
+      "x": 119116.2,
+      "z": 77563.5
+    },
+    "spawn": {
+      "x": 119116.2,
+      "z": 77514.6
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "bridgetown",
+    "name": "Bridgetown",
+    "lat": 13.1,
+    "lon": -59.62,
+    "nation": "england",
+    "region": "caribbean",
+    "x": 133764.6,
+    "z": 85424.8,
+    "dock": {
+      "x": 133667,
+      "z": 85522.5
+    },
+    "spawn": {
+      "x": 133618.2,
+      "z": 85571.3
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "san_juan",
+    "name": "San Juan",
+    "lat": 18.47,
+    "lon": -66.11,
+    "nation": "spain",
+    "region": "caribbean",
+    "x": 126538.1,
+    "z": 79516.6,
+    "dock": {
+      "x": 126538.1,
+      "z": 79370.1
+    },
+    "spawn": {
+      "x": 126538.1,
+      "z": 79321.3
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "willemstad",
+    "name": "Willemstad",
+    "lat": 12.11,
+    "lon": -68.93,
+    "nation": "netherlands",
+    "region": "caribbean",
+    "x": 123411.1,
+    "z": 86544.4,
+    "dock": {
+      "x": 123315.4,
+      "z": 86645.5
+    },
+    "spawn": {
+      "x": 123266.6,
+      "z": 86694.3
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "saint_pierre",
+    "name": "Saint-Pierre",
+    "lat": 14.74,
+    "lon": -61.18,
+    "nation": "france",
+    "region": "caribbean",
+    "x": 132055.7,
+    "z": 83618.2,
+    "dock": {
+      "x": 131909.2,
+      "z": 83667
+    },
+    "spawn": {
+      "x": 131860.4,
+      "z": 83715.8
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "charleston",
+    "name": "Charleston",
+    "lat": 32.78,
+    "lon": -79.93,
+    "nation": "england",
+    "region": "north_atlantic",
+    "x": 111157.2,
+    "z": 63598.6,
+    "dock": {
+      "x": 111401.4,
+      "z": 63696.3
+    },
+    "spawn": {
+      "x": 111450.2,
+      "z": 63745.1
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "boston",
+    "name": "Boston",
+    "lat": 42.36,
+    "lon": -71.05,
+    "nation": "england",
+    "region": "north_atlantic",
+    "x": 121055.6,
+    "z": 52933.3,
+    "dock": {
+      "x": 121362.3,
+      "z": 52905.3
+    },
+    "spawn": {
+      "x": 121508.8,
+      "z": 52905.3
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "lisbon",
+    "name": "Lisbon",
+    "lat": 38.71,
+    "lon": -9.14,
+    "nation": "portugal",
+    "region": "europe",
+    "x": 189868.2,
+    "z": 56958,
+    "dock": {
+      "x": 189575.2,
+      "z": 57153.3
+    },
+    "spawn": {
+      "x": 189526.4,
+      "z": 57202.1
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "cadiz",
+    "name": "Cádiz",
+    "lat": 36.53,
+    "lon": -6.29,
+    "nation": "spain",
+    "region": "europe",
+    "x": 193042,
+    "z": 59448.2,
+    "dock": {
+      "x": 192895.5,
+      "z": 59448.2
+    },
+    "spawn": {
+      "x": 192797.9,
+      "z": 59497.1
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "seville",
+    "name": "Seville",
+    "lat": 37.39,
+    "lon": -5.99,
+    "nation": "spain",
+    "region": "europe",
+    "x": 192944.3,
+    "z": 58764.6,
+    "dock": {
+      "x": 192700.2,
+      "z": 59057.6
+    },
+    "spawn": {
+      "x": 192602.5,
+      "z": 59106.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "london",
+    "name": "London",
+    "lat": 51.51,
+    "lon": -0.08,
+    "nation": "england",
+    "region": "europe",
+    "x": 200366.2,
+    "z": 42749,
+    "dock": {
+      "x": 201147.5,
+      "z": 42797.9
+    },
+    "spawn": {
+      "x": 201342.8,
+      "z": 42749
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "bristol",
+    "name": "Bristol",
+    "lat": 51.45,
+    "lon": -2.59,
+    "nation": "england",
+    "region": "europe",
+    "x": 196557.6,
+    "z": 42749,
+    "dock": {
+      "x": 195874,
+      "z": 42944.3
+    },
+    "spawn": {
+      "x": 195581.1,
+      "z": 42895.5
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "amsterdam",
+    "name": "Amsterdam",
+    "lat": 52.37,
+    "lon": 4.9,
+    "nation": "netherlands",
+    "region": "europe",
+    "x": 205444.4,
+    "z": 41811.1,
+    "dock": {
+      "x": 204907.2,
+      "z": 41674.8
+    },
+    "spawn": {
+      "x": 204809.6,
+      "z": 41626
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "saint_malo",
+    "name": "Saint-Malo",
+    "lat": 48.65,
+    "lon": -2.03,
+    "nation": "france",
+    "region": "europe",
+    "x": 197729.5,
+    "z": 45971.7,
+    "dock": {
+      "x": 197680.7,
+      "z": 45825.2
+    },
+    "spawn": {
+      "x": 197631.8,
+      "z": 45776.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "elmina",
+    "name": "Elmina",
+    "lat": 5.08,
+    "lon": -1.35,
+    "nation": "netherlands",
+    "region": "africa",
+    "x": 198461.9,
+    "z": 94360.4,
+    "dock": {
+      "x": 198559.6,
+      "z": 94458
+    },
+    "spawn": {
+      "x": 198608.4,
+      "z": 94506.8
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "cape_town",
+    "name": "Cape Town",
+    "lat": -33.92,
+    "lon": 18.42,
+    "nation": "netherlands",
+    "region": "africa",
+    "x": 220466.7,
+    "z": 137688.9,
+    "dock": {
+      "x": 220385.7,
+      "z": 137573.2
+    },
+    "spawn": {
+      "x": 220288.1,
+      "z": 137573.2
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "sainte_marie",
+    "name": "Île Sainte-Marie",
+    "lat": -16.99,
+    "lon": 49.85,
+    "nation": "pirates",
+    "region": "indian_ocean",
+    "x": 255388.9,
+    "z": 118877.8,
+    "dock": {
+      "x": 255249,
+      "z": 118872.1
+    },
+    "spawn": {
+      "x": 255200.2,
+      "z": 119018.6
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "goa",
+    "name": "Goa",
+    "lat": 15.5,
+    "lon": 73.83,
+    "nation": "portugal",
+    "region": "indian_ocean",
+    "x": 282055.7,
+    "z": 82788.1,
+    "dock": {
+      "x": 281909.2,
+      "z": 82788.1
+    },
+    "spawn": {
+      "x": 281860.4,
+      "z": 82836.9
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "batavia",
+    "name": "Batavia",
+    "lat": -6.13,
+    "lon": 106.81,
+    "nation": "netherlands",
+    "region": "east_asia",
+    "x": 318677.8,
+    "z": 106811.1,
+    "dock": {
+      "x": 318676.8,
+      "z": 106616.2
+    },
+    "spawn": {
+      "x": 318676.8,
+      "z": 106567.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "macau",
+    "name": "Macau",
+    "lat": 22.19,
+    "lon": 113.54,
+    "nation": "portugal",
+    "region": "east_asia",
+    "x": 326098.6,
+    "z": 75317.4,
+    "dock": {
+      "x": 326196.3,
+      "z": 75415
+    },
+    "spawn": {
+      "x": 326245.1,
+      "z": 75463.9
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "manila",
+    "name": "Manila",
+    "lat": 14.59,
+    "lon": 120.97,
+    "nation": "spain",
+    "region": "east_asia",
+    "x": 334411.1,
+    "z": 83788.9,
+    "dock": {
+      "x": 334008.8,
+      "z": 84057.6
+    },
+    "spawn": {
+      "x": 333862.3,
+      "z": 84106.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "acapulco",
+    "name": "Acapulco",
+    "lat": 16.85,
+    "lon": -99.89,
+    "nation": "spain",
+    "region": "americas_pacific",
+    "x": 88989.3,
+    "z": 81274.4,
+    "dock": {
+      "x": 88891.6,
+      "z": 81372.1
+    },
+    "spawn": {
+      "x": 88842.8,
+      "z": 81420.9
+    },
+    "safeRadius": 600
+  }
+]

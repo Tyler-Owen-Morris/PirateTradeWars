@@ -11,6 +11,7 @@
     "test": "vitest run",
     "bots": "tsx scripts/bots.ts",
     "test:bots": "tsx scripts/run-bot-test.ts",
+    "world:build": "tsx scripts/world/build-world.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

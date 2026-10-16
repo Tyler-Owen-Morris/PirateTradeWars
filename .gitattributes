@@ -1,0 +1,4 @@
+# Generated world data (scripts/world/build-world.ts). Keep bytes exactly as generated so the
+# content hashes in shared/world/versions.json match on every checkout (Windows autocrlf included).
+client/public/world/** -text
+shared/world/*.json text eol=lf
