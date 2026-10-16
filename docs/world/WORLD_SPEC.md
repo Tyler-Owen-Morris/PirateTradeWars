@@ -142,3 +142,4 @@ export interface TileSource { get(tx: number, ty: number): Int8Array | 'water' |
   - Lanes need only 80 units of clearance within 2,500 units of a dock.
   - There are 27 ports.
   - `shared/world/versions.json` holds the content hashes; use the ports hash as `portsVersion`.
+- 2026-10-16 (producer, after Q1 B1): the §4.3 slide is too strong. Applying the cosine factor on every substep compounds it 180 times a second, so a 45° glancing hit leaves about 0.1× speed. **Intent:** a glancing hit keeps the tangential speed. Clamp `|velocity|` to at most `maxSpeed·sqrt(1 − hn²)` once per contact, where hn = cos(angle between heading and the coast normal). Don't multiply per substep. A head-on hit still ends near 0.
