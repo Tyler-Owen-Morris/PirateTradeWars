@@ -21,6 +21,8 @@ import * as THREE from "three";
 import { CannonBalls } from "./CannonBall";
 import { Fog } from "./Fog";
 import { GoldObject } from "./GoldObject";
+import { Terrain } from "./Terrain";
+import { LandSplashes } from "./LandSplashes";
 import { net, type ControlState } from "@/lib/net";
 import { CameraFollow } from "@/lib/cameraFollow";
 import { renderFocus, CAMERA_FAR } from "@/lib/world/renderSpace";
@@ -111,6 +113,12 @@ export function GameScene({ controlsRef }: GameSceneProps) {
 
           {/* Camera-following plane; waves anchored to the world (see Ocean.tsx) */}
           <Ocean size={2 * (CAMERA_FAR + 500)} />
+
+          {/* Land chunks from the SDF tiles + polar ice (lib/world/terrain.ts, ice.ts) */}
+          <Terrain />
+
+          {/* Dust where cannonballs hit land (net "splash" events) */}
+          <LandSplashes />
 
           <Ports />
 

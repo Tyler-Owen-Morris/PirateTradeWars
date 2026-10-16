@@ -7,7 +7,7 @@ import { useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
-import { toRender, inRenderRange } from '@/lib/world/renderSpace';
+import { toRender, inRenderRange, PARKED_Y } from '@/lib/world/renderSpace';
 
 interface GoldObjectProps {
     id: string;
@@ -46,7 +46,7 @@ export function GoldObject({ x, y = 0, z, gold }: GoldObjectProps) {
     });
 
     return (
-        <group ref={rootRef} position={[0, -10000, 0]}>
+        <group ref={rootRef} position={[0, PARKED_Y, 0]}>
             {/* Coin Mesh */}
             <mesh ref={coinRef} position={[position[0], position[1] + 20, position[2]]}>
                 <cylinderGeometry args={[20, 20, 3, 62]} /> {/* Larger, thicker coin */}

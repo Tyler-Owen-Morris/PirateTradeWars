@@ -186,10 +186,50 @@ Nothing is drawn at raw world coordinates. `lib/world/renderSpace.ts` (unit-test
   frame. Its shader is patched so each of the four normal-map lookups gets
   `uOffN = fract(travel / divisorN)` (computed in float64 on the CPU): waves stay anchored to the
   world instead of swimming with the plane, with no precision loss over long sessions.
-- World constants (`WORLD_C` 400000, `WORLD_H` 200000, `metricX`, ice lines) are currently local to
-  renderSpace.ts with a `TODO(W1)`: switch to `shared/world/geo` once it exists.
+- World constants (`WORLD_C`, `WORLD_H`, `Z_ICE_N/S`, `metricX`, `wrappedDelta`) come from
+  `shared/world/geo` and are re-exported by renderSpace.ts. `PARKED_Y` = where objects wait before
+  their first placement.
+- `CameraFollow` works purely in render space (no map wrap): `shiftOrigin(shift)` then
+  `update(0, 0, heading, dt)`.
 - Any new world object: put it in a group and set its position from `toRender` in useFrame. Never
   use raw x/z as a Three position.
+
+## Terrain, shore, ice, land splashes (WORLD_SPEC §4, §7)
+
+Data: `clientLand` (`lib/world/landTiles.ts`, W1) loads SDF tiles around the ship (the net layer
+calls `clientLand.update`); `clientLand.field` is the `LandField`, `clientLand.version` bumps when a
+tile arrives. Everything below is unit-tested in `lib/world/__tests__/terrain.test.ts`, including a
+frame-budget test on the real generated tiles (Jamaica, English Channel: < 0.2 ms/frame average,
+≈ 2 ms worst frame in node).
+- `components/game/Terrain.tsx` owns a `TerrainManager` + `PolarIce` and updates both each frame
+  from `renderFocus`. `?terrainStats=1` logs build stats, focus and camera every 2 s.
+- `lib/world/terrainHeight.ts`: SDF → height/colour. Coast (d = 0) sits exactly at the waterline
+  (`WATER_Y` = −10, the ocean plane), then beach (≤ 3 u over 40 u), gentle inland rise, low fractal
+  hills from ~60 u inland; colours sand → grass/forest (noise mask) → rock (high/steep). Noise
+  lattices divide WORLD_C, so it is seamless across the x wrap.
+- `lib/world/terrain.ts` `TerrainManager`: chunks of 16 × 16 SDF px (781.25 u, always inside one
+  tile). Geometry is in chunk-local coordinate units; the vertex shader (`RENDER_TRANSFORM_GLSL`)
+  maps it to render space from per-chunk uniforms computed in float64 (`uOrigin` = wrappedDelta
+  to the chunk origin and z offset, `uChunkZ0`), with metricX per vertex: the same formula as
+  `toRender`. LOD 33/17/9 vertices per side by metric distance (< 900 / < 1900 / beyond), skirts hide
+  LOD cracks, chunks within `VIEW_DISTANCE` (2800 u) kept, disposed beyond +600. All-water tiles and
+  chunks with every sample > 60 u of water build nothing. Builds are time-sliced nearest-first
+  (`DEFAULT_BUDGET_MS` 1 ms, at least one per frame; LOD0 build ≈ 0.4 ms). Chunks built while tiles
+  were missing are rebuilt when `clientLand.version` changes. Terrain stops ~1500 u beyond the ice
+  lines.
+- `lib/world/shoreField.ts` `ShoreField`: a 256² Uint8 grid of `field.distance` (incl. ice) covering
+  ±3000 u around the ship, anchored in travel space, rebuilt in 16-row slices into a back buffer when
+  the ship has moved 500 u or tiles changed. `Ocean.tsx` uploads it as an R8 texture and its patched
+  Water shader tints water turquoise within ~220 u of a coast and draws a moving surf-foam band in the
+  first ~20 u.
+- `lib/world/ice.ts` `PolarIce`: the ice lines are constant-z lines, so in render space each is a
+  straight line at `rz = Z_ICE − F.z` with constant metricX (cos 70°). One rigid wall mesh (jagged,
+  flat-shaded, face never on the water side of the physics line) plus a pack-ice plane with a
+  tileable Voronoi floe texture, per pole (the south one mirrored). The pattern period divides the
+  ice-line circumference and the mesh is shifted by −(s_F mod period) so the ice stays world-anchored.
+- `components/game/LandSplashes.tsx`: dust cloud + debris (2 InstancedMeshes, pool of 24) on net
+  `splash` events with `land: 1`, projected with `toRender`.
+- Port towns / the old decorative island .glb in `Port.tsx` belong to W4 (ports card).
 
 ## Input Handling
 
