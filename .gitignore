@@ -7,3 +7,4 @@ vite.config.ts.*
 .env
 .github/workflows/deploy-infra.yml
 .claude/worktrees/
+scripts/world/.cache/
