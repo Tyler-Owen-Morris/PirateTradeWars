@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useGameState } from '@/lib/stores/useGameState';
 import { PlayerState, Port } from '@/types';
 import { Progress } from './progress';
-import { Compass, Anchor, ChevronsRight, Coins, Skull } from 'lucide-react';
+import { Anchor, ChevronsRight, Coins, Skull } from 'lucide-react';
 import { Button } from './button';
 import {
   Dialog,
@@ -39,24 +39,8 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
   const { gameState } = useGameState();
   const { isSunk } = useGameState();
   const player = gameState.player;
-  const [nearestPort, setNearestPort] = useState<Port | null>(null);
-  const [distance, setDistance] = useState<number>(0);
   const [goldAnimations, setGoldAnimations] = useState<GoldAnimation[]>([]);
   const [prevGold, setPrevGold] = useState<number | null>(null);
-
-  // Update nearest port info
-  useEffect(() => {
-    if (player) {
-      const port = useGameState.getState().getNearestPort();
-      if (port) {
-        setNearestPort(port);
-        const dist = useGameState.getState().calculateDistance(
-          player.x, player.z, port.x, port.z
-        );
-        setDistance(Math.round(dist));
-      }
-    }
-  }, [player?.x, player?.z, gameState.ports]);
 
   // Track gold changes and create animations
   useEffect(() => {
@@ -167,7 +151,7 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
         </div>
       </div>
 
-      {/* Compass and navigation */}
+      {/* Actions */}
       <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 flex flex-col gap-1 sm:gap-2">
         {/* Fire Button */}
         <button
@@ -178,24 +162,7 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
           Fire Cannons
         </button>
 
-        <div className="bg-black/50 p-2 sm:p-3 rounded-md text-white">
-          <div className="flex items-center">
-            <Compass className="h-4 w-4 sm:h-5 sm:w-5 mr-1 sm:mr-2" />
-            <div>
-              {nearestPort ? (
-                <div>
-                  <div className="text-[0.6rem] sm:text-xs opacity-70">Nearest Port</div>
-                  <div className="font-bold text-sm sm:text-base">{nearestPort.name}</div>
-                  <div className="text-[0.6rem] sm:text-xs">
-                    <span className="opacity-70">Distance:</span> {distance} units
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm sm:text-base">No ports in range</div>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* Target port / compass now live in CompassHUD (top centre) */}
 
         {/* Scuttle Ship Button + modal */}
         {player && !isSunk && (
