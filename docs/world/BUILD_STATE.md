@@ -22,7 +22,7 @@ Producer: Claude (main session). Approved by Theo on 2026-10-16: the wrapping-Ea
 ## Cards
 | ID | Card | Phase | Owner | Branch | Status | Next step |
 |----|------|-------|-------|--------|--------|-----------|
-| W1 | Coordinates and physics: geo.ts, metric motion, land.ts (LandField), no-damage collision in stepShip, sparse grid and metric distances in world.ts, ball-on-land, client net (prediction, interpolation, cannonballs), server tile loading, tests | 1 | agent (opus) | worktree | in-progress | see progress/W1.md |
+| W1 | Coordinates and physics: geo.ts, metric motion, land.ts (LandField), no-damage collision in stepShip, sparse grid and metric distances in world.ts, ball-on-land, client net (prediction, interpolation, cannonballs), server tile loading, tests | 1 | agent (opus) | merged | done | — |
 | W2 | World data pipeline: Natural Earth → SDF tiles and manifest, ports.json (~25 real ports with dock and spawn), lanes.json, world map texture; generator script plus generated artifacts | 1 | agent (opus) | merged | done | — |
 | W3 | Rendering: floating origin for every object, camera-following ocean, then terrain chunks from SDF tiles (beach, grass, forest, rock), surf and shallow tint, ice wall, land splash effect | 1 (terrain after W1 and W2 merge) | agent (opus) | worktree-agent-a5da9a58c12c71d40 | Part A done (3eb543d), held | merge together with W1; then resume Part B terrain |
 | NPC1 | NPC core: controller field and guards in World, ent fields, steering→input, brain (state machine plus utility), threat table, faction model and static matrix, archetypes, LOD tiers and director skeleton, unit tests | 1 | agent (opus) | worktree | in-progress | see progress/NPC1.md |
@@ -36,3 +36,4 @@ Producer: Claude (main session). Approved by Theo on 2026-10-16: the wrapping-Ea
 - 2026-10-16 Launched W1, W2, W3 (Part A floating origin; Part B terrain waits for W1+W2 merge), NPC1 in parallel worktrees (all opus).
 - 2026-10-16 W3 Part A done (3eb543d, floating origin + camera-following ocean, 123 tests, build, bots PASS). Held unmerged: client assumes C=400000, must merge together with W1. Reconcile its local geo constants (TODO(W1)) after W1.
 - 2026-10-16 W2 merged into main (6f1f300+f1c1d0a): 27 ports, 75 lanes, 1.47 MiB gzipped tiles (version fb6d8abef3), map PNGs; 125 tests pass. Told W1 about gzip encoding. Spec clarifications appended.
+- 2026-10-16 W1 merged (d2f8c4e) then W3 part A merged, no conflicts. main: 173 tests pass, build OK. W1 bots PASS on real land. Launching phase 2: W3 part B (terrain), W4 (ports), W5 (navigation UI). NPC2 waits for NPC1.
