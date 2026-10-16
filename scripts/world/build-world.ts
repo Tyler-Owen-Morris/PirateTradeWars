@@ -37,9 +37,9 @@ const CHECK_ONLY = process.argv.includes("--check");
 /** Natural Earth 5.1.2 (pinned tag). sha256 recorded so a silent upstream change is noticed. */
 const NE_TAG = "v5.1.2";
 const SOURCES = {
-  ne_10m_land: "",
-  ne_50m_land: "",
-  ne_10m_minor_islands: "",
+  ne_10m_land: "1ac90796408bc6ad6911d69448485d3c4dbf2190370080368a09976e1c9f7416",
+  ne_50m_land: "e874b27a51d146452be360cafb3cc50c86001074a67d534113e6534682f9826b",
+  ne_10m_minor_islands: "8c933ca7a4760256bdc46408355706e39764b0fa01c160c28888b90b4faec29f",
 } as Record<string, string>;
 const neUrl = (name: string) =>
   `https://raw.githubusercontent.com/nvkelso/natural-earth-vector/${NE_TAG}/geojson/${name}.geojson`;
