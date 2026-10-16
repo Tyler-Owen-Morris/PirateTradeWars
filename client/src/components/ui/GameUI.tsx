@@ -9,6 +9,9 @@ import { Button } from "./button";
 import { Volume2, VolumeX, HelpCircle, Map, Skull, Sliders, QrCode } from "lucide-react";
 import { HelpTooltip } from "./HelpTooltip";
 import { Minimap } from "./Minimap";
+import { portPoint } from "@/lib/nav";
+import { WorldMap } from "./WorldMap";
+import { CompassHUD } from "./CompassHUD";
 import { ToastContainer } from "./TradingToast";
 import {
   Dialog,
@@ -48,6 +51,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
+  const [showWorldMap, setShowWorldMap] = useState(false);
   const { isSunk, gameState } = useGameState();
   const {
     isMuted,
@@ -95,6 +99,11 @@ export default function GameUI({ controlsRef }: GameUIProps) {
         setShowControls((prev) => !prev);
       }
 
+      if ((e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement | null)?.tagName;
+        if (tag !== "INPUT" && tag !== "TEXTAREA") setShowWorldMap((prev) => !prev);
+      }
+
       if (e.key === "t" || e.key === "T") {
         startTrade();
       };
@@ -138,8 +147,8 @@ export default function GameUI({ controlsRef }: GameUIProps) {
             .calculateDistance(
               player.x,
               player.z,
-              nearestPort.x,
-              nearestPort.z,
+              portPoint(nearestPort).x,
+              portPoint(nearestPort).z,
             );
           const message = `Too far from ${nearestPort.name} (${Math.round(distance)} units away). Sail closer to trade!`;
           console.log(message);
@@ -157,6 +166,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
 
   return (
     <>
+      <CompassHUD onOpenMap={() => setShowWorldMap(true)} />
       <HUD controlsRef={controlsRef} onShowLeaderboard={() => setShowLeaderboard(true)} />
       {showLeaderboard && <div onClick={() => setShowLeaderboard(false)}><Leaderboard /></div>}
       <ToastContainer />
@@ -261,6 +271,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
         </DropdownMenu>
       </div>
 
+      {showWorldMap && <WorldMap onClose={() => setShowWorldMap(false)} />}
       {showMinimap && gameState.player && <Minimap toggleMinimap={toggleMinimap} />}
 
       {/* Request to Trade */}
