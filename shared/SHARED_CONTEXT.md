@@ -6,7 +6,20 @@ The shared directory contains code and types that are used by both the client an
 ## Directory Structure
 
 - `/shared/` - Shared code
-  - `schema.ts` - Database schema and type definitions
+  - `schema.tsx` - Database schema and type definitions
+  - `gameConstants.ts` - Map size, ship stats, goods, ports
+  - `physics.ts` - Deterministic ship/cannonball simulation used by BOTH server (authoritative 20 Hz
+    tick) and client (prediction). `stepShip(state, input, stats)`, wrap/angle helpers
+    (`wrap`, `wrappedDelta`, `wrappedDistSq`, `lerpWrapped`, `lerpAngle`, `normalizeAngle`),
+    `spawnBroadside`, `ballPositionAt`, `stepBall`, `segmentHitsCircle`. Pure, no deps beyond
+    `./gameConstants`. Units: speed = units per 1/60 s, negative velocity = forward (W).
+  - `protocol.ts` - WebSocket message types (`ClientMessage`, `ServerMessage`), snapshot entity rows
+    (`packEntityRow`/`unpackEntityRow`), flag bits, netcode constants (interest radius, grid cell,
+    interpolation delay, input queue cap) and `parseClientMessage` (validates/clamps untrusted frames).
+  - `__tests__/` - vitest unit tests (`npm test`).
+
+The netcode contract is `docs/netcode/PROTOCOL.md`; `physics.ts` and `protocol.ts` implement it.
+Keep both files free of imports from `client/` or `server/` (they are bundled by Vite and esbuild).
 
 ## Database Schema
 
