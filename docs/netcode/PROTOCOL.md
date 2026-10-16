@@ -1,0 +1,104 @@
+# Netcode Protocol & Simulation Spec (Wave 1)
+
+This is the contract between `shared/`, `server/` and `client/`. Cards N1–N4 implement it. If an
+implementer must deviate, they write the deviation into their progress file AND update this doc.
+
+## 1. Why (bugs this fixes)
+- Split worlds: EB scaled to up to 4 instances, each with its own in-memory world → card A pins to 1.
+- Client and server ran **different physics**: client `Player.tsx` used accel/drag (W = half speed),
+  `GameScene.tsx` sent W = `-maxSpeed`, S = `+maxSpeed/2`, and the server applied the speed instantly.
+- `Player.tsx` `useEffect` snapped the local ship to every server update (rubber-banding).
+- `OtherShips` lerped toward the latest packet and `<Ship position=…>` re-applied raw positions each render.
+- Server `tick()` was `async` and awaited Redis + Segment mid-loop under `setInterval` → overlapping/stalled ticks.
+- Disconnected ships kept their speed for the 60s grace period (ghost ships).
+- 10Hz full-`PlayerState` JSON to everyone within 2000 units (leaks gold/cargo), O(N²).
+- `client/src/lib/stores/useSocket.tsx` imported `server/game/gameState` into the client bundle.
+
+## 2. Simulation (shared/physics.ts) — identical on client and server
+- Fixed step: `TICK_HZ = 20`, `TICK_DT = 0.05` s. Server runs exactly one step per tick.
+  Inside a step, physics may sub-step at 1/60 s (3 sub-steps) for feel; must be deterministic given inputs.
+- Units keep the existing convention: speeds are "units per 1/60 s"; displacement = velocity * dt * 60.
+- Ship kinematic state: `{ x, z, rotationY, velocity }`. Heading vector = `(sin(rotationY), cos(rotationY))`
+  (i.e. `(0,0,1)` rotated about Y, same as today). Position += heading * velocity * dt * 60.
+- **Sign convention (preserved from the live game):** negative velocity = sailing forward (W key).
+  W/Up = full ahead → target velocity `-maxSpeed`. S/Down = reverse → target `+maxSpeed * 0.5`.
+  No throttle → decay to 0 with drag. Accelerate toward target (use the old Player.tsx constants as a
+  starting point: accel 0.15/frame forward, 0.1/frame reverse, drag 0.97 + decel 0.03/frame).
+- Rudder: A/Left = +turn, D/Right = −turn, `TURN_SPEED = 0.05` rad per 1/60 s (= 3 rad/s), as today.
+- World wraps: `MAP_WIDTH`/`MAP_HEIGHT` from `shared/gameConstants.ts` (10000). Provide helpers:
+  `wrap(v, size)`, `wrappedDelta(a, b, size)` (shortest signed delta), `wrappedDistSq(ax, az, bx, bz)`,
+  `lerpWrapped(a, b, t, size)`, `lerpAngle(a, b, t)`.
+- `stepShip(state, input, stats) → state` is a pure function. Unit tested for determinism and wrapping.
+- Cannonballs: `stepBall`, speed 15 units/(1/60 s), lifetime 3000 ms, spawn rule identical to today's
+  `fireCannonBall` (cannonCount balls, spread 0.1 rad, broadside `rotationY + π/2`, 10 units out).
+  Position of a ball at time t is analytic: `p0 + dir * speed * 60 * t` (wrapped) — clients simulate locally.
+
+## 3. Transport
+- Same endpoint: WebSocket `/game-ws` (ws library), JSON text frames. Binary is a Wave 2 concern.
+- Heartbeat: server pings every 15 s via ws ping; a socket missing 2 pongs is terminated.
+  Server also sends `{t:"pong"}` in reply to client `{t:"ping",c:<clientTime>}` (used for RTT/clock offset).
+- Every server→client message has `t` (type). Existing messages that the UI relies on keep their names
+  (`connected`, `reconnected`, `tradeSuccess`, `upgradeSuccess`, `repairSuccess`, `gameEnd`, `error`,
+  `nameError`, `welcome`) and payload shapes, EXCEPT that `players`/`cannonBalls`/`goldObjects` full dumps
+  are removed from them (the first snapshot delivers world state). They may keep `type` instead of `t`
+  for backward-compat; new messages use `t`.
+
+## 4. Client → server
+| msg | fields | notes |
+|-----|--------|-------|
+| `connect` / `reconnect` | unchanged | existing name/ship flow |
+| `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0|1}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). Server clamps values, ignores out-of-order seq, caps queue at 10 (drop oldest). |
+| `ping` | `{t:"ping", c:clientTimeMs}` | every 2 s |
+| `trade`, `upgradeShip`, `repairShip`, `scuttle` | unchanged | |
+
+The client never sends position, speed, direction or rotation. The server is authoritative.
+
+## 5. Server tick (20 Hz)
+- Drift-free loop: `performance.now()` accumulator + `setTimeout`, runs `while (acc >= TICK_DT)` steps,
+  max 5 catch-up steps then drop. **No `await` inside the tick.** Redis/Segment writes go into a
+  fire-and-forget queue drained outside the tick; errors are logged, never thrown into the loop.
+- Per player per tick: consume ONE queued input (if the queue is empty, reuse the last input but with
+  `f:0`); `stepShip`; record `lastSeq` processed. If the queue holds > 3 inputs, consume 2 (catch-up).
+- Disconnected player (grace period): input forced to `th:0, ru:0, f:0` — ship coasts to a stop.
+  Visible to others with a `disconnected` flag. Removed after GRACE_PERIOD as today.
+- Spatial hash grid (cell 500) rebuilt each tick; used for interest, cannonball hits and gold pickup.
+- Interest radius 2000 (as today) for ships, 1000 for gold.
+
+## 6. Server → client snapshot (every tick)
+```
+{ t:"s", k:tick, st:serverTimeMs, a:lastProcessedInputSeq,
+  me:{ x,z,r,v,hp,maxHp,gold,cargoUsed,cargoCapacity,sunk,canFire,reloadMs, shipType },   // full private self state
+  e:[ [eid, x, z, r, v, hp, flags], ... ],   // other visible ships, numbers rounded (x,z 1 decimal, r 3 decimals)
+  g?:[ [id, x, z, gold], ... ]               // gold objects in range, only every 10th tick
+}
+```
+- `eid` = small integer entity id assigned by the server per player (stable for the player's life).
+- `flags` bitfield: 1 = sunk, 2 = disconnected, 4 = firing.
+- Entity metadata is sent once when an entity enters a client's view (and on change):
+  `{t:"ent", eid, id, name, shipType, maxHp}`. On leaving view: `{t:"gone", eid}`. Server tracks the
+  known-set per client. Other players' gold/cargo/inventory are NEVER sent.
+- Events (sent immediately, to clients that can see them):
+  - `{t:"fire", eid, k:tick, balls:[[id, x, z, dx, dz]...], spd, life}` — clients simulate the balls.
+  - `{t:"hit", target:eid|"me", ball:id, hp}` — remove ball, show impact.
+  - `{t:"sunk", eid}` ; `{t:"goldCollected", gold, newTotalGold}` (to the collector).
+
+## 7. Client netcode
+- **Own ship = prediction + reconciliation.** Client runs `stepShip` at the same fixed 20 Hz step with an
+  accumulator in `useFrame`, sends each step's input with a seq, keeps unacked inputs. On snapshot:
+  reset to `me` state, replay inputs with seq > `a`. Render = interpolate between the previous and current
+  predicted step (render alpha) plus a decaying visual error offset (no snapping unless error > 150 units).
+- **Remote ships = interpolation buffer.** Buffer snapshots per eid with server tick time; render at
+  `serverNow - 100 ms` (2 ticks), wrap-aware lerp of position and angle-lerp of rotation. If buffer
+  underruns, extrapolate ≤ 200 ms using velocity then hold. Positions are written to Three.js objects in
+  `useFrame`, not via React props on every snapshot (React state only for set membership / metadata).
+- Clock: estimate `serverTimeOffset` from snapshots (`st`) with smoothing; RTT from ping/pong.
+- Cannonballs rendered from `fire` events, simulated locally, removed on `hit` or lifetime.
+- Reconnect: exponential backoff (0.5 s → 8 s), then `reconnect` with stored id; inputs are
+  zeroed while hidden (visibilitychange) so the ship coasts to a stop rather than keeping old speed.
+- Remove `import { gameState } from "server/game/gameState"` from the client.
+
+## 8. Wave 2 (deferred): Colyseus
+Wave 1 fixes the transport-independent causes (split worlds, physics mismatch, snapping, tick stalls,
+no interpolation). Colyseus would add binary delta encoding, `StateView` interest and managed reconnection,
+but means rewriting every message handler. Decide after Wave 1 bot metrics (bytes/s per client, tick ms
+at 200 bots). Shared physics + client prediction/interpolation carry over unchanged.
