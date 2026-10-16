@@ -9,6 +9,8 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "test": "vitest run",
+    "bots": "tsx scripts/bots.ts",
+    "test:bots": "tsx scripts/run-bot-test.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

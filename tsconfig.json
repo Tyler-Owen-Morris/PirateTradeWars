@@ -2,6 +2,7 @@
   "include": [
     "client/src/**/*",
     "shared/**/*",
+    "scripts/**/*",
     "server/**/*",
     "cypress/**/*"
   ],
