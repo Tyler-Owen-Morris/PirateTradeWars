@@ -12,8 +12,21 @@ physics in `shared/physics.ts`. Both are shared with the client.
   `game/__tests__/world.test.ts`.
   - Players are keyed by id. Each has a small integer `eid` that is never reused, plus a per-player
     input queue.
-  - It also holds the cannonballs and gold objects, and a wrap-aware spatial hash grid (`GRID_CELL`
-    = 500) that is rebuilt every tick.
+  - It also holds the cannonballs and gold objects, and a SPARSE spatial hash grid (`SpatialGrid`, a
+    `Map` of non-empty `GRID_CELL` = 500 coordinate-unit cells, 800 × 400 over the Earth) that is
+    rebuilt every tick. `query(x, z, r)` takes a METRIC radius and widens the x span by 1/metricX at
+    the query edge nearest the pole; x wraps, z is clamped.
+  - **Wrapping Earth (docs/world/WORLD_SPEC.md, card W1).** x wraps at `WORLD_C` = 400 000, z is
+    0 (north pole) … `WORLD_H` = 200 000 and does not wrap (polar ice at |lat| > 70). Every gameplay
+    distance (interest, hits, gold pickup, splash interest, port radius) is metric
+    (`metricDistSq` in `shared/world/geo.ts`).
+  - The world holds a `LandQuery` (`new World({ land })`; default `ALWAYS_WATER_TEST_FIELD` = ocean +
+    polar ice) and passes it to `stepShip`: no-damage coast collision (push-out + slide).
+  - `spawnPoint(center?, jitter?)` returns a water point with land distance > `SPAWN_MIN_WATER` (60).
+    Default centre is the Caribbean (lat 18, lon −75), jitter ±5000 metric; `createPlayer` uses it
+    when no x/z is given. W4 will call it with port `spawn` points.
+  - `restorePlayer` relocates records without `worldVersion === WORLD_VERSION` (old 10000² torus) or
+    whose position is on land to `spawnPoint()`. `worldVersion` is persisted in the Redis player hash.
   - `step()` advances exactly one 50 ms tick. It is synchronous and has no `await`.
   - Time inside the world is simulation time: `timeMs = tick * 50`. Reload, ball lifetime, gold
     lifetime and the grace period all use it.
@@ -24,15 +37,17 @@ physics in `shared/physics.ts`. Both are shared with the client.
        If the queue is empty, it reuses the last input with `f:0`. Then it runs `stepShip`.
      - A disconnected ship gets neutral input, so it coasts to 0.
   3. Rebuild the grid.
-  4. Cannonballs: `stepBall`, a `segmentHitsCircle` hit test against ships near the ball, and armor
-     `round(dmg * (1 - armor/100))`. A ship that reaches 0 hp is sunk, drops its gold, and emits a
-     `playerSunk` effect.
+  4. Cannonballs: `stepBall` (metric straight line), a metric `segmentHitsCircle` hit test against
+     ships near the ball, and armor `round(dmg * (1 - armor/100))`. A ship that reaches 0 hp is sunk,
+     drops its gold, and emits a `playerSunk` effect. A ball whose half-tick or full-tick position is
+     on land (`ballHitsLand`, incl. ice) is removed and emits a `splash` event `{ball, x, z}`.
   5. Spawn new broadsides with `spawnBroadside`, gated by `reloadTime` from SHIP_STATS. A ball fired
      at tick k is still at its spawn point at tick k.
   6. Gold: it expires after 60 s. Any ship within 50 units picks it up.
   7. Derived flags: `firing` (for 6 ticks after a broadside) and `canFire`.
 - **Events and effects.**
-  - `world.events` holds this tick's `fire`/`hit`/`sunk`/`goldCollected`.
+  - `world.events` holds this tick's `fire`/`hit`/`sunk`/`splash`/`goldCollected`. `splash` goes to
+    clients within `INTEREST_RADIUS` (metric) of the splash point as `{t:"splash",x,z,land:1,ball}`.
   - `world.effects` holds Redis, leaderboard and Segment work: `playerSunk`, `goldCollected`, and
     `playerRemoved` (persist or release the name). The wiring layer drains it.
 - **Per-client view.** `attachClient(id)` gives a client a known-entity map (eid → metaVersion).
@@ -46,6 +61,13 @@ physics in `shared/physics.ts`. Both are shared with the client.
 
   Other players' gold, cargo and inventory are never sent. Each ship's row JSON is cached once per
   tick, and the snapshot frame is assembled from those cached strings.
+- **Land tiles, `game/landLoader.ts`.** `loadLandSync()` runs when `gameState.tsx` builds the World,
+  i.e. at boot before the loop starts. It reads `manifest.json` + every tile from
+  `dist/public/world/land` (production) or `client/public/world/land` (dev); `LAND_DIR` overrides.
+  Supports the manifest's `encoding: "gzip"` (`t_<tx>_<ty>.bin.gz`, `zlib.gunzipSync`) and raw `.bin`.
+  `allWater`/`allLand` tiles are not read. No manifest or mismatched raster → all-water fallback with
+  a warning (the game still runs, without continents); an unreadable tile → water with a warning.
+  Boot log: `[land] loaded <version> from <dir>: N data tiles, …`.
 - **Loop, `game/loop.ts`.** `FixedStepLoop` is drift-free: a `performance.now()` accumulator plus a
   self-rescheduling `setTimeout`, with at most 5 catch-up steps per wake; any further backlog is
   dropped.
@@ -186,13 +208,15 @@ The trading system spans multiple components:
 
 Simple physics system for ships and projectiles:
 
-1. **Ship Movement**:
-   - Linear velocity with speed caps
+1. **Ship Movement** (`shared/physics.ts` `stepShip`, see "Netcode (server)"):
+   - Linear velocity with speed caps; velocity is a metric ground speed
    - Rotation with turning radius
-   - Map wrapping at boundaries
+   - x wraps around the globe; z is closed by the polar ice
+   - No-damage land collision: push-out along the land normal + slide (`hullRadius` per ship type)
 
 2. **Collision Detection**:
-   - Cannonball-to-ship collisions
+   - Cannonball-to-ship collisions (metric)
+   - Cannonball-to-land: removed with a `splash` event
    - Damage application
    - Ship sinking mechanics
 

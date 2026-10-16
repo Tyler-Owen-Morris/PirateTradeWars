@@ -93,23 +93,37 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   >1 s jumps reset); RTT EMA from `pong`. `serverNow(local)` = local + offset.
 - `controls.ts` — keyboard/touch booleans → `{th,ru,f}`: W/Up th 1 (ahead), S/Down th −1 (reverse),
   A/Left ru 1, D/Right ru −1, Space/F f 1; opposing keys cancel.
-- `prediction.ts` — `Predictor`: 20 Hz accumulator; each step builds the input, sends
+- **Wrapping Earth (card W1, docs/world/WORLD_SPEC.md).** x wraps at `WORLD_C` (400 000); z is
+  0 (north pole) … 200 000 and does NOT wrap. Only x uses `lerpWrapped`/`wrappedDelta`; z is a plain
+  lerp. Motion is metric (east-west speed divided by `metricX(z)` = cos lat). Geometry helpers live
+  in `shared/world/geo.ts`, land sampling in `shared/world/land.ts`.
+- `../world/landTiles.ts` — `ClientLandTiles` / app singleton `clientLand`: fetches
+  `/world/land/manifest.json`, then SDF tiles in a ±`LOAD_RING` (3) tile square around the ship
+  (`.bin.gz` gunzipped with `DecompressionStream` when the manifest says `encoding: "gzip"`), caches
+  ≤ 128 data tiles, and exposes `clientLand.field` (a `LandField`). Missing tiles read as water and
+  `field.ready()` is false. No manifest → all water. `version`/`subscribe` bump when tiles arrive
+  (for W3 terrain). `net` is built with `{ land: clientLand }`; `NetClient.frame` calls
+  `clientLand.update(ship x, z)` every frame.
+- `prediction.ts` — `Predictor(land)`: steps with the same `LandQuery` as the server (the client
+  LandField; default ocean + ice), so coast slides predict exactly. 20 Hz accumulator; each step builds the input, sends
   `{t:"input",s,th,ru,f}`, stores it as pending and runs `stepShip`. On a snapshot: drop pending with
   seq ≤ `a`, reset to `me`, replay the rest. The old→new difference goes into a visual error offset
   that decays (τ≈0.12 s); snap only if > `SNAP_ERROR_DISTANCE` (150). Render = lerp(prev step, cur step,
   acc/TICK_DT) + error offset. Seq restarts at 1 per session (socket close / connected / reconnected),
   matching the server's per-connection seq tracking; `a = -1` means nothing applied yet.
 - `interpolation.ts` — `InterpolationBuffer` per remote eid (samples keyed by `st`), sampled at
-  `serverNow − INTERP_DELAY_MS` with `lerpWrapped`/`lerpAngle`; underrun → extrapolate with velocity
-  ≤ `MAX_EXTRAPOLATION_MS`, then hold. `RemoteWorld` holds buffers + `ent`/`gone` metadata and bumps
+  `serverNow − INTERP_DELAY_MS` with `lerpWrapped` (x only), plain lerp (z) and `lerpAngle`; underrun →
+  extrapolate with velocity (metric) ≤ `MAX_EXTRAPOLATION_MS`, then hold. `RemoteWorld` holds buffers + `ent`/`gone` metadata and bumps
   `version` only when the renderable set / metadata / sunk flag changes. Entities are removed only
   by `gone` (never pruned locally; snapshots may be skipped under server backpressure).
 - `cannonballs.ts` — `BallSim`: balls from `fire` events, spawn = estimated server time at receipt,
   analytic position `ballPositionAt`. Own balls drawn at `serverNow`; other ships' balls at
   `serverNow − INTERP_DELAY_MS` (same timeline as remote ships). `hit` removes own balls at once and
-  lets others fly to the hit moment on their delayed timeline; lifetime expiry otherwise.
+  lets others fly to the hit moment on their delayed timeline; lifetime expiry otherwise. A `splash`
+  (ball hit land) removes the ball exactly like a `hit`.
 - `netClient.ts` — `NetClient` hub; `index.ts` exports the app singleton `net`. Handles `s`, `ent`,
-  `gone`, `fire`, `hit`, `sunk`, `goldCollected`, `pong`; forwards every other (legacy `type`) message
+  `gone`, `fire`, `hit`, `sunk`, `splash` (emitted as the `splash` event for dust effects),
+  `goldCollected`, `pong`; forwards every other (legacy `type`) message
   via the `legacy` event. `net.frameNow(controls)` = per-frame prediction step; it measures the frame
   dt on its own clock (`now()`), then calls `net.frame(dt, controls)`. Don't pass R3F's `delta`: it
   comes from the shared THREE.Clock, and any `clock.getElapsedTime()`/`getDelta()` call in a useFrame

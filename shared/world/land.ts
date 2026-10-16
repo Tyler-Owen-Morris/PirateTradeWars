@@ -50,6 +50,9 @@ export interface LandManifest {
   px: number;
   sdfUnit: number;
   iceLat: number;
+  /** Tile file encoding: "gzip" → files are `t_<tx>_<ty>.bin.gz` (gzipped, served as plain bytes);
+   *  absent / "raw" → `t_<tx>_<ty>.bin`. Decompressed content is always TILE·TILE Int8 bytes. */
+  encoding?: "gzip" | "raw";
   /** "tx_ty" keys of tiles whose every value is +127 (not shipped). */
   allWater: string[];
   /** "tx_ty" keys of tiles whose every value is −127 (not shipped). */

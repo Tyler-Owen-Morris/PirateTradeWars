@@ -7,12 +7,31 @@ The shared directory contains code and types that are used by both the client an
 
 - `/shared/` - Shared code
   - `schema.tsx` - Database schema and type definitions
-  - `gameConstants.ts` - Map size, ship stats, goods, ports
+  - `gameConstants.ts` - Map size (`MAP_WIDTH` = WORLD_C, `MAP_HEIGHT` = WORLD_H,
+    `PORT_INTERACTION_RADIUS` = 300 metric), ship stats, goods, ports
+  - `world/geo.ts` - Wrapping-Earth geometry (docs/world/WORLD_SPEC.md §2–3): `WORLD_C` 400 000 (x
+    wraps), `WORLD_H` 200 000 (z: 0 = north pole, no wrap), `WORLD_R`, `ICE_LAT` 70, `Z_ICE_N/S`,
+    `WORLD_VERSION` (persisted on players), `lonOf/xOfLon/latOf/zOfLat`, `metricX(z)` = cos lat,
+    `metricDelta`, `metricDistSq`, `metricDist` (use these for EVERY gameplay distance),
+    `compassHeading(rotationY)`, `rotationForHeading(deg)`, `bearingDeg(a→b)`, `wrap`, `wrappedDelta`,
+    `wrapX`, `clampZ`.
+  - `world/land.ts` - Land sampling (spec §4): `LandQuery` {distance, normal, ready}, `LandField`
+    (bilinear over the 8192×4096 Int8 SDF, x wraps, z clamped, polar ice included, missing tile =
+    water), `TileSource`/`ArrayTileSource`, `LandManifest`, raster constants (`SDF_W/H`, `TILE`,
+    `TILES_X/Y`, `PX`, `SDF_UNIT`, `SDF_FAR`), `tileOf`, `tileKey`. Test helpers:
+    `ALWAYS_WATER_TEST_FIELD` (ocean + ice; also the server fallback) and `buildSyntheticLand([circle|rect])`
+    which rasterizes real tiles. Loaders: `server/game/landLoader.ts`, `client/src/lib/world/landTiles.ts`.
+  - `world/ports.json`, `world/lanes.json`, `world/versions.json` - generated world data (card W2).
   - `physics.ts` - Deterministic ship/cannonball simulation used by BOTH server (authoritative 20 Hz
-    tick) and client (prediction). `stepShip(state, input, stats)`, wrap/angle helpers
-    (`wrap`, `wrappedDelta`, `wrappedDistSq`, `lerpWrapped`, `lerpAngle`, `normalizeAngle`),
-    `spawnBroadside`, `ballPositionAt`, `stepBall`, `segmentHitsCircle`. Pure, no deps beyond
-    `./gameConstants`. Units: speed = units per 1/60 s, negative velocity = forward (W).
+    tick) and client (prediction). `stepShip(state, input, stats, land?)` = metric motion
+    (z += cos·v; x += sin·v / metricX(z); x wraps, z clamped) plus no-damage coast collision when a
+    `LandQuery` is given (push out along the normal by hullRadius − d, then scale velocity by
+    |cos(heading, coast)| if moving into land; heading unchanged). `ShipPhysicsStats.hullRadius`
+    (`HULL_RADIUS`: sloop 12 … dreadnaught 30). Helpers: `lerpWrapped`, `lerpAngle`, `normalizeAngle`,
+    `metricXAdvance`, re-exported `wrap`/`wrappedDelta`/`metricX`/`metricDelta`/`metricDistSq`;
+    `wrappedDistSq` is a deprecated alias of `metricDistSq`. Cannonballs: `spawnBroadside`,
+    `ballPositionAt`, `stepBall` (exact metric straight line), `ballHitsLand`, metric
+    `segmentHitsCircle`. Pure. Units: speed = metric units per 1/60 s, negative velocity = forward (W).
   - `protocol.ts` - WebSocket message types (`ClientMessage`, `ServerMessage`), snapshot entity rows
     (`packEntityRow`/`unpackEntityRow`), flag bits, netcode constants (interest radius, grid cell,
     interpolation delay, input queue cap) and `parseClientMessage` (validates/clamps untrusted frames).

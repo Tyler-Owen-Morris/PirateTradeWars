@@ -1,5 +1,6 @@
 // client/src/lib/world/landTiles.ts: tile fetching around the ship with a fake fetch.
 import { describe, expect, it } from "vitest";
+import zlib from "zlib";
 import { ClientLandTiles, LOAD_RING } from "../landTiles";
 import { PX, SDF_FAR, SDF_H, SDF_UNIT, SDF_W, TILE, tileKey, tileOf } from "@shared/world/land";
 
@@ -52,5 +53,26 @@ describe("ClientLandTiles", () => {
     expect(land.fallback).toBe(true);
     expect(land.field.ready(1000, 100_000, 5000)).toBe(true);
     expect(land.field.distance(1000, 100_000)).toBe(SDF_FAR);
+  });
+
+  it("gzip manifests: fetches .bin.gz and gunzips it", async () => {
+    const x = 200_000;
+    const z = 100_000;
+    const manifest = { version: "g1", encoding: "gzip", width: SDF_W, height: SDF_H, tile: TILE, px: PX, sdfUnit: SDF_UNIT, iceLat: 70, allWater: [], allLand: [] };
+    const gz = zlib.gzipSync(Buffer.from(new Int8Array(TILE * TILE).fill(-20).buffer));
+    const urls: string[] = [];
+    const fn = (url: string) => {
+      urls.push(url);
+      const body = url.endsWith("manifest.json") ? null : gz.buffer.slice(gz.byteOffset, gz.byteOffset + gz.length);
+      return Promise.resolve({ ok: true, status: 200, json: async () => manifest, arrayBuffer: async () => body as ArrayBuffer });
+    };
+    const land = new ClientLandTiles("/world/land", fn);
+    land.update(x, z);
+    await flush();
+    land.update(x, z);
+    for (let i = 0; i < 20 && !land.field.ready(x, z, 10); i++) await new Promise((r) => setTimeout(r, 5));
+    const { tx, ty } = tileOf(x, z);
+    expect(urls).toContain(`/world/land/g1/t_${tx}_${ty}.bin.gz`);
+    expect(land.field.distance(x, z)).toBeCloseTo(-80, 9);
   });
 });

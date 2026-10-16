@@ -5,7 +5,8 @@
  *
  * Where the data lives (produced by the W2 pipeline):
  *   <root>/manifest.json            { version, width, height, tile, px, sdfUnit, iceLat, allWater, allLand }
- *   <root>/<version>/t_<tx>_<ty>.bin  raw Int8, row-major, exactly 65536 bytes
+ *   <root>/<version>/t_<tx>_<ty>.bin     raw Int8, row-major, exactly 65536 bytes, or
+ *   <root>/<version>/t_<tx>_<ty>.bin.gz  the same, gzipped (manifest `"encoding": "gzip"`)
  * <root> is `dist/public/world/land` (production build; Vite copies client/public) or
  * `client/public/world/land` (dev). Override with LAND_DIR.
  *
@@ -15,6 +16,7 @@
  * also treated as water (with a warning), never fatal.
  */
 import fs from "fs";
+import zlib from "zlib";
 import path from "path";
 import {
   ALWAYS_WATER_TEST_FIELD,
@@ -75,6 +77,7 @@ export function loadLandSync(dirs: string[] = landDirCandidates(), log: (msg: st
   const source = new ArrayTileSource();
   const tiles = { data: 0, water: 0, land: 0, missing: 0 };
   const tileDir = path.join(dir, String(manifest.version));
+  const gzip = manifest.encoding === "gzip";
   for (let ty = 0; ty < TILES_Y; ty++) {
     for (let tx = 0; tx < TILES_X; tx++) {
       const key = tileKey(tx, ty);
@@ -88,9 +91,10 @@ export function loadLandSync(dirs: string[] = landDirCandidates(), log: (msg: st
         tiles.land++;
         continue;
       }
-      const file = path.join(tileDir, `t_${tx}_${ty}.bin`);
+      const file = path.join(tileDir, `t_${tx}_${ty}.bin${gzip ? ".gz" : ""}`);
       try {
-        const buf = fs.readFileSync(file);
+        const raw = fs.readFileSync(file);
+        const buf = gzip ? zlib.gunzipSync(raw) : raw;
         if (buf.length !== TILE * TILE) throw new Error(`size ${buf.length}`);
         source.set(tx, ty, new Int8Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length)));
         tiles.data++;

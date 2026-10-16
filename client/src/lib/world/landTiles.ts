@@ -2,7 +2,8 @@
  * Client land tiles (docs/world/WORLD_SPEC.md §4.1–4.2). Framework-free.
  *
  * Fetches `/world/land/manifest.json`, then the SDF tiles (`/world/land/<version>/t_<tx>_<ty>.bin`,
- * raw Int8 65536 bytes) in a square of LOAD_RING tiles around the ship (2 tiles + a 1-tile prefetch
+ * raw Int8 65536 bytes; or `.bin.gz` gunzipped with DecompressionStream when the manifest says
+ * `"encoding": "gzip"`) in a square of LOAD_RING tiles around the ship (2 tiles + a 1-tile prefetch
  * ring), caches them, and exposes ONE `LandField` over that cache. The same field drives own-ship
  * prediction (so coast slides predict exactly like the server) and can be used by rendering (W3
  * terrain) and UI (W5).
@@ -157,7 +158,8 @@ export class ClientLandTiles {
     const key = ty * TILES_X + tx;
     if (this.uniform.has(key) || this.dataTiles.has(key) || this.inflight.has(key) || !this.manifest) return;
     this.inflight.add(key);
-    const url = `${this.baseUrl}/${this.manifest.version}/t_${tx}_${ty}.bin`;
+    const gzip = this.manifest.encoding === "gzip";
+    const url = `${this.baseUrl}/${this.manifest.version}/t_${tx}_${ty}.bin${gzip ? ".gz" : ""}`;
     let p: Promise<any>;
     try {
       p = this.fetchFn(url);
@@ -166,7 +168,8 @@ export class ClientLandTiles {
     }
     p.then(async (res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const buf = await res.arrayBuffer();
+      const raw = await res.arrayBuffer();
+      const buf = gzip ? await gunzip(raw) : raw;
       if (buf.byteLength !== TILE * TILE) throw new Error(`tile ${tileKey(tx, ty)} has ${buf.byteLength} bytes`);
       this.source.set(tx, ty, new Int8Array(buf));
       this.dataTiles.add(key);
@@ -195,6 +198,15 @@ export class ClientLandTiles {
       this.dataTiles.delete(key);
     }
   }
+}
+
+/** Gunzip with the browser's DecompressionStream (also in Node ≥ 18). */
+async function gunzip(data: ArrayBuffer): Promise<ArrayBuffer> {
+  const DS = (globalThis as any).DecompressionStream;
+  const R = (globalThis as any).Response;
+  if (!DS || !R) throw new Error("DecompressionStream unavailable: cannot read gzip land tiles");
+  const stream = new R(data).body.pipeThrough(new DS("gzip"));
+  return new R(stream).arrayBuffer();
 }
 
 /** App-wide land tile cache; `clientLand.field` is the client's LandQuery. */

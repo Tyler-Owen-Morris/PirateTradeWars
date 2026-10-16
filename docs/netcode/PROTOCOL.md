@@ -152,6 +152,19 @@ The client never sends position, speed, direction or rotation. The server is aut
 - **Self in events.** A `hit`/`sunk` whose id equals `me.eid` is treated as `"me"`. As a guard, an
   `ent`/row with the own eid is ignored.
 
+**World clarifications (2026-10-16, card W1; contract in `docs/world/WORLD_SPEC.md`):**
+- The 10000² torus is retired. x wraps at `WORLD_C` = 400 000; z ∈ [0, 200 000] does not wrap (polar
+  ice is land). Positions and the wire format are unchanged (0.1 rounding).
+- Motion and every distance in this document (interest radius, gold interest, hit radius, pickup) are
+  METRIC: x deltas are scaled by `metricX = cos(lat)` (`shared/world/geo.ts`). Ball `dx/dz` in `fire`
+  rows are a unit METRIC direction; `ballPositionAt` integrates x by 1/metricX exactly.
+- `stepShip(state, input, stats, land?)` takes the land field; the client must pass the same land data
+  for prediction to match (missing tiles = water; reconciliation fixes the difference).
+- **New server → client event `splash`:** `{t:"splash", x, z, land: 1, ball}`. A cannonball hit land
+  (or the ice) at (x, z) and was removed. Sent to clients within `INTEREST_RADIUS` (metric) of (x, z),
+  after the view diff and before the snapshot, like other events. `ball` is the id from the `fire`
+  row (an addition to the spec's `{x, z, land:1}`), so clients remove the ball exactly as on `hit`.
+
 ## 8. Wave 2 (deferred): Colyseus
 Wave 1 fixes the transport-independent causes (split worlds, physics mismatch, snapping, tick stalls,
 no interpolation). Colyseus would add binary delta encoding, `StateView` interest and managed reconnection,
