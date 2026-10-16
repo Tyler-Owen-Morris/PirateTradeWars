@@ -89,7 +89,7 @@ export function scoreStates(arch: Archetype, p: Perception, combat: boolean): Re
     surrender: -Infinity,
   };
   if (!combat || !p.target) {
-    s.travel = p.hasRoute ? (arch.patrols ? 0.35 : 0.5) : -Infinity;
+    s.travel = p.hasRoute ? (arch.patrols ? 0.25 : 0.5) : -Infinity;
     s.patrol = arch.patrols ? 0.45 : p.hasRoute ? 0.1 : 0.3;
     if (p.loot) s.loot = (0.3 + 0.5 * arch.aggression) * (1 - p.loot.dist / LOOT_RADIUS) + 0.2;
     return s;
@@ -106,7 +106,8 @@ export function scoreStates(arch: Archetype, p: Perception, combat: boolean): Re
     Math.max(0, ratio - 1) * (1 - arch.courage) * 0.5 +
     (arch.aggression < 0.2 ? 0.6 : 0) +
     (shouldDisengage(p.hpFrac, arch.courage, p.myPower, t.power) ? 1 : 0);
-  if (arch.surrenders) s.surrender = p.hpFrac < SURRENDER_HP ? 2 + (SURRENDER_HP - p.hpFrac) : -Infinity;
+  // Striking the colours beats every other option once hp is low (flee tops out around 3).
+  if (arch.surrenders) s.surrender = p.hpFrac < SURRENDER_HP ? 4 + (SURRENDER_HP - p.hpFrac) : -Infinity;
   return s;
 }
 

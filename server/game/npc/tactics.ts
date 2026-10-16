@@ -40,6 +40,9 @@ export const HOLD_MAX = 0.85;
 export const FIRE_ARC = (12 * Math.PI) / 180;
 /** Orbit controller gain (radians of course change per unit of range error / range). */
 export const RANGE_GAIN = 3;
+/** In-band speed: target's along-course speed + maxSpeed × (PACE_BASE + PACE_GAIN × ahead-of-beam rad). */
+export const PACE_BASE = 0.3;
+export const PACE_GAIN = 1.5;
 
 /** Angle (sin/cos convention) the guns on `side` point along for rotationY `r`. */
 export function gunAngle(r: number, side: Side): number {
@@ -126,9 +129,18 @@ export function engage(
   const moveAngle = side === "starboard" ? los + Math.PI / 2 - k : los - Math.PI / 2 + k;
   const heading = normalizeAngle(moveAngle + Math.PI);
   const err = beamError(self, target, m, side);
+  // Speed: full while closing/opening range. In the band, pace the target: its speed along our
+  // course, plus a correction that speeds up when the target is ahead of the beam and slows when
+  // it falls behind (so a running target is held abeam on a parallel course).
+  const tv = velocityOf(target);
+  const along = tv.x * Math.sin(moveAngle) + tv.z * Math.cos(moveAngle);
+  const ahead = side === "starboard" ? err : -err;
+  const paced = clamp(along + self.maxSpeed * (PACE_BASE + PACE_GAIN * ahead), self.maxSpeed * 0.2, self.maxSpeed);
+  const w = clamp(Math.abs(rangeErr) * 2, 0, 1);
+  const speed = w * self.maxSpeed + (1 - w) * paced;
   const noise = (rng() * 2 - 1) * params.aimError;
   const fire = !reloading && dist <= params.range && Math.abs(err + noise) <= FIRE_ARC;
-  return { heading, speed: self.maxSpeed, fire, side, dist, beamErr: err };
+  return { heading, speed, fire, side, dist, beamErr: err };
 }
 
 /** True when `self` is in broadside position: lead point within ±FIRE_ARC of a gun side and within

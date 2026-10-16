@@ -1,0 +1,162 @@
+import { describe, expect, it } from "vitest";
+import { shipPhysicsStats, spawnBroadside, stepShip, type ShipInput, type ShipKinematics } from "@shared/physics";
+import { torusMetric } from "../metric";
+import { toInput } from "../steering";
+import {
+  BALL_SPEED_PER_SEC,
+  DEFAULT_CANNON_RANGE,
+  FIRE_ARC,
+  beamError,
+  engage,
+  firepower,
+  gunAngle,
+  inBroadsidePosition,
+  leadPoint,
+  shouldDisengage,
+} from "../tactics";
+import { bearingOf, headingForDir, mulberry32 } from "../util";
+
+const W = 10000;
+const m = torusMetric(W, W);
+const range = DEFAULT_CANNON_RANGE;
+
+/** Pure sim: NPC runs engage() → toInput() → stepShip(); target follows `targetInput`. Returns the
+ *  first tick at which the NPC is in broadside position, plus fire count. */
+function sim(
+  npcType: string,
+  npc0: ShipKinematics,
+  tgtType: string,
+  tgt0: ShipKinematics,
+  targetInput: (t: ShipKinematics, i: number) => ShipInput,
+  ticks: number,
+) {
+  const ns = shipPhysicsStats(npcType);
+  const ts = shipPhysicsStats(tgtType);
+  let npc = { ...npc0 };
+  let tgt = { ...tgt0 };
+  let first = -1;
+  let inPos = 0;
+  let fires = 0;
+  const rng = mulberry32(3);
+  for (let i = 0; i < ticks; i++) {
+    const order = engage({ ...npc, maxSpeed: ns.maxSpeed }, tgt, { range, aimError: 0 }, false, m, rng);
+    const inp = toInput(npc, order.heading, order.speed, ns);
+    if (order.fire) fires++;
+    npc = stepShip(npc, inp, ns);
+    tgt = stepShip(tgt, targetInput(tgt, i), ts);
+    if (inBroadsidePosition(npc, tgt, range, m)) {
+      inPos++;
+      if (first < 0) first = i;
+    }
+  }
+  return { first, inPos, fires, npc, tgt };
+}
+
+describe("broadside geometry", () => {
+  it("guns point starboard (rotationY + π/2), matching spawnBroadside", () => {
+    const r = 0.4;
+    const b = spawnBroadside({ x: 0, z: 0, rotationY: r }, 1, W, W)[0];
+    expect(bearingOf(b.dx, b.dz)).toBeCloseTo(gunAngle(r, "starboard"));
+  });
+
+  it("leadPoint leads a moving target by the ball flight time", () => {
+    const self = { x: 5000, z: 5000 };
+    const still = { x: 5000, z: 4400, rotationY: 0, velocity: 0 };
+    const lp0 = leadPoint(self, still, m);
+    expect(lp0.dx).toBeCloseTo(0);
+    expect(lp0.t).toBeCloseTo(600 / BALL_SPEED_PER_SEC);
+    const moving = { ...still, rotationY: headingForDir(1, 0), velocity: -4 }; // east at 240 u/s
+    const lp = leadPoint(self, moving, m);
+    expect(lp.dx).toBeGreaterThan(100);
+    expect(lp.dx).toBeLessThan(240);
+  });
+});
+
+describe("engage", () => {
+  it("reaches broadside position vs a stationary target and fires", () => {
+    const r = sim(
+      "brigantine",
+      { x: 5000, z: 6500, rotationY: 0, velocity: 0 },
+      "sloop",
+      { x: 5000, z: 5000, rotationY: 1, velocity: 0 },
+      () => ({ th: 0, ru: 0, f: 0 }),
+      600,
+    );
+    expect(r.first).toBeGreaterThanOrEqual(0);
+    expect(r.first).toBeLessThan(200); // within 10 s
+    expect(r.fires).toBeGreaterThan(5);
+    // It keeps the target on the beam a good share of the time once there.
+    expect(r.inPos / (600 - r.first)).toBeGreaterThan(0.3);
+    const d = Math.sqrt(m.distSq(r.npc.x, r.npc.z, r.tgt.x, r.tgt.z));
+    expect(d).toBeGreaterThan(range * 0.4);
+    expect(d).toBeLessThan(range * 1.1);
+  });
+
+  it("reaches broadside position vs a moving (straight-sailing) target", () => {
+    const r = sim(
+      "brigantine",
+      { x: 5000, z: 6500, rotationY: 0, velocity: 0 },
+      "sloop",
+      { x: 5000, z: 5000, rotationY: headingForDir(1, 0), velocity: -4 },
+      () => ({ th: 1, ru: 0, f: 0 }),
+      800,
+    );
+    expect(r.first).toBeGreaterThanOrEqual(0);
+    expect(r.first).toBeLessThan(500); // within 25 s (only 1 unit/frame faster than its prey)
+    expect(r.inPos / (800 - r.first)).toBeGreaterThan(0.4); // then holds it abeam on a parallel course
+    expect(r.fires).toBeGreaterThan(3);
+  });
+
+  it("reaches broadside position vs a circling target", () => {
+    const r = sim(
+      "galleon",
+      { x: 3000, z: 3000, rotationY: 2, velocity: 0 },
+      "sloop",
+      { x: 4000, z: 4000, rotationY: 0, velocity: -4 },
+      (_t, i) => ({ th: 1, ru: i % 40 < 20 ? 1 : 0, f: 0 }),
+      800,
+    );
+    expect(r.first).toBeGreaterThanOrEqual(0);
+    expect(r.first).toBeLessThan(500);
+  });
+
+  it("only fires within ±12° of the beam (aimError 0) and in range", () => {
+    const self = { x: 5000, z: 5000, rotationY: 0, velocity: 0, maxSpeed: 5 };
+    // Starboard of r=0 is +x (east).
+    const onBeam = { x: 5400, z: 5000, rotationY: 0, velocity: 0 };
+    expect(Math.abs(beamError(self, onBeam, m))).toBeLessThan(1e-9);
+    expect(engage(self, onBeam, { range, aimError: 0 }, false, m).fire).toBe(true);
+    expect(engage(self, onBeam, { range, aimError: 0 }, true, m).fire).toBe(false); // reloading
+    const offBeam = { x: 5400, z: 5000 - Math.tan(FIRE_ARC * 1.5) * 400, rotationY: 0, velocity: 0 };
+    expect(engage(self, offBeam, { range, aimError: 0 }, false, m).fire).toBe(false);
+    const far = { x: 5000 + range * 1.2, z: 5000, rotationY: 0, velocity: 0 };
+    expect(engage(self, far, { range, aimError: 0 }, false, m).fire).toBe(false);
+    const port = { x: 4600, z: 5000, rotationY: 0, velocity: 0 }; // no port guns
+    expect(engage(self, port, { range, aimError: 0 }, false, m).fire).toBe(false);
+  });
+
+  it("kites: holds a longer range while reloading", () => {
+    const self = { x: 5000, z: 5000, rotationY: 0, velocity: -4, maxSpeed: 5 };
+    const t = { x: 5000 + range * 0.75, z: 5000, rotationY: 0, velocity: 0 };
+    const ready = engage(self, t, { range, aimError: 0 }, false, m);
+    const reloading = engage(self, t, { range, aimError: 0 }, true, m);
+    // While reloading at 0.75 range the course turns away (opens) relative to the ready course.
+    const away = (h: number) => {
+      const d = { x: -Math.sin(h), z: -Math.cos(h) };
+      return -(d.x * 1 + d.z * 0); // component away from the target (target is +x)
+    };
+    expect(away(reloading.heading)).toBeGreaterThan(away(ready.heading));
+  });
+});
+
+describe("disengage rules", () => {
+  it("brave ships stay, hurt or outgunned timid ones leave", () => {
+    const sloop = firepower("sloop");
+    const mow = firepower("man-o-war");
+    expect(mow).toBeGreaterThan(sloop * 3);
+    expect(shouldDisengage(0.8, 0.9, firepower("galleon"), firepower("galleon"))).toBe(false);
+    expect(shouldDisengage(0.2, 0.2, sloop, sloop)).toBe(true); // hurt + timid
+    expect(shouldDisengage(1, 0.5, sloop, mow)).toBe(true); // outgunned
+    expect(shouldDisengage(0.05, 0.9, mow, mow)).toBe(true);
+  });
+});

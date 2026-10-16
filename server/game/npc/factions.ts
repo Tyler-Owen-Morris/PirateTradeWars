@@ -141,7 +141,8 @@ export type HostilityObject = { kind: "npc"; faction: string } | { kind: "player
 export function baseHostility(npc: HostilitySubject, other: HostilityObject, matrix: RelationMatrix = RELATIONS): number {
   if (!isFactionId(npc.faction)) return 0;
   const rel = other.kind === "npc" ? relation(npc.faction, other.faction, matrix) : playerRelation(npc.faction, other.standing);
-  return clamp(-rel / 100, 0, 1);
+  const h = -rel / 100;
+  return h <= 0 ? 0 : h >= 1 ? 1 : h; // (never -0)
 }
 
 // ---------------------------------------------------------------------------------------------
