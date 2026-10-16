@@ -60,6 +60,55 @@ describe("live population", () => {
   });
 });
 
+describe("load: 200 players + 300 NPCs on the real map", () => {
+  it("average tick (step + frames for 200 clients) stays under 25 ms", () => {
+    const w = new World({ land: land.field, rng: mulberry32(11) });
+    const sys = createLiveNpcSystem(w, { director: { minSpawnDist: 0 } }).attach();
+    const rng = mulberry32(12);
+    // Players crowd the ports (where they spawn and trade): ~7 per port, within 2 km of its spawn.
+    const ids: string[] = [];
+    for (let i = 0; i < 200; i++) {
+      const port = PORTS[i % PORTS.length];
+      const s = w.spawnPoint(port.spawn, 2000);
+      const id = `b${i}`;
+      w.createPlayer({ id, name: id, shipType: i % 3 ? "sloop" : "brigantine", x: s.x, z: s.z, rotationY: rng() * 6 - 3 });
+      w.attachClient(id);
+      ids.push(id);
+    }
+    const TICKS = 600;
+    let seq = 1;
+    let total = 0;
+    let worst = 0;
+    let npcTotal = 0;
+    let bytes = 0;
+    for (let t = 0; t < TICKS; t++) {
+      for (const id of ids) w.queueInput(id, { t: "input", s: seq, th: 1, ru: (t + seq) % 90 < 25 ? 1 : 0, f: t % 40 === 0 ? 1 : 0 });
+      seq++;
+      const t0 = performance.now();
+      w.step();
+      for (const id of ids) {
+        const frames = w.buildFrames(id);
+        if (t % 100 === 0) for (const f of frames) bytes += f.length;
+      }
+      const dt = performance.now() - t0;
+      total += dt;
+      if (t > 20 && dt > worst) worst = dt;
+      npcTotal += sys.stats.lastTickMs;
+      w.drainEffects();
+    }
+    const avg = total / TICKS;
+    console.log(
+      `[npc live load] 200 players + ${sys.stats.records} NPC records (${sys.stats.active} active): avg ${avg.toFixed(2)} ms/tick ` +
+        `(step + frames), worst ${worst.toFixed(2)} ms; npc system avg ${(npcTotal / TICKS).toFixed(3)} ms, max ${sys.stats.maxTickMs.toFixed(2)} ms; ` +
+        `path plans ${sys.stats.navPlans}, unsticks ${sys.stats.unsticks}; ~${(bytes / 6 / 200 / 1024).toFixed(1)} KB/tick/client`,
+    );
+    expect(sys.stats.records).toBeGreaterThan(280);
+    expect(sys.stats.active).toBeLessThanOrEqual(80);
+    expect(sys.stats.active).toBeGreaterThan(20);
+    expect(avg).toBeLessThan(25);
+  }, 120_000);
+});
+
 describe("land avoidance on real coastlines", () => {
   it("100 rail→active NPCs sail random lanes for 3 simulated minutes without getting stuck", () => {
     const w = new World({ land: land.field, rng: mulberry32(2) });
