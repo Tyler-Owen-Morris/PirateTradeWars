@@ -191,6 +191,20 @@ export function applyRepChanges(s: PlayerStanding, changes: RepChange[], notorie
   return s;
 }
 
+// NPC2: notoriety decay.
+/** Notoriety lost per minute (online, and for the time offline on reconnect). A lawful sink (+10)
+ *  fades in 5 minutes. */
+export const NOTORIETY_DECAY_PER_MIN = 2;
+
+/** Decay notoriety by `minutes` in place. Returns true when the whole-number value changed (worth
+ *  telling the client). */
+export function decayNotoriety(s: { notoriety: number }, minutes: number): boolean {
+  if (!(s.notoriety > 0) || !(minutes > 0)) return false;
+  const before = Math.ceil(s.notoriety);
+  s.notoriety = Math.max(0, s.notoriety - NOTORIETY_DECAY_PER_MIN * minutes);
+  return Math.ceil(s.notoriety) !== before;
+}
+
 /** Push one `npcRepChange` effect per change (persisted by the wiring layer; NPC2). */
 export function emitRepChanges(effects: WorldEffect[], playerId: string, changes: RepChange[], reason: string): void {
   for (const c of changes) effects.push({ type: "npcRepChange", playerId, faction: c.faction, delta: c.delta, reason });

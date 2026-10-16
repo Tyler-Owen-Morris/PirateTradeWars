@@ -18,6 +18,7 @@ import { WORLD_C, clampZ, metricX, wrap } from "@shared/world/geo";
 import {
   MAX_EXTRAPOLATION_MS,
   FLAG_SUNK,
+  parseEntNpcMeta,
   type EntityRow,
   type EntMessage,
 } from "@shared/protocol";
@@ -132,6 +133,11 @@ export interface RemoteMeta {
   name: string;
   shipType: string;
   maxHp: number;
+  /** NPC2: AI ship (ent.npc). `faction` (e.g. "spain") and `title` (e.g. "Spanish Navy") come from
+   *  parseEntNpcMeta; both undefined for players. */
+  npc?: boolean;
+  faction?: string;
+  title?: string;
 }
 
 export interface RemoteEntity {
@@ -180,14 +186,22 @@ export class RemoteWorld {
   onEnt(m: EntMessage, localNow: number): void {
     const e = this.getOrCreate(m.eid, localNow);
     const prev = e.meta;
+    const npc = parseEntNpcMeta(m); // NPC2: null for players
     if (
       !prev ||
       prev.id !== m.id ||
       prev.name !== m.name ||
       prev.shipType !== m.shipType ||
-      prev.maxHp !== m.maxHp
+      prev.maxHp !== m.maxHp ||
+      prev.faction !== npc?.faction ||
+      prev.title !== npc?.title
     ) {
       e.meta = { eid: m.eid, id: m.id, name: m.name, shipType: m.shipType, maxHp: m.maxHp };
+      if (npc) {
+        e.meta.npc = true; // NPC2
+        if (npc.faction) e.meta.faction = npc.faction;
+        if (npc.title) e.meta.title = npc.title;
+      }
       this.bump();
     }
   }

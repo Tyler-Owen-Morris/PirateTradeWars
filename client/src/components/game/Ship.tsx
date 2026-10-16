@@ -5,6 +5,7 @@ import { Billboard, Text } from '@react-three/drei';
 import { useAudio } from '@/lib/stores/useAudio';
 import { SHIP_DIMENSIONS, SHIP_COLORS, SHIP_MAST_COUNTS, ShipType } from '@/lib/constants';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { factionFlagColors, npcNameplate } from '@/lib/world/factions';
 
 interface ShipProps {
   position: [number, number, number];
@@ -19,12 +20,15 @@ interface ShipProps {
   onRotationChange?: (rotation: number) => void;
   /** Live hp source read every frame (remote ships: hp changes without React re-renders). */
   getHp?: () => number;
+  /** NPC2: AI ship nameplate ("Spanish Navy") and faction (flag colour). */
+  npcTitle?: string;
+  faction?: string;
 }
 
 export type { ShipProps };
 
 export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
-  { position, rotation, type, name, hp, maxHp, sunk, isPlayer = false, playerId, onRotationChange, getHp },
+  { position, rotation, type, name, hp, maxHp, sunk, isPlayer = false, playerId, onRotationChange, getHp, npcTitle, faction },
   ref
 ) {
   const healthBarRef = useRef<THREE.Mesh>(null);
@@ -141,14 +145,40 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
   });
 
   const dims = SHIP_DIMENSIONS[type];
+  const isNpc = npcTitle !== undefined || faction !== undefined; // NPC2
+  const flag = isNpc ? factionFlagColors(faction) : null;
 
   return (
     <group ref={ref} position={position} rotation={[0, 0, 0]}>
       <group ref={shipRef} position={[0, 0, 0]} />
+      {flag && !sunk && (
+        // NPC2: nation flag above the mast (field + stripe). A sibling of shipRef (whose children are
+        // cleared imperatively when the model reloads); turns with the ship via the outer group.
+        <group position={[0, dims.height + dims.mastHeight + 10, 0]}>
+          <mesh position={[0, -6, 0]}>
+            <cylinderGeometry args={[0.6, 0.6, 16, 6]} />
+            <meshBasicMaterial color="#3e2723" />
+          </mesh>
+          <mesh position={[7, 0, 0]}>
+            <planeGeometry args={[14, 9]} />
+            <meshBasicMaterial color={flag.field} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh position={[7, 0, 0.05]}>
+            <planeGeometry args={[14, 2.5]} />
+            <meshBasicMaterial color={flag.accent} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      )}
       <Billboard position={[0, dims.height + 70, 0]} follow={true} lockX={false} lockY={false} lockZ={false} renderOrder={2}>
         <Text fontSize={12} color="#ffffff" anchorX="center" anchorY="bottom" outlineWidth={0.5} outlineColor="#000000" renderOrder={3}>
           {name} {isPlayer ? "(You)" : ""}
         </Text>
+        {isNpc && (
+          // NPC2: "Spanish Navy — Galleon", tinted with the flag colour (pirates: light grey).
+          <Text position={[0, 14, 0]} fontSize={9} color={flag!.field === '#111111' ? '#e0e0e0' : flag!.field} anchorX="center" anchorY="bottom" outlineWidth={0.5} outlineColor="#000000" renderOrder={3}>
+            {npcNameplate(npcTitle, type)}
+          </Text>
+        )}
         <mesh position={[0, -5, 0]}>
           <planeGeometry args={[40, 5]} />
           <meshBasicMaterial color="#333333" transparent={false} opacity={0.9} />

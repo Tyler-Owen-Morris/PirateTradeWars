@@ -141,13 +141,27 @@ export const FEELER_BASE = 80;
 export const FEELER_PER_SPEED = 25;
 export const FEELER_SIDE_ANGLE = 0.5;
 export const LAND_CLEARANCE = 60;
+/** NPC2: keep the previous coast-tangent side unless the other is better by this share of |want|. */
+export const AVOID_SIDE_HYSTERESIS = 0.5;
+
+/** NPC2: per-ship memory for `avoidLand` (which coast tangent it is sliding along; 0 = none). */
+export interface AvoidMemo {
+  side: -1 | 0 | 1;
+}
 
 /**
  * Three feelers (ahead and ±FEELER_SIDE_ANGLE) whose length grows with speed. If any feeler tip
  * (or the hull itself) is within `clearance` of land, steer along the coast tangent closest to
  * the current course, pushed out along the land normal. Returns null when the way is clear.
  */
-export function avoidLand(ship: SteerShip, land: LandQuery, m: NpcMetric, clearance = LAND_CLEARANCE): AvoidResult | null {
+export function avoidLand(
+  ship: SteerShip,
+  land: LandQuery,
+  m: NpcMetric,
+  clearance = LAND_CLEARANCE,
+  desired?: Vec | null,
+  memo?: AvoidMemo,
+): AvoidResult | null {
   const fwd = Math.max(0, -ship.velocity);
   const L = FEELER_BASE + fwd * FEELER_PER_SPEED;
   let worst = Infinity;
@@ -170,17 +184,28 @@ export function avoidLand(ship: SteerShip, land: LandQuery, m: NpcMetric, cleara
       wz = tip.z;
     }
   }
-  if (worst === Infinity) return null;
+  if (worst === Infinity) {
+    if (memo) memo.side = 0;
+    return null;
+  }
   const n = land.normal(wx, wz);
   if (n.nx === 0 && n.nz === 0) return null;
-  // The two coast tangents; take the one closest to the current course.
-  const cur = moveDir(ship.rotationY);
+  // The two coast tangents; take the one closest to where we want to go (NPC2: the desired
+  // velocity when given, so avoidance slides toward the goal instead of fighting it; otherwise the
+  // current course).
+  const want = desired && Math.hypot(desired.x, desired.z) > 1e-6 ? desired : null;
+  const cur = want ?? moveDir(ship.rotationY);
   let tx = -n.nz;
   let tz = n.nx;
-  if (tx * cur.x + tz * cur.z < 0) {
-    tx = -tx;
-    tz = -tz;
-  }
+  const dot = tx * cur.x + tz * cur.z;
+  let side: 1 | -1 = dot < 0 ? -1 : 1;
+  // NPC2: hysteresis. When the goal is straight behind the coast both tangents are equally good and
+  // the choice would flip every tick (the ship then sits pinned with its rudder see-sawing). Keep
+  // the previous side unless the other one is clearly better.
+  if (memo && memo.side !== 0 && memo.side !== side && Math.abs(dot) < AVOID_SIDE_HYSTERESIS * Math.hypot(cur.x, cur.z)) side = memo.side;
+  if (memo) memo.side = side;
+  tx *= side;
+  tz *= side;
   const urgency = clamp((clearance - worst) / clearance, 0.25, 1);
   // Push away harder the deeper we are.
   const push = 0.5 + urgency;

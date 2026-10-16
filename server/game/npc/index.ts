@@ -10,8 +10,9 @@
  *   3. for every active NPC: a 4 Hz staggered decision (perceive → threat → brain), then per-tick
  *      steering/tactics → `world.setNpcInput(p, {th, ru, f})`
  *
- * Disabled by default: `gameState` only constructs it when NPCS_ENABLED=1|true (npcsEnabled()).
- * NPC2 turns it on and feeds it real lanes (shared/world/lanes.json), ports (safe zones) and land.
+ * NPC2: ON by default (`NPCS_ENABLED=0|false|off|no` disables it). `createLiveNpcSystem` builds it
+ * with the real lanes (shared/world/lanes.json), port safe zones, the live fleets (population.ts)
+ * and the World's LandField.
  */
 import type { World, WorldEvent, WorldPlayer } from "../world";
 import { ARCHETYPES, rollNpc, type Archetype, type ArchetypeId } from "./archetypes";
@@ -20,6 +21,7 @@ import { DEFAULT_DIRECTOR, Director, type DirectorConfig, type NpcRecord } from 
 import { DEFAULT_FAIRPLAY, FairPlay, classMatch, inSafeZone, type FairPlayConfig, type SafeZone } from "./fairplay";
 import {
   applyRepChanges,
+  decayNotoriety,
   areAllies,
   baseHostility,
   emitRepChanges,
@@ -29,7 +31,8 @@ import {
   type FactionId,
   type PlayerStanding,
 } from "./factions";
-import { pointAt, type Lane } from "./lod";
+import { pointAt, projectOnto, type Lane } from "./lod";
+import { normalizeAngle, type ShipInput } from "@shared/physics";
 import { defaultMetric, type NpcMetric } from "./metric";
 import {
   arrive,
@@ -45,15 +48,18 @@ import {
   type SteerShip,
   type Vec,
   type WanderState,
+  type AvoidMemo,
 } from "./steering";
 import { engage, firepower } from "./tactics";
 import { callForHelp, ThreatTable } from "./threat";
-import { moveDir, mulberry32 } from "./util";
+import { headingForDir, moveDir, mulberry32 } from "./util";
+import { LANES as LIVE_LANES, liveDirector, portSafeZones } from "./population";
+import { planPath, segmentClear, type NavPoint } from "./nav";
 
-/** NPCS_ENABLED=1|true turns the NPC system on (default off, so main stays deployable). */
+/** NPC2: NPCs are ON unless NPCS_ENABLED is 0 / false / no / off. */
 export function npcsEnabled(env: Record<string, string | undefined> = process.env): boolean {
   const v = (env.NPCS_ENABLED ?? "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes" || v === "on";
+  return !(v === "0" || v === "false" || v === "no" || v === "off");
 }
 
 /** A sunk NPC's wreck stays visible this long before it is removed from the world. */
@@ -68,6 +74,27 @@ export const LANE_ARRIVE = 150;
 export const PATROL_LEASH = 1500;
 /** Share of an NPC's loot dropped when another NPC sinks it. */
 export const NPC_KILL_LOOT_SHARE = 0.5;
+/** NPC2 unstick: consecutive 1 s checks without progress while touching the coast. */
+export const UNSTICK_AFTER_S = 2;
+/** NPC2 unstick: how long the turn-away manoeuvre lasts. */
+export const UNSTICK_MS = 3000;
+/** NPC2 unstick: "touching the coast" = land distance < hullRadius + this. */
+export const UNSTICK_COAST = 40;
+/** NPC2 lane line of sight: required land clearance beyond the hull, sample spacing, and how far
+ *  ahead of the nearest lane point to steer when the lookahead point is out of sight. */
+export const LOS_MARGIN = 15;
+export const LOS_SAMPLE = 40;
+export const LOS_STEP = 60;
+/** NPC2 coast following (lane behind land): standoff beyond the hull, and when to try the other way. */
+export const WALL_STANDOFF = 80;
+export const WALL_FLIP_MS = 40_000;
+/** NPC2 path planning (nav.ts): plans allowed per tick (all NPCs), replan interval, waypoint reached. */
+export const NAV_PLANS_PER_TICK = 2;
+export const NAV_REPLAN_MS = 5000;
+export const NAV_REACHED = 100;
+/** NPC2: notoriety decay cadence (ticks; 200 = every 10 s). */
+export const NOTORIETY_DECAY_EVERY_TICKS = 200;
+const TICK_SEC = 0.05;
 
 export interface NpcSystemOptions {
   lanes?: Lane[];
@@ -78,6 +105,8 @@ export interface NpcSystemOptions {
   seed?: number;
   director?: Partial<DirectorConfig>;
   fairplay?: Partial<FairPlayConfig>;
+  /** Tests only: active director NPCs are never demoted (no players needed to keep them active). */
+  pinActive?: boolean;
 }
 
 export interface SpawnActiveInit {
@@ -106,6 +135,21 @@ export interface ActiveNpc {
   sunkAtMs: number;
   /** Merchant already struck its colours (loot dropped). */
   struck: boolean;
+  /** NPC2: world tick of the last lane-following step (a gap → re-project onto the lane). */
+  followTick: number;
+  /** NPC2: coast deadlock breaker (see NpcSystem.unstick). */
+  unstickUntilMs: number;
+  stuckChecks: number;
+  progress: { x: number; z: number };
+  /** NPC2: coast-following side while the lane is behind land (0 = not wall following). */
+  wallSide: -1 | 0 | 1;
+  wallSinceMs: number;
+  /** NPC2: avoidLand tangent-side memory (hysteresis). */
+  avoid: AvoidMemo;
+  /** NPC2: planned path back to the lane when it is behind land (nav.ts), and progress along it. */
+  path: NavPoint[] | null;
+  pathIdx: number;
+  nextPlanMs: number;
 }
 
 export interface NpcStats {
@@ -114,6 +158,10 @@ export interface NpcStats {
   fires: number;
   hitsByNpc: number;
   sunkNpcs: number;
+  /** NPC2: times an NPC pinned against a coast ran the unstick manoeuvre. */
+  unsticks: number;
+  /** NPC2: path plans run (lane behind land). */
+  navPlans: number;
   lastTickMs: number;
   maxTickMs: number;
 }
@@ -126,13 +174,15 @@ export class NpcSystem {
   readonly active = new Map<number, ActiveNpc>();
   /** In-memory player standing (NPC2 loads/persists it with the player in Redis). */
   readonly standings = new Map<string, PlayerStanding>();
-  readonly stats: NpcStats = { records: 0, active: 0, fires: 0, hitsByNpc: 0, sunkNpcs: 0, lastTickMs: 0, maxTickMs: 0 };
+  readonly stats: NpcStats = { records: 0, active: 0, fires: 0, hitsByNpc: 0, sunkNpcs: 0, unsticks: 0, navPlans: 0, lastTickMs: 0, maxTickMs: 0 };
   private readonly safeZones: SafeZone[];
   private readonly rng: () => number;
   private readonly provokedPairs = new Set<string>();
   private readonly players: WorldPlayer[] = [];
   private seedCounter = 1;
   private manualKey = -1;
+  private readonly pinActive: boolean;
+  private plansThisTick = 0;
 
   constructor(
     readonly world: World,
@@ -144,6 +194,7 @@ export class NpcSystem {
     this.rng = mulberry32(opts.seed ?? 0x5eed);
     this.director = new Director(opts.lanes ?? [], this.metric, this.rng, { ...DEFAULT_DIRECTOR, ...opts.director });
     this.fairplay = new FairPlay({ ...DEFAULT_FAIRPLAY, ...opts.fairplay });
+    this.pinActive = opts.pinActive ?? false;
   }
 
   /** Install as the world's AI hook. */
@@ -156,10 +207,32 @@ export class NpcSystem {
     if (this.world.npcHook) this.world.npcHook = null;
   }
 
+  /**
+   * A player's standing. NPC2: for a player in the world it lives on the WorldPlayer (`standing`,
+   * persisted with the player record in Redis and restored by World.restorePlayer); it is created
+   * on first use. The `standings` map only holds players that are not in the world.
+   */
   standingOf(playerId: string): PlayerStanding {
+    const p = this.world.getPlayer(playerId);
+    if (p && p.controller === "player") {
+      if (!p.standing) {
+        p.standing = this.standings.get(playerId) ?? newStanding();
+        this.standings.delete(playerId);
+        p.standingVersion++;
+      }
+      return p.standing as PlayerStanding;
+    }
     let s = this.standings.get(playerId);
     if (!s) this.standings.set(playerId, (s = newStanding()));
     return s;
+  }
+
+  /** NPC2: notoriety decay for players in the world, every NOTORIETY_DECAY_EVERY_TICKS. */
+  private decayStandings(): void {
+    const minutes = (NOTORIETY_DECAY_EVERY_TICKS * TICK_SEC) / 60;
+    this.world.players.forEach((p) => {
+      if (p.controller === "player" && p.standing && decayNotoriety(p.standing, minutes)) p.standingVersion++;
+    });
   }
 
   /** Spawn an NPC straight into the world (tests, scripted events). Not managed by the director's
@@ -183,6 +256,13 @@ export class NpcSystem {
       hp: null,
     };
     return this.promote(rec, { x: init.x, z: init.z, rotationY: init.rotationY ?? 0 }, 0);
+  }
+
+  /** Promote a director record (rail tier) into the world now, at its lane position (tests, tools). */
+  promoteRecord(rec: NpcRecord): ActiveNpc | null {
+    if (rec.tier !== "rail" || !rec.rail) return null;
+    const pos = this.director.positionOf(rec);
+    return pos ? this.promote(rec, pos, rec.rail.speed / 60) : null;
   }
 
   private promote(rec: NpcRecord, pos: { x: number; z: number; rotationY: number }, speed: number): ActiveNpc {
@@ -213,6 +293,16 @@ export class NpcSystem {
       idleUntilMs: 0,
       sunkAtMs: -1,
       struck: false,
+      followTick: this.world.tick,
+      unstickUntilMs: 0,
+      stuckChecks: 0,
+      progress: { x: p.x, z: p.z },
+      wallSide: 0,
+      wallSinceMs: 0,
+      avoid: { side: 0 },
+      path: null,
+      pathIdx: 0,
+      nextPlanMs: 0,
     };
     this.active.set(p.eid, a);
     return a;
@@ -236,6 +326,7 @@ export class NpcSystem {
   /** One tick (called by World.step via npcHook). */
   tick(prevEvents: readonly WorldEvent[]): void {
     const t0 = performance.now();
+    this.plansThisTick = 0;
     const w = this.world;
     const now = w.timeMs;
 
@@ -250,6 +341,7 @@ export class NpcSystem {
     });
 
     this.handleEvents(prevEvents, now);
+    if (w.tick % NOTORIETY_DECAY_EVERY_TICKS === 0) this.decayStandings();
 
     // Director, rails, LOD (only when there are lanes to sail).
     if (this.director.polys.length > 0) {
@@ -354,6 +446,8 @@ export class NpcSystem {
   private repEvent(playerId: string, faction: FactionId, act: "attack" | "sink"): void {
     const changes = repChangesFor(faction, act);
     applyRepChanges(this.standingOf(playerId), changes, notorietyFor(faction, act));
+    const p = this.world.getPlayer(playerId);
+    if (p) p.standingVersion++; // NPC2: re-send to the client
     emitRepChanges(this.world.effects, playerId, changes, act === "sink" ? "sankNpc" : "attackedNpc");
   }
 
@@ -379,7 +473,7 @@ export class NpcSystem {
       if (r.eid === null || !r.rail) return null; // manual NPCs never demote
       const a = this.active.get(r.eid);
       if (!a || a.p.sunk) return null;
-      return { x: a.p.x, z: a.p.z, inCombat: isCombatState(a.brain.state) };
+      return { x: a.p.x, z: a.p.z, inCombat: this.pinActive || isCombatState(a.brain.state) };
     }, this.extraActive());
     for (const r of demote) {
       const a = r.eid !== null ? this.active.get(r.eid) : undefined;
@@ -537,11 +631,46 @@ export class NpcSystem {
         break;
     }
 
-    const avoid = avoidLand(self, this.land, this.metric);
+    const avoid = avoidLand(self, this.land, this.metric, undefined, v, a.avoid);
     const steer = toSteer(self, withAvoidance(v, avoid));
-    const input = toInput(self, steer.heading, steer.speed, p.physics);
+    let input = toInput(self, steer.heading, steer.speed, p.physics);
+    input = this.unstick(a, steer.speed, input, now);
     if (fire) input.f = 1;
     w.setNpcInput(p, input);
+  }
+
+  /**
+   * NPC2: coast deadlock breaker. A ship pressed bow-first into a concave coast can sit still: the
+   * slide removes its speed and the two coast tangents flip from tick to tick. Once a second
+   * (staggered by eid) we check progress; after UNSTICK_AFTER_S checks with less than 15 % of the
+   * expected distance made while touching the coast and wanting to move, the ship turns its bow
+   * along the land normal (away from the coast), reversing until it points within 60° of it, for
+   * UNSTICK_MS. It then re-projects onto its lane (`followTick` reset).
+   */
+  private unstick(a: ActiveNpc, wantSpeed: number, input: ShipInput, now: number): ShipInput {
+    const p = a.p;
+    const hull = p.physics.hullRadius ?? 20;
+    if (now < a.unstickUntilMs) {
+      const n = this.land.normal(p.x, p.z);
+      if (n.nx === 0 && n.nz === 0) return input;
+      const err = normalizeAngle(headingForDir(n.nx, n.nz) - p.rotationY);
+      const ru: -1 | 0 | 1 = Math.abs(err) < 0.05 ? 0 : err > 0 ? 1 : -1;
+      return { th: Math.abs(err) > Math.PI / 3 ? -1 : 1, ru, f: 0 };
+    }
+    if ((this.world.tick + p.eid) % 20 !== 0) return input;
+    const moved = Math.sqrt(this.metric.distSq(a.progress.x, a.progress.z, p.x, p.z));
+    a.progress.x = p.x;
+    a.progress.z = p.z;
+    const touching = this.land.distance(p.x, p.z) < hull + UNSTICK_COAST;
+    if (touching && wantSpeed > 1 && moved < p.maxSpeed * 20 * 0.15) a.stuckChecks++;
+    else a.stuckChecks = 0;
+    if (a.stuckChecks >= UNSTICK_AFTER_S) {
+      a.stuckChecks = 0;
+      a.unstickUntilMs = now + UNSTICK_MS;
+      a.followTick = -1; // re-project onto the lane afterwards
+      this.stats.unsticks++;
+    }
+    return input;
   }
 
   private followLaneOrWander(a: ActiveNpc, self: SteerShip, now: number): Vec {
@@ -554,6 +683,13 @@ export class NpcSystem {
       return { x: v.x * patrolSpeed, z: v.z * patrolSpeed };
     }
     if (now < a.idleUntilMs) return { x: 0, z: 0 };
+    // NPC2: back on the lane after a fight, a chase or an unstick → resume from the nearest lane
+    // point instead of the old follow point (which may now lie across a headland).
+    const w = this.world;
+    if (a.followTick !== w.tick - 1 && a.followTick !== w.tick && !a.rec.port) {
+      a.followS = projectOnto(rail.poly, self.x, self.z, this.metric).s;
+    }
+    a.followTick = w.tick;
     if (a.rec.port) {
       // Done idling at the dock: take the next lane out.
       a.rec.departAtMs = now;
@@ -567,8 +703,9 @@ export class NpcSystem {
     for (let i = 0; i < 20; i++) {
       const q = pointAt(r.poly, a.followS, m, r.dir);
       if (m.distSq(self.x, self.z, q.x, q.z) > LANE_LOOKAHEAD * LANE_LOOKAHEAD) break;
-      const nextS = a.followS + r.dir * 50;
-      if (nextS < 0 || nextS > r.poly.total) break;
+      // NPC2: clamp to the lane end (lengths are not multiples of 50; the end must be reachable).
+      const nextS = Math.max(0, Math.min(r.poly.total, a.followS + r.dir * 50));
+      if (nextS === a.followS) break;
       a.followS = nextS;
     }
     r.s = a.followS;
@@ -585,9 +722,117 @@ export class NpcSystem {
       this.director.arrive(a.rec, now, false);
       a.followS = a.rec.rail!.s;
     }
-    const v = seek(self, q.x, q.z, m);
+    // NPC2: line of sight. Lanes keep ≥ 80 units of clearance, but the straight line to a point
+    // 250 ahead can cut across a spit or headland (Cavite, the Thames, ...), where avoidance and
+    // seek cancel out. If it does, steer for the lane just ahead of our nearest lane point instead;
+    // if that is behind land too (far off the lane after a chase), plan a path (nav.ts) to it.
+    let tx = q.x;
+    let tz = q.z;
+    const hull = a.p.physics.hullRadius ?? 20;
+    const clear = hull + LOS_MARGIN;
+    if (this.clearPath(self.x, self.z, tx, tz, clear)) {
+      a.path = null;
+      a.wallSide = 0;
+    } else {
+      const wp = this.pathWaypoint(a, self, clear);
+      if (wp) {
+        tx = wp.x;
+        tz = wp.z;
+      } else {
+        const rr = a.rec.rail!;
+        const near = projectOnto(rr.poly, self.x, self.z, m).s;
+        const s2 = Math.max(0, Math.min(rr.poly.total, near + rr.dir * LOS_STEP));
+        const q2 = pointAt(rr.poly, s2, m, rr.dir);
+        tx = q2.x;
+        tz = q2.z;
+        if (this.clearPath(self.x, self.z, tx, tz, clear)) a.wallSide = 0;
+        else {
+          let planned: NavPoint | null = null;
+          if (this.plansThisTick < NAV_PLANS_PER_TICK && now >= a.nextPlanMs) {
+            this.plansThisTick++;
+            this.stats.navPlans++;
+            a.nextPlanMs = now + NAV_REPLAN_MS;
+            a.path = planPath(this.land, m, { x: self.x, z: self.z }, { x: tx, z: tz }, clear);
+            a.pathIdx = 0;
+            planned = this.pathWaypoint(a, self, clear);
+          }
+          if (planned) {
+            tx = planned.x;
+            tz = planned.z;
+          } else {
+            // No plan this tick (budget) or none found: follow the coast.
+            const wv = this.wallFollow(a, self, tx, tz, hull, now);
+            if (wv) return { x: wv.x * patrolSpeed, z: wv.z * patrolSpeed };
+          }
+        }
+      }
+    }
+    const v = seek(self, tx, tz, m);
     return { x: v.x * patrolSpeed, z: v.z * patrolSpeed };
   }
+
+  /** NPC2: the current waypoint of a planned path (advancing past reached ones), or null when there
+   *  is no path, it is finished, or the next waypoint went out of sight (replan later). */
+  private pathWaypoint(a: ActiveNpc, self: SteerShip, clearance: number): NavPoint | null {
+    const path = a.path;
+    if (!path) return null;
+    while (a.pathIdx < path.length && this.metric.distSq(self.x, self.z, path[a.pathIdx].x, path[a.pathIdx].z) < NAV_REACHED * NAV_REACHED) a.pathIdx++;
+    if (a.pathIdx >= path.length) {
+      a.path = null;
+      return null;
+    }
+    const wp = path[a.pathIdx];
+    if (this.world.tick % 10 === a.p.eid % 10 && !this.clearPath(self.x, self.z, wp.x, wp.z, clearance * 0.5)) {
+      a.path = null;
+      return null;
+    }
+    return wp;
+  }
+
+  /**
+   * NPC2: "bug" navigation. The goal is behind land: keep the coast on one side at a standoff of
+   * about hull + WALL_STANDOFF and sail along it until the goal is in sight again. The side is the
+   * tangent closer to the goal when the manoeuvre starts and flips after WALL_FLIP_MS (so a ship
+   * that picked the long way round an island turns back). null = no coast gradient here.
+   */
+  private wallFollow(a: ActiveNpc, self: SteerShip, tx: number, tz: number, hull: number, now: number): Vec | null {
+    const n = this.land.normal(self.x, self.z);
+    if (n.nx === 0 && n.nz === 0) return null;
+    const tanX = -n.nz;
+    const tanZ = n.nx;
+    if (a.wallSide === 0 || now - a.wallSinceMs > WALL_FLIP_MS) {
+      if (a.wallSide === 0) {
+        const g = this.metric.delta(self.x, self.z, tx, tz);
+        a.wallSide = tanX * g.dx + tanZ * g.dz >= 0 ? 1 : -1;
+      } else a.wallSide = a.wallSide === 1 ? -1 : 1;
+      a.wallSinceMs = now;
+    }
+    const d = this.land.distance(self.x, self.z);
+    const k = Math.max(-0.5, Math.min(1, (hull + WALL_STANDOFF - d) / WALL_STANDOFF));
+    const vx = tanX * a.wallSide + n.nx * k;
+    const vz = tanZ * a.wallSide + n.nz * k;
+    const l = Math.hypot(vx, vz) || 1;
+    return { x: (vx / l) * self.maxSpeed, z: (vz / l) * self.maxSpeed };
+  }
+
+  /** NPC2: true if the straight (metric) segment a→b keeps at least `clearance` from land. */
+  private clearPath(ax: number, az: number, bx: number, bz: number, clearance: number): boolean {
+    return segmentClear(this.land, this.metric, ax, az, bx, bz, clearance, LOS_SAMPLE);
+  }
+}
+
+/**
+ * NPC2: the live NPC system for the real map: lanes.json, port safe zones, the live fleets
+ * (population.ts) and the World's LandField. Not attached; call `.attach()`.
+ */
+export function createLiveNpcSystem(world: World, opts: NpcSystemOptions = {}): NpcSystem {
+  return new NpcSystem(world, {
+    lanes: LIVE_LANES as Lane[],
+    safeZones: portSafeZones(),
+    seed: 0x5eed,
+    ...opts,
+    director: liveDirector(opts.director),
+  });
 }
 
 export type { Lane } from "./lod";

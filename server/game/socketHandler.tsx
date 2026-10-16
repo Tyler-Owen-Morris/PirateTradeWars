@@ -10,6 +10,7 @@
 import { redisStorage } from "../redisStorage";
 import { gameState, type WorldPlayer } from "./gameState";
 import { isNpcId } from "./world";
+import { decayNotoriety } from "./npc/factions";
 import { WebSocket } from "ws";
 import { SHIP_UPGRADE_PATH, SHIP_STATS } from "@shared/gameConstants";
 import { metricDistSq } from "@shared/world/geo";
@@ -123,6 +124,9 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!existingPlayer) {
       const stored = await redisStorage.getPlayer(data.id);
       if (!stored) return sendError(ws, "Player ID not found");
+      // NPC2: notoriety kept decaying while the player was offline.
+      const standing = (stored as any).standing;
+      if (standing && typeof stored.lastSeen === "number") decayNotoriety(standing, (Date.now() - stored.lastSeen) / 60_000);
       existingPlayer = gameState.world.restorePlayer(stored as any);
     }
     if (data.name !== existingPlayer.name) {

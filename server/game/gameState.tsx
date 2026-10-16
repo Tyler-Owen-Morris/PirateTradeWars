@@ -15,7 +15,7 @@ import { trackEvent, shutdownSegment } from "../segmentClient";
 import { World, TICK_MS, isNpcId, type WorldEffect, type WorldPlayer } from "./world";
 import { FixedStepLoop } from "./loop";
 import { loadLandSync } from "./landLoader";
-import { NpcSystem, npcsEnabled } from "./npc";
+import { createLiveNpcSystem, npcsEnabled, type NpcSystem } from "./npc";
 
 export type { PlayerState, WorldPlayer } from "./world";
 export { GRACE_PERIOD, GOLD_COLLECTION_RADIUS, GOLD_OBJECT_LIFETIME } from "./world";
@@ -55,9 +55,11 @@ class GameState {
   private tickCount = 0;
   private tickTimeTotal = 0;
 
-  /** NPC1: the NPC system, only when NPCS_ENABLED=1|true (default off). NPC2 passes lanes, ports
-   *  (safe zones) and land; with no lanes the director spawns nothing. */
-  readonly npcs: NpcSystem | null = npcsEnabled() ? new NpcSystem(this.world).attach() : null;
+  /** NPC2: the live NPC system (lanes.json, port safe zones, ~300 NPCs, the World's land). ON by
+   *  default; NPCS_ENABLED=0 turns it off. */
+  readonly npcs: NpcSystem | null = npcsEnabled() ? createLiveNpcSystem(this.world).attach() : null;
+  /** NPC2: players whose standing changed this tick (npcRepChange), written to Redis once each. */
+  private readonly standingDirty = new Set<string>();
 
   constructor() {
     this.loop = new FixedStepLoop(() => this.runTick(), { stepMs: TICK_MS, maxCatchUp: 5 });
@@ -141,13 +143,16 @@ class GameState {
 
     const effects = this.world.drainEffects();
     for (const e of effects) this.runEffect(e);
+    this.flushStandings();
 
     this.tickTimeTotal += performance.now() - t0;
     if (++this.tickCount % (20 * 60) === 0) {
       console.log(
         `[tick] avg ${(this.tickTimeTotal / (20 * 60)).toFixed(2)} ms over 60 s, players=${this.world.players.size}, ` +
-          `sockets=${this.sockets.size}, balls=${this.world.balls.length}, dropped=${this.loop.dropped}`,
+          `sockets=${this.sockets.size}, balls=${this.world.balls.length}, dropped=${this.loop.dropped}` +
+          (this.npcs ? `, npcs=${this.npcs.stats.active}/${this.npcs.stats.records} (npc max ${this.npcs.stats.maxTickMs.toFixed(1)} ms)` : ""),
       );
+      if (this.npcs) this.npcs.stats.maxTickMs = 0;
       this.tickTimeTotal = 0;
     }
   }
@@ -187,11 +192,26 @@ class GameState {
           background("removeActiveName", () => redisStorage.removeActiveName(e.player.name));
         }
         break;
-      // NPC1: NPC effects never touch the leaderboard. TODO(NPC2): persist rep changes with the player.
+      // NPC effects never touch the leaderboard. NPC2: rep changes are already applied to the
+      // player's in-memory standing by the NPC system; persist it (once per player per tick).
       case "npcSunk":
+        break;
       case "npcRepChange":
+        this.standingDirty.add(e.playerId);
         break;
     }
+  }
+
+  /** NPC2: write changed standings to the player records (fire-and-forget, outside the tick). */
+  private flushStandings() {
+    if (this.standingDirty.size === 0) return;
+    this.standingDirty.forEach((id) => {
+      const p = this.world.getPlayer(id);
+      if (!p || !p.standing || p.controller !== "player") return;
+      const standing = { rep: { ...p.standing.rep }, notoriety: p.standing.notoriety, bounty: p.standing.bounty };
+      background("updatePlayerStanding", () => redisStorage.updatePlayerStanding(id, standing));
+    });
+    this.standingDirty.clear();
   }
 
   /** Persist every in-world player (used on graceful shutdown). */

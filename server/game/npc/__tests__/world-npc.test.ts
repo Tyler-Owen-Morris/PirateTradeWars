@@ -116,11 +116,14 @@ describe("World NPC plumbing", () => {
     expect(w.drainEffects().some((e) => e.type === "goldCollected")).toBe(false);
   });
 
-  it("NPCS_ENABLED gates the system (default off)", () => {
-    expect(npcsEnabled({})).toBe(false);
-    expect(npcsEnabled({ NPCS_ENABLED: "0" })).toBe(false);
+  it("NPCS_ENABLED gates the system (NPC2: default ON, 0/false/off/no disables)", () => {
+    expect(npcsEnabled({})).toBe(true);
+    expect(npcsEnabled({ NPCS_ENABLED: "" })).toBe(true);
     expect(npcsEnabled({ NPCS_ENABLED: "1" })).toBe(true);
     expect(npcsEnabled({ NPCS_ENABLED: "true" })).toBe(true);
+    expect(npcsEnabled({ NPCS_ENABLED: "0" })).toBe(false);
+    expect(npcsEnabled({ NPCS_ENABLED: "false" })).toBe(false);
+    expect(npcsEnabled({ NPCS_ENABLED: " OFF " })).toBe(false);
   });
 });
 

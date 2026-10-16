@@ -38,13 +38,24 @@ export const RESPAWN_MIN_MS = 2 * 60 * 1000;
 export const RESPAWN_MAX_MS = 5 * 60 * 1000;
 export const DOCK_MIN_MS = 20_000;
 export const DOCK_MAX_MS = 60_000;
+/** NPC2: spacing between members of a convoy / patrol group along their lane (metric units). */
+export const GROUP_SPACING = 160;
 
 export interface RegionTarget {
+  /** Label of this fleet. Records are counted per (region, archetype), so keep it unique per target
+   *  when several targets share an archetype (e.g. "caribbean/navy/spain"). */
   region: string;
   archetype: ArchetypeId;
   count: number;
   /** Restrict factions (e.g. Spanish navy in the Caribbean). Default: the archetype's list. */
   factions?: FactionId[];
+  /** NPC2: lanes this fleet sails (spawn AND every later lane hand-over). When absent, the lanes
+   *  whose `laneRegion` equals `region` ("all" = every lane). A fleet ship that reaches a port with
+   *  no matching lane turns around on the lane it came in on. */
+  lanes?: (lane: Lane) => boolean;
+  /** NPC2: take the nation of the departure port (`portFaction`) when no `factions` are given
+   *  (merchants sail under the nation of their origin port). */
+  originFaction?: boolean;
 }
 
 export interface DirectorConfig {
@@ -56,6 +67,8 @@ export interface DirectorConfig {
   targets: RegionTarget[];
   /** Region of a lane (e.g. the region of its `from` port). Default: "all". */
   laneRegion: (lane: Lane) => string;
+  /** NPC2: faction of a port id (for `originFaction` targets). Default: none (archetype list). */
+  portFaction?: (port: string) => FactionId | undefined;
 }
 
 export const DEFAULT_TARGETS: RegionTarget[] = [
@@ -96,12 +109,15 @@ export interface NpcRecord {
   eid: number | null;
   /** Last known hp (kept across demotion/promotion). null = full. */
   hp: number | null;
+  /** NPC2: index into `config.targets` of the fleet that owns this record (-1/undefined = none). */
+  target?: number;
+  /** NPC2: key of the convoy leader (members follow its lane choices); null/undefined = solo or leader. */
+  leader?: number | null;
 }
 
 interface Respawn {
   region: string;
   archetype: ArchetypeId;
-  factions?: FactionId[];
   atMs: number;
 }
 
@@ -121,6 +137,8 @@ export class Director {
   readonly polys: Polyline[];
   private readonly byPort = new Map<string, { poly: Polyline; dir: 1 | -1 }[]>();
   private readonly byRegion = new Map<string, Polyline[]>();
+  /** Lanes per fleet target (index into config.targets). */
+  private readonly byTarget: Polyline[][];
   private nextKey = 1;
   private lastDirectorMs = -Infinity;
   private lastRailMs = -1;
@@ -140,6 +158,9 @@ export class Director {
       if (!list) this.byRegion.set(reg, (list = []));
       list.push(p);
     }
+    this.byTarget = config.targets.map((t) =>
+      t.lanes ? this.polys.filter((p) => t.lanes!(p.lane)) : (this.byRegion.get(t.region) ?? (t.region === "all" ? this.polys : [])),
+    );
   }
 
   private addPort(port: string, e: { poly: Polyline; dir: 1 | -1 }): void {
@@ -173,61 +194,86 @@ export class Director {
     return { poly, dir, s, speed: shipSpeed * 60 * ARCHETYPES[arch].railSpeedFrac };
   }
 
-  /** Create one record (rail tier, random spot on a random lane of `region`) or null if no spot
-   *  far enough from players was found. */
-  spawn(region: string, arch: ArchetypeId, players: readonly PlayerPos[], factions?: FactionId[]): NpcRecord | null {
-    if (this.records.size >= this.config.maxPersistent) return null;
-    const lanes = this.byRegion.get(region) ?? (region === "all" ? this.polys : undefined);
-    if (!lanes || lanes.length === 0) return null;
+  /** Create one record, or a group (convoy / patrol pair, at most `maxGroup`) on one lane, in the
+   *  rail tier at a random spot on a lane of the fleet, more than minSpawnDist from every player.
+   *  Group size comes from the archetype's `group`; members share ship type (so speed) and faction
+   *  and trail the leader by GROUP_SPACING. Returns [] if no spot was found or the cap is full.
+   *  `target` is an index into config.targets, or a region label (lanes by `laneRegion`). */
+  spawn(target: number | string, arch: ArchetypeId, players: readonly PlayerPos[], factions?: FactionId[], maxGroup = 1): NpcRecord[] {
+    const room = this.config.maxPersistent - this.records.size;
+    if (room <= 0) return [];
+    const ti = typeof target === "number" ? target : -1;
+    const t = ti >= 0 ? this.config.targets[ti] : undefined;
+    const region = t ? t.region : (target as string);
+    const lanes = ti >= 0 ? this.byTarget[ti] : (this.byRegion.get(region) ?? (region === "all" ? this.polys : undefined));
+    if (!lanes || lanes.length === 0) return [];
+    const factionList = factions ?? t?.factions;
     for (let attempt = 0; attempt < 6; attempt++) {
       const poly = lanes[Math.floor(this.rng() * lanes.length) % lanes.length];
       const s = this.rng() * poly.total;
       const p = pointAt(poly, s, this.metric);
       if (!this.farFromPlayers(p.x, p.z, players)) continue;
-      const f = factions && factions.length ? factions[Math.floor(this.rng() * factions.length) % factions.length] : undefined;
-      const roll = rollNpc(arch, this.rng, f);
       const dir: 1 | -1 = this.rng() < 0.5 ? 1 : -1;
-      const rec: NpcRecord = {
-        key: this.nextKey++,
-        archetype: arch,
-        faction: roll.faction,
-        shipType: roll.shipType,
-        name: roll.name,
-        title: roll.title,
-        loot: roll.gold,
-        region,
-        tier: "rail",
-        rail: this.railFor(poly, dir, s, arch, shipSpeedOf(roll.shipType)),
-        port: null,
-        departAtMs: 0,
-        eid: null,
-        hp: null,
-      };
-      this.records.set(rec.key, rec);
-      return rec;
+      let f = factionList && factionList.length ? factionList[Math.floor(this.rng() * factionList.length) % factionList.length] : undefined;
+      if (!f && t?.originFaction && this.config.portFaction) f = this.config.portFaction(dir === 1 ? poly.lane.from : poly.lane.to);
+      const [gMin, gMax] = ARCHETYPES[arch].group;
+      const want = gMin + Math.floor(this.rng() * (gMax - gMin + 1));
+      const n = Math.max(1, Math.min(want, maxGroup, room));
+      const out: NpcRecord[] = [];
+      let shipType = "";
+      for (let k = 0; k < n; k++) {
+        const roll = rollNpc(arch, this.rng, f);
+        if (k === 0) {
+          shipType = roll.shipType;
+          f = roll.faction;
+        }
+        const sk = Math.max(0, Math.min(poly.total, s - dir * k * GROUP_SPACING));
+        const rec: NpcRecord = {
+          key: this.nextKey++,
+          archetype: arch,
+          faction: roll.faction,
+          shipType,
+          name: roll.name,
+          title: roll.title,
+          loot: roll.gold,
+          region,
+          tier: "rail",
+          rail: this.railFor(poly, dir, sk, arch, shipSpeedOf(shipType)),
+          port: null,
+          departAtMs: 0,
+          eid: null,
+          hp: null,
+          target: ti,
+          leader: k === 0 ? null : out[0].key,
+        };
+        this.records.set(rec.key, rec);
+        out.push(rec);
+      }
+      return out;
     }
-    return null;
+    return [];
   }
 
-  /** 0.2 Hz: drop expired respawn timers and top every region target back up. Returns spawned. */
+  /** 0.2 Hz: drop expired respawn timers and top every fleet target back up. Returns spawned. */
   topUp(nowMs: number, players: readonly PlayerPos[]): NpcRecord[] {
     if (nowMs - this.lastDirectorMs < DIRECTOR_INTERVAL_MS) return [];
     this.lastDirectorMs = nowMs;
     for (let i = this.respawns.length - 1; i >= 0; i--) if (this.respawns[i].atMs <= nowMs) this.respawns.splice(i, 1);
     const out: NpcRecord[] = [];
-    for (const t of this.config.targets) {
-      if (ARCHETYPES[t.archetype].stub) continue;
+    this.config.targets.forEach((t, ti) => {
+      if (ARCHETYPES[t.archetype].stub) return;
       let have = 0;
       this.records.forEach((r) => {
         if (r.region === t.region && r.archetype === t.archetype) have++;
       });
       for (const q of this.respawns) if (q.region === t.region && q.archetype === t.archetype) have++;
-      for (let i = have; i < t.count; i++) {
-        const r = this.spawn(t.region, t.archetype, players, t.factions);
-        if (!r) break;
-        out.push(r);
+      while (have < t.count) {
+        const rs = this.spawn(ti, t.archetype, players, t.factions, t.count - have);
+        if (rs.length === 0) break;
+        have += rs.length;
+        out.push(...rs);
       }
-    }
+    });
     return out;
   }
 
@@ -236,17 +282,27 @@ export class Director {
     const r = this.records.get(key);
     if (!r) return;
     this.records.delete(key);
-    const t = this.config.targets.find((x) => x.region === r.region && x.archetype === r.archetype);
     const span = this.config.respawnMaxMs - this.config.respawnMinMs;
-    this.respawns.push({ region: r.region, archetype: r.archetype, factions: t?.factions, atMs: nowMs + this.config.respawnMinMs + this.rng() * span });
+    this.respawns.push({ region: r.region, archetype: r.archetype, atMs: nowMs + this.config.respawnMinMs + this.rng() * span });
   }
 
-  /** Pick a lane out of `port` (not the one we came in on if there is a choice). */
-  private nextLane(port: string, cameFrom: Polyline | null): { poly: Polyline; dir: 1 | -1 } | null {
-    const list = this.byPort.get(port);
+  /** Pick a lane out of `port` (not the one we came in on if there is a choice), restricted to the
+   *  record's fleet lanes when its target has a lane filter (null = none: turn around). */
+  private nextLane(port: string, cameFrom: Polyline | null, r?: NpcRecord): { poly: Polyline; dir: 1 | -1 } | null {
+    let list = this.byPort.get(port);
     if (!list || list.length === 0) return null;
+    const t = r && r.target !== undefined && r.target >= 0 ? this.config.targets[r.target] : undefined;
+    if (t?.lanes) {
+      list = list.filter((l) => t.lanes!(l.poly.lane));
+      if (list.length === 0) return null;
+    }
     const choices = list.length > 1 && cameFrom ? list.filter((l) => l.poly !== cameFrom) : list;
     return choices[Math.floor(this.rng() * choices.length) % choices.length];
+  }
+
+  /** The live leader of a convoy member, if it still exists. */
+  private leaderOf(r: NpcRecord): NpcRecord | undefined {
+    return r.leader != null ? this.records.get(r.leader) : undefined;
   }
 
   /** Lane hand-over at the end of a lane (used for rail and active NPCs). */
@@ -256,6 +312,9 @@ export class Director {
     if (dock) {
       r.port = port;
       r.departAtMs = nowMs + DOCK_MIN_MS + this.rng() * (DOCK_MAX_MS - DOCK_MIN_MS);
+      // Convoy members leave port right after their leader (keeping their spacing in time).
+      const lead = this.leaderOf(r);
+      if (lead && lead.port === port) r.departAtMs = Math.max(nowMs + 1000, lead.departAtMs + (r.key - lead.key) * 1500);
       if (r.tier !== "active") r.tier = "docked";
       return;
     }
@@ -263,7 +322,13 @@ export class Director {
   }
 
   private depart(r: NpcRecord, port: string, cameFrom: Polyline | null): void {
-    const next = this.nextLane(port, cameFrom);
+    // Convoy members take the lane their leader took out of this port, if it already left on one.
+    const lead = this.leaderOf(r);
+    const leadOut =
+      lead?.rail && lead.port === null && (lead.rail.dir === 1 ? lead.rail.poly.lane.from : lead.rail.poly.lane.to) === port
+        ? { poly: lead.rail.poly, dir: lead.rail.dir }
+        : null;
+    const next = leadOut ?? this.nextLane(port, cameFrom, r);
     if (!next) {
       // Dead end: sail the same lane back.
       if (r.rail) r.rail.dir = r.rail.dir === 1 ? -1 : 1;

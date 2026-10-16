@@ -65,6 +65,8 @@ import {
   type InputMessage,
   type ServerMessage,
   type SnapshotMessage,
+  type StandingState,
+  parseStanding,
 } from "@shared/protocol";
 import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
 
@@ -131,6 +133,9 @@ export interface PlayerState {
   dead: boolean;
   /** Coordinate-system version the position is in (geo.ts WORLD_VERSION); missing = old torus. */
   worldVersion?: number;
+  /** NPC2: standing with the NPC factions (rep, notoriety, bounty). Persisted with the player in
+   *  Redis (`standing` JSON field); owned at runtime by the NPC system (NpcSystem.standingOf). */
+  standing?: StandingState;
 }
 
 /** A player inside the world: the persisted shape plus netcode bookkeeping. */
@@ -168,6 +173,10 @@ export interface WorldPlayer extends PlayerState {
   faction?: string;
   title?: string;
   // ---- end NPC1 ----
+  /** NPC2: bumped by the NPC system when `standing` changes; `standingSent` is the version last
+   *  sent to this player's client as a `standing` message (−1 = resend on next build). */
+  standingVersion: number;
+  standingSent: number;
 }
 
 export interface CannonBall {
@@ -494,6 +503,8 @@ export class World {
       dead: p.dead ?? false,
       worldVersion: WORLD_VERSION,
     };
+    const standing = p.standing !== undefined ? parseStanding(p.standing) : null; // NPC2
+    if (standing) state.standing = standing;
     return this.insert(state);
   }
 
@@ -517,6 +528,8 @@ export class World {
       rowJson: "",
       seenStamp: 0,
       controller: "player",
+      standingVersion: 0,
+      standingSent: -1,
     };
     this.players.set(p.id, p);
     this.byEid.set(p.eid, p);
@@ -636,6 +649,7 @@ export class World {
       p.inputQueue.length = 0;
       p.highestSeq = -1;
       p.lastSeq = -1;
+      p.standingSent = -1; // NPC2: resend the standing on (re)attach
     }
   }
 
@@ -937,6 +951,13 @@ export class World {
       }
     });
 
+    // NPC2: the player's own standing, only when it changed (or on attach).
+    if (p.standing && p.standingSent !== p.standingVersion) {
+      p.standingSent = p.standingVersion;
+      const st = p.standing;
+      out.push({ t: "standing", rep: { ...st.rep }, notoriety: Math.round(st.notoriety * 10) / 10, bounty: st.bounty });
+    }
+
     // Events.
     for (const ev of this.events) {
       switch (ev.kind) {
@@ -1097,6 +1118,8 @@ export function toPlayerState(p: WorldPlayer): PlayerState {
     lastSeen: p.lastSeen,
     dead: p.dead,
     worldVersion: p.worldVersion ?? WORLD_VERSION,
+    // NPC2: a copy, so a persisted snapshot never aliases the live standing
+    ...(p.standing ? { standing: { rep: { ...p.standing.rep }, notoriety: p.standing.notoriety, bounty: p.standing.bounty } } : {}),
   };
 }
 
