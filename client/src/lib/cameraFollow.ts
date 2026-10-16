@@ -14,6 +14,10 @@
  * i.e. first snapshot after join / reconnect / respawn) and whenever the ship is > SNAP_DISTANCE from
  * the focus (wrap-aware). Map seam: all state is kept in the ship's coordinate frame — when the ship
  * wraps, focus and camera are shifted by the same multiple of the map size, so nothing flies across.
+ *
+ * In the game it runs in floating-origin render space (lib/world/renderSpace.ts): the ship is always
+ * at (0, 0); GameScene calls `shiftOrigin(renderFocus.shiftX, renderFocus.shiftZ)` then
+ * `update(0, 0, heading, dt)`. Values stay small there, so the wrap logic above is a no-op.
  */
 import { wrappedDelta } from "@shared/physics";
 import { MAP_HEIGHT, MAP_WIDTH } from "@shared/gameConstants";
@@ -69,6 +73,18 @@ export class CameraFollow {
   /** Jump straight to the ship on the next update (spawn / reconnect). */
   requestSnap(): void {
     this.snapRequested = true;
+  }
+
+  /**
+   * Floating origin (lib/world/renderSpace.ts): the render-space origin moved to (dx, dz) as measured
+   * in the previous frame's render space. Re-express the smoothing state in the new frame so the
+   * camera keeps its lag and never jumps. Call before `update()` each frame with renderFocus.shift.
+   */
+  shiftOrigin(dx: number, dz: number): void {
+    this.focus.x -= dx;
+    this.focus.z -= dz;
+    this.cam.x -= dx;
+    this.cam.z -= dz;
   }
 
   /**

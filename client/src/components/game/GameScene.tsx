@@ -2,6 +2,8 @@
  * Main 3D scene. Netcode lives in `@/lib/net`:
  *  - Player.tsx drives prediction (`net.frame`) and draws the predicted own ship (useFrame, prio -1);
  *  - OtherShips.tsx / CannonBall.tsx read interpolated / simulated positions in useFrame;
+ *  - everything is drawn in floating-origin render space around the own ship (lib/world/renderSpace.ts,
+ *    WORLD_SPEC §7); the own ship is at the origin;
  *  - this component only makes the camera follow the rendered own ship (lib/cameraFollow.ts:
  *    frame-rate independent, bounded lag, snap on spawn / big jumps, seam-aware) and runs the (throttled)
  *    port-proximity check. Inputs are sent by the net layer, not from here.
@@ -21,6 +23,7 @@ import { Fog } from "./Fog";
 import { GoldObject } from "./GoldObject";
 import { net, type ControlState } from "@/lib/net";
 import { CameraFollow } from "@/lib/cameraFollow";
+import { renderFocus, CAMERA_FAR } from "@/lib/world/renderSpace";
 
 interface GameSceneProps {
   /** touch joystick / HUD fire button state (keyboard is read inside Player) */
@@ -70,7 +73,10 @@ export function GameScene({ controlsRef }: GameSceneProps) {
     const dt = lastFrameAt.current === null ? 0 : (now - lastFrameAt.current) / 1000;
     lastFrameAt.current = now;
 
+    // Floating origin: the ship is at (0,0) in render space; carry the smoothing state over the
+    // origin move first (renderFocus.shift, set by Player.tsx this frame).
     const f = follow.current;
+    f.shiftOrigin(renderFocus.shiftX, renderFocus.shiftZ);
     f.update(group.position.x, group.position.z, group.rotation.y, dt);
     camera.position.set(f.cam.x, f.cam.y, f.cam.z);
     lookAt.current.set(f.focus.x, f.focus.y, f.focus.z);
@@ -103,7 +109,8 @@ export function GameScene({ controlsRef }: GameSceneProps) {
 
           <Fog color="#b3d9ff" near={600} far={1800} />
 
-          <Ocean />
+          {/* Camera-following plane; waves anchored to the world (see Ocean.tsx) */}
+          <Ocean size={2 * (CAMERA_FAR + 500)} />
 
           <Ports />
 
@@ -118,7 +125,9 @@ export function GameScene({ controlsRef }: GameSceneProps) {
             <GoldObject
               key={gold.id}
               id={gold.id}
-              position={[gold.x, gold.y, gold.z]}
+              x={gold.x}
+              y={gold.y}
+              z={gold.z}
               gold={gold.gold}
             />
           ))}

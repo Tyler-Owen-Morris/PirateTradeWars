@@ -4,7 +4,8 @@
  *   1. combine keyboard (drei KeyboardControls, read imperatively) + touch/HUD controls,
  *   2. call `net.frameNow(controls)` (measures its own frame dt) — fixed 20 Hz prediction with the shared `stepShip`,
  *      sending one `input` per step (see lib/net/prediction.ts),
- *   3. write the predicted render state (interpolated + decaying error offset) to the Three group.
+ *   3. set the floating-origin focus (lib/world/renderSpace.ts) to the predicted render state
+ *      (interpolated + decaying error offset) and draw the ship at the origin with its heading.
  * Server snapshots reconcile the prediction inside the net layer; there is no snapping here and the
  * zustand player object is never mutated. Props only carry slow-changing display data.
  */
@@ -17,6 +18,7 @@ import { PlayerState } from '@/types';
 import { ShipType } from '@/lib/constants';
 import { net, combineControls, type ControlState } from '@/lib/net';
 import type { ShipKinematics } from '@shared/physics';
+import { setRenderFocus } from '@/lib/world/renderSpace';
 
 type ControlName = keyof ControlState;
 
@@ -29,19 +31,29 @@ interface PlayerProps {
 export const Player = forwardRef<THREE.Group, PlayerProps>(function Player({ player, controlsRef }, ref) {
   const [, getKeys] = useKeyboardControls<ControlName>();
   const renderState = useRef<ShipKinematics>({ x: player.x, z: player.z, rotationY: player.rotationY, velocity: 0 });
-  // Stable initial position so React re-renders never re-apply a stale position to the group.
-  const initialPosition = useMemo<[number, number, number]>(() => [player.x, 0, player.z], []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Floating origin: the own ship is always drawn at the render-space origin (lib/world/renderSpace.ts).
+  const initialPosition = useMemo<[number, number, number]>(() => [0, 0, 0], []);
+  const playerRef = useRef(player);
+  playerRef.current = player;
 
   useFrame(() => {
     const controls = combineControls(getKeys() as Partial<ControlState>, controlsRef?.current);
     // Own wall-clock delta, not R3F's `delta` (other code can shorten that via the shared clock).
     net.frameNow(controls);
 
+    // The camera focus F = predicted own position (raw world coords). Set once per frame, before every
+    // other useFrame (priority 0) converts world positions with toRender().
+    if (net.predictor.initialized) {
+      const r = net.getOwnRenderState(renderState.current);
+      setRenderFocus(r.x, r.z);
+    } else {
+      setRenderFocus(playerRef.current.x, playerRef.current.z); // before the first snapshot
+      renderState.current.rotationY = playerRef.current.rotationY;
+    }
+
     if (!ref || !('current' in ref) || !ref.current) return;
-    if (!net.predictor.initialized) return;
-    const r = net.getOwnRenderState(renderState.current);
-    ref.current.position.set(r.x, 0, r.z);
-    ref.current.rotation.y = r.rotationY;
+    ref.current.position.set(0, 0, 0);
+    ref.current.rotation.y = renderState.current.rotationY;
   }, -1);
 
   return (

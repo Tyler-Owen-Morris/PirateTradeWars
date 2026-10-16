@@ -1,20 +1,36 @@
-import { useRef, useEffect, useState } from 'react';
+/**
+ * A floating gold pickup. (x, y, z) are raw world coordinates; the root group is placed in
+ * floating-origin render space every frame (lib/world/renderSpace.ts) and hidden when out of range.
+ * Children below are in the group's local frame.
+ */
+import { useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
+import { toRender, inRenderRange } from '@/lib/world/renderSpace';
 
 interface GoldObjectProps {
     id: string;
-    position: [number, number, number];
+    x: number;
+    y?: number;
+    z: number;
     gold: number;
 }
 
-export function GoldObject({ id, position, gold }: GoldObjectProps) {
+export function GoldObject({ x, y = 0, z, gold }: GoldObjectProps) {
+    const rootRef = useRef<THREE.Group>(null);
     const coinRef = useRef<THREE.Mesh>(null);
     const haloRef = useRef<THREE.Mesh>(null);
+    // Local frame: the root group carries the render-space x/z; y stays the world height.
+    const position: [number, number, number] = [0, y, 0];
 
     // Animate floating, edge rotation, and subtle halo pulse
     useFrame((state) => {
+        if (rootRef.current) {
+            const r = toRender(x, z);
+            rootRef.current.position.set(r.x, 0, r.z);
+            rootRef.current.visible = inRenderRange(r);
+        }
         if (coinRef.current) {
             coinRef.current.rotation.x += 0.01; // Rotate on X-axis (edge spinning)
             // Raise base position by 20 units and add floating animation
@@ -30,7 +46,7 @@ export function GoldObject({ id, position, gold }: GoldObjectProps) {
     });
 
     return (
-        <group>
+        <group ref={rootRef} position={[0, -10000, 0]}>
             {/* Coin Mesh */}
             <mesh ref={coinRef} position={[position[0], position[1] + 20, position[2]]}>
                 <cylinderGeometry args={[20, 20, 3, 62]} /> {/* Larger, thicker coin */}

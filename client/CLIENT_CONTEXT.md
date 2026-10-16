@@ -143,19 +143,46 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
 - `OtherShips.tsx` — `useSyncExternalStore(net.remote)` for membership/metadata only; useFrame writes
   `net.remote.sample(eid, net.remoteRenderTime())` to each group. HP bars read live hp via `getHp`.
 - `CannonBall.tsx` — `CannonBalls` subscribes to `net.balls` ids; each ball reads its position per frame.
-- Remote ships and balls are placed at `own + wrappedDelta(own, pos)` so things across the map seam
-  render next to you.
+- Remote ships, balls, gold and ports are drawn in floating-origin render space (see "Rendering:
+  floating origin" below), so things across the map seam render next to you.
 - `GameScene.tsx` camera: `lib/cameraFollow.ts` `CameraFollow`. Smoothing is frame-rate independent
   (`1 − exp(−k·dt)`, with k matching the old 0.1/0.05 per-frame lerps at 60 fps). The look-at focus
   never trails the rendered ship by more than 100 u, and the camera stays within 400 u of
   focus + offset. It snaps on net `spawned` (join/reconnect/respawn) and on any > 500 u jump
-  (wrap-aware). Its state is shifted by the map size when the ship crosses the seam.
+  (wrap-aware). It runs in render space: the ship is always at (0,0), and GameScene calls
+  `shiftOrigin(renderFocus.shiftX, renderFocus.shiftZ)` before `update(0, 0, heading, dt)` so the
+  smoothing state carries over the moving origin (no jump at the seam).
 - `useSocket.tsx` — zustand façade: connection status/errors, register/trade/upgrade/repair/scuttle,
   and the bridge into `useGameState`: `me` → `gameState.player` at ~5 Hz (immediately on
   hp/gold/sunk/shipType/cargo/canFire change; x/z/rotationY/speed come from the predicted ship),
   other ships → `gameState.otherPlayers` (Minimap) at ~5 Hz, gold rows → `gameState.goldObjects`.
   Sounds: fire (once per event), hit on me, goldCollected. `gameEnd` freezes the mirror for GameOver.
 - No client file may import from `server/`.
+
+## Rendering: floating origin (WORLD_SPEC §7)
+
+Nothing is drawn at raw world coordinates. `lib/world/renderSpace.ts` (unit-tested in
+`lib/world/__tests__/renderSpace.test.ts`) is the single helper:
+- The focus F = own predicted ship (raw coords). `Player.tsx` calls `setRenderFocus(x, z)` once per
+  frame in its priority −1 useFrame, right after prediction (before the first snapshot it uses the
+  store's player x/z). The own ship group is always at (0, 0, 0) with its heading.
+- Every other object converts with `toRender(x, z)` →
+  `rx = wrappedDelta(F.x, x, WORLD_C) * metricX(z)`, `rz = z − F.z` (metricX of the OBJECT's z).
+  `toRender` returns a shared scratch object: copy the fields before calling it again.
+- `renderFocus.shiftX/Z` = this frame's F in last frame's render space (camera uses it);
+  `renderFocus.travelX/Z` = accumulated rendered travel (float64; ocean uses it).
+- Users: `OtherShips.tsx`, `CannonBall.tsx` (ball + trail; trail history kept in world coords and
+  re-projected every frame), `GoldObject.tsx` (props are world x/y/z), `Port.tsx` (root group placed
+  per frame; island and label are local children). Ports and gold hide beyond
+  `RENDER_CULL_DISTANCE` (camera far 2500 + 500).
+- `Ocean.tsx`: three's `Water` on a `2 × (CAMERA_FAR + 500)` plane re-centred under the camera every
+  frame. Its shader is patched so each of the four normal-map lookups gets
+  `uOffN = fract(travel / divisorN)` (computed in float64 on the CPU): waves stay anchored to the
+  world instead of swimming with the plane, with no precision loss over long sessions.
+- World constants (`WORLD_C` 400000, `WORLD_H` 200000, `metricX`, ice lines) are currently local to
+  renderSpace.ts with a `TODO(W1)`: switch to `shared/world/geo` once it exists.
+- Any new world object: put it in a group and set its position from `toRender` in useFrame. Never
+  use raw x/z as a Three position.
 
 ## Input Handling
 
@@ -181,7 +208,7 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
 1. Performance considerations with many ships/objects
 2. Mobile compatibility and responsive design
 3. Browser compatibility (WebGL support required)
-4. Network latency is handled by prediction/interpolation (see Netcode); gold objects and ports still render at absolute map coordinates near the seam
+4. Network latency is handled by prediction/interpolation (see Netcode); everything renders in floating-origin space, so the seam is invisible
 
 ## Testing and Debugging
 
