@@ -123,6 +123,16 @@ The client never sends position, speed, direction or rotation. The server is aut
 - **Invalid frames** are dropped without an `error` reply. Legacy business errors (trade, upgrade,
   etc.) still reply with `{type:"error"}`.
 
+**NPC1 clarifications (NPC ships; WORLD_SPEC §8, implemented in `server/game/world.ts` + `shared/protocol.ts`):**
+- An NPC is an ordinary entity: same eid space, same `e` rows, `fire`/`hit`/`sunk` events. It is never
+  flagged DISCONNECTED (flag 2).
+- Its `ent` carries three optional extra fields: `npc: 1`, `faction` (e.g. `"spain"`, `"pirates"`,
+  `"merchants_guild"`) and `title` (nameplate text, e.g. `"Spanish Navy"`). Player ships never carry
+  them. Read them with `parseEntNpcMeta(ent)`, which returns null for players and drops malformed or
+  over-long (> 64 chars) strings.
+- NPC `id`s start with `npc:`. The server refuses that prefix as a `connect` tempPlayerId or a
+  `reconnect` id, so a client can never take over an NPC.
+
 ## 7. Client netcode
 - **Own ship = prediction + reconciliation.** Client runs `stepShip` at the same fixed 20 Hz step with an
   accumulator in `useFrame`, sends each step's input with a seq, keeps unacked inputs. On snapshot:

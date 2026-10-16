@@ -200,6 +200,27 @@ export interface EntMessage {
   name: string;
   shipType: string;
   maxHp: number;
+  /** NPC1 (WORLD_SPEC §8): present (=1) only for AI ships. */
+  npc?: 1;
+  /** NPC1: faction id of an NPC (e.g. "spain", "pirates"); see server/game/npc/factions.ts. */
+  faction?: string;
+  /** NPC1: nameplate title of an NPC (e.g. "Spanish Navy"). */
+  title?: string;
+}
+/** Max length of an `ent` faction/title string accepted by parseEntNpcMeta. */
+export const MAX_NPC_LABEL_LENGTH = 64;
+/**
+ * NPC1: read the optional NPC fields of an `ent` message defensively (client side). Returns null for
+ * a player ship; otherwise `{faction, title}` with malformed or over-long strings dropped.
+ */
+export function parseEntNpcMeta(m: unknown): { faction?: string; title?: string } | null {
+  if (typeof m !== "object" || m === null) return null;
+  const o = m as Record<string, unknown>;
+  if (o.npc !== 1) return null;
+  const out: { faction?: string; title?: string } = {};
+  if (typeof o.faction === "string" && o.faction.length > 0 && o.faction.length <= MAX_NPC_LABEL_LENGTH) out.faction = o.faction;
+  if (typeof o.title === "string" && o.title.length > 0 && o.title.length <= MAX_NPC_LABEL_LENGTH) out.title = o.title;
+  return out;
 }
 /** Entity left this client's view. */
 export interface GoneMessage {

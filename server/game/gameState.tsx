@@ -12,8 +12,9 @@ import { redisStorage } from "../redisStorage";
 import { v4 as uuidv4 } from "uuid";
 import { GOODS, DEFAULT_PORTS } from "@shared/gameConstants";
 import { trackEvent, shutdownSegment } from "../segmentClient";
-import { World, TICK_MS, type WorldEffect, type WorldPlayer } from "./world";
+import { World, TICK_MS, isNpcId, type WorldEffect, type WorldPlayer } from "./world";
 import { FixedStepLoop } from "./loop";
+import { NpcSystem, npcsEnabled } from "./npc";
 
 export type { PlayerState, WorldPlayer } from "./world";
 export { GRACE_PERIOD, GOLD_COLLECTION_RADIUS, GOLD_OBJECT_LIFETIME } from "./world";
@@ -51,6 +52,10 @@ class GameState {
   private readonly sockets = new Map<string, ClientSocket>();
   private tickCount = 0;
   private tickTimeTotal = 0;
+
+  /** NPC1: the NPC system, only when NPCS_ENABLED=1|true (default off). NPC2 passes lanes, ports
+   *  (safe zones) and land; with no lanes the director spawns nothing. */
+  readonly npcs: NpcSystem | null = npcsEnabled() ? new NpcSystem(this.world).attach() : null;
 
   constructor() {
     this.loop = new FixedStepLoop(() => this.runTick(), { stepMs: TICK_MS, maxCatchUp: 5 });
@@ -108,7 +113,7 @@ class GameState {
       console.log(`Name conflict: ${name} is reserved with ID ${reservedPlayerId}, but tempPlayerId is ${tempPlayerId}`);
       return null;
     }
-    return this.world.createPlayer({ id: tempPlayerId || uuidv4(), name, shipType });
+    return this.world.createPlayer({ id: tempPlayerId && !isNpcId(tempPlayerId) ? tempPlayerId : uuidv4() /* NPC1 */, name, shipType });
   }
 
   /** One fixed tick: step the world, send every attached client its messages, run effects. */
@@ -180,6 +185,10 @@ class GameState {
           background("removeActiveName", () => redisStorage.removeActiveName(e.player.name));
         }
         break;
+      // NPC1: NPC effects never touch the leaderboard. TODO(NPC2): persist rep changes with the player.
+      case "npcSunk":
+      case "npcRepChange":
+        break;
     }
   }
 
@@ -187,7 +196,7 @@ class GameState {
   async persistAll(): Promise<void> {
     const players = Array.from(this.world.players.values());
     const results = await Promise.allSettled(
-      players.filter((p) => !p.sunk && !p.dead).map((p) => redisStorage.updatePlayerState({ ...p, lastSeen: Date.now() })),
+      players.filter((p) => !p.sunk && !p.dead && p.controller !== "npc").map((p) => redisStorage.updatePlayerState({ ...p, lastSeen: Date.now() })),
     );
     const failed = results.filter((r) => r.status === "rejected").length;
     console.log(`Persisted ${results.length - failed}/${results.length} players${failed ? ` (${failed} failed)` : ""}`);
