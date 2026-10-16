@@ -33,7 +33,7 @@ progress file for any card that is `in-progress`. Each card's progress file says
 | N2 | Server netcode: fixed tick, input queue, interest grid, events, heartbeat (depends N1) | agent-N2 (opus) | merged into main | done | — |
 | N3 | Client netcode: prediction, interpolation, socket rewrite (depends N1) | agent-N3 (opus) | merged into main | done | — |
 | N4 | Bot load/smoke test `scripts/bots.ts` + wire into CI (depends N1; integrates with N2) | agent-N4 (sonnet) | merged into main | done (verified) | — |
-| D  | Docs: PROJECT/SERVER/CLIENT/SHARED context files, architecture notes | agent-D (sonnet/haiku) | worktree (progress/D-docs.md) | in-progress | agent running |
+| D  | Docs: PROJECT/SERVER/CLIENT/SHARED context files, architecture notes | agent-D (sonnet/haiku) | merged into main | done | — |
 | R  | Producer: integrate, run tests + bots locally, push, deploy, verify prod | producer + QA agent | main | in-progress | browser play-test running (progress/R-playtest.md) |
 | W2 | Colyseus migration — **deferred**, decide after Wave 1 metrics (see PROTOCOL.md §8) | — | — | deferred | — |
 
@@ -48,3 +48,4 @@ progress file for any card that is `in-progress`. Each card's progress file says
 - 2026-10-16 Capacity (200 bots, 30 s, bots + server on same Windows desktop) PASS: 19.3 snaps/s, worst gap 802 ms (connect burst), 25 visible ships avg, ~21 KB/s/client, tick avg 16 ms (budget 50 ms). Most cost is per-client JSON serialization → Wave 2 (binary/Colyseus) only matters past ~200 concurrent; t3.micro (burstable, 10% baseline) is the more urgent limit.
 - 2026-10-16 Unverified on Windows (verify on EB): SIGTERM graceful shutdown, heartbeat terminate path.
 - 2026-10-16 Card N3 merged (fast-forward to 6b23344). 103 tests pass, build OK, bot test PASS (20 snaps/s, worst gap 64 ms, 0% asymmetry). Launched browser play-test agent (60 bots + 2 Playwright players) and docs agent D.
+- 2026-10-16 Card D merged (8f487c7): PROJECT_CONTEXT deployment/testing, docs/netcode/README.md, root CLAUDE.md. Leftover legacy sections in SERVER_CONTEXT.md (Game Physics, Admin Routes) flagged, not blocking.
