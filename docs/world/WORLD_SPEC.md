@@ -135,3 +135,10 @@ export interface TileSource { get(tx: number, ty: number): Int8Array | 'water' |
 - Budget: 300 NPCs persistent, ≤ 80 active. The **tick must stay < 25 ms at 200 bots + 300 NPCs** in the load test.
 
 ## Clarifications (append dated entries below)
+- 2026-10-16 (W2):
+  - Tiles are stored gzipped, as `t_<tx>_<ty>.bin.gz`, and the manifest has `"encoding":"gzip"`. Each tile decompresses to 65,536 bytes. They are served as plain bytes with no Content-Encoding. Loaders must support both encodings.
+  - Docks are 80–400 units from the coast, and a town is within 800 units of its dock.
+  - Seville, London and Bristol were moved 284–444 units toward their estuaries, because the real rivers are narrower than one pixel.
+  - Lanes need only 80 units of clearance within 2,500 units of a dock.
+  - There are 27 ports.
+  - `shared/world/versions.json` holds the content hashes; use the ports hash as `portsVersion`.
