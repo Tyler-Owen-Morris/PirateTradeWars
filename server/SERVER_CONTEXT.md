@@ -22,11 +22,18 @@ physics in `shared/physics.ts`. Both are shared with the client.
     (`metricDistSq` in `shared/world/geo.ts`).
   - The world holds a `LandQuery` (`new World({ land })`; default `ALWAYS_WATER_TEST_FIELD` = ocean +
     polar ice) and passes it to `stepShip`: no-damage coast collision (push-out + slide).
-  - `spawnPoint(center?, jitter?)` returns a water point with land distance > `SPAWN_MIN_WATER` (60).
-    Default centre is the Caribbean (lat 18, lon −75), jitter ±5000 metric; `createPlayer` uses it
-    when no x/z is given. W4 will call it with port `spawn` points.
-  - `restorePlayer` relocates records without `worldVersion === WORLD_VERSION` (old 10000² torus) or
-    whose position is on land to `spawnPoint()`. `worldVersion` is persisted in the Redis player hash.
+  - `spawnPoint(center?, jitter?, minWater?)` returns a water point with land distance > `minWater`
+    (default `SPAWN_MIN_WATER` 60); if no jittered candidate qualifies it returns the deepest one seen
+    (counting the centre). Default centre is the Caribbean (lat 18, lon −75), jitter ±5000 metric.
+  - `starterSpawn(port?)` (card W4): a random starter port (Port Royal, Nassau, Tortuga, Havana,
+    Bridgetown; `STARTER_PORTS`), a point within ±`PORT_SPAWN_JITTER` (150) of its `spawn` with land
+    distance > `PORT_SPAWN_MIN_WATER` (150), and `rotationY` facing out to sea (`seawardRotation`: the
+    land normal, or away from the town where the field is flat). `createPlayer` uses it when no x/z
+    is given. There is no respawn: a sunk player starts over as a new player.
+  - `restorePlayer` relocates records that `needsRelocation` (no `worldVersion === WORLD_VERSION`, i.e.
+    the old 10000² torus, or a position on land) to `starterSpawn()`, keeping gold, ship type and
+    stats, hp and cargo (the inventory is a separate Redis key and is untouched). `worldVersion` is
+    persisted in the Redis player hash.
   - `step()` advances exactly one 50 ms tick. It is synchronous and has no `await`.
   - Time inside the world is simulation time: `timeMs = tick * 50`. Reload, ball lifetime, gold
     lifetime and the grace period all use it.
@@ -100,6 +107,31 @@ physics in `shared/physics.ts`. Both are shared with the client.
   - Use the local Docker Redis (`ptw-redis`), never the `.env` Upstash.
   - `reusePort` is skipped on Windows.
 
+## Ports (card W4)
+
+- **Data:** `shared/world/ports.ts` wraps the generated `shared/world/ports.json` (27 real ports, card W2):
+  `GamePort = { id (1-based index, numeric on the wire), key ("port_royal"), name, nation, region, lat, lon,
+  x/z (the town, on land), y: 0, dock {x,z} (water), spawn {x,z} (deep water), safeRadius }`.
+  `PORTS_VERSION` = the ports hash in `shared/world/versions.json`.
+- **Seeding, `game/ports.ts`:** `initializeGameState` calls `seedPorts(redisStorage)`: when the Redis key
+  `portsVersion` differs from `PORTS_VERSION` (or is missing), `redisStorage.replacePorts` rewrites the
+  `ports` hash (id -> JSON GamePort), deletes `port:<id>:goods` for every old and new id, and stores the new
+  version, in one MULTI. Then `ensurePortGoods` creates goods for ports that have none and restocks low goods.
+  The GOODS catalogue is unchanged, so player inventories (by goodId) stay valid.
+- **Markets:** prices = base x regional factor x fluctuation (`portGoodPrice`), stock by `portGoodStock`.
+  `REGION_MARKETS` lists each region's cheap specialities (x0.7, more stock) and goods in demand (x1.35, less
+  stock); pirate havens also sell cheap Rum. The 5-minute `updatePrices` runs `ensurePortGoods` +
+  `updatePortMarkets`, so the regional factors persist.
+- **Interaction gate:** trade, upgradeShip and repairShip (`socketHandler.withinPort`) need the metric distance
+  from the ship to the port's **dock** <= `PORT_INTERACTION_RADIUS` (300); otherwise `error "Too far from port"`.
+  Trade had no distance check before W4.
+- **Safe zone:** `safeRadius` (600, around the dock) is stored and served but has no gameplay effect; before W4
+  it was only (mis)used as the interaction radius, and there was never a no-damage zone. Kept as data for later.
+- **API:** `GET /api/ports` returns the GamePort list sorted by id (the client also bundles `PORTS` as a fallback).
+- Tests: `game/__tests__/ports.test.ts` (seeding with a fake store, spawns on the real land, migration),
+  `game/__tests__/portActions.test.ts` (dock gate through the real socket handler, Redis mocked),
+  `shared/world/__tests__/ports.test.ts`.
+
 ## Directory Structure
 
 - `/game/` - Game logic
@@ -124,7 +156,7 @@ The game state is managed by the `GameState` class in `gameState.ts`:
 2. **Update Loop** (see "Netcode (server)" above):
    - `World.step()` - one fixed 50 ms tick (20 Hz), driven by `FixedStepLoop`
    - per-client frames (`ent`/`gone`, events, snapshot `s`) sent right after each step
-   - `updatePrices()` - Updates port prices (5-minute intervals)
+   - `updatePrices()` - Updates port prices and stock (5-minute intervals, `game/ports.ts`)
 
 3. **Player Management**:
    - Registration and removal
@@ -188,9 +220,9 @@ Express routes in `routes.ts`:
 
 The trading system spans multiple components:
 
-1. **Port Management**:
-   - Fixed locations with safe zones
-   - Dynamic goods with fluctuating prices
+1. **Port Management** (see "Ports (card W4)"):
+   - 27 real ports from shared/world/ports.json; interaction within 300 of the dock
+   - Dynamic goods with regional prices and fluctuation
    - Stock management (supply/demand)
 
 2. **Trade Processing**:

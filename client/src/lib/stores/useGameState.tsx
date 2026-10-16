@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { apiRequest } from "../queryClient";
 import { metricDist } from "@shared/world/geo";
+import { PORTS, withinDock } from "@shared/world/ports";
+import { PORT_INTERACTION_RADIUS } from "@shared/gameConstants";
 import { nearestPortTo, portPoint } from "../nav";
 import { GameState, Port, Good, PortGood, LeaderboardEntry, InventoryItem, PlayerState, RemoteShipSummary } from "@/types";
 
@@ -190,30 +192,30 @@ export const useGameState = create<GameStateStore>()(
       }
     },
 
+    /** Load ports from `GET /api/ports` (card W4 shape: town x/z, dock, spawn, nation, region).
+     *  Falls back to the bundled shared/world/ports.json (same ids) if the API fails or is empty. */
     loadPorts: async () => {
+      let ports: Port[] = [];
       try {
         const response = await apiRequest("GET", "/api/ports", undefined);
-        const ports = await response.json();
-        set((state) => ({
-          gameState: { ...state.gameState, ports },
-        }));
-
-        setTimeout(() => {
-          const player = get().gameState.player;
-          if (player) {
-            const nearestPort = get().getNearestPort();
-            if (nearestPort) {
-              const pt = portPoint(nearestPort);
-              const distance = get().calculateDistance(player.x, player.z, pt.x, pt.z);
-              if (distance <= nearestPort.safeRadius) {
-                get().setNearPort(nearestPort.id);
-              }
-            }
-          }
-        }, 500);
+        const data = await response.json();
+        if (Array.isArray(data)) ports = data;
       } catch (error) {
-        console.error("Failed to load ports:", error);
+        console.error("Failed to load ports, using bundled ports.json:", error);
       }
+      if (ports.length === 0) ports = PORTS.map((p) => ({ ...p, dock: { ...p.dock }, spawn: { ...p.spawn } }));
+      set((state) => ({
+        gameState: { ...state.gameState, ports },
+      }));
+
+      setTimeout(() => {
+        const player = get().gameState.player;
+        if (!player) return;
+        const nearestPort = get().getNearestPort();
+        if (nearestPort && withinDock(player.x, player.z, { dock: portPoint(nearestPort) })) {
+          get().setNearPort(nearestPort.id);
+        }
+      }, 500);
     },
 
     loadGoods: async () => {
@@ -321,8 +323,7 @@ export const useGameState = create<GameStateStore>()(
 
       const pt = portPoint(nearestPort);
       const distance = get().calculateDistance(player.x, player.z, pt.x, pt.z);
-      const PORT_INTERACTION_RADIUS = 200;
-      return distance <= PORT_INTERACTION_RADIUS;
+      return distance <= PORT_INTERACTION_RADIUS; // metric, from the dock (WORLD_SPEC §5)
     },
 
     calculateDistance: (x1, z1, x2, z2) => metricDist(x1, z1, x2, z2),

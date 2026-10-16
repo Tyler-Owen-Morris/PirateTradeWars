@@ -48,7 +48,7 @@ The game uses Zustand for state management with several stores:
 - `OtherShips.tsx` - Renders other players in the game
 - `Ocean.tsx` - Water rendering
 - `CannonBall.tsx` - Projectiles
-- `Port.tsx` / `Ports.tsx` - Port visuals and management
+- `Port.tsx` / `Ports.tsx` - real-world ports (card W4), see "Ports (W4)" below
 
 ### UI Components
 - `TradeMenu.tsx` - Trading interface for ports
@@ -61,6 +61,14 @@ All maths is pure and tested in `client/src/lib/nav.ts` (`lib/__tests__/nav.test
 - `ui/Minimap.tsx`: north-up, centred on the player. Radius (world units centre-to-edge) defaults to 6000 (1 unit = 100 m, so 600 km), +/- halve/double (1500..24000). Land is drawn row by row from `/world/map_1024x512.png` via `minimapRow` (each row spans +-radius/metricX(z) x-units, split in two across the x seam). Ports (nation-coloured, at their dock), ships/NPCs (`otherPlayers`), heading arrow, highlighted target port.
 - `ui/WorldMap.tsx`: full-screen canvas over `/world/map_4096x2048.png`. Opened by `M` or the "Map" button in the compass HUD (GameUI owns the toggle; Esc closes). View = `{cx, cz, k}` (k = px per world unit, same on both axes); drag pans with x wrap, wheel/pinch zoom about the cursor, clicking a port (no drag) calls `setNavTarget(port.id)`. Draws 30 degree grid, +-70 degree ice lines/shading, ports and names, player arrow.
 - `ui/CompassHUD.tsx` (top centre): heading tape + `deg + cardinal`, lat/lon like `17°56′N 76°50′W`, and the target port with distance in sea miles (`nm`, 1 nm = 18.52 units), compass bearing and an arrow relative to the bow. Speed stays in `HUD.tsx` (knots).
+- **Ports (W4).** Data: `shared/world/ports.ts` (`PORTS`, typed view of the generated `ports.json`; numeric
+  `id` = 1-based index, `key` = string id, town `x/z`, `dock`, `spawn`, `nation`, `region`). `useGameState.loadPorts`
+  fetches `GET /api/ports` (same shape) and falls back to the bundled `PORTS`. `Ports.tsx` renders the store's
+  ports; `Port.tsx` draws a procedural town on the coast at x/z (houses, tower, flag in `nationColor`, name label)
+  and a pier + 300-unit ring at the dock. No island .glb any more: land is the W3 terrain (`Island.tsx` is unused).
+  Docking: `GameScene.checkPortProximity` (10 Hz) uses `nearestDockPort` and enters the port when the metric
+  distance to the dock is <= `PORT_INTERACTION_RADIUS` (300), the same rule the server enforces for trade, upgrade
+  and repair. `isPlayerNearPort` uses the same 300 radius.
 - Store (`useGameState`): `calculateDistance` is `metricDist`; `getNearestPort` uses dock points (`portPoint`, x/z fallback); `navTargetId` / `setNavTarget` / `getNavTargetPort()` (selected target, else nearest). The `Port` type has optional `dock` and `nation` (filled by W4's port source).
 
 ## WebSocket Communication
@@ -179,8 +187,8 @@ Nothing is drawn at raw world coordinates. `lib/world/renderSpace.ts` (unit-test
 - `renderFocus.shiftX/Z` = this frame's F in last frame's render space (camera uses it);
   `renderFocus.travelX/Z` = accumulated rendered travel (float64; ocean uses it).
 - Users: `OtherShips.tsx`, `CannonBall.tsx` (ball + trail; trail history kept in world coords and
-  re-projected every frame), `GoldObject.tsx` (props are world x/y/z), `Port.tsx` (root group placed
-  per frame; island and label are local children). Ports and gold hide beyond
+  re-projected every frame), `GoldObject.tsx` (props are world x/y/z), `Port.tsx` (town root at the port x/z and dock
+  root at `dock`, both placed per frame; buildings, flag, label, pier and ring are local children). Ports and gold hide beyond
   `RENDER_CULL_DISTANCE` (camera far 2500 + 500).
 - `Ocean.tsx`: three's `Water` on a `2 × (CAMERA_FAR + 500)` plane re-centred under the camera every
   frame. Its shader is patched so each of the four normal-map lookups gets

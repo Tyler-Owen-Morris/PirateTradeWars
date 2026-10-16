@@ -6,6 +6,7 @@ import { FLAG_DISCONNECTED, FLAG_SUNK, GOLD_SNAPSHOT_EVERY, MAX_INPUT_QUEUE, typ
 import { TICK_DT } from "@shared/physics";
 import { WORLD_C, WORLD_H, WORLD_VERSION, metricDistSq, zOfLat } from "@shared/world/geo";
 import { buildSyntheticLand, type LandQuery } from "@shared/world/land";
+import { STARTER_PORTS } from "@shared/world/ports";
 
 // The tests below were written for the old 10000² torus. Local coordinates (0..10000) are placed
 // near the equator (metricX ≈ 1) by X()/Z(); seam and latitude tests use raw coordinates.
@@ -512,16 +513,22 @@ describe("world on the wrapping Earth", () => {
       expect(land.distance(sp.x, sp.z)).toBeGreaterThan(SPAWN_MIN_WATER);
       expect(metricDistSq(sp.x, sp.z, DEFAULT_SPAWN_CENTER.x, DEFAULT_SPAWN_CENTER.z)).toBeLessThan(2 * 5000 * 5000 + 1);
     }
-    const p = w.createPlayer({ id: "n", name: "n", shipType: "sloop" });
-    expect(land.distance(p.x, p.z)).toBeGreaterThan(SPAWN_MIN_WATER);
-    expect(p.worldVersion).toBe(WORLD_VERSION);
+  });
+
+  it("createPlayer without x/z spawns at a starter port (card W4)", () => {
+    const w = new World({ rng: Math.random });
+    for (let i = 0; i < 20; i++) {
+      const p = w.createPlayer({ id: `n${i}`, name: "n", shipType: "sloop" });
+      expect(STARTER_PORTS.some((sp) => metricDistSq(p.x, p.z, sp.spawn.x, sp.spawn.z) < 300 * 300)).toBe(true);
+      expect(p.worldVersion).toBe(WORLD_VERSION);
+    }
   });
 
   it("restorePlayer relocates old-torus records and positions on land; keeps valid ones", () => {
     const land = island();
     const w = mkWorld(land);
     const old = w.restorePlayer({ id: "old", name: "old", shipType: "sloop", x: 1234, z: 5678 }); // no worldVersion
-    expect(metricDistSq(old.x, old.z, DEFAULT_SPAWN_CENTER.x, DEFAULT_SPAWN_CENTER.z)).toBeLessThan(2 * 5000 * 5000 + 1);
+    expect(STARTER_PORTS.some((sp) => metricDistSq(old.x, old.z, sp.spawn.x, sp.spawn.z) < 300 * 300)).toBe(true);
     expect(old.worldVersion).toBe(WORLD_VERSION);
     const ok = w.restorePlayer({ id: "ok", name: "ok", shipType: "sloop", x: 123_456, z: EQ + 10, worldVersion: WORLD_VERSION });
     expect([ok.x, ok.z]).toEqual([123_456, EQ + 10]);

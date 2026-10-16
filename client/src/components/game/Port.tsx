@@ -1,157 +1,160 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text, Billboard } from '@react-three/drei';
-import { Port as PortType } from '@/types';
 import * as THREE from 'three';
-import { useGameState } from '@/lib/stores/useGameState';
-import { PORT_INTERACTION_RADIUS } from '../../lib/constants';
-import { Island } from './Island';
+import { Port as PortType } from '@/types';
+import { PORT_INTERACTION_RADIUS } from '@shared/gameConstants';
 import { toRender, inRenderRange } from '@/lib/world/renderSpace';
+import { nationColor } from '@/lib/nav';
 
 /*
- * A port: island, name label and trade-radius ring. The root group is placed in floating-origin
- * render space every frame (lib/world/renderSpace.ts) and hidden out of range; children are local.
+ * A real-world port (card W4): a small town on the coast at the port's town x/z (buildings, a church
+ * tower and a flag in the nation colour, plus a name label) and a pier with the docking ring at its
+ * `dock` point in the water. Real land comes from the terrain (card W3); there is no island model.
+ *
+ * Both roots are placed in floating-origin render space every frame (lib/world/renderSpace.ts) and
+ * hidden when out of range; children are local. The docking state itself (enter/leave the 300-unit
+ * radius around the dock) is computed in GameScene.checkPortProximity, not here.
  */
 
 interface PortProps {
   port: PortType;
 }
 
+/** Deterministic pseudo-random in [0, 1) from a seed and an index. */
+function rand(seed: number, i: number): number {
+  const v = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453;
+  return v - Math.floor(v);
+}
+
+const WALL_COLORS = ['#e8dcc0', '#d9c7a3', '#f0e6d2', '#c9b28a', '#e3d3b4'];
+const ROOF_COLORS = ['#8b3a2b', '#a0522d', '#7a4a32', '#6b3e26'];
+/** Town base height above sea level (terrain sits around here at the coast). */
+const TOWN_Y = 2;
+
 export function Port({ port }: PortProps) {
-  const rootRef = useRef<THREE.Group>(null);
-  const portRef = useRef<THREE.Group>(null);
-  const beaconRef = useRef<THREE.Group>(null);
-  const isNearPort = useRef(false);
-  const { gameState } = useGameState();
+  const townRef = useRef<THREE.Group>(null);
+  const dockRef = useRef<THREE.Group>(null);
+  const flagRef = useRef<THREE.Group>(null);
+  const pierRef = useRef<THREE.Group>(null);
+  const dock = port.dock ?? { x: port.x, z: port.z };
+  const flagColor = port.nation === 'pirates' ? '#111111' : nationColor(port.nation);
 
-  // Animate the port beacon
-  useFrame(({ clock }) => {
-    if (rootRef.current) {
-      const r = toRender(port.x, port.z);
-      rootRef.current.position.set(r.x, 0, r.z);
-      rootRef.current.visible = inRenderRange(r);
+  // A handful of houses around the town centre, deterministic per port.
+  const houses = useMemo(() => {
+    const out: { x: number; z: number; w: number; d: number; h: number; rot: number; wall: string; roof: string }[] = [];
+    const n = 9;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + rand(port.id, i) * 0.6;
+      const r = 28 + rand(port.id, i + 50) * 45;
+      out.push({
+        x: Math.cos(a) * r,
+        z: Math.sin(a) * r,
+        w: 12 + rand(port.id, i + 100) * 10,
+        d: 10 + rand(port.id, i + 150) * 8,
+        h: 9 + rand(port.id, i + 200) * 8,
+        rot: rand(port.id, i + 250) * Math.PI,
+        wall: WALL_COLORS[Math.floor(rand(port.id, i + 300) * WALL_COLORS.length)],
+        roof: ROOF_COLORS[Math.floor(rand(port.id, i + 350) * ROOF_COLORS.length)],
+      });
     }
-    if (portRef.current) {
-      const time = clock.elapsedTime; // NOT getElapsedTime(): it calls getDelta() and steals time from R3F's frame delta
+    return out;
+  }, [port.id]);
 
-      // Rotate the beacon
-      if (beaconRef.current) {
-        beaconRef.current.rotation.y = time * 1.5;
-      }
-
-      // Check if player is near this port
-      if (gameState.player) {
-        const distance = useGameState.getState().calculateDistance(
-          gameState.player.x,
-          gameState.player.z,
-          port.x,
-          port.z
-        );
-
-        const nearPort = distance <= PORT_INTERACTION_RADIUS;
-
-        // Only update if state changed
-        if (nearPort !== isNearPort.current) {
-          isNearPort.current = nearPort;
-
-          // If entering port radius, update game state
-          if (nearPort) {
-            useGameState.getState().setNearPort(port.id);
-            console.log(`Player entering port: ${port.name} (ID: ${port.id})`);
-          } else if (useGameState.getState().gameState.nearestPort?.id === port.id) {
-            // If leaving this port, clear the nearest port if it was this one
-            useGameState.getState().setNearPort(null);
-            console.log(`Player leaving port: ${port.name} (ID: ${port.id})`);
-          }
-        }
-      }
+  useFrame(({ clock }) => {
+    const t = toRender(port.x, port.z);
+    const tx = t.x;
+    const tz = t.z;
+    const townVisible = inRenderRange(t);
+    if (townRef.current) {
+      townRef.current.position.set(tx, TOWN_Y, tz);
+      townRef.current.visible = townVisible;
+    }
+    const d = toRender(dock.x, dock.z);
+    if (dockRef.current) {
+      dockRef.current.position.set(d.x, 0, d.z);
+      dockRef.current.visible = inRenderRange(d);
+    }
+    // Point the pier from the dock toward the town.
+    if (pierRef.current) pierRef.current.rotation.y = Math.atan2(tx - d.x, tz - d.z);
+    if (flagRef.current && townVisible) {
+      flagRef.current.rotation.y = Math.sin(clock.elapsedTime * 1.3 + port.id) * 0.25;
     }
   });
 
-  // Generate a consistent seed for this port's island
-  const islandSeed = port.id * 100 + port.x + port.z;
-
-  //console.log(`Rendering port ${port.name} with island at position [${port.x}, -15, ${port.z}]`);
-
   return (
-    <group ref={rootRef} position={[0, -10000, 0]}>
-      {/* Island underneath the port */}
-      <Island
-        position={[0, -15, 0]}
-        size={350}
-        seed={islandSeed}
-        name={port.name}
-      />
-
-      {/* Simple port marker */}
-      <group ref={portRef} position={[0, port.y || 25, 0]}>
-        {/* Port base */}
-        {/* <mesh castShadow receiveShadow position={[0, 0, 0]}>
-          <cylinderGeometry args={[40, 40, 10, 32]} />
-          <meshStandardMaterial color="#8B4513" />
-        </mesh> */}
-
-        {/* Port pillar */}
-        {/* <mesh castShadow receiveShadow position={[0, 30, 0]}>
-          <cylinderGeometry args={[5, 5, 50, 16]} />
-          <meshStandardMaterial color="#A0522D" />
-        </mesh> */}
-
-        {/* Beacon on top (rotating) */}
-        {/* <group ref={beaconRef} position={[0, 55, 0]}>
-          <mesh castShadow>
-            <sphereGeometry args={[10, 16, 16]} />
-            <meshStandardMaterial
-              color="#FFD700"
-              emissive="#FFD700"
-              emissiveIntensity={1}
-              toneMapped={false}
-            />
+    <>
+      {/* Town, on land at the port's x/z */}
+      <group ref={townRef} position={[0, -10000, 0]}>
+        {/* Plaza */}
+        <mesh position={[0, 0.5, 0]} receiveShadow>
+          <cylinderGeometry args={[26, 28, 1, 20]} />
+          <meshStandardMaterial color="#b8a888" roughness={0.9} />
+        </mesh>
+        {houses.map((h, i) => (
+          <group key={i} position={[h.x, 0, h.z]} rotation={[0, h.rot, 0]}>
+            <mesh position={[0, h.h / 2, 0]} castShadow receiveShadow>
+              <boxGeometry args={[h.w, h.h, h.d]} />
+              <meshStandardMaterial color={h.wall} roughness={0.85} />
+            </mesh>
+            <mesh position={[0, h.h + 3, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
+              <coneGeometry args={[Math.max(h.w, h.d) * 0.75, 7, 4]} />
+              <meshStandardMaterial color={h.roof} roughness={0.8} />
+            </mesh>
+          </group>
+        ))}
+        {/* Church / fort tower */}
+        <mesh position={[0, 18, 0]} castShadow>
+          <boxGeometry args={[12, 36, 12]} />
+          <meshStandardMaterial color="#d8d0c0" roughness={0.8} />
+        </mesh>
+        <mesh position={[0, 41, 0]} castShadow>
+          <coneGeometry args={[9, 12, 4]} />
+          <meshStandardMaterial color="#5a3a2a" />
+        </mesh>
+        {/* Flagpole + flag in the nation colour */}
+        <mesh position={[0, 60, 0]}>
+          <cylinderGeometry args={[0.6, 0.6, 30, 6]} />
+          <meshStandardMaterial color="#4a3726" />
+        </mesh>
+        <group ref={flagRef} position={[0, 70, 0]}>
+          <mesh position={[8, 0, 0]}>
+            <planeGeometry args={[16, 10]} />
+            <meshStandardMaterial color={flagColor} side={THREE.DoubleSide} />
           </mesh>
-          <pointLight
-            distance={500}
-            intensity={2}
-            color="#FFD700"
-            castShadow
-          />
-        </group> */}
-
-        {/* Port name display */}
-        <Billboard position={[0, 200, 0]} follow={true}>
-          <Text
-            fontSize={20}
-            color="#FFD700"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={2}
-            outlineColor="#000000"
-            renderOrder={1000}
-          >
+        </group>
+        {/* Name label */}
+        <Billboard position={[0, 100, 0]} follow={true}>
+          <Text fontSize={22} color="#FFD700" anchorX="center" anchorY="middle" outlineWidth={2} outlineColor="#000000" renderOrder={1000}>
             {port.name}
           </Text>
-          <Text
-            position={[0, -15, 0]}
-            fontSize={10}
-            color="#FFFFFF"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={1}
-            outlineColor="#000000"
-            renderOrder={101}
-          >
-            Press T to Trade
+        </Billboard>
+      </group>
+
+      {/* Dock: pier, mooring posts and the interaction ring (radius PORT_INTERACTION_RADIUS) */}
+      <group ref={dockRef} position={[0, -10000, 0]}>
+        <group ref={pierRef}>
+          <mesh position={[0, 2, 40]} castShadow receiveShadow>
+            <boxGeometry args={[10, 1.5, 80]} />
+            <meshStandardMaterial color="#7a5a3a" roughness={0.9} />
+          </mesh>
+          {[0, 20, 40, 60, 80].map((zz) => (
+            <mesh key={zz} position={[5.5, 0, zz]}>
+              <cylinderGeometry args={[0.8, 0.8, 6, 6]} />
+              <meshStandardMaterial color="#4a3726" />
+            </mesh>
+          ))}
+        </group>
+        <Billboard position={[0, 40, 0]} follow={true}>
+          <Text fontSize={10} color="#FFFFFF" anchorX="center" anchorY="middle" outlineWidth={1} outlineColor="#000000" renderOrder={101}>
+            {`${port.name} dock - press T to trade`}
           </Text>
         </Billboard>
-
-        {/* Trading radius indicator */}
-        <mesh
-          position={[0, -5, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <ringGeometry args={[PORT_INTERACTION_RADIUS - 10, PORT_INTERACTION_RADIUS, 64]} />
+        <mesh position={[0, 0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[PORT_INTERACTION_RADIUS - 6, PORT_INTERACTION_RADIUS, 96]} />
           <meshBasicMaterial color="#4CAF50" transparent opacity={0.3} side={THREE.DoubleSide} />
         </mesh>
       </group>
-    </group>
+    </>
   );
 }

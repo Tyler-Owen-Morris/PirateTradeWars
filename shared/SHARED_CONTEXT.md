@@ -8,7 +8,7 @@ The shared directory contains code and types that are used by both the client an
 - `/shared/` - Shared code
   - `schema.tsx` - Database schema and type definitions
   - `gameConstants.ts` - Map size (`MAP_WIDTH` = WORLD_C, `MAP_HEIGHT` = WORLD_H,
-    `PORT_INTERACTION_RADIUS` = 300 metric), ship stats, goods, ports
+    `PORT_INTERACTION_RADIUS` = 300 metric), ship stats, goods (ports moved to `world/ports.ts`)
   - `world/geo.ts` - Wrapping-Earth geometry (docs/world/WORLD_SPEC.md §2–3): `WORLD_C` 400 000 (x
     wraps), `WORLD_H` 200 000 (z: 0 = north pole, no wrap), `WORLD_R`, `ICE_LAT` 70, `Z_ICE_N/S`,
     `WORLD_VERSION` (persisted on players), `lonOf/xOfLon/latOf/zOfLat`, `metricX(z)` = cos lat,
@@ -21,6 +21,10 @@ The shared directory contains code and types that are used by both the client an
     `TILES_X/Y`, `PX`, `SDF_UNIT`, `SDF_FAR`), `tileOf`, `tileKey`. Test helpers:
     `ALWAYS_WATER_TEST_FIELD` (ocean + ice; also the server fallback) and `buildSyntheticLand([circle|rect])`
     which rasterizes real tiles. Loaders: `server/game/landLoader.ts`, `client/src/lib/world/landTiles.ts`.
+  - `world/ports.ts` - Game ports (card W4): `PORTS` (typed `GamePort` view of ports.json, numeric `id` =
+    1-based index, `key` = string id), `PORTS_VERSION`, `STARTER_PORTS`, dock checks (`withinDock`,
+    `dockDistance`, `nearestDockPort`, metric, radius 300) and market profiles (`REGION_MARKETS`,
+    `portGoodPrice`, `portGoodStock`). Used by the server (seed, gate, spawns) and the client (towns, docking).
   - `world/ports.json`, `world/lanes.json`, `world/versions.json` - generated world data (card W2).
   - `physics.ts` - Deterministic ship/cannonball simulation used by BOTH server (authoritative 20 Hz
     tick) and client (prediction). `stepShip(state, input, stats, land?)` = metric motion
