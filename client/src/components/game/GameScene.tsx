@@ -2,7 +2,8 @@
  * Main 3D scene. Netcode lives in `@/lib/net`:
  *  - Player.tsx drives prediction (`net.frame`) and draws the predicted own ship (useFrame, prio -1);
  *  - OtherShips.tsx / CannonBall.tsx read interpolated / simulated positions in useFrame;
- *  - this component only makes the camera follow the rendered own ship and runs the (throttled)
+ *  - this component only makes the camera follow the rendered own ship (lib/cameraFollow.ts:
+ *    frame-rate independent, bounded lag, snap on spawn / big jumps, seam-aware) and runs the (throttled)
  *    port-proximity check. Inputs are sent by the net layer, not from here.
  */
 import { useEffect, useRef, useState } from "react";
@@ -18,30 +19,26 @@ import * as THREE from "three";
 import { CannonBalls } from "./CannonBall";
 import { Fog } from "./Fog";
 import { GoldObject } from "./GoldObject";
-import type { ControlState } from "@/lib/net";
-import { MAP_WIDTH, MAP_HEIGHT } from "@shared/gameConstants";
+import { net, type ControlState } from "@/lib/net";
+import { CameraFollow } from "@/lib/cameraFollow";
 
 interface GameSceneProps {
   /** touch joystick / HUD fire button state (keyboard is read inside Player) */
   controlsRef: React.MutableRefObject<ControlState>;
 }
 
-const CAMERA_OFFSET = new THREE.Vector3(0, 250, 400);
-const CAMERA_LERP = 0.05;
-const POSITION_LERP = 0.1;
 const PORT_CHECK_INTERVAL_MS = 100;
 
 export function GameScene({ controlsRef }: GameSceneProps) {
   const playerRef = useRef<THREE.Group>(null);
   const lastPortCheck = useRef(0);
-  const lastPlayerPos = useRef<THREE.Vector3 | null>(null);
+  const lastFrameAt = useRef<number | null>(null);
+  const follow = useRef(new CameraFollow());
+  const lookAt = useRef(new THREE.Vector3());
 
   const player = useGameState((s) => s.gameState.player);
   const goldObjects = useGameState((s) => s.gameState.goldObjects);
 
-  const smoothedPlayerPosition = useRef(new THREE.Vector3());
-  const tmpOffset = useRef(new THREE.Vector3());
-  const tmpTarget = useRef(new THREE.Vector3());
   const { camera } = useThree();
 
   // Load initial game data
@@ -60,40 +57,26 @@ export function GameScene({ controlsRef }: GameSceneProps) {
     setIsVisualTest(!noVisualTest);
   }, []);
 
+  // Snap the camera onto the ship on every (re)spawn: first snapshot after join / reconnect.
+  useEffect(() => net.on("spawned", () => follow.current.requestSnap()), []);
+
   // Camera follows the rendered (predicted) own ship. Runs after Player's useFrame (priority -1).
+  // Frame-rate independent, bounded lag, snaps on spawn / > 500 u jumps (lib/cameraFollow.ts).
   useFrame(() => {
     const group = playerRef.current;
     if (!group) return;
-    const playerPosition = group.position;
+    const now = performance.now();
+    // Own wall-clock dt (R3F's delta comes from a shared clock other code can disturb).
+    const dt = lastFrameAt.current === null ? 0 : (now - lastFrameAt.current) / 1000;
+    lastFrameAt.current = now;
 
-    // Map seam: when the ship wraps (x or z jumps by ~MAP size), shift the camera and its
-    // smoothing state by the same amount so the camera doesn't fly across the map.
-    const last = lastPlayerPos.current;
-    if (!last) {
-      lastPlayerPos.current = playerPosition.clone();
-      smoothedPlayerPosition.current.copy(playerPosition);
-    } else {
-      const jx = playerPosition.x - last.x;
-      const jz = playerPosition.z - last.z;
-      const shiftX = Math.abs(jx) > MAP_WIDTH / 2 ? Math.sign(jx) * MAP_WIDTH : 0;
-      const shiftZ = Math.abs(jz) > MAP_HEIGHT / 2 ? Math.sign(jz) * MAP_HEIGHT : 0;
-      if (shiftX || shiftZ) {
-        smoothedPlayerPosition.current.x += shiftX;
-        smoothedPlayerPosition.current.z += shiftZ;
-        camera.position.x += shiftX;
-        camera.position.z += shiftZ;
-      }
-      last.copy(playerPosition);
-    }
-
-    smoothedPlayerPosition.current.lerp(playerPosition, POSITION_LERP);
-    tmpOffset.current.copy(CAMERA_OFFSET).applyQuaternion(group.quaternion);
-    tmpTarget.current.copy(smoothedPlayerPosition.current).add(tmpOffset.current);
-    camera.position.lerp(tmpTarget.current, CAMERA_LERP);
-    camera.lookAt(smoothedPlayerPosition.current);
+    const f = follow.current;
+    f.update(group.position.x, group.position.z, group.rotation.y, dt);
+    camera.position.set(f.cam.x, f.cam.y, f.cam.z);
+    lookAt.current.set(f.focus.x, f.focus.y, f.focus.z);
+    camera.lookAt(lookAt.current);
 
     // Port proximity (throttled). Uses the ~5 Hz player mirror in useGameState.
-    const now = performance.now();
     if (now - lastPortCheck.current < PORT_CHECK_INTERVAL_MS) return;
     lastPortCheck.current = now;
     checkPortProximity();

@@ -32,8 +32,17 @@ import { MAX_SEQ, SNAP_ERROR_DISTANCE, type InputMessage } from "@shared/protoco
 
 /** Visual error offset decays as exp(−t/τ). */
 export const ERROR_DECAY_TAU_SEC = 0.12;
-/** Never run more than this many fixed steps in one frame (a long hitch drops time instead). */
+/**
+ * Never run more than this many fixed steps in one frame; a longer hitch drops the excess time
+ * instead of replaying it. Deliberate: while the client is stalled the server's input queue runs
+ * dry and it re-uses our last input every tick (PROTOCOL §5), i.e. the server already simulated the
+ * gap. Replaying a backlog afterwards would step the ship a second time for the same wall time
+ * (overshoot + correction). Dropping it means the next snapshot reconciles us onto the server's
+ * extrapolated position (a small decaying error offset, or a snap if > SNAP_ERROR_DISTANCE).
+ */
 export const MAX_STEPS_PER_FRAME = 5;
+/** Largest frame delta (s) worth feeding to `advance`: exactly MAX_STEPS_PER_FRAME ticks. */
+export const MAX_FRAME_DT_SEC = MAX_STEPS_PER_FRAME * TICK_DT;
 /** Unacked inputs kept at most (3 s); older ones are dropped (server is clearly not acking). */
 export const MAX_PENDING_INPUTS = 60;
 
@@ -121,7 +130,7 @@ export class Predictor {
       this.acc -= TICK_DT;
       steps++;
     }
-    // Hitch longer than MAX_STEPS_PER_FRAME ticks: drop the backlog rather than spiral.
+    // Hitch longer than MAX_STEPS_PER_FRAME ticks: drop the backlog (see MAX_STEPS_PER_FRAME).
     if (this.acc >= TICK_DT) this.acc = this.acc % TICK_DT;
     return steps;
   }

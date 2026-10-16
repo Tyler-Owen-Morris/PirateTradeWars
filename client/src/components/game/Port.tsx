@@ -20,7 +20,7 @@ export function Port({ port }: PortProps) {
   // Animate the port beacon
   useFrame(({ clock }) => {
     if (portRef.current) {
-      const time = clock.getElapsedTime();
+      const time = clock.elapsedTime; // NOT getElapsedTime(): it calls getDelta() and steals time from R3F's frame delta
 
       // Rotate the beacon
       if (beaconRef.current) {

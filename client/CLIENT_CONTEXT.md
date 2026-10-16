@@ -110,17 +110,32 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   lets others fly to the hit moment on their delayed timeline; lifetime expiry otherwise.
 - `netClient.ts` — `NetClient` hub; `index.ts` exports the app singleton `net`. Handles `s`, `ent`,
   `gone`, `fire`, `hit`, `sunk`, `goldCollected`, `pong`; forwards every other (legacy `type`) message
-  via the `legacy` event. `net.frame(dt, controls)` = per-frame prediction step. `net.setHidden(true)`
-  (App.tsx visibilitychange) sends one neutral input then stops sending, so the ship coasts.
+  via the `legacy` event. `net.frameNow(controls)` = per-frame prediction step; it measures the frame
+  dt on its own clock (`now()`), then calls `net.frame(dt, controls)`. Don't pass R3F's `delta`: it
+  comes from the shared THREE.Clock, and any `clock.getElapsedTime()`/`getDelta()` call in a useFrame
+  shortens the next frame's delta. That bug starved inputs to ~8/s at 9 fps (N3-fix). Animations
+  must read `clock.elapsedTime` instead. `net.setHidden(true)` (App.tsx visibilitychange) sends one
+  neutral input then stops sending, so the ship coasts. On un-hide the next frame gets dt 0.
+- Hitches: a frame's dt is clamped to `MAX_FRAME_DT_SEC` (= `MAX_STEPS_PER_FRAME` 5 × 50 ms), and
+  any time beyond that is dropped, not replayed. This is deliberate. While the client stalls, the
+  server's queue runs dry and it re-uses our last input each tick, so it has already simulated the
+  gap. Replaying the backlog would step the ship twice for the same wall time. The next snapshot
+  reconciles us onto the server's extrapolated position: a decaying error offset, or a snap above
+  150 u.
 
 **How React reads it:**
-- `Player.tsx` — useFrame(priority −1): keyboard (drei `get()`) + `controlsRef` → `net.frame` →
+- `Player.tsx` — useFrame(priority −1): keyboard (drei `get()`) + `controlsRef` → `net.frameNow` →
   writes `net.getOwnRenderState()` to the group. No local physics, no snapping, no store mutation.
 - `OtherShips.tsx` — `useSyncExternalStore(net.remote)` for membership/metadata only; useFrame writes
   `net.remote.sample(eid, net.remoteRenderTime())` to each group. HP bars read live hp via `getHp`.
 - `CannonBall.tsx` — `CannonBalls` subscribes to `net.balls` ids; each ball reads its position per frame.
 - Remote ships and balls are placed at `own + wrappedDelta(own, pos)` so things across the map seam
-  render next to you; `GameScene` shifts the camera when the own ship wraps.
+  render next to you.
+- `GameScene.tsx` camera: `lib/cameraFollow.ts` `CameraFollow`. Smoothing is frame-rate independent
+  (`1 − exp(−k·dt)`, with k matching the old 0.1/0.05 per-frame lerps at 60 fps). The look-at focus
+  never trails the rendered ship by more than 100 u, and the camera stays within 400 u of
+  focus + offset. It snaps on net `spawned` (join/reconnect/respawn) and on any > 500 u jump
+  (wrap-aware). Its state is shifted by the map size when the ship crosses the seam.
 - `useSocket.tsx` — zustand façade: connection status/errors, register/trade/upgrade/repair/scuttle,
   and the bridge into `useGameState`: `me` → `gameState.player` at ~5 Hz (immediately on
   hp/gold/sunk/shipType/cargo/canFire change; x/z/rotationY/speed come from the predicted ship),
