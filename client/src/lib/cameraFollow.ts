@@ -12,15 +12,12 @@
  *
  * Snaps (no easing) on the first update, after `requestSnap()` (GameScene calls it on net `spawned`,
  * i.e. first snapshot after join / reconnect / respawn) and whenever the ship is > SNAP_DISTANCE from
- * the focus (wrap-aware). Map seam: all state is kept in the ship's coordinate frame — when the ship
- * wraps, focus and camera are shifted by the same multiple of the map size, so nothing flies across.
+ * the focus.
  *
- * In the game it runs in floating-origin render space (lib/world/renderSpace.ts): the ship is always
- * at (0, 0); GameScene calls `shiftOrigin(renderFocus.shiftX, renderFocus.shiftZ)` then
- * `update(0, 0, heading, dt)`. Values stay small there, so the wrap logic above is a no-op.
+ * It works in floating-origin RENDER space (lib/world/renderSpace.ts), which never wraps: the ship is
+ * always at (0, 0); GameScene calls `shiftOrigin(renderFocus.shiftX, renderFocus.shiftZ)` then
+ * `update(0, 0, heading, dt)`. The map seam is handled by the render-space projection, not here.
  */
-import { wrappedDelta } from "@shared/physics";
-import { MAP_HEIGHT, MAP_WIDTH } from "@shared/gameConstants";
 
 /** Camera offset from the focus in the ship's local frame (behind and above). */
 export const CAMERA_OFFSET = { x: 0, y: 250, z: 400 } as const;
@@ -65,11 +62,6 @@ export class CameraFollow {
   private snapRequested = false;
   private readonly off: Vec3 = { x: 0, y: 0, z: 0 };
 
-  constructor(
-    private readonly mapWidth: number = MAP_WIDTH,
-    private readonly mapHeight: number = MAP_HEIGHT,
-  ) {}
-
   /** Jump straight to the ship on the next update (spawn / reconnect). */
   requestSnap(): void {
     this.snapRequested = true;
@@ -93,8 +85,8 @@ export class CameraFollow {
    */
   update(shipX: number, shipZ: number, rotationY: number, dtSec: number): void {
     const off = rotatedOffset(rotationY, this.off);
-    const dx = wrappedDelta(this.focus.x, shipX, this.mapWidth);
-    const dz = wrappedDelta(this.focus.z, shipZ, this.mapHeight);
+    const dx = shipX - this.focus.x;
+    const dz = shipZ - this.focus.z;
 
     if (!this.initialized || this.snapRequested || Math.hypot(dx, dz) > SNAP_DISTANCE) {
       this.focus.x = shipX;
@@ -107,16 +99,6 @@ export class CameraFollow {
       this.snapRequested = false;
       this.snaps++;
       return;
-    }
-
-    // Seam: re-express focus/camera in the ship's coordinate frame (shift by a multiple of the map).
-    const shiftX = shipX - (this.focus.x + dx);
-    const shiftZ = shipZ - (this.focus.z + dz);
-    if (shiftX !== 0 || shiftZ !== 0) {
-      this.focus.x += shiftX;
-      this.focus.z += shiftZ;
-      this.cam.x += shiftX;
-      this.cam.z += shiftZ;
     }
 
     // Focus chases the ship, bounded lag.

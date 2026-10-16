@@ -36,8 +36,8 @@ describe("renderSpace", () => {
     expect(metricX(z60n)).toBeCloseTo(0.5, 12);
     expect(metricX(z60s)).toBeCloseTo(0.5, 12);
     expect(metricX(Z_ICE_N)).toBeCloseTo(Math.cos((70 * Math.PI) / 180), 12);
-    expect(metricX(0)).toBeGreaterThanOrEqual(0);
-    expect(metricX(0)).toBeLessThan(1e-12);
+    expect(metricX(0)).toBeGreaterThan(0); // geo clamps to MIN_METRIC_X beyond the ice
+    expect(metricX(0)).toBeLessThan(0.02);
   });
 
   it("own focus renders at the origin", () => {

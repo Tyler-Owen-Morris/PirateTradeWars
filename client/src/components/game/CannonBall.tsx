@@ -12,7 +12,7 @@ import { memo, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { net } from '@/lib/net';
-import { toRender } from '@/lib/world/renderSpace';
+import { toRender, PARKED_Y } from '@/lib/world/renderSpace';
 
 const BALL_Y = 10;
 const TRAIL_POINTS = 20;
@@ -80,7 +80,7 @@ export function CannonBall({ id }: { id: number }) {
 
   return (
     <group>
-      <mesh ref={ballRef} position={[0, -10000, 0]} castShadow>
+      <mesh ref={ballRef} position={[0, PARKED_Y, 0]} castShadow>
         <sphereGeometry args={[3, 16, 16]} />
         <meshStandardMaterial color="#333333" />
       </mesh>

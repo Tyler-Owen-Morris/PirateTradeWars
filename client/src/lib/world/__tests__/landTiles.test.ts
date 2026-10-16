@@ -75,4 +75,20 @@ describe("ClientLandTiles", () => {
     expect(urls).toContain(`/world/land/g1/t_${tx}_${ty}.bin.gz`);
     expect(land.field.distance(x, z)).toBeCloseTo(-80, 9);
   });
+
+  it("gzip manifests: a body the browser already inflated (Content-Encoding: gzip, Vite dev) is used as-is", async () => {
+    const x = 200_000;
+    const z = 100_000;
+    const manifest = { version: "g2", encoding: "gzip", width: SDF_W, height: SDF_H, tile: TILE, px: PX, sdfUnit: SDF_UNIT, iceLat: 70, allWater: [], allLand: [] };
+    const fn = (url: string) => {
+      const body = url.endsWith("manifest.json") ? null : new Int8Array(TILE * TILE).fill(-30).buffer;
+      return Promise.resolve({ ok: true, status: 200, json: async () => manifest, arrayBuffer: async () => body as ArrayBuffer });
+    };
+    const land = new ClientLandTiles("/world/land", fn);
+    land.update(x, z);
+    await flush();
+    land.update(x, z);
+    for (let i = 0; i < 20 && !land.field.ready(x, z, 10); i++) await new Promise((r) => setTimeout(r, 5));
+    expect(land.field.distance(x, z)).toBeCloseTo(-120, 9);
+  });
 });
