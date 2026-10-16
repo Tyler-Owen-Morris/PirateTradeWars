@@ -123,6 +123,31 @@ The client never sends position, speed, direction or rotation. The server is aut
 - **Invalid frames** are dropped without an `error` reply. Legacy business errors (trade, upgrade,
   etc.) still reply with `{type:"error"}`.
 
+**NPC1 clarifications (NPC ships; WORLD_SPEC §8, implemented in `server/game/world.ts` + `shared/protocol.ts`):**
+- An NPC is an ordinary entity: same eid space, same `e` rows, `fire`/`hit`/`sunk` events. It is never
+  flagged DISCONNECTED (flag 2).
+- Its `ent` carries three optional extra fields: `npc: 1`, `faction` (e.g. `"spain"`, `"pirates"`,
+  `"merchants_guild"`) and `title` (nameplate text, e.g. `"Spanish Navy"`). Player ships never carry
+  them. Read them with `parseEntNpcMeta(ent)`, which returns null for players and drops malformed or
+  over-long (> 64 chars) strings.
+- NPC `id`s start with `npc:`. The server refuses that prefix as a `connect` tempPlayerId or a
+  `reconnect` id, so a client can never take over an NPC.
+
+**NPC2 clarifications (live NPCs, player standing):**
+- NPCs are ON by default (`NPCS_ENABLED=0` disables). Expect ~300 NPC ships worldwide, at most 80 in
+  the world at once, and only those within ~2500 of some player; clients see them like any ship.
+- **`standing` (server → client, low rate):**
+  `{ t: "standing", rep: { [faction]: number }, notoriety: number, bounty: number }`, the receiver's own
+  standing with the NPC factions. `rep` is −100…100 per faction id (`england`, `spain`, `france`,
+  `portugal`, `netherlands`, `pirates`, `merchants_guild`); a missing faction means the default for new
+  players (pirates −60, guild +10, nations 0). `notoriety` is 0…100 and decays 2 per minute; `bounty` ≥ 0.
+  - It is sent when the standing first exists (the NPC system creates it the first time it evaluates the
+    player), on every (re)attach, and whenever it changes (rep events, a whole-number notoriety step).
+    It is never part of `s`, so `me` is unchanged.
+  - Read it with `parseStanding()` (shared/protocol.ts), which drops unknown factions and clamps values.
+- The standing is persisted as a JSON `standing` field in the `player:<id>` Redis hash, restored on
+  `reconnect`, and offline time is credited to notoriety decay.
+
 ## 7. Client netcode
 - **Own ship = prediction + reconciliation.** Client runs `stepShip` at the same fixed 20 Hz step with an
   accumulator in `useFrame`, sends each step's input with a seq, keeps unacked inputs. On snapshot:

@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { type User, type Player as SharedPlayer, type ShipType, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
 import { PlayerState } from '@/types';
 import { SHIP_STATS } from '@shared/gameConstants';
+import { parseStanding, type StandingState } from '@shared/protocol';
 import type { GamePort } from '@shared/world/ports';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -207,6 +208,18 @@ export class RedisStorage {
         multi.expire(`player:${id}`, currentPlayer.playerTTL);
         multi.hset(`player_score:${id}`, 'gold', gold.toString());
         multi.expire(`player_score:${id}`, currentPlayer.playerTTL + 24 * 60 * 60);
+        await multi.exec();
+    }
+
+    /** NPC2: write only the player's faction standing (after npcRepChange effects). No-op when the
+     *  record does not exist (expired, or the player sank). Leaves TTLs alone. */
+    async updatePlayerStanding(id: string, standing: StandingState): Promise<void> {
+        const key = `player:${id}`;
+        const ttl = await this.redis.ttl(key); // −2 = missing; −1 = no TTL (keep it that way)
+        if (ttl === -2) return;
+        const multi = this.redis.multi();
+        multi.hset(key, 'standing', JSON.stringify(standing));
+        if (ttl > 0) multi.expire(key, ttl); // if it expired meanwhile, don't leave a TTL-less stub
         await multi.exec();
     }
 
@@ -486,6 +499,8 @@ export class RedisStorage {
             // records without it (old 10000x10000 torus positions). W4 owns the full migration.
             worldVersion: String((player as any).worldVersion ?? '')
         };
+        // NPC2: faction standing (JSON). Omitted when absent so a write never clears a stored one.
+        if ((player as any).standing) serialized.standing = JSON.stringify((player as any).standing);
 
         return serialized;
     }
@@ -559,6 +574,9 @@ export class RedisStorage {
 
         // Optional: absent on records written before the wrapping-Earth world (World.restorePlayer relocates those).
         if (data.worldVersion) (player as any).worldVersion = parseInt(data.worldVersion);
+        // NPC2: faction standing (optional; malformed JSON is ignored).
+        const standing = data.standing ? parseStanding(data.standing) : null;
+        if (standing) (player as any).standing = standing;
 
         return player;
     }

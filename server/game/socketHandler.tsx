@@ -9,6 +9,8 @@
  */
 import { redisStorage } from "../redisStorage";
 import { gameState, type WorldPlayer } from "./gameState";
+import { isNpcId } from "./world";
+import { decayNotoriety } from "./npc/factions";
 import { WebSocket } from "ws";
 import { SHIP_UPGRADE_PATH, SHIP_STATS } from "@shared/gameConstants";
 import { withinDock, type DockedPortLike } from "@shared/world/ports";
@@ -74,6 +76,7 @@ export function handleSocketConnection(ws: WebSocket) {
   }
 
   async function handleConnect(data: ConnectMessage) {
+    if (isNpcId(data.tempPlayerId)) delete data.tempPlayerId; // NPC1: npc:* ids are reserved
     if (!data.name || data.name.trim().length < 3) {
       return sendError(ws, "Name must be at least 3 characters");
     }
@@ -116,10 +119,14 @@ export function handleSocketConnection(ws: WebSocket) {
   }
 
   async function handleReconnect(data: ReconnectMessage) {
+    if (isNpcId(data.id)) return sendError(ws, "Player ID not found"); // NPC1: never attach to an NPC
     let existingPlayer: WorldPlayer | undefined = gameState.getPlayer(data.id);
     if (!existingPlayer) {
       const stored = await redisStorage.getPlayer(data.id);
       if (!stored) return sendError(ws, "Player ID not found");
+      // NPC2: notoriety kept decaying while the player was offline.
+      const standing = (stored as any).standing;
+      if (standing && typeof stored.lastSeen === "number") decayNotoriety(standing, (Date.now() - stored.lastSeen) / 60_000);
       existingPlayer = gameState.world.restorePlayer(stored as any);
     }
     if (data.name !== existingPlayer.name) {

@@ -30,6 +30,8 @@ import {
   type SunkMessage,
   type SplashMessage,
   type GoldCollectedMessage,
+  type StandingState,
+  parseStanding,
 } from "@shared/protocol";
 import type { ClientLandTiles } from "../world/landTiles";
 import { ServerClock } from "./clock";
@@ -54,6 +56,8 @@ export interface NetEvents {
   fire: (m: FireMessage, isMine: boolean) => void;
   hit: (m: HitMessage, isMe: boolean) => void;
   sunk: (m: SunkMessage, isMe: boolean) => void;
+  /** NPC2: own faction standing changed (rep per faction, notoriety, bounty). */
+  standing: (s: StandingState) => void;
   /** A cannonball hit land at (m.x, m.z) and was removed (render dust there). */
   splash: (m: SplashMessage) => void;
   goldCollected: (m: GoldCollectedMessage) => void;
@@ -79,6 +83,8 @@ export class NetClient {
   readonly conn: Connection;
   gold: GoldRow[] = [];
   me: SelfState | null = null;
+  /** NPC2: own standing with the NPC factions (`standing` message); null until the server sends it. */
+  standing: StandingState | null = null;
   myEid: number | null = null;
   /** snapshot `a`: -1 until the server applied our first input on this connection */
   lastAck = -1;
@@ -97,6 +103,7 @@ export class NetClient {
     fire: new Set(),
     hit: new Set(),
     sunk: new Set(),
+    standing: new Set(),
     splash: new Set(),
     goldCollected: new Set(),
     gold: new Set(),
@@ -167,6 +174,7 @@ export class NetClient {
     this.balls.clear();
     this.gold = [];
     this.me = null;
+    this.standing = null;
     this.myEid = null;
     this.lastAck = -1;
     this.lastTick = 0;
@@ -286,6 +294,15 @@ export class NetClient {
         const m = msg as GoldCollectedMessage;
         if (this.me) this.me = { ...this.me, gold: m.newTotalGold };
         this.emit("goldCollected", m);
+        return;
+      }
+      case "standing": {
+        // NPC2: low-rate; sent on (re)attach and when rep/notoriety/bounty change.
+        const st = parseStanding(msg);
+        if (st) {
+          this.standing = st;
+          this.emit("standing", st);
+        }
         return;
       }
       case "pong":

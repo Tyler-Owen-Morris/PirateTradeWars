@@ -200,6 +200,27 @@ export interface EntMessage {
   name: string;
   shipType: string;
   maxHp: number;
+  /** NPC1 (WORLD_SPEC §8): present (=1) only for AI ships. */
+  npc?: 1;
+  /** NPC1: faction id of an NPC (e.g. "spain", "pirates"); see server/game/npc/factions.ts. */
+  faction?: string;
+  /** NPC1: nameplate title of an NPC (e.g. "Spanish Navy"). */
+  title?: string;
+}
+/** Max length of an `ent` faction/title string accepted by parseEntNpcMeta. */
+export const MAX_NPC_LABEL_LENGTH = 64;
+/**
+ * NPC1: read the optional NPC fields of an `ent` message defensively (client side). Returns null for
+ * a player ship; otherwise `{faction, title}` with malformed or over-long strings dropped.
+ */
+export function parseEntNpcMeta(m: unknown): { faction?: string; title?: string } | null {
+  if (typeof m !== "object" || m === null) return null;
+  const o = m as Record<string, unknown>;
+  if (o.npc !== 1) return null;
+  const out: { faction?: string; title?: string } = {};
+  if (typeof o.faction === "string" && o.faction.length > 0 && o.faction.length <= MAX_NPC_LABEL_LENGTH) out.faction = o.faction;
+  if (typeof o.title === "string" && o.title.length > 0 && o.title.length <= MAX_NPC_LABEL_LENGTH) out.title = o.title;
+  return out;
 }
 /** Entity left this client's view. */
 export interface GoneMessage {
@@ -245,6 +266,48 @@ export interface GoldCollectedMessage {
   t: "goldCollected";
   gold: number;
   newTotalGold: number;
+}
+/**
+ * NPC2: a player's standing with the NPC factions (persisted with the player record in Redis).
+ * `rep[faction]` −100…100 (missing = the faction's default for new players, see
+ * server/game/npc/factions.ts DEFAULT_PLAYER_REP), `notoriety` 0…100 (decays over time),
+ * `bounty` ≥ 0 gold.
+ */
+export interface StandingState {
+  rep: Partial<Record<string, number>>;
+  notoriety: number;
+  bounty: number;
+}
+/** NPC2: the receiver's own standing. Sent on (re)attach and whenever it changes (low rate). */
+export interface StandingMessage extends StandingState {
+  t: "standing";
+}
+/** Faction ids accepted in a standing (WORLD_SPEC §8). */
+export const STANDING_FACTIONS = ["england", "spain", "france", "portugal", "netherlands", "pirates", "merchants_guild"] as const;
+/**
+ * NPC2: validate a standing from Redis or the wire. Unknown factions and non-numbers are dropped,
+ * values clamped (rep ±100, notoriety 0…100, bounty ≥ 0, all rounded to 0.1). Null if not an object.
+ */
+export function parseStanding(v: unknown): StandingState | null {
+  if (typeof v === "string") {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof v !== "object" || v === null) return null;
+  const o = v as Record<string, unknown>;
+  const num = (x: unknown, lo: number, hi: number) =>
+    typeof x === "number" && Number.isFinite(x) ? Math.round(Math.min(hi, Math.max(lo, x)) * 10) / 10 : undefined;
+  const rep: Partial<Record<string, number>> = {};
+  if (typeof o.rep === "object" && o.rep !== null) {
+    for (const f of STANDING_FACTIONS) {
+      const r = num((o.rep as Record<string, unknown>)[f], -100, 100);
+      if (r !== undefined) rep[f] = r;
+    }
+  }
+  return { rep, notoriety: num(o.notoriety, 0, 100) ?? 0, bounty: num(o.bounty, 0, 1e9) ?? 0 };
 }
 /** Reply to `ping`: `c` echoes the client time, `st` is server time (ms). */
 export interface PongMessage {
@@ -324,6 +387,7 @@ export type ServerMessage =
   | SunkMessage
   | SplashMessage
   | GoldCollectedMessage
+  | StandingMessage
   | PongMessage
   | WelcomeMessage
   | ConnectedMessage

@@ -61,11 +61,14 @@ import {
   packEntityRow,
   roundPos,
   type BallRow,
+  type EntMessage,
   type EntityRow,
   type GoldRow,
   type InputMessage,
   type ServerMessage,
   type SnapshotMessage,
+  type StandingState,
+  parseStanding,
 } from "@shared/protocol";
 import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
 
@@ -137,6 +140,9 @@ export interface PlayerState {
   dead: boolean;
   /** Coordinate-system version the position is in (geo.ts WORLD_VERSION); missing = old torus. */
   worldVersion?: number;
+  /** NPC2: standing with the NPC factions (rep, notoriety, bounty). Persisted with the player in
+   *  Redis (`standing` JSON field); owned at runtime by the NPC system (NpcSystem.standingOf). */
+  standing?: StandingState;
 }
 
 /** A player inside the world: the persisted shape plus netcode bookkeeping. */
@@ -166,6 +172,18 @@ export interface WorldPlayer extends PlayerState {
   rowJson: string;
   /** Scratch marker for the per-client visibility pass (see World.prepare). */
   seenStamp: number;
+  // ---- NPC1: NPC fields (server/game/npc/) ----
+  /** Who drives this ship. NPC ships have no socket, never disconnect or time out, are never
+   *  persisted and never reach the leaderboard; their AI sets `lastInput` each tick. */
+  controller: "player" | "npc";
+  /** NPC only: faction id (server/game/npc/factions.ts) and nameplate title, sent in `ent`. */
+  faction?: string;
+  title?: string;
+  // ---- end NPC1 ----
+  /** NPC2: bumped by the NPC system when `standing` changes; `standingSent` is the version last
+   *  sent to this player's client as a `standing` message (−1 = resend on next build). */
+  standingVersion: number;
+  standingSent: number;
 }
 
 export interface CannonBall {
@@ -194,16 +212,19 @@ export interface GoldObject {
 /** Things clients must hear about this tick (filtered per client by buildMessages). */
 export type WorldEvent =
   | { kind: "fire"; eid: number; balls: BallRow[] }
-  | { kind: "hit"; targetEid: number; ownerEid: number; ball: number; hp: number }
+  | { kind: "hit"; targetEid: number; ownerEid: number; ball: number; hp: number; /** NPC1: server-only */ damage?: number }
   | { kind: "sunk"; eid: number }
   | { kind: "goldCollected"; playerId: string; gold: number; newTotalGold: number }
   | { kind: "splash"; ball: number; x: number; z: number };
 
 /** Side effects for the wiring layer (Redis, leaderboard, Segment). Run outside the tick. */
 export type WorldEffect =
-  | { type: "playerSunk"; playerId: string; name: string; gold: number; x: number; z: number }
+  | { type: "playerSunk"; playerId: string; name: string; gold: number; x: number; z: number; /** NPC1: sunk by an NPC (excluded from player-kill stats) */ byNpc?: boolean }
   | { type: "goldCollected"; playerId: string; gold: number; newTotalGold: number; x: number; z: number }
-  | { type: "playerRemoved"; reason: "disconnected" | "dead"; player: PlayerState };
+  | { type: "playerRemoved"; reason: "disconnected" | "dead"; player: PlayerState }
+  // NPC1: NPC side effects. Never touch the leaderboard; the NPC system / NPC2 wiring consumes them.
+  | { type: "npcSunk"; eid: number; id: string; name: string; faction?: string; gold: number; x: number; z: number; killerId?: string }
+  | { type: "npcRepChange"; playerId: string; faction: string; delta: number; reason: string };
 
 /** Per-client view state: which entities (eid → metaVersion) the client currently knows. */
 export interface ClientView {
@@ -219,6 +240,29 @@ export interface WorldOptions {
   /** Wall clock for `st` and `lastSeen` (default Date.now). */
   wallClock?: () => number;
 }
+
+/** NPC1: spawn parameters for `World.addNpc`. */
+export interface NewNpcInit {
+  name: string;
+  shipType: string;
+  x: number;
+  z: number;
+  rotationY?: number;
+  faction: string;
+  title: string;
+  gold?: number;
+}
+
+/** NPC1: every NPC id starts with this; player ids (uuid / client tempPlayerId) must not. */
+export const NPC_ID_PREFIX = "npc:";
+/** NPC1: true for ids reserved for NPCs (guards connect/reconnect against hijacking an NPC). */
+export function isNpcId(id: string | undefined | null): boolean {
+  return typeof id === "string" && id.startsWith(NPC_ID_PREFIX);
+}
+
+/** NPC1: per-tick AI hook. Runs inside `step()` right before the movement pass, synchronously.
+ *  `prevEvents` = the events of the previous tick (hits, sinks) for threat bookkeeping. */
+export type NpcTickHook = (world: World, prevEvents: readonly WorldEvent[]) => void;
 
 export interface NewPlayerInit {
   id: string;
@@ -336,6 +380,9 @@ export class World {
   effects: WorldEffect[] = [];
   readonly views = new Map<string, ClientView>();
 
+  /** NPC1: set by NpcSystem (server/game/npc/index.ts); null = no AI (NPCs coast). */
+  npcHook: NpcTickHook | null = null;
+  private nextNpcId = 1;
   private nextEid = 1;
   private nextBallId = 1;
   private nextGoldId = 1;
@@ -487,6 +534,8 @@ export class World {
       dead: p.dead ?? false,
       worldVersion: WORLD_VERSION,
     };
+    const standing = p.standing !== undefined ? parseStanding(p.standing) : null; // NPC2
+    if (standing) state.standing = standing;
     return this.insert(state);
   }
 
@@ -509,11 +558,50 @@ export class World {
       row: null,
       rowJson: "",
       seenStamp: 0,
+      controller: "player",
+      standingVersion: 0,
+      standingSent: -1,
     };
     this.players.set(p.id, p);
     this.byEid.set(p.eid, p);
     return p;
   }
+
+  // ---- NPC1: NPCs -------------------------------------------------------------------------
+
+  /** Add an AI-driven ship. Shares the eid space with players; id is `npc:<n>` (never reused). */
+  addNpc(init: NewNpcInit): WorldPlayer {
+    const p = this.createPlayer({
+      id: `${NPC_ID_PREFIX}${this.nextNpcId++}`,
+      name: init.name,
+      shipType: init.shipType,
+      x: wrap(init.x, this.mapWidth),
+      z: clampZ(init.z),
+      rotationY: init.rotationY ?? 0,
+      gold: init.gold ?? 0,
+    });
+    p.controller = "npc";
+    p.connected = true;
+    p.faction = init.faction;
+    p.title = init.title;
+    return p;
+  }
+
+  /** Remove an NPC by eid (no effect emitted). Returns false if eid is not an NPC. */
+  removeNpc(eid: number): boolean {
+    const p = this.byEid.get(eid);
+    if (!p || p.controller !== "npc") return false;
+    return this.removePlayer(p.id);
+  }
+
+  /** Set an NPC's input for the coming movement pass (call from the npcHook). */
+  setNpcInput(p: WorldPlayer, input: ShipInput): void {
+    if (p.controller !== "npc") return;
+    p.lastInput.th = input.th;
+    p.lastInput.ru = input.ru;
+    p.lastInput.f = input.f;
+  }
+  // ---- end NPC1 ----
 
   getPlayer(id: string): WorldPlayer | undefined {
     return this.players.get(id);
@@ -533,7 +621,7 @@ export class World {
    *  and starts the grace period; connecting cancels it. */
   setConnected(id: string, connected: boolean): void {
     const p = this.players.get(id);
-    if (!p) return;
+    if (!p || p.controller === "npc") return; // NPC1: NPCs never disconnect
     p.connected = connected;
     p.lastSeen = this.wallClock();
     if (!connected) {
@@ -573,7 +661,7 @@ export class World {
    *  sunk or dead players. Caps the queue at MAX_INPUT_QUEUE by dropping the oldest. */
   queueInput(id: string, input: InputMessage): boolean {
     const p = this.players.get(id);
-    if (!p || !p.connected || p.dead) return false;
+    if (!p || !p.connected || p.dead || p.controller === "npc") return false; // NPC1
     if (input.s <= p.highestSeq) return false;
     p.highestSeq = input.s;
     p.inputQueue.push(input);
@@ -592,6 +680,7 @@ export class World {
       p.inputQueue.length = 0;
       p.highestSeq = -1;
       p.lastSeq = -1;
+      p.standingSent = -1; // NPC2: resend the standing on (re)attach
     }
   }
 
@@ -605,10 +694,12 @@ export class World {
   step(): void {
     this.tick++;
     const now = this.timeMs;
+    const prevEvents = this.events; // NPC1: handed to the AI hook
     this.events = [];
 
     // 1. Removals (grace period / dead).
     this.players.forEach((p) => {
+      if (p.controller === "npc") return; // NPC1: the NPC system owns NPC lifecycles
       if (p.dead && now - p.deadAtMs > DEAD_REMOVAL_MS) {
         this.removePlayer(p.id);
         this.effects.push({ type: "playerRemoved", reason: "dead", player: toPlayerState(p) });
@@ -618,9 +709,19 @@ export class World {
       }
     });
 
+    // 1b. NPC1: AI hook. The NPC system writes each NPC's input for this tick (sync, no await).
+    if (this.npcHook) this.npcHook(this, prevEvents);
+
     // 2. Movement (consume inputs).
     const firers: WorldPlayer[] = [];
     this.players.forEach((p) => {
+      if (p.controller === "npc" && !p.sunk && !p.dead) {
+        // NPC1: AI input set by the hook (lastInput); the fire flag is consumed once.
+        this.applyStep(p, p.lastInput);
+        if (p.lastInput.f === 1) firers.push(p);
+        p.lastInput.f = 0;
+        return;
+      }
       if (p.sunk || p.dead) {
         if (p.inputQueue.length) {
           p.lastSeq = p.inputQueue[p.inputQueue.length - 1].s;
@@ -689,7 +790,7 @@ export class World {
   }
 
   private tryFire(p: WorldPlayer, now: number): void {
-    if (p.sunk || p.dead || !p.connected) return;
+    if (p.sunk || p.dead || (!p.connected && p.controller !== "npc")) return; // NPC1
     if (now - p.lastFired < p.reloadTime) return;
     p.lastFired = now;
     p.firedAtTick = this.tick;
@@ -753,14 +854,24 @@ export class World {
     const armorFactor = 1 - armor / 100;
     const damage = Math.round(ball.damage * armorFactor);
     target.hp = Math.max(0, target.hp - damage);
-    this.events.push({ kind: "hit", targetEid: target.eid, ownerEid: ball.ownerEid, ball: ball.id, hp: target.hp });
+    this.events.push({ kind: "hit", targetEid: target.eid, ownerEid: ball.ownerEid, ball: ball.id, hp: target.hp, damage });
     if (target.hp <= 0 && !target.sunk) {
       target.sunk = true;
       target.speed = 0;
       target.inputQueue.length = 0;
       this.events.push({ kind: "sunk", eid: target.eid });
       if (target.gold > 0) this.dropGold(target.x, target.z, target.gold, now);
+      // NPC1: NPCs never reach Redis/leaderboard; players sunk by an NPC are flagged.
+      if (target.controller === "npc") {
+        this.effects.push({
+          type: "npcSunk", eid: target.eid, id: target.id, name: target.name, faction: target.faction,
+          gold: target.gold, x: target.x, z: target.z, killerId: ball.ownerId,
+        });
+        return;
+      }
+      const byNpc = this.byEid.get(ball.ownerEid)?.controller === "npc";
       this.effects.push({
+        ...(byNpc ? { byNpc: true } : {}),
         type: "playerSunk",
         playerId: target.playerId,
         name: target.name,
@@ -800,6 +911,7 @@ export class World {
         continue;
       }
       collector.gold += g.gold;
+      if (collector.controller === "npc") continue; // NPC1: NPC loot never reaches Redis
       this.events.push({ kind: "goldCollected", playerId: collector.id, gold: g.gold, newTotalGold: collector.gold });
       this.effects.push({
         type: "goldCollected",
@@ -858,7 +970,9 @@ export class World {
       o.seenStamp = stamp;
       if (view.known.get(o.eid) !== o.metaVersion) {
         view.known.set(o.eid, o.metaVersion);
-        out.push({ t: "ent", eid: o.eid, id: o.id, name: o.name, shipType: o.shipType, maxHp: o.maxHp });
+        const ent: EntMessage = { t: "ent", eid: o.eid, id: o.id, name: o.name, shipType: o.shipType, maxHp: o.maxHp };
+        if (o.controller === "npc") { ent.npc = 1; if (o.faction) ent.faction = o.faction; if (o.title) ent.title = o.title; } // NPC1
+        out.push(ent);
       }
     }
     view.known.forEach((_v, eid) => {
@@ -867,6 +981,13 @@ export class World {
         out.push({ t: "gone", eid });
       }
     });
+
+    // NPC2: the player's own standing, only when it changed (or on attach).
+    if (p.standing && p.standingSent !== p.standingVersion) {
+      p.standingSent = p.standingVersion;
+      const st = p.standing;
+      out.push({ t: "standing", rep: { ...st.rep }, notoriety: Math.round(st.notoriety * 10) / 10, bounty: st.bounty });
+    }
 
     // Events.
     for (const ev of this.events) {
@@ -1028,6 +1149,8 @@ export function toPlayerState(p: WorldPlayer): PlayerState {
     lastSeen: p.lastSeen,
     dead: p.dead,
     worldVersion: p.worldVersion ?? WORLD_VERSION,
+    // NPC2: a copy, so a persisted snapshot never aliases the live standing
+    ...(p.standing ? { standing: { rep: { ...p.standing.rep }, notoriety: p.standing.notoriety, bounty: p.standing.bounty } } : {}),
   };
 }
 

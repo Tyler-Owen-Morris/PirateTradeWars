@@ -13,9 +13,10 @@ import { v4 as uuidv4 } from "uuid";
 import { GOODS } from "@shared/gameConstants";
 import { seedPorts, ensurePortGoods, updatePortMarkets } from "./ports";
 import { trackEvent, shutdownSegment } from "../segmentClient";
-import { World, TICK_MS, type WorldEffect, type WorldPlayer } from "./world";
+import { World, TICK_MS, isNpcId, type WorldEffect, type WorldPlayer } from "./world";
 import { FixedStepLoop } from "./loop";
 import { loadLandSync } from "./landLoader";
+import { createLiveNpcSystem, npcsEnabled, type NpcSystem } from "./npc";
 
 export type { PlayerState, WorldPlayer } from "./world";
 export { GRACE_PERIOD, GOLD_COLLECTION_RADIUS, GOLD_OBJECT_LIFETIME } from "./world";
@@ -30,6 +31,8 @@ export interface ClientSocket {
   readyState: number;
   bufferedAmount?: number;
   send(data: string): void;
+  /** The underlying net.Socket of a `ws` WebSocket (used to cork a tick's frames into one write). */
+  _socket?: { cork?: () => void; uncork?: () => void };
 }
 
 type LeaderboardRow = { id: number; playerId: string; playerName: string; score: number; achievedAt: Date };
@@ -54,6 +57,12 @@ class GameState {
   private readonly sockets = new Map<string, ClientSocket>();
   private tickCount = 0;
   private tickTimeTotal = 0;
+
+  /** NPC2: the live NPC system (lanes.json, port safe zones, ~300 NPCs, the World's land). ON by
+   *  default; NPCS_ENABLED=0 turns it off. */
+  readonly npcs: NpcSystem | null = npcsEnabled() ? createLiveNpcSystem(this.world).attach() : null;
+  /** NPC2: players whose standing changed this tick (npcRepChange), written to Redis once each. */
+  private readonly standingDirty = new Set<string>();
 
   constructor() {
     this.loop = new FixedStepLoop(() => this.runTick(), { stepMs: TICK_MS, maxCatchUp: 5 });
@@ -111,7 +120,7 @@ class GameState {
       console.log(`Name conflict: ${name} is reserved with ID ${reservedPlayerId}, but tempPlayerId is ${tempPlayerId}`);
       return null;
     }
-    return this.world.createPlayer({ id: tempPlayerId || uuidv4(), name, shipType });
+    return this.world.createPlayer({ id: tempPlayerId && !isNpcId(tempPlayerId) ? tempPlayerId : uuidv4() /* NPC1 */, name, shipType });
   }
 
   /** One fixed tick: step the world, send every attached client its messages, run effects. */
@@ -125,25 +134,37 @@ class GameState {
       const frames = this.world.buildFrames(playerId);
       const congested = (ws.bufferedAmount ?? 0) > MAX_BUFFERED_BYTES;
       const n = congested ? frames.length - 1 : frames.length;
-      for (let i = 0; i < n; i++) {
-        try {
-          ws.send(frames[i]);
-        } catch (err) {
-          console.error(`Error sending to ${playerId}:`, err);
-          break;
+      // NPC2: cork the TCP socket so this tick's frames (ent/gone, every fire/hit event, the
+      // snapshot) leave in ONE write instead of one syscall per WebSocket message. Same frames on the
+      // wire; with NPC fights near crowded ports the per-message writes were ~30 % of server CPU.
+      const sock = ws._socket;
+      if (n > 1) sock?.cork?.();
+      try {
+        for (let i = 0; i < n; i++) {
+          try {
+            ws.send(frames[i]);
+          } catch (err) {
+            console.error(`Error sending to ${playerId}:`, err);
+            break;
+          }
         }
+      } finally {
+        if (n > 1) sock?.uncork?.();
       }
     });
 
     const effects = this.world.drainEffects();
     for (const e of effects) this.runEffect(e);
+    this.flushStandings();
 
     this.tickTimeTotal += performance.now() - t0;
     if (++this.tickCount % (20 * 60) === 0) {
       console.log(
         `[tick] avg ${(this.tickTimeTotal / (20 * 60)).toFixed(2)} ms over 60 s, players=${this.world.players.size}, ` +
-          `sockets=${this.sockets.size}, balls=${this.world.balls.length}, dropped=${this.loop.dropped}`,
+          `sockets=${this.sockets.size}, balls=${this.world.balls.length}, dropped=${this.loop.dropped}` +
+          (this.npcs ? `, npcs=${this.npcs.stats.active}/${this.npcs.stats.records} (npc max ${this.npcs.stats.maxTickMs.toFixed(1)} ms)` : ""),
       );
+      if (this.npcs) this.npcs.stats.maxTickMs = 0;
       this.tickTimeTotal = 0;
     }
   }
@@ -183,14 +204,33 @@ class GameState {
           background("removeActiveName", () => redisStorage.removeActiveName(e.player.name));
         }
         break;
+      // NPC effects never touch the leaderboard. NPC2: rep changes are already applied to the
+      // player's in-memory standing by the NPC system; persist it (once per player per tick).
+      case "npcSunk":
+        break;
+      case "npcRepChange":
+        this.standingDirty.add(e.playerId);
+        break;
     }
+  }
+
+  /** NPC2: write changed standings to the player records (fire-and-forget, outside the tick). */
+  private flushStandings() {
+    if (this.standingDirty.size === 0) return;
+    this.standingDirty.forEach((id) => {
+      const p = this.world.getPlayer(id);
+      if (!p || !p.standing || p.controller !== "player") return;
+      const standing = { rep: { ...p.standing.rep }, notoriety: p.standing.notoriety, bounty: p.standing.bounty };
+      background("updatePlayerStanding", () => redisStorage.updatePlayerStanding(id, standing));
+    });
+    this.standingDirty.clear();
   }
 
   /** Persist every in-world player (used on graceful shutdown). */
   async persistAll(): Promise<void> {
     const players = Array.from(this.world.players.values());
     const results = await Promise.allSettled(
-      players.filter((p) => !p.sunk && !p.dead).map((p) => redisStorage.updatePlayerState({ ...p, lastSeen: Date.now() })),
+      players.filter((p) => !p.sunk && !p.dead && p.controller !== "npc").map((p) => redisStorage.updatePlayerState({ ...p, lastSeen: Date.now() })),
     );
     const failed = results.filter((r) => r.status === "rejected").length;
     console.log(`Persisted ${results.length - failed}/${results.length} players${failed ? ` (${failed} failed)` : ""}`);

@@ -48,6 +48,8 @@ export const OtherShips = memo(function OtherShips() {
           shipType={e.meta!.shipType}
           name={e.meta!.name}
           maxHp={e.meta!.maxHp}
+          npcTitle={e.meta!.npc ? (e.meta!.title ?? '') : undefined}
+          faction={e.meta!.faction}
           sunk={(e.flags & FLAG_SUNK) !== 0}
           register={(eid, el) => {
             if (el) shipsRef.current.set(eid, el);
@@ -64,12 +66,15 @@ interface RemoteShipProps {
   shipType: string;
   name: string;
   maxHp: number;
+  /** NPC2: set for AI ships (nameplate title + faction flag). */
+  npcTitle?: string;
+  faction?: string;
   sunk: boolean;
   register: (eid: number, el: THREE.Group | null) => void;
 }
 
 const RemoteShip = memo(
-  function RemoteShip({ eid, shipType, name, maxHp, sunk, register }: RemoteShipProps) {
+  function RemoteShip({ eid, shipType, name, maxHp, npcTitle, faction, sunk, register }: RemoteShipProps) {
     const getHp = useCallback(() => net.remote.entities.get(eid)?.hp ?? 0, [eid]);
     const refCb = useCallback((el: THREE.Group | null) => register(eid, el), [eid, register]);
     return (
@@ -84,9 +89,13 @@ const RemoteShip = memo(
         maxHp={maxHp}
         sunk={sunk}
         playerId={String(eid)}
+        npcTitle={npcTitle}
+        faction={faction}
       />
     );
   },
   // `register` is recreated on every parent render; it is behaviourally identical, so ignore it.
-  (a, b) => a.eid === b.eid && a.shipType === b.shipType && a.name === b.name && a.maxHp === b.maxHp && a.sunk === b.sunk,
+  (a, b) =>
+    a.eid === b.eid && a.shipType === b.shipType && a.name === b.name && a.maxHp === b.maxHp && a.sunk === b.sunk &&
+    a.npcTitle === b.npcTitle && a.faction === b.faction,
 );
