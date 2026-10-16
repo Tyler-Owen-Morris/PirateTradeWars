@@ -29,10 +29,10 @@ progress file for any card that is `in-progress`. Each card's progress file says
 | ID | Card | Owner | Branch / worktree | Status | Next step |
 |----|------|-------|-------------------|--------|-----------|
 | A  | CI/CD: main → EB, retire CodeDeploy/CDK pipeline, MaxSize=1, WS timeouts, test gate | agent-A (sonnet) | merged into main | done | — |
-| N1 | `shared/physics.ts` + `shared/protocol.ts` + vitest setup + unit tests | agent-N1 (opus) | worktree (see progress/N1-shared.md) | in-progress | agent running |
-| N2 | Server netcode: fixed tick, input queue, interest grid, events, heartbeat (depends N1) | agent-N2 (opus) | worktree | blocked on N1 | — |
-| N3 | Client netcode: prediction, interpolation, socket rewrite (depends N1) | agent-N3 (opus) | worktree | blocked on N1 | — |
-| N4 | Bot load/smoke test `scripts/bots.ts` + wire into CI (depends N1; integrates with N2) | agent-N4 (sonnet) | worktree | blocked on N1 | — |
+| N1 | `shared/physics.ts` + `shared/protocol.ts` + vitest setup + unit tests | agent-N1 (opus) | merged into main | done | — |
+| N2 | Server netcode: fixed tick, input queue, interest grid, events, heartbeat (depends N1) | agent-N2 (opus) | worktree (see progress/N2-*.md) | in-progress | agent running |
+| N3 | Client netcode: prediction, interpolation, socket rewrite (depends N1) | agent-N3 (opus) | worktree (see progress/N3-*.md) | in-progress | agent running |
+| N4 | Bot load/smoke test `scripts/bots.ts` + wire into CI (depends N1; integrates with N2) | agent-N4 (sonnet) | worktree (see progress/N4-*.md) | in-progress | agent running |
 | D  | Docs: PROJECT/SERVER/CLIENT/SHARED context files, architecture notes | agent-D (sonnet/haiku) | after merge | todo | after N2/N3 merge |
 | R  | Producer: integrate, run tests + bots locally, push, deploy, verify prod | producer | main | todo | — |
 | W2 | Colyseus migration — **deferred**, decide after Wave 1 metrics (see PROTOCOL.md §8) | — | — | deferred | — |
@@ -42,3 +42,4 @@ progress file for any card that is `in-progress`. Each card's progress file says
 - 2026-10-16 Launched agent-A (CI/CD, sonnet) and agent-N1 (shared physics/protocol, opus) in worktrees.
 - 2026-10-16 Local Docker Redis `ptw-redis` running on :6379 for local/bot tests (REDIS_CONN_STRING=redis://localhost:6379).
 - 2026-10-16 Card A merged (e555cda). Producer removed .platform nginx override (risk of duplicate directive breaking nginx; 15s heartbeat makes it unnecessary). NOTE: agent worktrees start at origin/main — agents must `git reset --hard main` first.
+- 2026-10-16 Card N1 merged (113b0fa): 45 tests pass, npm ci OK. Launched N2 (server, opus), N3 (client, opus), N4 (bots, sonnet) in parallel.
