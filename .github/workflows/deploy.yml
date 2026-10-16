@@ -61,6 +61,16 @@ jobs:
       - name: Build the app
         run: npm run build
 
+      # The zip is built on an x64 runner but may run on an x64 (t3) OR arm64 (t4g/Graviton) instance.
+      # rollup (loaded at runtime via vite, see server/vite.ts) and esbuild ship per-arch optional
+      # binaries; this ADDS the linux-arm64 ones next to the x64 ones, so one zip runs on both
+      # (also keeps rollbacks to any version label safe). Verified in a linux/arm64 container.
+      - name: Add arm64 native binaries to node_modules
+        run: |
+          npm install --os=linux --cpu=arm64 --no-audit --no-fund
+          ls node_modules/@rollup | grep -q rollup-linux-arm64-gnu
+          ls node_modules/@rollup | grep -q rollup-linux-x64-gnu
+
       - name: Create deployment package
         run: zip -r application.zip . -x "*.git*"
 

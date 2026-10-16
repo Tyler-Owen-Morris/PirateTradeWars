@@ -84,6 +84,11 @@ See `docs/netcode/PROTOCOL.md` for the exact contract and `docs/netcode/README.m
   Never raise MaxSize above 1 without first sharding the world (otherwise players land in separate worlds).
 - Health check: `/api/health` (`.ebextensions/03_healthcheck.config`); ALB idle timeout 300 s for WebSockets (`04_alb_websocket.config`).
 - Domain: piratetradewars.com (Route 53 alias to the EB environment, ACM cert on the ALB).
+- Multi-arch zip: the deploy job adds linux-arm64 rollup/esbuild binaries next to the x64 ones so the same zip runs on t3 (x64) and
+  t4g (arm64). Verified in a `linux/arm64` container (health + `/game-ws` connect).
+- Planned single-instance + Cloudflare setup: `docs/infra/SINGLE_INSTANCE_CUTOVER.md`. `.platform/hooks/prebuild/01_fetch_origin_cert.sh`
+  (also under `confighooks/`) installs the Cloudflare Origin cert from SSM (`/ptw/origin-cert|key`) and enables nginx :443 only if present;
+  no-op otherwise.
 - To push to `main` WITHOUT deploying, put `[skip ci]` in the commit message.
 - Rollback to a previous version label (example: the pre-overhaul version):
   `aws elasticbeanstalk update-environment --environment-name PirateTradeWarsEnv --version-label 9486e65f77f5931929d0ebe041ac90d7f290d682 --region us-east-2`

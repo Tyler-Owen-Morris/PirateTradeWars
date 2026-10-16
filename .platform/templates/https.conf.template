@@ -1,0 +1,27 @@
+# Installed to /etc/nginx/conf.d/https.conf by .platform/hooks/prebuild/01_fetch_origin_cert.sh
+# ONLY when the Cloudflare Origin CA cert exists (kept out of .platform/nginx so EB never ships it statically).
+# TLS terminates here for Cloudflare "Full (strict)"; the Node app listens on 127.0.0.1:8080 (EB env PORT=8080).
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name _;
+
+    ssl_certificate     /etc/pki/tls/certs/server.crt;
+    ssl_certificate_key /etc/pki/tls/certs/server.key;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
