@@ -32,7 +32,7 @@ progress file for any card that is `in-progress`. Each card's progress file says
 | N1 | `shared/physics.ts` + `shared/protocol.ts` + vitest setup + unit tests | agent-N1 (opus) | merged into main | done | — |
 | N2 | Server netcode: fixed tick, input queue, interest grid, events, heartbeat (depends N1) | agent-N2 (opus) | worktree (see progress/N2-*.md) | in-progress | agent running |
 | N3 | Client netcode: prediction, interpolation, socket rewrite (depends N1) | agent-N3 (opus) | worktree (see progress/N3-*.md) | in-progress | agent running |
-| N4 | Bot load/smoke test `scripts/bots.ts` + wire into CI (depends N1; integrates with N2) | agent-N4 (sonnet) | worktree (see progress/N4-*.md) | in-progress | agent running |
+| N4 | Bot load/smoke test `scripts/bots.ts` + wire into CI (depends N1; integrates with N2) | agent-N4 (sonnet) | merged into main | done (unverified vs new server) | run at integration |
 | D  | Docs: PROJECT/SERVER/CLIENT/SHARED context files, architecture notes | agent-D (sonnet/haiku) | after merge | todo | after N2/N3 merge |
 | R  | Producer: integrate, run tests + bots locally, push, deploy, verify prod | producer | main | todo | — |
 | W2 | Colyseus migration — **deferred**, decide after Wave 1 metrics (see PROTOCOL.md §8) | — | — | deferred | — |
@@ -43,3 +43,4 @@ progress file for any card that is `in-progress`. Each card's progress file says
 - 2026-10-16 Local Docker Redis `ptw-redis` running on :6379 for local/bot tests (REDIS_CONN_STRING=redis://localhost:6379).
 - 2026-10-16 Card A merged (e555cda). Producer removed .platform nginx override (risk of duplicate directive breaking nginx; 15s heartbeat makes it unnecessary). NOTE: agent worktrees start at origin/main — agents must `git reset --hard main` first.
 - 2026-10-16 Card N1 merged (113b0fa): 45 tests pass, npm ci OK. Launched N2 (server, opus), N3 (client, opus), N4 (bots, sonnet) in parallel.
+- 2026-10-16 Card N4 merged. Harness lifecycle verified vs old server; asserts run at integration. Known: reusePort ENOTSUP on Windows (sent to N2); harness injects dummy SEGMENT/STRIPE keys in CI.

@@ -6,3 +6,4 @@ vite.config.ts.*
 *.tar.gz
 .env
 .github/workflows/deploy-infra.yml
+.claude/worktrees/
