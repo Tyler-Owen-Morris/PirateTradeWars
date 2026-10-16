@@ -41,6 +41,7 @@ import {
   WORLD_H,
   WORLD_VERSION,
   clampZ,
+  metricDelta,
   metricDistSq,
   metricX,
   wrap,
@@ -48,6 +49,7 @@ import {
   zOfLat,
 } from "@shared/world/geo";
 import { ALWAYS_WATER_TEST_FIELD, type LandQuery } from "@shared/world/land";
+import { STARTER_PORTS, type GamePort } from "@shared/world/ports";
 import {
   GOLD_INTEREST_RADIUS,
   GOLD_SNAPSHOT_EVERY,
@@ -88,12 +90,17 @@ export const DEAD_REMOVAL_MS = 15 * 1000;
 export const FIRING_FLAG_TICKS = 6;
 /** Spawn points must have at least this much water (metric distance to land), WORLD_SPEC §4.3. */
 export const SPAWN_MIN_WATER = 60;
-/** Default spawn centre until W4 switches to port spawns: the Caribbean, lat 18 / lon −75. */
+/** Default centre for a bare `spawnPoint()` call: the Caribbean, lat 18 / lon −75. Players spawn at
+ *  starter ports instead (`starterSpawn`). */
 export const DEFAULT_SPAWN_CENTER: Readonly<{ x: number; z: number }> = Object.freeze({ x: xOfLon(-75), z: zOfLat(18) });
 /** Default spawn jitter: uniform in ±this metric distance on each axis around the centre. */
 export const DEFAULT_SPAWN_JITTER = 5000;
-/** Attempts before spawnPoint gives up and returns the last candidate. */
+/** Attempts before spawnPoint gives up and returns the best (deepest-water) candidate. */
 export const SPAWN_ATTEMPTS = 64;
+/** Port spawns (card W4): jitter around a port's `spawn` point (metric, per axis)… */
+export const PORT_SPAWN_JITTER = 150;
+/** …and the minimum land distance a jittered port spawn must have (WORLD_SPEC §5: spawn > 150). */
+export const PORT_SPAWN_MIN_WATER = 150;
 
 // ---------------------------------------------------------------------------------------------
 // Types
@@ -397,18 +404,40 @@ export class World {
 
   /**
    * A random water point near `center` (uniform jitter of ±`jitter` metric units per axis) with
-   * land distance > SPAWN_MIN_WATER. Retries SPAWN_ATTEMPTS times, then returns the last candidate
-   * (stepShip's push-out moves it off any coast). W4 will call this with port spawn points.
+   * land distance > `minWater`. Retries SPAWN_ATTEMPTS times; if none qualifies it returns the
+   * deepest-water candidate seen, counting `center` itself (stepShip's push-out handles the rest).
    */
-  spawnPoint(center: { x: number; z: number } = DEFAULT_SPAWN_CENTER, jitter: number = DEFAULT_SPAWN_JITTER): { x: number; z: number } {
-    let x = center.x;
-    let z = center.z;
+  spawnPoint(
+    center: { x: number; z: number } = DEFAULT_SPAWN_CENTER,
+    jitter: number = DEFAULT_SPAWN_JITTER,
+    minWater: number = SPAWN_MIN_WATER,
+  ): { x: number; z: number } {
+    let bestX = wrap(center.x, WORLD_C);
+    let bestZ = clampZ(center.z);
+    let bestD = this.land.distance(bestX, bestZ);
     for (let i = 0; i < SPAWN_ATTEMPTS; i++) {
-      z = clampZ(center.z + (this.rng() * 2 - 1) * jitter);
-      x = wrap(center.x + ((this.rng() * 2 - 1) * jitter) / metricX(z), WORLD_C);
-      if (this.land.distance(x, z) > SPAWN_MIN_WATER) break;
+      const z = clampZ(center.z + (this.rng() * 2 - 1) * jitter);
+      const x = wrap(center.x + ((this.rng() * 2 - 1) * jitter) / metricX(z), WORLD_C);
+      const d = this.land.distance(x, z);
+      if (d > minWater) return { x, z };
+      if (d > bestD) {
+        bestX = x;
+        bestZ = z;
+        bestD = d;
+      }
     }
-    return { x, z };
+    return { x: bestX, z: bestZ };
+  }
+
+  /**
+   * Spawn at a port (card W4, WORLD_SPEC §4.3/§5): a random starter port unless `port` is given, a
+   * point within PORT_SPAWN_JITTER of its `spawn` with land distance > PORT_SPAWN_MIN_WATER, and a
+   * heading pointing out to sea (the land normal; away from the town where the field is flat).
+   */
+  starterSpawn(port?: GamePort): { x: number; z: number; rotationY: number; port: GamePort } {
+    const p = port ?? STARTER_PORTS[Math.min(STARTER_PORTS.length - 1, Math.floor(this.rng() * STARTER_PORTS.length))];
+    const s = this.spawnPoint(p.spawn, PORT_SPAWN_JITTER, PORT_SPAWN_MIN_WATER);
+    return { x: s.x, z: s.z, rotationY: seawardRotation(this.land, s.x, s.z, p), port: p };
   }
 
   /** Simulation time in ms (tick * 50). */
@@ -418,11 +447,11 @@ export class World {
 
   // ---- players --------------------------------------------------------------------------
 
-  /** Create a brand-new player with full stats for `shipType` (spawnPoint() unless x/z given). */
+  /** Create a brand-new player with full stats for `shipType` (starterSpawn() unless x/z given). */
   createPlayer(init: NewPlayerInit): WorldPlayer {
     const stats = SHIP_STATS[init.shipType] ?? SHIP_STATS[SHIP_TYPES.SLOOP];
-    const rotationY = init.rotationY ?? 0;
-    const spawn = init.x === undefined || init.z === undefined ? this.spawnPoint() : null;
+    const spawn = init.x === undefined || init.z === undefined ? this.starterSpawn() : null;
+    const rotationY = init.rotationY ?? spawn?.rotationY ?? 0;
     const state: PlayerState = {
       id: init.id,
       playerId: init.id,
@@ -459,18 +488,20 @@ export class World {
 
   /**
    * Re-insert a player loaded from Redis (or any PlayerState-like record). Starts at rest.
-   * Records from the old torus (no/older `worldVersion`) or whose position is on land are moved to
-   * spawnPoint() (W4 refines this to a starter port).
+   * Migration (card W4): records from the old torus (no/older `worldVersion`) or whose position is
+   * on land are moved to a random starter port's spawn (starterSpawn), facing out to sea. Everything
+   * else (gold, ship type and stats, hp, cargo) is kept as stored.
    */
   restorePlayer(p: Partial<PlayerState> & { id: string; name: string; shipType: string }): WorldPlayer {
     const stats = SHIP_STATS[p.shipType] ?? SHIP_STATS[SHIP_TYPES.SLOOP];
-    const rotationY = p.rotationY ?? 0;
+    let rotationY = p.rotationY ?? 0;
     let x = wrap(p.x ?? 0, WORLD_C);
     let z = clampZ(p.z ?? 0);
-    if (Number(p.worldVersion) !== WORLD_VERSION || this.land.distance(x, z) < 0) {
-      const s = this.spawnPoint();
+    if (needsRelocation(p, this.land)) {
+      const s = this.starterSpawn();
       x = s.x;
       z = s.z;
+      rotationY = s.rotationY;
     }
     const state: PlayerState = {
       id: p.id,
@@ -1125,4 +1156,33 @@ export function toPlayerState(p: WorldPlayer): PlayerState {
 
 function round4(v: number): number {
   return Math.round(v * 10000) / 10000;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Spawn helpers (card W4)
+// ---------------------------------------------------------------------------------------------
+
+/** True if a stored record must be moved to a starter port: old coordinate system (no/other
+ *  `worldVersion`) or a saved position on land (distance < 0). */
+export function needsRelocation(p: { x?: number; z?: number; worldVersion?: number }, land: LandQuery): boolean {
+  if (Number(p.worldVersion) !== WORLD_VERSION) return true;
+  return land.distance(wrap(p.x ?? 0, WORLD_C), clampZ(p.z ?? 0)) < 0;
+}
+
+/**
+ * rotationY whose forward direction points out to sea at (x, z): along the land normal (toward
+ * deeper water). Where the field is flat (deep water, normal = 0) it points away from the port's
+ * town instead. Forward motion is (−sin r, −cos r) in metric (x, z), so r = atan2(−dx, −dz).
+ */
+export function seawardRotation(land: LandQuery, x: number, z: number, port?: { x: number; z: number }): number {
+  const n = land.normal(x, z);
+  let dx = n.nx;
+  let dz = n.nz;
+  if (Math.hypot(dx, dz) < 0.5 && port) {
+    const d = metricDelta(port.x, port.z, x, z);
+    dx = d.dx;
+    dz = d.dz;
+  }
+  if (dx === 0 && dz === 0) return 0;
+  return Math.atan2(-dx, -dz);
 }

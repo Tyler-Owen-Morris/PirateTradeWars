@@ -21,9 +21,14 @@ import * as THREE from "three";
 import { CannonBalls } from "./CannonBall";
 import { Fog } from "./Fog";
 import { GoldObject } from "./GoldObject";
+import { Terrain } from "./Terrain";
+import { LandSplashes } from "./LandSplashes";
 import { net, type ControlState } from "@/lib/net";
 import { CameraFollow } from "@/lib/cameraFollow";
 import { renderFocus, CAMERA_FAR } from "@/lib/world/renderSpace";
+import { nearestDockPort } from "@shared/world/ports";
+import { PORT_INTERACTION_RADIUS } from "@shared/gameConstants";
+import type { Port } from "@/types";
 
 interface GameSceneProps {
   /** touch joystick / HUD fire button state (keyboard is read inside Player) */
@@ -112,6 +117,12 @@ export function GameScene({ controlsRef }: GameSceneProps) {
           {/* Camera-following plane; waves anchored to the world (see Ocean.tsx) */}
           <Ocean size={2 * (CAMERA_FAR + 500)} />
 
+          {/* Land chunks from the SDF tiles + polar ice (lib/world/terrain.ts, ice.ts) */}
+          <Terrain />
+
+          {/* Dust where cannonballs hit land (net "splash" events) */}
+          <LandSplashes />
+
           <Ports />
 
           {/* Other player ships (interpolated, positions written in useFrame) */}
@@ -140,25 +151,26 @@ export function GameScene({ controlsRef }: GameSceneProps) {
   );
 }
 
-/** Enter/leave the nearest port's interaction radius (unchanged behaviour from before the netcode work). */
+/** Enter/leave the docking radius of the nearest port: metric distance from the ship to the port's
+ *  DOCK ≤ PORT_INTERACTION_RADIUS (300), the same rule the server enforces (WORLD_SPEC §5). */
 function checkPortProximity() {
   const store = useGameState.getState();
   const player = store.gameState.player;
-  const nearestPort = store.getNearestPort();
-  if (!player || !nearestPort) return;
+  if (!player) return;
+  const ports = store.gameState.ports.filter((p) => p.dock);
+  const hit = nearestDockPort(player.x, player.z, ports as Array<Port & { dock: { x: number; z: number } }>);
+  if (!hit) return;
+  const { port, distance } = hit;
 
-  const isNear = store.isPlayerNearPort();
-  if (isNear) {
-    if (!store.gameState.isNearPort) {
-      store.setNearPort(nearestPort.id);
+  if (distance <= PORT_INTERACTION_RADIUS) {
+    if (!store.gameState.isNearPort || store.gameState.nearestPort?.id !== port.id) {
+      store.setNearPort(port.id);
       const { playSound } = useAudio.getState() as unknown as { playSound?: (name: string, vol: number) => void };
       if (typeof playSound === 'function') playSound('bell', 0.4);
-      const distance = store.calculateDistance(player.x, player.z, nearestPort.x, nearestPort.z);
-      console.log(`Approaching ${nearestPort.name} port! Distance: ${Math.round(distance)} units`);
+      console.log(`Approaching ${port.name} dock. Distance: ${Math.round(distance)} units`);
     }
   } else if (store.gameState.isNearPort) {
     store.setNearPort(null);
-    const distance = store.calculateDistance(player.x, player.z, nearestPort.x, nearestPort.z);
-    console.log(`Leaving ${nearestPort.name} port area. Distance: ${Math.round(distance)} units`);
+    console.log(`Leaving ${port.name} dock area. Distance: ${Math.round(distance)} units`);
   }
 }

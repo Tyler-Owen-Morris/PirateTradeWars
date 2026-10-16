@@ -48,13 +48,28 @@ The game uses Zustand for state management with several stores:
 - `OtherShips.tsx` - Renders other players in the game
 - `Ocean.tsx` - Water rendering
 - `CannonBall.tsx` - Projectiles
-- `Port.tsx` / `Ports.tsx` - Port visuals and management
+- `Port.tsx` / `Ports.tsx` - real-world ports (card W4), see "Ports (W4)" below
 
 ### UI Components
 - `TradeMenu.tsx` - Trading interface for ports
 - Ship selection screens
 - Game status indicators and HUD
 - Damage indicators and ship status
+
+## Navigation UI (card W5)
+All maths is pure and tested in `client/src/lib/nav.ts` (`lib/__tests__/nav.test.ts`); components only draw. It uses `shared/world/geo.ts` (`metricDelta`, `metricDist`, `bearingDeg`, `compassHeading`, `lonOf`/`latOf`) - never raw x deltas.
+- `ui/Minimap.tsx`: north-up, centred on the player. Radius (world units centre-to-edge) defaults to 6000 (1 unit = 100 m, so 600 km), +/- halve/double (1500..24000). Land is drawn row by row from `/world/map_1024x512.png` via `minimapRow` (each row spans +-radius/metricX(z) x-units, split in two across the x seam). Ports (nation-coloured, at their dock), ships/NPCs (`otherPlayers`), heading arrow, highlighted target port.
+- `ui/WorldMap.tsx`: full-screen canvas over `/world/map_4096x2048.png`. Opened by `M` or the "Map" button in the compass HUD (GameUI owns the toggle; Esc closes). View = `{cx, cz, k}` (k = px per world unit, same on both axes); drag pans with x wrap, wheel/pinch zoom about the cursor, clicking a port (no drag) calls `setNavTarget(port.id)`. Draws 30 degree grid, +-70 degree ice lines/shading, ports and names, player arrow.
+- `ui/CompassHUD.tsx` (top centre): heading tape + `deg + cardinal`, lat/lon like `17°56′N 76°50′W`, and the target port with distance in sea miles (`nm`, 1 nm = 18.52 units), compass bearing and an arrow relative to the bow. Speed stays in `HUD.tsx` (knots).
+- **Ports (W4).** Data: `shared/world/ports.ts` (`PORTS`, typed view of the generated `ports.json`; numeric
+  `id` = 1-based index, `key` = string id, town `x/z`, `dock`, `spawn`, `nation`, `region`). `useGameState.loadPorts`
+  fetches `GET /api/ports` (same shape) and falls back to the bundled `PORTS`. `Ports.tsx` renders the store's
+  ports; `Port.tsx` draws a procedural town on the coast at x/z (houses, tower, flag in `nationColor`, name label)
+  and a pier + 300-unit ring at the dock. No island .glb any more: land is the W3 terrain (`Island.tsx` is unused).
+  Docking: `GameScene.checkPortProximity` (10 Hz) uses `nearestDockPort` and enters the port when the metric
+  distance to the dock is <= `PORT_INTERACTION_RADIUS` (300), the same rule the server enforces for trade, upgrade
+  and repair. `isPlayerNearPort` uses the same 300 radius.
+- Store (`useGameState`): `calculateDistance` is `metricDist`; `getNearestPort` uses dock points (`portPoint`, x/z fallback); `navTargetId` / `setNavTarget` / `getNavTargetPort()` (selected target, else nearest). The `Port` type has optional `dock` and `nation` (filled by W4's port source).
 
 ## WebSocket Communication
 
@@ -172,17 +187,57 @@ Nothing is drawn at raw world coordinates. `lib/world/renderSpace.ts` (unit-test
 - `renderFocus.shiftX/Z` = this frame's F in last frame's render space (camera uses it);
   `renderFocus.travelX/Z` = accumulated rendered travel (float64; ocean uses it).
 - Users: `OtherShips.tsx`, `CannonBall.tsx` (ball + trail; trail history kept in world coords and
-  re-projected every frame), `GoldObject.tsx` (props are world x/y/z), `Port.tsx` (root group placed
-  per frame; island and label are local children). Ports and gold hide beyond
+  re-projected every frame), `GoldObject.tsx` (props are world x/y/z), `Port.tsx` (town root at the port x/z and dock
+  root at `dock`, both placed per frame; buildings, flag, label, pier and ring are local children). Ports and gold hide beyond
   `RENDER_CULL_DISTANCE` (camera far 2500 + 500).
 - `Ocean.tsx`: three's `Water` on a `2 × (CAMERA_FAR + 500)` plane re-centred under the camera every
   frame. Its shader is patched so each of the four normal-map lookups gets
   `uOffN = fract(travel / divisorN)` (computed in float64 on the CPU): waves stay anchored to the
   world instead of swimming with the plane, with no precision loss over long sessions.
-- World constants (`WORLD_C` 400000, `WORLD_H` 200000, `metricX`, ice lines) are currently local to
-  renderSpace.ts with a `TODO(W1)`: switch to `shared/world/geo` once it exists.
+- World constants (`WORLD_C`, `WORLD_H`, `Z_ICE_N/S`, `metricX`, `wrappedDelta`) come from
+  `shared/world/geo` and are re-exported by renderSpace.ts. `PARKED_Y` = where objects wait before
+  their first placement.
+- `CameraFollow` works purely in render space (no map wrap): `shiftOrigin(shift)` then
+  `update(0, 0, heading, dt)`.
 - Any new world object: put it in a group and set its position from `toRender` in useFrame. Never
   use raw x/z as a Three position.
+
+## Terrain, shore, ice, land splashes (WORLD_SPEC §4, §7)
+
+Data: `clientLand` (`lib/world/landTiles.ts`, W1) loads SDF tiles around the ship (the net layer
+calls `clientLand.update`); `clientLand.field` is the `LandField`, `clientLand.version` bumps when a
+tile arrives. Everything below is unit-tested in `lib/world/__tests__/terrain.test.ts`, including a
+frame-budget test on the real generated tiles (Jamaica, English Channel: < 0.2 ms/frame average,
+≈ 2 ms worst frame in node).
+- `components/game/Terrain.tsx` owns a `TerrainManager` + `PolarIce` and updates both each frame
+  from `renderFocus`. `?terrainStats=1` logs build stats, focus and camera every 2 s.
+- `lib/world/terrainHeight.ts`: SDF → height/colour. Coast (d = 0) sits exactly at the waterline
+  (`WATER_Y` = −10, the ocean plane), then beach (≤ 3 u over 40 u), gentle inland rise, low fractal
+  hills from ~60 u inland; colours sand → grass/forest (noise mask) → rock (high/steep). Noise
+  lattices divide WORLD_C, so it is seamless across the x wrap.
+- `lib/world/terrain.ts` `TerrainManager`: chunks of 16 × 16 SDF px (781.25 u, always inside one
+  tile). Geometry is in chunk-local coordinate units; the vertex shader (`RENDER_TRANSFORM_GLSL`)
+  maps it to render space from per-chunk uniforms computed in float64 (`uOrigin` = wrappedDelta
+  to the chunk origin and z offset, `uChunkZ0`), with metricX per vertex: the same formula as
+  `toRender`. LOD 33/17/9 vertices per side by metric distance (< 900 / < 1900 / beyond), skirts hide
+  LOD cracks, chunks within `VIEW_DISTANCE` (2800 u) kept, disposed beyond +600. All-water tiles and
+  chunks with every sample > 60 u of water build nothing. Builds are time-sliced nearest-first
+  (`DEFAULT_BUDGET_MS` 1 ms, at least one per frame; LOD0 build ≈ 0.4 ms). Chunks built while tiles
+  were missing are rebuilt when `clientLand.version` changes. Terrain stops ~1500 u beyond the ice
+  lines.
+- `lib/world/shoreField.ts` `ShoreField`: a 256² Uint8 grid of `field.distance` (incl. ice) covering
+  ±3000 u around the ship, anchored in travel space, rebuilt in 16-row slices into a back buffer when
+  the ship has moved 500 u or tiles changed. `Ocean.tsx` uploads it as an R8 texture and its patched
+  Water shader tints water turquoise within ~220 u of a coast and draws a moving surf-foam band in the
+  first ~20 u.
+- `lib/world/ice.ts` `PolarIce`: the ice lines are constant-z lines, so in render space each is a
+  straight line at `rz = Z_ICE − F.z` with constant metricX (cos 70°). One rigid wall mesh (jagged,
+  flat-shaded, face never on the water side of the physics line) plus a pack-ice plane with a
+  tileable Voronoi floe texture, per pole (the south one mirrored). The pattern period divides the
+  ice-line circumference and the mesh is shifted by −(s_F mod period) so the ice stays world-anchored.
+- `components/game/LandSplashes.tsx`: dust cloud + debris (2 InstancedMeshes, pool of 24) on net
+  `splash` events with `land: 1`, projected with `toRender`.
+- Port towns / the old decorative island .glb in `Port.tsx` belong to W4 (ports card).
 
 ## Input Handling
 

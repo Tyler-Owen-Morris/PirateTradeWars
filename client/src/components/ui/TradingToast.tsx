@@ -1,3 +1,4 @@
+import { portPoint } from "@/lib/nav";
 import { useState, useEffect } from 'react';
 import { useGameState } from '@/lib/stores/useGameState';
 
@@ -73,7 +74,7 @@ export function ToastContainer() {
             const player = gameState.player;
             if (player) {
               const distance = useGameState.getState().calculateDistance(
-                player.x, player.z, nearestPort.x, nearestPort.z
+                player.x, player.z, portPoint(nearestPort).x, portPoint(nearestPort).z
               );
               addToast(`Too far from ${nearestPort.name} (${Math.round(distance)} units away)`, 'error');
             }

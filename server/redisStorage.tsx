@@ -1,9 +1,10 @@
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
-import { type User, type Player as SharedPlayer, type ShipType, type Port, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
+import { type User, type Player as SharedPlayer, type ShipType, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
 import { PlayerState } from '@/types';
 import { SHIP_STATS } from '@shared/gameConstants';
 import { parseStanding, type StandingState } from '@shared/protocol';
+import type { GamePort } from '@shared/world/ports';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -296,26 +297,38 @@ export class RedisStorage {
         return newEntry;
     }
 
-    // Port operations
-    async getPorts(): Promise<Port[]> {
+    // Port operations (card W4). The `ports` hash maps id -> JSON GamePort (shared/world/ports.ts);
+    // `portsVersion` holds the ports.json content hash it was seeded from (server/game/ports.ts).
+    async getPorts(): Promise<GamePort[]> {
         const ports = await this.redis.hgetall('ports');
-        const result: Port[] = [];
-
-        for (const [id, data] of Object.entries(ports)) {
-            if (data) {
-                const parsedData = JSON.parse(data as string);
-                result.push(this.deserializePort(parsedData));
-            }
+        const result: GamePort[] = [];
+        for (const data of Object.values(ports)) {
+            if (data) result.push(this.deserializePort(JSON.parse(data as string)));
         }
-
-        return result;
+        return result.sort((a, b) => a.id - b.id);
     }
 
-    async getPort(id: number): Promise<Port | undefined> {
+    async getPort(id: number): Promise<GamePort | undefined> {
         const data = await this.redis.hget('ports', id.toString());
         if (!data) return undefined;
-        const parsedData = JSON.parse(data);
-        return this.deserializePort(parsedData);
+        return this.deserializePort(JSON.parse(data));
+    }
+
+    async getPortsVersion(): Promise<string | null> {
+        return this.redis.get('portsVersion');
+    }
+
+    /** Replace every port (and drop every old and new port's goods) and store the new version, in one transaction. */
+    async replacePorts(ports: readonly GamePort[], version: string): Promise<void> {
+        const oldIds = await this.redis.hkeys('ports');
+        const ids = new Set<string>([...oldIds, ...ports.map((p) => String(p.id))]);
+        const tx = this.redis.multi();
+        ids.forEach((id) => tx.del(`port:${id}:goods`));
+        tx.del('ports');
+        for (const p of ports) tx.hset('ports', String(p.id), JSON.stringify(p));
+        tx.set('port:next_id', String(ports.reduce((m, p) => Math.max(m, p.id), 0)));
+        tx.set('portsVersion', version);
+        await tx.exec();
     }
 
     // Port goods operations
@@ -568,14 +581,24 @@ export class RedisStorage {
         return player;
     }
 
-    private deserializePort(data: Record<string, string>): Port {
+    private deserializePort(data: any): GamePort {
+        // Records seeded before card W4 (no dock) fall back to the town position for the dock/spawn.
+        const x = Number(data.x) || 0;
+        const z = Number(data.z) || 0;
         return {
-            id: parseInt(data.id),
+            id: Number(data.id),
+            key: data.key ?? String(data.id),
             name: data.name,
-            x: parseInt(data.x),
-            y: parseInt(data.y),
-            z: parseInt(data.z),
-            safeRadius: parseInt(data.safeRadius)
+            nation: data.nation,
+            region: data.region,
+            lat: Number(data.lat) || 0,
+            lon: Number(data.lon) || 0,
+            x,
+            y: 0,
+            z,
+            dock: data.dock ? { x: Number(data.dock.x), z: Number(data.dock.z) } : { x, z },
+            spawn: data.spawn ? { x: Number(data.spawn.x), z: Number(data.spawn.z) } : { x, z },
+            safeRadius: Number(data.safeRadius) || 0,
         };
     }
 
@@ -608,13 +631,6 @@ export class RedisStorage {
         const newGood = { ...good, id };
         await this.redis.hset('goods', id.toString(), JSON.stringify(newGood));
         return newGood;
-    }
-
-    async createPort(port: Omit<Port, 'id'>): Promise<Port> {
-        const id = await this.redis.incr('port:next_id');
-        const newPort = { ...port, id };
-        await this.redis.hset('ports', id.toString(), JSON.stringify(newPort));
-        return newPort;
     }
 
     async removePlayer(playerId: string): Promise<void> {

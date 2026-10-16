@@ -13,13 +13,14 @@ import * as THREE from 'three';
 import { Ship } from './Ship';
 import { ShipType } from '@/lib/constants';
 import { net, type RemotePose } from '@/lib/net';
-import { toRender } from '@/lib/world/renderSpace';
+import { toRender, PARKED_Y } from '@/lib/world/renderSpace';
 import { FLAG_SUNK } from '@shared/protocol';
 
 const subscribe = (fn: () => void) => net.remote.subscribe(fn);
 const getVersion = () => net.remote.version;
 
-const ORIGIN: [number, number, number] = [0, -10000, 0];
+// Parked below the ocean until the first useFrame places the ship in render space.
+const ORIGIN: [number, number, number] = [0, PARKED_Y, 0];
 
 export const OtherShips = memo(function OtherShips() {
   useSyncExternalStore(subscribe, getVersion, getVersion);

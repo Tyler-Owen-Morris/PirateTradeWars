@@ -12,7 +12,6 @@ import {
 } from "../cameraFollow";
 
 // Generic ring-size test (the class takes the ring size; W3 reworks the camera for the floating origin).
-const W = 10000;
 const SPEED = 240; // sloop top speed, units/s (4 u per 1/60 s)
 
 describe("CameraFollow", () => {
@@ -34,7 +33,7 @@ describe("CameraFollow", () => {
   });
 
   it("snaps onto the ship on the first update and after requestSnap()", () => {
-    const f = new CameraFollow(W, W);
+    const f = new CameraFollow();
     f.update(1234, 5678, 0, 0.016);
     expect(f.focus).toMatchObject({ x: 1234, z: 5678 });
     expect(f.cam).toMatchObject({ x: 1234, y: CAMERA_OFFSET.y, z: 5678 + CAMERA_OFFSET.z });
@@ -44,31 +43,38 @@ describe("CameraFollow", () => {
     expect(f.snaps).toBe(2);
   });
 
-  it("snaps when the ship is > 500 u away (reconnect), wrap-aware", () => {
-    const f = new CameraFollow(W, W);
+  it("snaps when the ship is > 500 u away (reconnect / respawn)", () => {
+    const f = new CameraFollow();
     f.update(100, 100, 0, 0.016);
     f.update(4000, 100, 0, 0.016);
     expect(f.focus.x).toBe(4000);
     expect(f.snaps).toBe(2);
-    // across the seam 9990 → 10 is a 20 u move, not a 9980 u jump: no snap
-    f.update(9990, 100, 0, 0.016);
-    const snaps = f.snaps;
-    f.update(10, 100, 0, 0.016);
-    expect(f.snaps).toBe(snaps);
-    expect(Math.abs(f.focus.x - 10)).toBeLessThan(25); // re-expressed in the ship's frame
-    expect(Math.abs(f.cam.x - 10)).toBeLessThan(1000);
+    f.update(4020, 100, 0, 0.016); // a normal move: no snap
+    expect(f.snaps).toBe(2);
+  });
+
+  it("shiftOrigin re-expresses the state in the moved frame without changing the lag", () => {
+    const f = new CameraFollow();
+    f.update(0, 0, 0, 0);
+    f.update(10, 0, 0, 1 / 60);
+    const lag = 10 - f.focus.x;
+    const camRel = f.cam.x - f.focus.x;
+    f.shiftOrigin(10, 0); // origin moved onto the ship
+    expect(-f.focus.x).toBeCloseTo(lag, 12);
+    expect(f.cam.x - f.focus.x).toBeCloseTo(camRel, 12);
+    // (seam crossing in render space: lib/world/__tests__/renderSpace.test.ts)
   });
 
   it("keeps the ship in view at 9 fps with hitches: focus lag ≤ MAX_FOCUS_ERROR", () => {
-    const f = new CameraFollow(W, W);
+    const f = new CameraFollow();
     let x = 1000;
     f.update(x, 500, Math.PI / 2, 0);
     const dts = [0.111, 0.111, 0.6, 0.111, 0.35, 0.111, 0.111, 0.25, 0.111];
     for (let i = 0; i < 200; i++) {
       const dt = dts[i % dts.length];
-      x = (x + SPEED * dt) % W;
+      x += SPEED * dt;
       f.update(x, 500, Math.PI / 2, dt);
-      const lag = Math.abs(((x - f.focus.x + W / 2) % W + W) % W - W / 2);
+      const lag = Math.abs(x - f.focus.x);
       expect(lag).toBeLessThanOrEqual(MAX_FOCUS_ERROR + 1e-9);
       const off = rotatedOffset(Math.PI / 2);
       const camErr = Math.hypot(f.cam.x - (f.focus.x + off.x), f.cam.y - off.y, f.cam.z - (f.focus.z + off.z));
@@ -78,7 +84,7 @@ describe("CameraFollow", () => {
 
   it("is frame-rate independent: 60 fps and 10 fps end at nearly the same lag", () => {
     const run = (fps: number) => {
-      const f = new CameraFollow(W, W);
+      const f = new CameraFollow();
       let x = 1000;
       f.update(x, 500, 0, 0);
       const dt = 1 / fps;

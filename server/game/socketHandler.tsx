@@ -13,7 +13,7 @@ import { isNpcId } from "./world";
 import { decayNotoriety } from "./npc/factions";
 import { WebSocket } from "ws";
 import { SHIP_UPGRADE_PATH, SHIP_STATS } from "@shared/gameConstants";
-import { metricDistSq } from "@shared/world/geo";
+import { withinDock, type DockedPortLike } from "@shared/world/ports";
 import {
   parseClientMessage,
   type ConnectMessage,
@@ -163,6 +163,7 @@ export function handleSocketConnection(ws: WebSocket) {
 
     const port = await redisStorage.getPort(data.portId);
     if (!port) return sendError(ws, "Port not found");
+    if (!withinPort(player, port)) return sendError(ws, "Too far from port");
 
     const portGoods = await redisStorage.getPortGoods(port.id);
     const portGood = portGoods.find((pg) => pg.goodId === data.goodId);
@@ -332,9 +333,10 @@ export function handleSocketConnection(ws: WebSocket) {
   }
 }
 
-function withinPort(player: WorldPlayer, port: { x: number; z: number; safeRadius: number }): boolean {
-  // Metric distance (WORLD_SPEC §3). W4 switches this to the port dock + PORT_INTERACTION_RADIUS.
-  return metricDistSq(player.x, player.z, port.x, port.z) <= port.safeRadius * port.safeRadius;
+/** Port interaction gate (trade, upgrade, repair; WORLD_SPEC §5): metric distance from the ship to
+ *  the port's DOCK ≤ PORT_INTERACTION_RADIUS (300). */
+export function withinPort(player: { x: number; z: number }, port: DockedPortLike): boolean {
+  return withinDock(player.x, player.z, port);
 }
 
 function send(ws: WebSocket, msg: object) {

@@ -169,7 +169,11 @@ export class ClientLandTiles {
     p.then(async (res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const raw = await res.arrayBuffer();
-      const buf = gzip ? await gunzip(raw) : raw;
+      // A server may send `.bin.gz` with `Content-Encoding: gzip` (Vite dev does), in which case the
+      // browser has already inflated it: only gunzip when the gzip magic bytes are present.
+      const head = new Uint8Array(raw, 0, Math.min(2, raw.byteLength));
+      const isGzip = head.length === 2 && head[0] === 0x1f && head[1] === 0x8b;
+      const buf = gzip && isGzip ? await gunzip(raw) : raw;
       if (buf.byteLength !== TILE * TILE) throw new Error(`tile ${tileKey(tx, ty)} has ${buf.byteLength} bytes`);
       this.source.set(tx, ty, new Int8Array(buf));
       this.dataTiles.add(key);

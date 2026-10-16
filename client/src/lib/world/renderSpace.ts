@@ -17,33 +17,17 @@
  *  - `renderFocus.travelX/travelZ` = accumulated rendered travel of F (float64). The ocean samples its
  *    wave pattern at (renderPos + travel) so waves stay put in the world while the plane follows us.
  */
-import { wrappedDelta } from "@shared/physics";
+import { WORLD_C, WORLD_H, Z_ICE_N, Z_ICE_S, ICE_LAT, metricX, latOf, wrap, wrappedDelta } from "@shared/world/geo";
 
-// TODO(W1): import from shared/world/geo (WORLD_C, WORLD_H, lat(z), metricX(z)) once it lands; keep
-// these values identical to WORLD_SPEC §2 until then.
-/** Circumference: x wraps in [0, WORLD_C). */
-export const WORLD_C = 400_000;
-/** z in [0, WORLD_H]; z = 0 is the north pole. No z wrap. */
-export const WORLD_H = 200_000;
-/** Pack-ice latitude (degrees). */
-export const ICE_LAT = 70;
-export const Z_ICE_N = (WORLD_H * (90 - ICE_LAT)) / 180;
-export const Z_ICE_S = (WORLD_H * (90 + ICE_LAT)) / 180;
-
-const DEG = Math.PI / 180;
-
-/** Latitude (degrees) of coordinate z. */
-export function latOfZ(z: number): number {
-  return 90 - (z / WORLD_H) * 180;
-}
-
-/** East-west scale factor cos(lat(z)); ≥ cos(70°) ≈ 0.342 in play, → 0 at the poles. */
-export function metricX(z: number): number {
-  return Math.max(0, Math.cos(latOfZ(z) * DEG));
-}
+// Re-exported so renderers import everything world-geometric from one place.
+export { WORLD_C, WORLD_H, Z_ICE_N, Z_ICE_S, ICE_LAT, metricX, wrappedDelta };
+/** Latitude (degrees) of coordinate z (= geo.latOf). */
+export const latOfZ = latOf;
 
 /** Camera far plane (App.tsx). Objects beyond ~this from the origin are not drawn. */
 export const CAMERA_FAR = 2500;
+/** y where objects wait (out of sight, below the ocean) until their first useFrame places them. */
+export const PARKED_Y = -1000;
 /** Render-space distance beyond which world props (ports, gold) are hidden. */
 export const RENDER_CULL_DISTANCE = CAMERA_FAR + 500;
 
@@ -98,7 +82,7 @@ export function setRenderFocus(x: number, z: number, focus: RenderFocus = render
     focus.shiftX = 0;
     focus.shiftZ = 0;
   }
-  focus.x = ((x % WORLD_C) + WORLD_C) % WORLD_C;
+  focus.x = wrap(x, WORLD_C);
   focus.z = z;
   focus.valid = true;
 }

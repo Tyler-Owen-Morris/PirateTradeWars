@@ -1,7 +1,10 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { apiRequest } from "../queryClient";
-import { MAP_HEIGHT, MAP_WIDTH } from "../constants";
+import { metricDist } from "@shared/world/geo";
+import { PORTS, withinDock } from "@shared/world/ports";
+import { PORT_INTERACTION_RADIUS } from "@shared/gameConstants";
+import { nearestPortTo, portPoint } from "../nav";
 import { GameState, Port, Good, PortGood, LeaderboardEntry, InventoryItem, PlayerState, RemoteShipSummary } from "@/types";
 
 interface GameStateStore {
@@ -38,7 +41,14 @@ interface GameStateStore {
 
   getNearestPort: () => Port | null;
   isPlayerNearPort: () => boolean;
+  /** Metric distance (world units, geo.metricDist) between two world points; wraps in x. */
   calculateDistance: (x1: number, z1: number, x2: number, z2: number) => number;
+
+  /** Manually selected navigation target port id (world map click); null = auto nearest port. */
+  navTargetId: number | string | null;
+  setNavTarget: (id: number | string | null) => void;
+  /** The port the compass HUD points at: the selected target, else the nearest port. */
+  getNavTargetPort: () => Port | null;
 
   addGoldDrop: (position: [number, number, number], value: number) => void;
   removeGoldDrop: (id: string) => void;
@@ -182,29 +192,30 @@ export const useGameState = create<GameStateStore>()(
       }
     },
 
+    /** Load ports from `GET /api/ports` (card W4 shape: town x/z, dock, spawn, nation, region).
+     *  Falls back to the bundled shared/world/ports.json (same ids) if the API fails or is empty. */
     loadPorts: async () => {
+      let ports: Port[] = [];
       try {
         const response = await apiRequest("GET", "/api/ports", undefined);
-        const ports = await response.json();
-        set((state) => ({
-          gameState: { ...state.gameState, ports },
-        }));
-
-        setTimeout(() => {
-          const player = get().gameState.player;
-          if (player) {
-            const nearestPort = get().getNearestPort();
-            if (nearestPort) {
-              const distance = get().calculateDistance(player.x, player.z, nearestPort.x, nearestPort.z);
-              if (distance <= nearestPort.safeRadius) {
-                get().setNearPort(nearestPort.id);
-              }
-            }
-          }
-        }, 500);
+        const data = await response.json();
+        if (Array.isArray(data)) ports = data;
       } catch (error) {
-        console.error("Failed to load ports:", error);
+        console.error("Failed to load ports, using bundled ports.json:", error);
       }
+      if (ports.length === 0) ports = PORTS.map((p) => ({ ...p, dock: { ...p.dock }, spawn: { ...p.spawn } }));
+      set((state) => ({
+        gameState: { ...state.gameState, ports },
+      }));
+
+      setTimeout(() => {
+        const player = get().gameState.player;
+        if (!player) return;
+        const nearestPort = get().getNearestPort();
+        if (nearestPort && withinDock(player.x, player.z, { dock: portPoint(nearestPort) })) {
+          get().setNearPort(nearestPort.id);
+        }
+      }, 500);
     },
 
     loadGoods: async () => {
@@ -286,23 +297,23 @@ export const useGameState = create<GameStateStore>()(
       }
     },
 
+    // Nearest port by metric distance to its dock point (x/z when a port has no dock).
     getNearestPort: () => {
-      const { ports } = get().gameState;
-      const player = get().gameState.player;
+      const { ports, player } = get().gameState;
       if (!player || ports.length === 0) return null;
+      return nearestPortTo(player.x, player.z, ports);
+    },
 
-      let nearestPort = null;
-      let minDistance = Infinity;
-
-      ports.forEach((port) => {
-        const distance = get().calculateDistance(player.x, player.z, port.x, port.z);
-        if (distance < minDistance) {
-          minDistance = distance;
-          nearestPort = port;
-        }
-      });
-
-      return nearestPort;
+    navTargetId: null,
+    setNavTarget: (id) => set({ navTargetId: id }),
+    getNavTargetPort: () => {
+      const { navTargetId } = get();
+      const { ports } = get().gameState;
+      if (navTargetId !== null) {
+        const sel = ports.find((p) => p.id === navTargetId);
+        if (sel) return sel;
+      }
+      return get().getNearestPort();
     },
 
     isPlayerNearPort: () => {
@@ -310,17 +321,12 @@ export const useGameState = create<GameStateStore>()(
       const nearestPort = get().getNearestPort();
       if (!player || !nearestPort) return false;
 
-      const distance = get().calculateDistance(player.x, player.z, nearestPort.x, nearestPort.z);
-      const PORT_INTERACTION_RADIUS = 200;
-      return distance <= PORT_INTERACTION_RADIUS;
+      const pt = portPoint(nearestPort);
+      const distance = get().calculateDistance(player.x, player.z, pt.x, pt.z);
+      return distance <= PORT_INTERACTION_RADIUS; // metric, from the dock (WORLD_SPEC §5)
     },
 
-    calculateDistance: (x1, z1, x2, z2) => {
-      // Wrapped (torus) distance on the real map size (was hard-coded to 5000).
-      const dx = Math.min(Math.abs(x1 - x2), MAP_WIDTH - Math.abs(x1 - x2));
-      const dz = Math.min(Math.abs(z1 - z2), MAP_HEIGHT - Math.abs(z1 - z2));
-      return Math.sqrt(dx * dx + dz * dz);
-    },
+    calculateDistance: (x1, z1, x2, z2) => metricDist(x1, z1, x2, z2),
 
     addGoldDrop: (position: [number, number, number], value: number) => {
       set((state) => ({
