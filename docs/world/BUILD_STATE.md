@@ -22,10 +22,10 @@ Producer: Claude (main session). Approved by Theo on 2026-10-16: the wrapping-Ea
 ## Cards
 | ID | Card | Phase | Owner | Branch | Status | Next step |
 |----|------|-------|-------|--------|--------|-----------|
-| W1 | Coordinates and physics: geo.ts, metric motion, land.ts (LandField), no-damage collision in stepShip, sparse grid and metric distances in world.ts, ball-on-land, client net (prediction, interpolation, cannonballs), server tile loading, tests | 1 | agent (opus) | worktree | todo | — |
-| W2 | World data pipeline: Natural Earth → SDF tiles and manifest, ports.json (~25 real ports with dock and spawn), lanes.json, world map texture; generator script plus generated artifacts | 1 | agent (opus) | worktree | todo | — |
-| W3 | Rendering: floating origin for every object, camera-following ocean, then terrain chunks from SDF tiles (beach, grass, forest, rock), surf and shallow tint, ice wall, land splash effect | 1 (terrain after W1 and W2 merge) | agent (opus) | worktree | todo | — |
-| NPC1 | NPC core: controller field and guards in World, ent fields, steering→input, brain (state machine plus utility), threat table, faction model and static matrix, archetypes, LOD tiers and director skeleton, unit tests | 1 | agent (opus) | worktree | todo | — |
+| W1 | Coordinates and physics: geo.ts, metric motion, land.ts (LandField), no-damage collision in stepShip, sparse grid and metric distances in world.ts, ball-on-land, client net (prediction, interpolation, cannonballs), server tile loading, tests | 1 | agent (opus) | worktree | in-progress | see progress/W1.md |
+| W2 | World data pipeline: Natural Earth → SDF tiles and manifest, ports.json (~25 real ports with dock and spawn), lanes.json, world map texture; generator script plus generated artifacts | 1 | agent (opus) | worktree | in-progress | see progress/W2.md |
+| W3 | Rendering: floating origin for every object, camera-following ocean, then terrain chunks from SDF tiles (beach, grass, forest, rock), surf and shallow tint, ice wall, land splash effect | 1 (terrain after W1 and W2 merge) | agent (opus) | worktree | in-progress | see progress/W3.md |
+| NPC1 | NPC core: controller field and guards in World, ent fields, steering→input, brain (state machine plus utility), threat table, faction model and static matrix, archetypes, LOD tiers and director skeleton, unit tests | 1 | agent (opus) | worktree | in-progress | see progress/NPC1.md |
 | W4 | Ports integration: server reads ports.json, portsVersion re-seed, dock-radius checks (including trade), spawn at port, Redis player migration, client ports and towns at real sites | 2 (after W1 and W2) | — | — | todo | — |
 | W5 | Navigation UI: world map (M), minimap with metric scaling, compass with heading and lat/lon, port distance and bearing | 2 (after W1 and W2) | — | — | todo | — |
 | NPC2 | NPCs live: routes on lanes.json, director population, broadside combat, flee and surrender, pirates, navy and privateers, rep in Redis, fair-play rules, NPC load test (200 bots + 300 NPCs, tick < 25 ms) | 2 (after NPC1, W1, W2) | — | — | todo | — |
@@ -33,3 +33,4 @@ Producer: Claude (main session). Approved by Theo on 2026-10-16: the wrapping-Ea
 
 ## Log
 - 2026-10-16 Plan approved. Spec and ledger written. Phase 1 (W1, W2, W3, NPC1) launching in parallel.
+- 2026-10-16 Launched W1, W2, W3 (Part A floating origin; Part B terrain waits for W1+W2 merge), NPC1 in parallel worktrees (all opus).
