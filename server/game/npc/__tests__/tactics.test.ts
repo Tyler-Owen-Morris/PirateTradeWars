@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { shipPhysicsStats, spawnBroadside, stepShip, type ShipInput, type ShipKinematics } from "@shared/physics";
-import { torusMetric } from "../metric";
+import { geoMetric, torusMetric } from "../metric";
 import { toInput } from "../steering";
 import {
   BALL_SPEED_PER_SEC,
@@ -19,6 +19,10 @@ import { bearingOf, headingForDir, mulberry32 } from "../util";
 const W = 10000;
 const m = torusMetric(W, W);
 const range = DEFAULT_CANNON_RANGE;
+/** sim() runs real (metric, wrapping-Earth) physics, so it uses the geo metric near the equator
+ *  (z = Z0 + scenario z) where an x unit is ~1 metric unit; the pure tests keep a flat torus. */
+const Z0 = 95_000;
+const gm = geoMetric;
 
 /** Pure sim: NPC runs engage() → toInput() → stepShip(); target follows `targetInput`. Returns the
  *  first tick at which the NPC is in broadside position, plus fire count. */
@@ -32,19 +36,19 @@ function sim(
 ) {
   const ns = shipPhysicsStats(npcType);
   const ts = shipPhysicsStats(tgtType);
-  let npc = { ...npc0 };
-  let tgt = { ...tgt0 };
+  let npc = { ...npc0, z: npc0.z + Z0 };
+  let tgt = { ...tgt0, z: tgt0.z + Z0 };
   let first = -1;
   let inPos = 0;
   let fires = 0;
   const rng = mulberry32(3);
   for (let i = 0; i < ticks; i++) {
-    const order = engage({ ...npc, maxSpeed: ns.maxSpeed }, tgt, { range, aimError: 0 }, false, m, rng);
+    const order = engage({ ...npc, maxSpeed: ns.maxSpeed }, tgt, { range, aimError: 0 }, false, gm, rng);
     const inp = toInput(npc, order.heading, order.speed, ns);
     if (order.fire) fires++;
     npc = stepShip(npc, inp, ns);
     tgt = stepShip(tgt, targetInput(tgt, i), ts);
-    if (inBroadsidePosition(npc, tgt, range, m)) {
+    if (inBroadsidePosition(npc, tgt, range, gm)) {
       inPos++;
       if (first < 0) first = i;
     }
@@ -87,7 +91,7 @@ describe("engage", () => {
     expect(r.fires).toBeGreaterThan(5);
     // It keeps the target on the beam a good share of the time once there.
     expect(r.inPos / (600 - r.first)).toBeGreaterThan(0.3);
-    const d = Math.sqrt(m.distSq(r.npc.x, r.npc.z, r.tgt.x, r.tgt.z));
+    const d = Math.sqrt(gm.distSq(r.npc.x, r.npc.z, r.tgt.x, r.tgt.z));
     expect(d).toBeGreaterThan(range * 0.4);
     expect(d).toBeLessThan(range * 1.1);
   });

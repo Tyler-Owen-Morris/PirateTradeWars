@@ -32,7 +32,6 @@ import {
 import { pointAt, type Lane } from "./lod";
 import { defaultMetric, type NpcMetric } from "./metric";
 import {
-  OPEN_SEA,
   arrive,
   avoidLand,
   evade,
@@ -139,8 +138,8 @@ export class NpcSystem {
     readonly world: World,
     opts: NpcSystemOptions = {},
   ) {
-    this.metric = opts.metric ?? defaultMetric(world.mapWidth, world.mapHeight);
-    this.land = opts.land ?? OPEN_SEA;
+    this.metric = opts.metric ?? defaultMetric();
+    this.land = opts.land ?? world.land;
     this.safeZones = opts.safeZones ?? [];
     this.rng = mulberry32(opts.seed ?? 0x5eed);
     this.director = new Director(opts.lanes ?? [], this.metric, this.rng, { ...DEFAULT_DIRECTOR, ...opts.director });
@@ -282,6 +281,15 @@ export class NpcSystem {
     if (dt > this.stats.maxTickMs) this.stats.maxTickMs = dt;
   }
 
+  /** Active World ships that are not live director records: wrecks and manual NPCs. */
+  private extraActive(): number {
+    let n = 0;
+    this.active.forEach((a) => {
+      if (a.rec.key < 0 || a.p.sunk || a.p.dead || !this.director.records.has(a.rec.key)) n++;
+    });
+    return n;
+  }
+
   private countManual(): number {
     let n = 0;
     this.active.forEach((a) => {
@@ -372,7 +380,7 @@ export class NpcSystem {
       const a = this.active.get(r.eid);
       if (!a || a.p.sunk) return null;
       return { x: a.p.x, z: a.p.z, inCombat: isCombatState(a.brain.state) };
-    });
+    }, this.extraActive());
     for (const r of demote) {
       const a = r.eid !== null ? this.active.get(r.eid) : undefined;
       if (a) this.demote(a);

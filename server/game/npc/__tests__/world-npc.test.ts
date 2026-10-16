@@ -5,14 +5,18 @@ import { parseEntNpcMeta } from "@shared/protocol";
 import { NpcSystem, npcsEnabled } from "../index";
 import { mulberry32 } from "../util";
 
+/** These scenarios are about logic, not geography: they run on the default all-water field
+ *  (ocean + polar ice) near the equator, where an x unit is ~1 metric unit. z = Z0 + local z. */
+const Z0 = 95_000;
+
 function npcInit(over: Partial<Parameters<World["addNpc"]>[0]> = {}) {
-  return { name: "Revenge", shipType: "sloop", x: 5000, z: 5000, faction: "pirates", title: "Pirate", ...over };
+  return { name: "Revenge", shipType: "sloop", x: 5000, z: Z0 + 5000, faction: "pirates", title: "Pirate", ...over };
 }
 
 describe("World NPC plumbing", () => {
   it("addNpc: npc controller, reserved id, shared eid space, never disconnected", () => {
     const w = new World({ rng: mulberry32(1) });
-    const p = w.createPlayer({ id: "p1", name: "P1", shipType: "sloop", x: 1000, z: 1000 });
+    const p = w.createPlayer({ id: "p1", name: "P1", shipType: "sloop", x: 1000, z: Z0 + 1000 });
     const n = w.addNpc(npcInit());
     expect(n.controller).toBe("npc");
     expect(p.controller).toBe("player");
@@ -51,8 +55,8 @@ describe("World NPC plumbing", () => {
 
   it("ent carries npc/faction/title for NPCs only", () => {
     const w = new World({ rng: mulberry32(1) });
-    w.createPlayer({ id: "viewer", name: "V", shipType: "sloop", x: 5000, z: 5000 });
-    w.createPlayer({ id: "other", name: "O", shipType: "sloop", x: 5100, z: 5000 });
+    w.createPlayer({ id: "viewer", name: "V", shipType: "sloop", x: 5000, z: Z0 + 5000 });
+    w.createPlayer({ id: "other", name: "O", shipType: "sloop", x: 5100, z: Z0 + 5000 });
     const n = w.addNpc(npcInit({ x: 5200, faction: "spain", title: "Spanish Navy" }));
     w.attachClient("viewer");
     w.step();
@@ -90,15 +94,15 @@ describe("World NPC plumbing", () => {
 
   it("a sunk NPC emits npcSunk (never playerSunk); a player sunk by an NPC is flagged byNpc", () => {
     const w = new World({ rng: mulberry32(1) });
-    w.createPlayer({ id: "p1", name: "P1", shipType: "sloop", x: 5000, z: 5000 });
+    w.createPlayer({ id: "p1", name: "P1", shipType: "sloop", x: 5000, z: Z0 + 5000 });
     const n = w.addNpc(npcInit({ x: 6000, gold: 0 }));
     const eff = sinkWith(w, "p1", n.eid);
     expect(eff.some((e) => e.type === "playerSunk")).toBe(false);
     expect(eff).toContainEqual(expect.objectContaining({ type: "npcSunk", eid: n.eid, killerId: "p1" }));
 
     const w2 = new World({ rng: mulberry32(1) });
-    const victim = w2.createPlayer({ id: "p2", name: "P2", shipType: "sloop", x: 5000, z: 5000 });
-    const shooter = w2.addNpc(npcInit({ x: 3000, z: 3000 }));
+    const victim = w2.createPlayer({ id: "p2", name: "P2", shipType: "sloop", x: 5000, z: Z0 + 5000 });
+    const shooter = w2.addNpc(npcInit({ x: 3000, z: Z0 + 3000 }));
     const eff2 = sinkWith(w2, shooter.id, victim.eid);
     expect(eff2).toContainEqual(expect.objectContaining({ type: "playerSunk", playerId: "p2", byNpc: true }));
   });
@@ -123,9 +127,9 @@ describe("World NPC plumbing", () => {
 describe("NpcSystem fair play in the world", () => {
   it("pirates hunt an unshielded player but never more than 2 at once; none fight in port", () => {
     const w = new World({ rng: mulberry32(5) });
-    const sys = new NpcSystem(w, { seed: 3, fairplay: { shieldMs: 0 }, safeZones: [{ x: 8000, z: 8000, safeRadius: 600 }] }).attach();
-    const p = w.createPlayer({ id: "p", name: "P", shipType: "sloop", x: 5000, z: 5000 });
-    for (let i = 0; i < 5; i++) sys.spawnActive({ archetype: "pirate", x: 5000 + 400 * Math.cos(i), z: 5000 + 400 * Math.sin(i), shipType: "sloop" });
+    const sys = new NpcSystem(w, { seed: 3, fairplay: { shieldMs: 0 }, safeZones: [{ x: 8000, z: Z0 + 8000, safeRadius: 600 }] }).attach();
+    const p = w.createPlayer({ id: "p", name: "P", shipType: "sloop", x: 5000, z: Z0 + 5000 });
+    for (let i = 0; i < 5; i++) sys.spawnActive({ archetype: "pirate", x: 5000 + 400 * Math.cos(i), z: Z0 + 5000 + 400 * Math.sin(i), shipType: "sloop" });
     let maxAttackers = 0;
     let engaged = false;
     for (let t = 0; t < 400; t++) {
@@ -142,9 +146,9 @@ describe("NpcSystem fair play in the world", () => {
 
     // In the safe zone nobody may target the player.
     const w2 = new World({ rng: mulberry32(5) });
-    const sys2 = new NpcSystem(w2, { seed: 3, fairplay: { shieldMs: 0 }, safeZones: [{ x: 5000, z: 5000, safeRadius: 600 }] }).attach();
-    const q = w2.createPlayer({ id: "q", name: "Q", shipType: "sloop", x: 5000, z: 5000 });
-    sys2.spawnActive({ archetype: "pirate", x: 5300, z: 5000, shipType: "sloop" });
+    const sys2 = new NpcSystem(w2, { seed: 3, fairplay: { shieldMs: 0 }, safeZones: [{ x: 5000, z: Z0 + 5000, safeRadius: 600 }] }).attach();
+    const q = w2.createPlayer({ id: "q", name: "Q", shipType: "sloop", x: 5000, z: Z0 + 5000 });
+    sys2.spawnActive({ archetype: "pirate", x: 5300, z: Z0 + 5000, shipType: "sloop" });
     for (let t = 0; t < 200; t++) {
       w2.step();
       w2.drainEffects();
@@ -156,9 +160,9 @@ describe("NpcSystem fair play in the world", () => {
   it("hitting an NPC provokes (drops the shield), changes rep and calls allies for help", () => {
     const w = new World({ rng: mulberry32(8) });
     const sys = new NpcSystem(w, { seed: 4 }).attach();
-    const p = w.createPlayer({ id: "p", name: "P", shipType: "galleon", x: 5000, z: 5000, rotationY: 0 });
-    const victim = sys.spawnActive({ archetype: "navy", faction: "spain", x: 5150, z: 5000 });
-    const ally = sys.spawnActive({ archetype: "navy", faction: "portugal", x: 5150, z: 6000 });
+    const p = w.createPlayer({ id: "p", name: "P", shipType: "galleon", x: 5000, z: Z0 + 5000, rotationY: 0 });
+    const victim = sys.spawnActive({ archetype: "navy", faction: "spain", x: 5150, z: Z0 + 5000 });
+    const ally = sys.spawnActive({ archetype: "navy", faction: "portugal", x: 5150, z: Z0 + 6000 });
     w.queueInput("p", { t: "input", s: 1, th: 0, ru: 0, f: 1 });
     const effects: WorldEffect[] = [];
     for (let i = 0; i < 6; i++) {
@@ -182,7 +186,7 @@ describe("NpcSystem integration", () => {
     // 10 player clusters spread over the map; around each 5 NPCs: 2 pirates, 2 navy, 1 merchant.
     for (let c = 0; c < 10; c++) {
       const cx = 800 + (c % 5) * 2000;
-      const cz = 1500 + Math.floor(c / 5) * 5000;
+      const cz = Z0 + 1500 + Math.floor(c / 5) * 5000;
       const id = `p${c}`;
       w.createPlayer({ id, name: id, shipType: c % 2 ? "brigantine" : "sloop", x: cx, z: cz });
       w.attachClient(id);
@@ -241,15 +245,15 @@ describe("NpcSystem integration", () => {
     const lanes = [];
     for (let i = 0; i < 10; i++) {
       const c = 500 + i * 1000;
-      lanes.push({ from: `h${i}`, to: `h${i + 1}`, points: [[0, c], [5000, c], [10000, c]] as [number, number][] });
-      lanes.push({ from: `v${i}`, to: `v${i + 1}`, points: [[c, 0], [c, 5000], [c, 10000]] as [number, number][] });
+      lanes.push({ from: `h${i}`, to: `h${i + 1}`, points: [[0, Z0 + c], [5000, Z0 + c], [10000, Z0 + c]] as [number, number][] });
+      lanes.push({ from: `v${i}`, to: `v${i + 1}`, points: [[c, Z0], [c, Z0 + 5000], [c, Z0 + 10000]] as [number, number][] });
     }
     const sys = new NpcSystem(w, { seed: 1, lanes, director: { minSpawnDist: 0 } }).attach();
     const rng = mulberry32(2);
     const ids: string[] = [];
     for (let i = 0; i < 200; i++) {
       const id = `b${i}`;
-      w.createPlayer({ id, name: id, shipType: "sloop", x: rng() * 10000, z: rng() * 10000 });
+      w.createPlayer({ id, name: id, shipType: "sloop", x: rng() * 10000, z: Z0 + rng() * 10000 });
       w.attachClient(id);
       ids.push(id);
     }

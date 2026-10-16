@@ -303,11 +303,13 @@ export class Director {
   /**
    * LOD pass. `nearestDistSq(x, z)` = squared metric distance to the closest player;
    * `activePos(rec)` gives an active record's live position and whether it is in combat.
-   * Promotions are capped at maxActive, closest first.
+   * Promotions are capped at maxActive, closest first. `extraActive` = World ships the director
+   * does not own as live records (wrecks waiting for removal, manual NPCs); they use up the cap too.
    */
   lod(
     nearestDistSq: (x: number, z: number) => number,
     activePos: (r: NpcRecord) => { x: number; z: number; inCombat: boolean } | null,
+    extraActive = 0,
   ): LodDecision {
     const promote: { r: NpcRecord; d2: number }[] = [];
     const demote: NpcRecord[] = [];
@@ -326,7 +328,7 @@ export class Director {
       }
     });
     promote.sort((a, b) => a.d2 - b.d2);
-    const room = Math.max(0, this.config.maxActive - active);
+    const room = Math.max(0, this.config.maxActive - active - extraActive);
     return { promote: promote.slice(0, room).map((p) => p.r), demote };
   }
 }

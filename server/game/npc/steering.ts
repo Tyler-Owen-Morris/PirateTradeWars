@@ -10,17 +10,16 @@
  * Coordinates go through an `NpcMetric` (metric.ts), so this file never assumes a flat torus.
  */
 import { SUBSTEPS, normalizeAngle, type ShipInput, type ShipPhysicsStats } from "@shared/physics";
+import type { LandQuery as SharedLandQuery } from "@shared/world/land";
 import type { NpcMetric } from "./metric";
 import { clamp, headingForDir, moveDir } from "./util";
 
-/** Minimal land interface (mirrors WORLD_SPEC §4.2 `LandQuery`; W1 owns shared/world/land.ts and
- *  its LandField satisfies this structurally). distance: metric signed distance, + = water. */
-export interface LandQuery {
-  distance(x: number, z: number): number;
-  normal(x: number, z: number): { nx: number; nz: number };
-}
+/** The land queries steering needs: the distance/normal half of WORLD_SPEC §4.2 `LandQuery`
+ *  (shared/world/land.ts). The World's `LandField` (real SDF tiles + polar ice) satisfies it.
+ *  distance: metric signed distance, + = water. */
+export type LandQuery = Pick<SharedLandQuery, "distance" | "normal">;
 
-/** Open ocean everywhere (default until W1/W2 land data is wired). */
+/** Open ocean everywhere, no ice (logic-only unit tests). Live NPCs use `world.land`. */
 export const OPEN_SEA: LandQuery = {
   distance: () => 1e9,
   normal: () => ({ nx: 0, nz: 0 }),

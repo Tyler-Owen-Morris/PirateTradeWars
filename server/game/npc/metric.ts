@@ -3,15 +3,14 @@
  *
  * WORLD_SPEC §3: every gameplay distance is the *metric* delta
  *   dx = wrappedDelta(a.x, b.x, C) * cos(lat((a.z + b.z) / 2)),  dz = b.z − a.z
- * and moving by a metric offset divides x by metricX(z).
+ * (shared/world/geo.ts `metricDelta` / `metricDistSq`). x wraps on the 400 000 ring; z does NOT
+ * wrap (it is clamped to [0, H]; the polar ice is land in the LandField). Moving by a metric offset
+ * divides dx by metricX at the mid latitude of the move, so `delta(p, offset(p, d)) ≈ d`.
  *
- * TODO(W1): W1 is adding `metricDelta` / `metricDistSq` / `metricX` to `shared/world/geo.ts`. Until
- * that lands, `torusMetric` is a wrap-aware flat placeholder over the current 10000² torus. When W1
- * merges, replace the body of `defaultMetric()` with a metric built on shared/world/geo.ts (x wraps,
- * z clamped, x scaled by metricX). Nothing else in server/game/npc/ needs to change: all modules
- * take an `NpcMetric` and never do raw coordinate math.
+ * All NPC modules take an `NpcMetric` and never do raw coordinate math, so tests can still inject a
+ * flat torus (`torusMetric`) when a scenario is about logic rather than geography.
  */
-import { wrap, wrappedDelta } from "@shared/physics";
+import { WORLD_C, clampZ, metricDelta, metricDistSq, metricX, wrap, wrappedDelta } from "@shared/world/geo";
 
 /** Metric delta (world units, "ground" distance). */
 export interface MetricDelta {
@@ -25,11 +24,27 @@ export interface NpcMetric {
   delta(ax: number, az: number, bx: number, bz: number, out?: MetricDelta): MetricDelta;
   /** Squared metric distance between a and b. */
   distSq(ax: number, az: number, bx: number, bz: number): number;
-  /** Coordinate position reached by moving a metric offset (dx, dz) from (x, z); wrapped. */
+  /** Coordinate position reached by moving a metric offset (dx, dz) from (x, z); x wrapped, z clamped. */
   offset(x: number, z: number, dx: number, dz: number, out?: { x: number; z: number }): { x: number; z: number };
 }
 
-/** Wrap-aware flat metric on a W×H torus. TODO(W1): placeholder until shared/world/geo.ts lands. */
+/** The wrapping-Earth metric (WORLD_SPEC §3): x wraps on WORLD_C and is scaled by cos(lat). */
+export const geoMetric: NpcMetric = {
+  delta(ax, az, bx, bz, out = { dx: 0, dz: 0 }) {
+    return metricDelta(ax, az, bx, bz, out);
+  },
+  distSq(ax, az, bx, bz) {
+    return metricDistSq(ax, az, bx, bz);
+  },
+  offset(x, z, dx, dz, out = { x: 0, z: 0 }) {
+    const nz = clampZ(z + dz);
+    out.x = wrap(x + dx / metricX((z + nz) / 2), WORLD_C);
+    out.z = nz;
+    return out;
+  },
+};
+
+/** Wrap-aware flat metric on a W×H torus (both axes wrap). Only for logic-only unit tests. */
 export function torusMetric(width: number, height: number): NpcMetric {
   return {
     delta(ax, az, bx, bz, out = { dx: 0, dz: 0 }) {
@@ -50,7 +65,7 @@ export function torusMetric(width: number, height: number): NpcMetric {
   };
 }
 
-/** The metric used when the caller passes none. TODO(W1): switch to shared/world/geo.ts metric. */
-export function defaultMetric(width: number, height: number): NpcMetric {
-  return torusMetric(width, height);
+/** The metric used when the caller passes none: the wrapping-Earth geo metric. */
+export function defaultMetric(): NpcMetric {
+  return geoMetric;
 }

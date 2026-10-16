@@ -122,11 +122,14 @@ describe("Director", () => {
   });
 });
 
+const Z_EQ = 100_000;
+
 describe("NpcSystem LOD in a World", () => {
   it("promotes a rail NPC into the world when a player approaches and demotes it after", () => {
     const world = new World({ rng: mulberry32(9) });
     const sys = new NpcSystem(world, {
-      lanes: [LANES[0]],
+      // Equatorial lane in the real (wrapping-Earth) coordinates; default all-water field.
+      lanes: [{ from: "a", to: "b", points: [[1000, Z_EQ], [5000, Z_EQ], [9000, Z_EQ]] }],
       director: { targets: [{ region: "all", archetype: "merchant", count: 1 }] },
       seed: 11,
     }).attach();
@@ -138,7 +141,7 @@ describe("NpcSystem LOD in a World", () => {
     expect(npcCount()).toBe(0);
     // A player sails right up to it.
     const pos = sys.director.positionOf(rec)!;
-    world.createPlayer({ id: "p1", name: "P1", shipType: "sloop", x: pos.x, z: (pos.z + 1500) % W });
+    world.createPlayer({ id: "p1", name: "P1", shipType: "sloop", x: pos.x, z: pos.z + 1500 });
     for (let i = 0; i < 20; i++) world.step();
     expect(rec.tier).toBe("active");
     expect(npcCount()).toBe(1);
@@ -147,8 +150,8 @@ describe("NpcSystem LOD in a World", () => {
     expect(npc.title).toMatch(/Merchant/);
     // Player leaves (teleport far away): NPC demotes back to its lane.
     const p1 = world.getPlayer("p1")!;
-    p1.x = (npc.x + 5000) % W;
-    p1.z = (npc.z + 5000) % W;
+    p1.x = npc.x + 5000;
+    p1.z = npc.z + 5000;
     for (let i = 0; i < 20; i++) world.step();
     expect(rec.tier === "rail" || rec.tier === "docked").toBe(true);
     expect(npcCount()).toBe(0);
