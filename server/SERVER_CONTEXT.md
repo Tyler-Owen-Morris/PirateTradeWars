@@ -18,7 +18,9 @@ physics in `shared/physics.ts`. Both are shared with the client.
   - Time inside the world is simulation time: `timeMs = tick * 50`. Reload, ball lifetime, gold
     lifetime and the grace period all use it.
 - **Tick order (`World.step`):**
-  1. Removals: disconnected players past `GRACE_PERIOD` (60 s), and dead players.
+  1. Removals: disconnected players past `GRACE_PERIOD` (60 s), and dead players. NPCs are skipped
+     here, because the NPC system owns their lifecycle.
+  1b. The NPC AI hook (`npcHook`), when one is set. See "NPC ships" below.
   2. Movement. A sunk ship stays put.
      - A connected ship consumes one queued input, or two if more than 3 are queued (catch-up).
        If the queue is empty, it reuses the last input with `f:0`. Then it runs `stepShip`.
@@ -77,6 +79,30 @@ physics in `shared/physics.ts`. Both are shared with the client.
   `STRIPE_SECRET_KEY=sk_test_dummy REDIS_CONN_STRING=redis://localhost:6379 PORT=5055 npx tsx server/index.ts`
   - Use the local Docker Redis (`ptw-redis`), never the `.env` Upstash.
   - `reusePort` is skipped on Windows.
+
+## NPC ships (`game/npc/`, card NPC1)
+
+Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
+
+- **Off by default.** `gameState` builds `NpcSystem` only when `NPCS_ENABLED=1|true`. Even then the
+  director spawns nothing until lanes are passed in (NPC2).
+- **An NPC is a `WorldPlayer` with `controller: "npc"`** (id `npc:<n>`, the same eid space).
+  - It is never disconnected, never times out, never takes queued inputs, and is never persisted
+    (`persistAll` skips it).
+  - Connect and reconnect refuse `npc:*` ids.
+- **Tick order addition: step 1b.** `world.npcHook(world, prevEvents)` runs after removals and before
+  movement. The NPC system writes each NPC's `{th, ru, f}` with `world.setNpcInput`. It is
+  synchronous and seeded, with no I/O.
+- **Effects.**
+  - `npcSunk` replaces `playerSunk` for NPCs, so the leaderboard never sees an NPC.
+  - `playerSunk.byNpc` marks a player sunk by an NPC; it is excluded from player-kill stats.
+  - `npcRepChange` is currently a no-op in `runEffect`; NPC2 persists it.
+  - An NPC that collects gold emits no `goldCollected` effect.
+- **`ent`** gains `npc: 1`, `faction` and `title` for NPCs.
+- **Tiers.** Only *active* NPCs (a player within 2500) are World ships. Rail and docked NPCs are
+  director records, so they cost nothing per tick.
+- **Measured in the tests:** 50 NPCs plus 10 players take about 0.25 ms per tick. 300 NPCs (80
+  active) plus 200 players take about 2.1 ms per tick, of which the NPC system is about 0.6 ms.
 
 ## Directory Structure
 
