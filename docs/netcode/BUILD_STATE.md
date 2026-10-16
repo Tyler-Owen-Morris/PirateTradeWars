@@ -35,6 +35,9 @@ progress file for any card that is `in-progress`. Each card's progress file says
 | N4 | Bot load/smoke test `scripts/bots.ts` + wire into CI (depends N1; integrates with N2) | agent-N4 (sonnet) | merged into main | done (verified) | — |
 | D  | Docs: PROJECT/SERVER/CLIENT/SHARED context files, architecture notes | agent-D (sonnet/haiku) | merged into main | done | — |
 | R  | Producer: integrate, run tests + bots locally, push, deploy, verify prod | producer + QA agent | main | in-progress | browser play-test running (progress/R-playtest.md) |
+| I1 | Infra: move EB to t4g.small (Graviton/arm64) — verify arm64 bundle, then apply after netcode deploy | agent-I (sonnet) + producer applies | worktree (progress/I-infra.md) | in-progress | agent preparing |
+| I2 | Infra: Cloudflare (free) in front of piratetradewars.com — needs Theo: Cloudflare account/API token + registrar nameserver change | Theo + producer | — | waiting on Theo | Theo creates CF zone + token |
+| I3 | Infra: EB SingleInstance (drop ALB, ~$23/mo) with Cloudflare Origin cert on nginx; then release the 3 ALB EIPs + delete Route53 zone | agent-I prepares, producer applies | worktree | blocked on I2 | — |
 | W2 | Colyseus migration — **deferred**, decide after Wave 1 metrics (see PROTOCOL.md §8) | — | — | deferred | — |
 
 ## Log
@@ -49,3 +52,5 @@ progress file for any card that is `in-progress`. Each card's progress file says
 - 2026-10-16 Unverified on Windows (verify on EB): SIGTERM graceful shutdown, heartbeat terminate path.
 - 2026-10-16 Card N3 merged (fast-forward to 6b23344). 103 tests pass, build OK, bot test PASS (20 snaps/s, worst gap 64 ms, 0% asymmetry). Launched browser play-test agent (60 bots + 2 Playwright players) and docs agent D.
 - 2026-10-16 Card D merged (8f487c7): PROJECT_CONTEXT deployment/testing, docs/netcode/README.md, root CLAUDE.md. Leftover legacy sections in SERVER_CONTEXT.md (Game Physics, Admin Routes) flagged, not blocking.
+- 2026-10-16 Theo approved: delete strays, Cloudflare + drop ALB, t4g.small. DONE: deleted ASG PirateTradeWarsASG (c7a.medium i-0bd5c19476416577d terminated, ~$37/mo), bucket piratetradewars-deploy-bucket, CFN stack PirateTradeWarsFrontendStack. NOT stray: the 3 EIPs (16.59.66.41, 3.16.241.76, 3.20.92.222) are attached to the prod ALB — release only after I3. Left: piratetradewars-frontend-bucket (8 old objects, cents), CDKToolkit stack, CodeDeploy app (free). Unrelated ~$40/mo in us-west-2 (ALB/Fargate/RDS) — not PTW, untouched.
+- Infra order: netcode deploy → I1 t4g.small (instance replace, short downtime) → I2 Cloudflare in front of ALB (no downtime) → I3 single-instance cutover (short downtime).
