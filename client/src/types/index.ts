@@ -94,6 +94,9 @@ export interface Port {
   y: number;
   z: number;
   safeRadius: number;
+  /** Real-world ports (W2/W4): the point ships dock at. Absent on legacy ports (use x/z). */
+  dock?: { x: number; z: number };
+  nation?: string;
 }
 
 // Trade good
