@@ -1,0 +1,22 @@
+﻿diff --git a/server/game/socketHandler.tsx b/server/game/socketHandler.tsx
+index 5d2af6b..afce7ff 100644
+--- a/server/game/socketHandler.tsx
++++ b/server/game/socketHandler.tsx
+@@ -27,6 +27,17 @@ export function handleSocketConnection(ws: WebSocket) {
+   let playerId: string | null = null;
+ 
+   ws.on("message", (raw) => {
++    // QA-ONLY (Q1, uncommitted): teleport own ship when PTW_DEV_TELEPORT=1.
++    if (process.env.PTW_DEV_TELEPORT === "1" && playerId) {
++      try {
++        const m = JSON.parse(raw.toString());
++        if (m && m.t === "devtp") {
++          const p = gameState.getPlayer(playerId) as any;
++          if (p) { p.x = m.x; p.z = m.z; p.rotationY = m.r ?? 0; p.velocity = m.v ?? 0; }
++          return;
++        }
++      } catch {}
++    }
+     const data = parseClientMessage(raw.toString());
+     if (!data) return; // invalid frame: drop quietly
+ 
