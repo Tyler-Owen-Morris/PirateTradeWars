@@ -28,8 +28,8 @@ progress file for any card that is `in-progress`. Each card's progress file says
 ## Cards
 | ID | Card | Owner | Branch / worktree | Status | Next step |
 |----|------|-------|-------------------|--------|-----------|
-| A  | CI/CD: main → EB, retire CodeDeploy/CDK pipeline, MaxSize=1, WS timeouts, test gate | agent-A (sonnet) | worktree | todo | start |
-| N1 | `shared/physics.ts` + `shared/protocol.ts` + vitest setup + unit tests | agent-N1 (opus) | worktree | todo | start |
+| A  | CI/CD: main → EB, retire CodeDeploy/CDK pipeline, MaxSize=1, WS timeouts, test gate | agent-A (sonnet) | merged into main | done | — |
+| N1 | `shared/physics.ts` + `shared/protocol.ts` + vitest setup + unit tests | agent-N1 (opus) | worktree (see progress/N1-shared.md) | in-progress | agent running |
 | N2 | Server netcode: fixed tick, input queue, interest grid, events, heartbeat (depends N1) | agent-N2 (opus) | worktree | blocked on N1 | — |
 | N3 | Client netcode: prediction, interpolation, socket rewrite (depends N1) | agent-N3 (opus) | worktree | blocked on N1 | — |
 | N4 | Bot load/smoke test `scripts/bots.ts` + wire into CI (depends N1; integrates with N2) | agent-N4 (sonnet) | worktree | blocked on N1 | — |
@@ -39,3 +39,6 @@ progress file for any card that is `in-progress`. Each card's progress file says
 
 ## Log
 - 2026-10-16 Ledger created. replit merged into local main (cc7ac66).
+- 2026-10-16 Launched agent-A (CI/CD, sonnet) and agent-N1 (shared physics/protocol, opus) in worktrees.
+- 2026-10-16 Local Docker Redis `ptw-redis` running on :6379 for local/bot tests (REDIS_CONN_STRING=redis://localhost:6379).
+- 2026-10-16 Card A merged (e555cda). Producer removed .platform nginx override (risk of duplicate directive breaking nginx; 15s heartbeat makes it unnecessary). NOTE: agent worktrees start at origin/main — agents must `git reset --hard main` first.
