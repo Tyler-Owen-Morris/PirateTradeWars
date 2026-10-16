@@ -3,17 +3,55 @@ name: Deploy to Elastic Beanstalk
 on:
   push:
     branches:
-      - replit
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: prod-deploy
+  cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REDIS_CONN_STRING: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test --if-present
+
+      - name: Bot smoke test
+        run: npm run test:bots --if-present
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
@@ -26,8 +64,8 @@ jobs:
       - name: Create deployment package
         run: zip -r application.zip . -x "*.git*"
 
-      - name: Configure AWS CLI
-        uses: aws-actions/configure-aws-credentials@v1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -37,13 +75,14 @@ jobs:
         run: |
           aws s3 cp application.zip s3://elasticbeanstalk-us-east-2-835677831294/${{ github.sha }}.zip
 
-      - name: Create Elastic Beanstalk Application Version
+      - name: Create Elastic Beanstalk application version
         run: |
           aws elasticbeanstalk create-application-version \
             --application-name PirateTradeWarsApp \
             --version-label ${{ github.sha }} \
             --source-bundle S3Bucket=elasticbeanstalk-us-east-2-835677831294,S3Key=${{ github.sha }}.zip
 
+      # The world state lives in one process's memory, so the ASG must be exactly 1 instance.
       - name: Deploy to Elastic Beanstalk
         run: |
           aws elasticbeanstalk update-environment \
@@ -52,4 +91,23 @@ jobs:
             --version-label ${{ github.sha }} \
             --option-settings \
               Namespace=aws:autoscaling:asg,OptionName=MinSize,Value=1 \
-              Namespace=aws:autoscaling:asg,OptionName=MaxSize,Value=4
+              Namespace=aws:autoscaling:asg,OptionName=MaxSize,Value=1
+
+      - name: Wait for environment update
+        run: |
+          aws elasticbeanstalk wait environment-updated \
+            --application-name PirateTradeWarsApp \
+            --environment-names PirateTradeWarsEnv
+
+      - name: Verify environment health
+        run: |
+          read -r STATUS HEALTH VERSION < <(aws elasticbeanstalk describe-environments \
+            --application-name PirateTradeWarsApp \
+            --environment-names PirateTradeWarsEnv \
+            --query 'Environments[0].[Status,Health,VersionLabel]' --output text)
+          echo "Status=$STATUS Health=$HEALTH Version=$VERSION"
+          if [ "$STATUS" != "Ready" ] || [ "$HEALTH" = "Red" ] || [ "$VERSION" != "${{ github.sha }}" ]; then
+            echo "Environment not healthy or wrong version" >&2
+            exit 1
+          fi
+          curl -fsS --retry 10 --retry-delay 10 https://piratetradewars.com/api/health
