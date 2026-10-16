@@ -40,7 +40,10 @@ describe("live population", () => {
     for (const r of recs) {
       byArch[r.archetype] = (byArch[r.archetype] ?? 0) + 1;
       if (r.leader != null) convoyMembers++;
-      if (r.archetype === "merchant") expect(nations.has(r.faction)).toBe(true);
+      if (r.archetype === "merchant") {
+        expect(r.faction).not.toBe("pirates");
+        expect(nations.has(r.faction) || r.faction === "merchants_guild").toBe(true);
+      }
       if (r.archetype === "pirate") expect(r.faction).toBe("pirates");
       // every spawn point is in open water
       const p = sys.director.positionOf(r)!;
@@ -61,17 +64,24 @@ describe("live population", () => {
 });
 
 describe("load: 200 players + 300 NPCs on the real map", () => {
-  it("average tick (step + frames for 200 clients) stays under 25 ms", () => {
+  it.each([
+    ["spread over all 27 ports", false],
+    ["packed at the 5 starter ports (the real spawn)", true],
+  ])("average tick (step + frames for 200 clients) stays under 25 ms: %s", (label, packed) => {
     const w = new World({ land: land.field, rng: mulberry32(11) });
     const sys = createLiveNpcSystem(w, { director: { minSpawnDist: 0 } }).attach();
     const rng = mulberry32(12);
-    // Players crowd the ports (where they spawn and trade): ~7 per port, within 2 km of its spawn.
+    // Players crowd the ports: ~7 per port within 2 km of its spawn, or (packed) wherever the
+    // World spawns new players (the starter ports, ~40 each).
     const ids: string[] = [];
     for (let i = 0; i < 200; i++) {
-      const port = PORTS[i % PORTS.length];
-      const s = w.spawnPoint(port.spawn, 2000);
       const id = `b${i}`;
-      w.createPlayer({ id, name: id, shipType: i % 3 ? "sloop" : "brigantine", x: s.x, z: s.z, rotationY: rng() * 6 - 3 });
+      const shipType = i % 3 ? "sloop" : "brigantine";
+      if (packed) w.createPlayer({ id, name: id, shipType });
+      else {
+        const s = w.spawnPoint(PORTS[i % PORTS.length].spawn, 2000);
+        w.createPlayer({ id, name: id, shipType, x: s.x, z: s.z, rotationY: rng() * 6 - 3 });
+      }
       w.attachClient(id);
       ids.push(id);
     }
@@ -98,9 +108,9 @@ describe("load: 200 players + 300 NPCs on the real map", () => {
     }
     const avg = total / TICKS;
     console.log(
-      `[npc live load] 200 players + ${sys.stats.records} NPC records (${sys.stats.active} active): avg ${avg.toFixed(2)} ms/tick ` +
+      `[npc live load: ${label}] 200 players + ${sys.stats.records} NPC records (${sys.stats.active} active): avg ${avg.toFixed(2)} ms/tick ` +
         `(step + frames), worst ${worst.toFixed(2)} ms; npc system avg ${(npcTotal / TICKS).toFixed(3)} ms, max ${sys.stats.maxTickMs.toFixed(2)} ms; ` +
-        `path plans ${sys.stats.navPlans}, unsticks ${sys.stats.unsticks}; ~${(bytes / 6 / 200 / 1024).toFixed(1)} KB/tick/client`,
+        `path plans ${sys.stats.navPlans} (max ${sys.stats.navMaxMs.toFixed(2)} ms), lod max ${sys.stats.lodMaxMs.toFixed(2)} ms, unsticks ${sys.stats.unsticks}; ~${(bytes / 6 / 200 / 1024).toFixed(1)} KB/tick/client`,
     );
     expect(sys.stats.records).toBeGreaterThan(280);
     expect(sys.stats.active).toBeLessThanOrEqual(80);

@@ -131,6 +131,14 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   extrapolate with velocity (metric) ≤ `MAX_EXTRAPOLATION_MS`, then hold. `RemoteWorld` holds buffers + `ent`/`gone` metadata and bumps
   `version` only when the renderable set / metadata / sunk flag changes. Entities are removed only
   by `gone` (never pruned locally; snapshots may be skipped under server backpressure).
+  NPC2: `RemoteMeta` carries `npc`, `faction` and `title` for AI ships (from `ent`, via
+  `parseEntNpcMeta`); undefined for players.
+- **NPC nameplates and flags (NPC2).** `OtherShips` passes `npcTitle`/`faction` to `Ship`, which adds a
+  second nameplate line "Spanish Navy — Galleon" (`npcNameplate`, tinted with the flag colour) and a
+  small nation flag above the mast (a sibling of the model group, so model reloads never clear it).
+  Colours and labels live in `lib/world/factions.ts` (`FACTION_FLAG_COLORS`, black flag for pirates).
+- **Standing (NPC2).** `NetClient` handles the low-rate `standing` message: `net.standing`
+  (`{rep, notoriety, bounty}`, null until the server sends one) and a `standing` event. No UI shows it yet.
 - `cannonballs.ts` — `BallSim`: balls from `fire` events, spawn = estimated server time at receipt,
   analytic position `ballPositionAt`. Own balls drawn at `serverNow`; other ships' balls at
   `serverNow − INTERP_DELAY_MS` (same timeline as remote ships). `hit` removes own balls at once and

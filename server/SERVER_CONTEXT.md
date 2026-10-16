@@ -109,12 +109,13 @@ physics in `shared/physics.ts`. Both are shared with the client.
   - Use the local Docker Redis (`ptw-redis`), never the `.env` Upstash.
   - `reusePort` is skipped on Windows.
 
-## NPC ships (`game/npc/`, card NPC1)
+## NPC ships (`game/npc/`, cards NPC1 + NPC2)
 
 Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
 
-- **Off by default.** `gameState` builds `NpcSystem` only when `NPCS_ENABLED=1|true`. Even then the
-  director spawns nothing until lanes are passed in (NPC2).
+- **On by default (NPC2).** `gameState` builds `createLiveNpcSystem(world)` unless `NPCS_ENABLED=0|false|off|no`:
+  the real lanes (`shared/world/lanes.json`), port safe zones, the live fleets (`npc/population.ts`, ~300
+  persistent NPCs, ≤ 80 active) and the World's `LandField`.
 - **An NPC is a `WorldPlayer` with `controller: "npc"`** (id `npc:<n>`, the same eid space).
   - It is never disconnected, never times out, never takes queued inputs, and is never persisted
     (`persistAll` skips it).
@@ -125,13 +126,28 @@ Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
 - **Effects.**
   - `npcSunk` replaces `playerSunk` for NPCs, so the leaderboard never sees an NPC.
   - `playerSunk.byNpc` marks a player sunk by an NPC; it is excluded from player-kill stats.
-  - `npcRepChange` is currently a no-op in `runEffect`; NPC2 persists it.
+  - `npcRepChange`: the NPC system has already applied it to the player's in-memory standing;
+    `runEffect` marks the player dirty and `flushStandings` writes the standing once per player per tick
+    (`redisStorage.updatePlayerStanding`, fire-and-forget).
   - An NPC that collects gold emits no `goldCollected` effect.
+- **Player standing (NPC2).** `PlayerState.standing` = `{rep, notoriety, bounty}`, created on first use by
+  `NpcSystem.standingOf`, saved as a JSON `standing` field of `player:<id>` (every `updatePlayerState` and
+  each rep change), restored by `World.restorePlayer` (validated with `parseStanding`). Notoriety decays 2/min
+  online (every 10 s) and for the offline time on `reconnect` (`decayNotoriety` in socketHandler). The
+  client gets its own standing as a low-rate `standing` message (PROTOCOL.md "NPC2 clarifications").
 - **`ent`** gains `npc: 1`, `faction` and `title` for NPCs.
 - **Tiers.** Only *active* NPCs (a player within 2500) are World ships. Rail and docked NPCs are
   director records, so they cost nothing per tick.
-- **Measured in the tests:** 50 NPCs plus 10 players take about 0.25 ms per tick. 300 NPCs (80
-  active) plus 200 players take about 2.1 ms per tick, of which the NPC system is about 0.6 ms.
+- **Navigation on real coasts (NPC2):** lane following with a line-of-sight check, coast feelers with
+  tangent hysteresis, an A* path back to the lane when it is behind land (`npc/nav.ts`, ≤ 2 plans per tick),
+  coast following as a fallback, and an unstick manoeuvre. 100 NPCs × 3 simulated minutes on the real
+  map: longest pin against a coast 3 s.
+- **Measured (vitest, desktop):** 200 players + 300 NPCs (80 active) on the real map ≈ 2.4–2.6 ms per tick
+  for step + frames; the NPC system ≈ 0.6 ms average. Real server with 200 WebSocket bots + 300 NPCs:
+  9.2 ms average tick (5.9 ms with NPCs off), all bot assertions pass.
+- **Socket cork (NPC2):** `runTick` corks each client's TCP socket around that tick's frames, so a client
+  gets one write per tick however many `fire`/`hit` events it sees. Without it, NPC fights near crowded
+  ports spent ~30 % of server CPU in per-message `writev`.
 
 ## Ports (card W4)
 

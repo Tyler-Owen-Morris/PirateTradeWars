@@ -1,7 +1,7 @@
 # NPC ships (`server/game/npc/`)
 
 Built by card NPC1 (core systems). Contract: `docs/world/WORLD_SPEC.md` §8. Design: `docs/proposals/WORLD_AND_NPCS.md` §3.
-**Status: disabled by default.** `gameState` only builds the system when `NPCS_ENABLED=1|true`. NPC2 turns it on and wires it to real lanes, ports and land.
+**Status: live, ON by default (NPC2).** `gameState` builds `createLiveNpcSystem(world)` unless `NPCS_ENABLED=0|false|off|no`. Built by NPC1 (core) and NPC2 (real map, population, navigation, standing persistence, client nameplates).
 
 ## How NPCs plug into the World
 
@@ -23,7 +23,7 @@ The changes to `server/game/world.ts` are all marked `NPC1`:
 
 | File | Purity | Main exports |
 |---|---|---|
-| `metric.ts` | pure | `NpcMetric` {delta, distSq, offset}, `torusMetric`, `defaultMetric`. **TODO(W1):** switch `defaultMetric` to `shared/world/geo.ts` metricDelta. |
+| `metric.ts` | pure | `NpcMetric` {delta, distSq, offset}; `geoMetric` (default: shared/world/geo.ts, x wraps, z clamped, x scaled by cos lat), `torusMetric` (logic-only tests) |
 | `util.ts` | pure | `moveDir(r)`, `headingForDir(dx,dz)`, `bearingOf`, `clamp`, `mulberry32` |
 | `steering.ts` | pure | `LandQuery`, `OPEN_SEA`; behaviours `seek/flee/arrive/pursue/evade/wander/avoidLand`; `arbitrate`, `withAvoidance`, `toSteer`, `toInput(ship, heading, speed, stats)` |
 | `tactics.ts` | pure | `engage(self, target, {range, aimError}, reloading, metric, rng)` → {heading, speed, fire}; `leadPoint`, `beamError`, `inBroadsidePosition`, `firepower`, `shouldDisengage`, `DEFAULT_CANNON_RANGE` (600) |
@@ -34,7 +34,9 @@ The changes to `server/game/world.ts` are all marked `NPC1`:
 | `lod.ts` | pure | `Lane`, `buildPolyline`, `pointAt`, `projectOnto`, `advanceRail`, `nextTier`, `ACTIVE_RADIUS` (2500), `DEMOTE_RADIUS` (2800) |
 | `director.ts` | stateful, no World | `Director`: records, `topUp` (0.2 Hz), `stepRails` (2 Hz), `sunk` → respawn timer, `lod` → promote/demote lists |
 | `fairplay.ts` | stateful, no World | `FairPlay`: shield, attacker slots, loot cap; `inSafeZone`, `classMatch`, `countsAsPlayerKill` |
-| `index.ts` | glue | `NpcSystem` (attach, spawnActive, tick, stats, standings), `npcsEnabled()` |
+| `index.ts` | glue | `NpcSystem` (attach, spawnActive, promoteRecord, tick, stats, standingOf), `createLiveNpcSystem`, `npcsEnabled()` |
+| `population.ts` | data | NPC2: `PORTS`, `LANES`, `laneZone`, `liveFleets()` (the population table), `portSafeZones`, `liveDirector` |
+| `nav.ts` | pure | NPC2: `segmentClear`, `planPath` (bounded A* on the SDF back to a lane) |
 
 ## One tick of `NpcSystem.tick(prevEvents)`
 
@@ -92,14 +94,52 @@ The cost was measured in tests on a desktop:
 2. **Dynamic diplomacy (wars, treaties):** pass a different `RelationMatrix` into `relation` / `baseHostility` / `areAllies`, for example a mutable matrix owned by a diplomacy module.
 3. **Emergent "Spain likes you, so Portugal attacks you":** `repChangesFor(victim)` already spreads rep to the victim's allies and enemies. Combined with call-for-help this needs no AI changes.
 
-## What NPC2 must do to make them live
+## Live behaviour on the real map (NPC2)
 
-- Construct `NpcSystem` with:
-  - `lanes` from `shared/world/lanes.json`
-  - `safeZones` from ports.json (the `dock` point and `safeRadius`)
-  - `land`, the server's `LandField` (W1)
-  - `metric`, the W1 geo metric (or update `defaultMetric`)
-  - `director.targets` per region, plus `laneRegion`
-- Set `NPCS_ENABLED=1` in the EB environment once the load test passes. The gate is 200 bots plus 300 NPCs at a tick under 25 ms.
-- Persist `npcRepChange` (`gameState.runEffect` has a TODO), and load standings on connect.
-- Client: show nameplates and flags from `ent.npc`/`faction`/`title`, read with `parseEntNpcMeta`. `RemoteMeta` does not carry them yet; that was left alone to avoid colliding with W1's interpolation work.
+### Population (`population.ts` `liveFleets()`, 300 persistent, ≤ 80 active)
+
+Lanes get a zone from their two ports' regions (`laneZone`): **americas** (both ends Caribbean/Gulf or the American Atlantic coast), **atlantic** (Americas ↔ Europe/Africa crossings), **europe**, **africa**, **east** (Indian Ocean, East Asia, Acapulco).
+
+| Fleet (region label) | Archetype | Count | Lanes | Faction |
+|---|---|---|---|---|
+| americas/merchant | merchant | 60 | americas | origin port's nation (pirate havens → merchants_guild) |
+| atlantic/merchant | merchant | 30 | atlantic | origin port |
+| europe/merchant | merchant | 30 | europe | origin port |
+| africa/merchant | merchant | 12 | africa | origin port |
+| east/merchant | merchant | 28 | east | origin port |
+| americas/navy/{spain 10, england 8, france 4, netherlands 3} | navy | 25 | americas lanes touching that nation's ports | the nation |
+| europe/navy/{england 5, spain 4, france 3, netherlands 3, portugal 3} | navy | 18 | europe lanes touching its ports | the nation |
+| east/navy/{portugal 4, netherlands 4 (+africa), spain 4} | navy | 12 | east lanes touching its ports | the nation |
+| americas/pirate/havens | pirate | 35 | americas lanes touching Nassau or Tortuga | pirates |
+| americas/pirate/lanes | pirate | 6 | americas | pirates |
+| atlantic/pirate | pirate | 12 | atlantic | pirates |
+| east/pirate/sainte_marie | pirate | 12 | lanes touching Île Sainte-Marie | pirates |
+| americas/privateer | privateer | 16 | americas | england / france / netherlands |
+| atlantic/privateer | privateer | 4 | atlantic | spain |
+
+About 63 % of the fleet is in the Caribbean/Gulf and on the crossings. A fleet's ships keep to its lanes forever: at every lane end the next lane is drawn from the fleet's lane filter (a navy that reaches a foreign port with no home lane turns around). Groups spawn from the archetype's `group` (merchant convoys 1–3, navy and pirate pairs) on one lane, `GROUP_SPACING` (160) apart, with the same ship type and faction; members leave port right after their leader and take the lane it took (`NpcRecord.leader`).
+
+### Navigation on real coastlines (`index.ts` `followLaneOrWander` / `unstick`, `nav.ts`, `steering.ts`)
+
+1. **Lane following** steers for a point `LANE_LOOKAHEAD` (250) ahead on the lane; the follow point is clamped to the lane end so arrivals always trigger. After any other state (fight, flight, unstick) it re-projects onto the nearest lane point.
+2. **Line of sight.** If the straight line to that point comes within hull + `LOS_MARGIN` of land (spits, estuaries), it steers for the lane just ahead of the nearest lane point instead (`LOS_STEP` 60).
+3. **Path back to the lane.** If that is also behind land (far off the lane after a chase), `planPath` runs a bounded A* (80-unit cells, ≤ 160×160) to it; at most `NAV_PLANS_PER_TICK` (2) plans per tick, replans every `NAV_REPLAN_MS` (5 s). No path → coast following (`wallFollow`, flips side after 40 s).
+4. **Coast feelers** (`avoidLand`) slide along the coast tangent closest to the *desired* direction, with side hysteresis (`AvoidMemo`), so a goal straight behind a coast never makes the rudder see-saw.
+5. **Unstick.** Two 1 s checks with < 15 % progress while touching the coast and wanting to move → 3 s of turning the bow along the land normal (reversing until within 60° of it).
+
+Measured (`__tests__/live-world.test.ts`, 100 NPCs on random lanes, 3 simulated minutes, real tiles): longest pin against a coast 3 s, ≤ 1 s of no progress beyond a 10 s window, 0.2 % of samples stuck, 0 ticks with a hull centre on land, ~36 path plans (≤ 1.1 ms each).
+
+### Player standing
+
+`PlayerState.standing` (`{rep, notoriety, bounty}`, shared/protocol.ts `StandingState`) lives on the WorldPlayer; `NpcSystem.standingOf` creates it on first use and bumps `standingVersion` on every change, which sends the player a `standing` message. `gameState` persists it after `npcRepChange` effects; `redisStorage` stores it as JSON in the player hash; `restorePlayer` reads it back. Notoriety decays `NOTORIETY_DECAY_PER_MIN` (2) per minute, online and for offline time on reconnect. Bounty is stored and sent but nothing sets it yet.
+
+### Live tuning knobs
+
+- Population: `liveFleets()` counts and lane filters; `GROUP_SPACING`; `DOCK_MIN_MS`/`DOCK_MAX_MS`.
+- Navigation: `LANE_LOOKAHEAD`, `LOS_MARGIN`/`LOS_STEP`, `NAV_*` (nav.ts `NAV_CELL`, `NAV_MAX_SIDE`, `NAV_MARGIN`), `WALL_*`, `UNSTICK_*`, steering `LAND_CLEARANCE`, `AVOID_SIDE_HYSTERESIS`.
+- Standing: `NOTORIETY_DECAY_PER_MIN`, `NOTORIETY_DECAY_EVERY_TICKS`.
+- Kill switch: `NPCS_ENABLED=0`.
+
+### Cost
+
+200 players + 300 NPCs (80 active) on the real map, vitest on a desktop: 2.4 ms per tick spread over all ports, 2.6 ms packed at the 5 starter ports (step + frames for 200 clients); NPC system ≈ 0.6 ms average, worst ≈ 8 ms (the first promotion burst). Real server with 200 WebSocket bots + 300 NPCs: 9.2 ms average tick (5.9 ms with NPCs off), all bot assertions pass, after `gameState` started corking each client's socket per tick (see SERVER_CONTEXT.md). The LOD pass is still a linear scan (300 records × players every 0.5 s, ≤ 5 ms worst at 200 players), so it was not moved to the grid.

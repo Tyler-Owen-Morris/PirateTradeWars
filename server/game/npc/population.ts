@@ -45,10 +45,13 @@ export function portById(id: string): PortDef | undefined {
   return PORT_BY_ID.get(id);
 }
 
-/** Port id → the faction of its nation ("pirates" for Nassau, Tortuga, Île Sainte-Marie). */
+/** Faction a merchant sailing out of port `id` flies: the port's nation. Ships out of the pirate
+ *  havens (Nassau, Tortuga, Île Sainte-Marie) sail as the Merchants' Guild (neutral traders who
+ *  deal with pirates), not as pirates. */
 export function portFaction(id: string): FactionId | undefined {
   const n = PORT_BY_ID.get(id)?.nation;
-  return n ? (n as FactionId) : undefined;
+  if (!n) return undefined;
+  return n === "pirates" ? "merchants_guild" : (n as FactionId);
 }
 
 export type LaneZone = "americas" | "atlantic" | "europe" | "africa" | "east";

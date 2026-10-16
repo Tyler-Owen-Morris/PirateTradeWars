@@ -162,6 +162,9 @@ export interface NpcStats {
   unsticks: number;
   /** NPC2: path plans run (lane behind land). */
   navPlans: number;
+  /** NPC2: slowest single path plan and LOD pass (ms) since the stats were last reset. */
+  navMaxMs: number;
+  lodMaxMs: number;
   lastTickMs: number;
   maxTickMs: number;
 }
@@ -174,7 +177,7 @@ export class NpcSystem {
   readonly active = new Map<number, ActiveNpc>();
   /** In-memory player standing (NPC2 loads/persists it with the player in Redis). */
   readonly standings = new Map<string, PlayerStanding>();
-  readonly stats: NpcStats = { records: 0, active: 0, fires: 0, hitsByNpc: 0, sunkNpcs: 0, unsticks: 0, navPlans: 0, lastTickMs: 0, maxTickMs: 0 };
+  readonly stats: NpcStats = { records: 0, active: 0, fires: 0, hitsByNpc: 0, sunkNpcs: 0, unsticks: 0, navPlans: 0, navMaxMs: 0, lodMaxMs: 0, lastTickMs: 0, maxTickMs: 0 };
   private readonly safeZones: SafeZone[];
   private readonly rng: () => number;
   private readonly provokedPairs = new Set<string>();
@@ -347,7 +350,12 @@ export class NpcSystem {
     if (this.director.polys.length > 0) {
       this.director.topUp(now, players);
       this.director.stepRails(now);
-      if (w.tick % LOD_EVERY_TICKS === 0) this.lodPass();
+      if (w.tick % LOD_EVERY_TICKS === 0) {
+        const l0 = performance.now();
+        this.lodPass();
+        const ld = performance.now() - l0;
+        if (ld > this.stats.lodMaxMs) this.stats.lodMaxMs = ld;
+      }
     }
 
     // Active NPCs.
@@ -752,7 +760,10 @@ export class NpcSystem {
             this.plansThisTick++;
             this.stats.navPlans++;
             a.nextPlanMs = now + NAV_REPLAN_MS;
+            const n0 = performance.now();
             a.path = planPath(this.land, m, { x: self.x, z: self.z }, { x: tx, z: tz }, clear);
+            const nd = performance.now() - n0;
+            if (nd > this.stats.navMaxMs) this.stats.navMaxMs = nd;
             a.pathIdx = 0;
             planned = this.pathWaypoint(a, self, clear);
           }

@@ -17,6 +17,9 @@ export const NAV_CELL = 80;
 export const NAV_MAX_SIDE = 160;
 /** Extra margin around the start/goal bounding box, metric units. */
 export const NAV_MARGIN = 2000;
+/** Cost caps: A* node expansions per plan, and how many cells one simplified leg may span. */
+export const NAV_MAX_EXPANSIONS = 12_000;
+export const NAV_SIMPLIFY_SPAN = 40;
 
 export interface NavPoint {
   x: number;
@@ -161,7 +164,8 @@ export function planPath(land: LandQuery, m: NpcMetric, from: NavPoint, to: NavP
   let bestH = h(start);
   const DI = [1, -1, 0, 0, 1, 1, -1, -1];
   const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
-  while (heap.size > 0) {
+  let expanded = 0;
+  while (heap.size > 0 && expanded++ < NAV_MAX_EXPANSIONS) {
     const c = heap.pop();
     if (closed[c]) continue;
     closed[c] = 1;
@@ -208,7 +212,7 @@ export function planPath(land: LandQuery, m: NpcMetric, from: NavPoint, to: NavP
   let i = 0;
   while (i < pts.length) {
     let j = i;
-    while (j + 1 < pts.length && segmentClear(land, m, ax, az, pts[j + 1].x, pts[j + 1].z, clearance)) j++;
+    while (j + 1 < pts.length && j - i < NAV_SIMPLIFY_SPAN && segmentClear(land, m, ax, az, pts[j + 1].x, pts[j + 1].z, clearance)) j++;
     out.push(pts[j]);
     ax = pts[j].x;
     az = pts[j].z;

@@ -31,6 +31,8 @@ export interface ClientSocket {
   readyState: number;
   bufferedAmount?: number;
   send(data: string): void;
+  /** The underlying net.Socket of a `ws` WebSocket (used to cork a tick's frames into one write). */
+  _socket?: { cork?: () => void; uncork?: () => void };
 }
 
 type LeaderboardRow = { id: number; playerId: string; playerName: string; score: number; achievedAt: Date };
@@ -132,13 +134,22 @@ class GameState {
       const frames = this.world.buildFrames(playerId);
       const congested = (ws.bufferedAmount ?? 0) > MAX_BUFFERED_BYTES;
       const n = congested ? frames.length - 1 : frames.length;
-      for (let i = 0; i < n; i++) {
-        try {
-          ws.send(frames[i]);
-        } catch (err) {
-          console.error(`Error sending to ${playerId}:`, err);
-          break;
+      // NPC2: cork the TCP socket so this tick's frames (ent/gone, every fire/hit event, the
+      // snapshot) leave in ONE write instead of one syscall per WebSocket message. Same frames on the
+      // wire; with NPC fights near crowded ports the per-message writes were ~30 % of server CPU.
+      const sock = ws._socket;
+      if (n > 1) sock?.cork?.();
+      try {
+        for (let i = 0; i < n; i++) {
+          try {
+            ws.send(frames[i]);
+          } catch (err) {
+            console.error(`Error sending to ${playerId}:`, err);
+            break;
+          }
         }
+      } finally {
+        if (n > 1) sock?.uncork?.();
       }
     });
 
