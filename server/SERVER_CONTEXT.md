@@ -115,14 +115,16 @@ The game state is managed by the `GameState` class in `gameState.ts`:
 Socket handling in `socketHandler.ts`:
 
 1. **Message Types**:
-   - `register` - Player registration
-   - `input` - Player movement and actions
-   - `trade` - Port trading actions
+   - `connect` / `reconnect` - Player registration
+   - `input` - `{t:"input", s, th, ru, f}` throttle/rudder/fire intents (never positions)
+   - `ping` - RTT probe
+   - `trade`, `upgradeShip`, `repairShip`, `scuttle` - port and ship actions
+   (authoritative list: `shared/protocol.ts`, `parseClientMessage`)
 
 2. **Socket Management**:
    - Each connected client gets a unique ID
    - Messages parsed and validated
-   - Responses sent directly or via broadcast
+   - Replies sent directly; world state goes out per client as interest-filtered snapshots after each tick (there is no global broadcast)
 
 ## Data Storage
 
@@ -130,8 +132,8 @@ The game uses a flexible storage system defined in `storage.ts`:
 
 1. **Storage Interface**:
    - `IStorage` defines all data operations
-   - `MemStorage` provides in-memory implementation
-   - Ready for database implementation (PostgreSQL schema defined)
+   - Production implementation is `redisStorage.tsx` (Redis via `REDIS_CONN_STRING`); `MemStorage` is legacy
+   - A PostgreSQL/Drizzle schema is defined but unused
 
 2. **Entity Types**:
    - Users (authentication)
@@ -196,20 +198,13 @@ Simple physics system for ships and projectiles:
 
 ## Database Integration
 
-While the current implementation uses in-memory storage, the server is designed for PostgreSQL integration:
-
-1. **Schema Definition**:
-   - Tables defined in `shared/schema.ts`
-   - Drizzle ORM integration ready
-
-2. **Migration Path**:
-   - Replace `MemStorage` with database implementation
-   - No changes needed to game logic
+Persistence is Redis (`redisStorage.tsx`). The Drizzle/PostgreSQL schema in `shared/schema.tsx` is not used at runtime.
+Live world state is in-process memory, so the server must run as a single instance (see PROJECT_CONTEXT.md "Deployment").
 
 ## Known Limitations and Considerations
 
-1. Memory usage with many concurrent players
-2. Server performance under high load
+1. Single process: no horizontal scaling without sharding the world
+2. Capacity: ~200 bots tested on a desktop; the t3.micro (burstable CPU) is the practical limit, see docs/netcode/README.md
 3. Socket disconnection handling
 4. Database scaling for production
 

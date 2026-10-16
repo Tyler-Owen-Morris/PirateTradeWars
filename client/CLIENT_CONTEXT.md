@@ -62,12 +62,12 @@ The client communicates with the server through WebSocket for real-time updates:
 
 1. **Outgoing Messages**:
    - Player registration (name, ship type)
-   - Input updates (movement, rotation, firing)
+   - `input` intents at 20 Hz (throttle, rudder, fire) with a sequence number; never positions
    - Trade requests (buy/sell goods)
 
 2. **Incoming Messages**:
    - Welcome/connection confirmation
-   - Game state updates (players, cannonballs, etc.)
+   - Per-tick snapshots (`s`), `ent`/`gone` entity metadata, and events (`fire`/`hit`/`sunk`); see "Netcode (client)" below
    - Trade confirmations and inventory updates
    - Error messages
 

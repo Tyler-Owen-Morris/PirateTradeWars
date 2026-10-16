@@ -1,3 +1,5 @@
+> **Note:** This is the ORIGINAL design brief. It is superseded by `docs/netcode/` (see `docs/netcode/README.md` and `PROTOCOL.md`), which describes what is actually implemented. Kept for history only.
+
 # Pirate Trade Wars - Game Design Document (Networking Instructions for Three.js)
 
 ## Networking for Real-Time Multiplayer with Three.js
