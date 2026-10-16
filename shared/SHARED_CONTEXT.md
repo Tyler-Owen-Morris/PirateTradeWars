@@ -80,15 +80,15 @@ export type PlayerInventory = typeof playerInventory.$inferSelect;
 
 ## Communication Protocol
 
-While not explicitly defined in a file, the shared types establish the contract for WebSocket communication:
+The contract is defined in `shared/protocol.ts` (message types, validation via `parseClientMessage`) and documented in `docs/netcode/PROTOCOL.md`:
 
 1. **Client-to-Server Messages**:
    - Registration messages with player name and ship type
-   - Input messages with movement and action data
+   - `input` messages with throttle/rudder/fire intents and a seq (no positions)
    - Trade messages for buying/selling goods
 
 2. **Server-to-Client Messages**:
-   - Game state updates with player and projectile positions
+   - Per-tick snapshots `s` (private `me` state plus compact rows for nearby ships), `ent`/`gone`, and `fire`/`hit`/`sunk` events
    - Trade confirmations with inventory updates
    - Error messages for invalid actions
 

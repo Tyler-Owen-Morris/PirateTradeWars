@@ -6,9 +6,9 @@ Pirate Trade Wars is a browser-based multiplayer 3D pirate ship game where playe
 ## Core Technologies
 - **Frontend**: React, Three.js (@react-three/fiber), TypeScript
 - **Backend**: Node.js, Express
-- **Real-time Communication**: WebSockets
+- **Real-time Communication**: WebSocket (`/game-ws`) to an authoritative 20 Hz server, with client-side prediction and interpolation (see `docs/netcode/README.md`)
 - **State Management**: Zustand
-- **Data Storage**: In-memory storage with optional PostgreSQL database
+- **Data Storage**: Redis (`REDIS_CONN_STRING`) for players, names and the leaderboard. Live world state (ships, cannonballs, gold) is held in the memory of ONE server process. Drizzle/PostgreSQL schema files exist but are not used at runtime.
 
 ## Project Structure
 
@@ -40,7 +40,7 @@ The project is divided into three main sections:
    - Strategic port placement
 
 4. **Multiplayer Functionality**
-   - Real-time player updates via WebSockets
+   - Authoritative 20 Hz server; clients predict their own ship and interpolate others
    - Leaderboard for competitive play
 
 ## Running the Project
@@ -55,21 +55,49 @@ The project is divided into three main sections:
 ## Data Flow
 
 1. **Authentication/Registration**:
-   - Client registers a player name and ship via WebSocket
-   - Server validates and creates/retrieves player data
+   - Client sends `connect` (name, ship) or `reconnect` over `/game-ws`
+   - Server validates, creates/restores the player (Redis) and replies `connected`/`reconnected`
 
-2. **Game State Updates**:
-   - Server sends periodic game state updates to all clients
-   - Client processes updates and renders accordingly
+2. **Input -> snapshot loop (20 Hz)**:
+   - Client never sends position. Each 50 ms step it sends `{t:"input", s:seq, th, ru, f}`
+   - Server queues inputs per player, and each tick runs the shared physics (`shared/physics.ts`) once per player
+   - After the tick, each client gets `ent`/`gone` (entities entering/leaving its 2000-unit interest radius),
+     events (`fire`/`hit`/`sunk`/`goldCollected`) and a snapshot `s` with its private `me` state, the last
+     processed input seq `a`, and compact rows for nearby ships
+   - Client re-simulates unacked inputs from `me` (reconciliation) and interpolates other ships ~100 ms behind
 
-3. **Player Input**:
-   - Client sends player input via WebSocket
-   - Server validates and updates game state
+3. **Trading and upgrades**:
+   - `trade`, `upgradeShip`, `repairShip`, `scuttle` are request/response messages handled outside the tick (async, Redis)
 
-4. **Trading**:
-   - Client sends trade requests via WebSocket
-   - Server processes trade, updates inventory and economy
-   - Updates sent back to client
+4. **Persistence side effects**:
+   - Sinks, gold pickups and removals are queued as "effects" by the world and drained fire-and-forget to Redis/Segment, never awaited inside the tick
+
+See `docs/netcode/PROTOCOL.md` for the exact contract and `docs/netcode/README.md` for the architecture overview.
+
+## Deployment
+
+- Push to `main` triggers `.github/workflows/deploy.yml`: a `test` job (install, `npm run build`, `npm test`,
+  `npm run test:bots` with a `redis:7` service) gates a `deploy` job that zips the repo, creates an Elastic Beanstalk
+  application version (label = commit sha) and updates environment `PirateTradeWarsEnv` (app `PirateTradeWarsApp`, us-east-2).
+  It then waits for the environment and checks `https://piratetradewars.com/api/health`.
+- **Single instance by design.** The world lives in one process's memory. The workflow pins ASG MinSize=MaxSize=1.
+  Never raise MaxSize above 1 without first sharding the world (otherwise players land in separate worlds).
+- Health check: `/api/health` (`.ebextensions/03_healthcheck.config`); ALB idle timeout 300 s for WebSockets (`04_alb_websocket.config`).
+- Domain: piratetradewars.com (Route 53 alias to the EB environment, ACM cert on the ALB).
+- To push to `main` WITHOUT deploying, put `[skip ci]` in the commit message.
+- Rollback to a previous version label (example: the pre-overhaul version):
+  `aws elasticbeanstalk update-environment --environment-name PirateTradeWarsEnv --version-label 9486e65f77f5931929d0ebe041ac90d7f290d682 --region us-east-2`
+- The `replit` branch is retired; `main` is the only deploy branch. `infra/` (CDK) is deprecated and not deployed: never run `cdk deploy`.
+
+## Testing
+
+- `npm test`: vitest unit tests (shared physics/protocol, world core, loop, client net layer).
+- `npm run test:bots`: boots a server on port 5055, runs 30 headless bots for 20 s and asserts snapshot rate,
+  gaps, ack progress, privacy and visibility symmetry (details in `docs/netcode/LOAD_TEST.md`). Needs Redis.
+- Local Redis: `docker run -d --name ptw-redis -p 6379:6379 redis:7`, then `REDIS_CONN_STRING=redis://localhost:6379`.
+  Do not test against the Upstash Redis in `.env`.
+- Local server runs need a dummy `STRIPE_SECRET_KEY=sk_test_dummy` (the Stripe routes throw at import without it).
+  `SEGMENT_WRITE_KEY` may be unset (no-op). `test:bots` injects the dummy keys itself.
 
 ## Future Development Areas
 
