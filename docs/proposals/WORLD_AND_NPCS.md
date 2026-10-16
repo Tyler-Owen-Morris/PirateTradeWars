@@ -44,16 +44,38 @@ C = 720,000 units round the equator (2000 units per degree):
 
 **Trade-off:** the world becomes about 5000× bigger than today, so players will be spread thin. Spawns, ports and NPCs should cluster in the Caribbean and North Atlantic first. Alternatively, a smaller C (about 400k) halves the times.
 
-### Land, with collision
+### Land masses: the real world's continents, not just islands
 
-- **Source:** Natural Earth coastlines (public domain). Use 1:10m detail for the Caribbean, where small islands matter, and 1:50m elsewhere.
-- **Offline build step:** rasterize the coastlines into an **8192×4096 signed distance field**, about 32 MB on the server, which fits easily in the t4g.small's 2 GB. It is cut into 256² tiles for the client, version-hashed.
-- **Collision in the shared physics:** `stepShip` checks the distance field after each substep and slides ships along the coast. Prediction runs the same code, so client and server agree.
-- **Client rendering:**
-  - land meshes per visible chunk, built from the distance field: beach, grass and rock by height
-  - shallow-water tint and foam bands from the distance field
-  - an optional slight horizon drop, so far ships sink hull-first
-- **Ports** move to real historical locations: Port Royal, Havana, Cartagena, Nassau, Tortuga, Bridgetown, Boston, Cádiz, Lisbon, London, Amsterdam, Cape Town, Goa, Batavia and Macau.
+The map is **the real Earth's geography**: the Americas, Europe, Africa and Asia as full continents with their real coastlines, plus the real islands (the Caribbean chain, the Azores, the British Isles and so on). Today's hand-placed `.glb` decoration islands go away.
+
+- **Source data:** Natural Earth land polygons (public domain). Use 1:10m detail in the Caribbean and European waters, where small islands and inlets matter, and 1:50m elsewhere.
+- **Offline build step:** a Node script rasterizes the land into one world-sized **signed distance field**: for every point, how far it is to the nearest coast, negative on land.
+  - **Size:** 8192×4096 at Int8 is about 32 MB in server memory, which fits easily in the 2 GB.
+  - **Optional detail:** if coastlines look too coarse at sailing height (about 88 units per pixel at the 720k scale), add a higher-resolution overlay just for the Caribbean.
+  - **Delivery:** it is cut into 256² tiles that the client loads as you sail, with a version hash so client and server always use the same land.
+- **Rendering:**
+  - a land mesh for each visible chunk, raised from the distance field: beaches at the waterline, then grass, forest and rock inland, with low hills; mountains can come later from elevation data
+  - shallow-water tint and surf foam along every coast
+- **Ports** are coastal cities at real historical sites on the continents and islands, each with a harbour you sail into. The docking zone is the water just off the town.
+  - **Caribbean and Americas:** Port Royal, Havana, Cartagena, Veracruz, Nassau, Tortuga, Bridgetown, Boston, Charleston
+  - **Europe and Africa:** Lisbon, Cádiz, Seville, London, Bristol, Amsterdam, Cape Town
+  - **Indian Ocean and Asia:** Goa, Batavia, Macau
+  - **Starting set:** about 15–25 ports, seeded around the Caribbean and Atlantic first.
+
+### Land collision: you bump, you don't break
+
+**Ships collide with land. Collision does no damage.**
+
+- **Where it lives:** in the shared physics (`stepShip`), so the server and your own client compute the same result and there's no rubber-banding at the coast. After each physics substep, the ship's position is checked against the distance field.
+- **What happens on contact:**
+  1. The ship is pushed back out to the shoreline.
+  2. The part of its velocity heading into the land is removed, so it **slides along the coast** instead of sticking. The slide direction comes from the field's gradient.
+  3. A head-on hit leaves the ship nearly stopped. A glancing hit lets it keep most of its speed.
+- **Hull size:** the check uses the ship's hull radius, so big ships can't squeeze through gaps that only a sloop can pass. Narrow straits and harbour mouths therefore matter tactically.
+- **Cannonballs** that hit land stop there, with a dust or splash effect, so islands and headlands give cover.
+- **Spawning and respawning** always pick open water.
+- **NPCs** use the same collision, and their steering looks ahead along the coastline so they avoid running aground.
+- **Cost:** one bilinear lookup per ship per substep, which is negligible on the server.
 
 ### Seamless rendering (floating origin)
 
@@ -135,9 +157,9 @@ Broadside tactics:
 |---|---|---|---|
 | **W0** | Seamless wrap on today's map: floating origin, ports and gold at wrapped offsets, ocean follows the camera. Client only. | — | Yes; quick win |
 | W1 | Coordinate model: x wraps, z clamped at the ice, `1/cos(lat)` motion, sparse spatial grid, scale constants; tests and bots | W0 | With W2 |
-| W2 | Land pipeline: Natural Earth → distance field, tiles and map texture; coastline collision in shared physics; safe spawn at sea | W1 | With W1 |
-| W3 | Land and shoreline rendering, ice wall, optional horizon drop | W2 | Yes |
-| W4 | Real ports plus migrating the existing Redis port data and player positions | W2 | Yes |
+| W2 | Real-world land and collision: Natural Earth continents and islands → distance field, tiles and map texture; **no-damage land collision with sliding** in shared physics; cannonballs stop on land; spawns at sea | W1 | With W1 |
+| W3 | Continent and coast rendering (beaches, inland terrain, surf), ice wall, optional horizon drop | W2 | Yes |
+| W4 | Coastal ports at real historical cities, with harbours, plus migrating the existing Redis port data and player positions | W2 | Yes |
 | W5 | Navigation: world map, minimap, compass, lat/lon | W1 | Yes |
 | N-A | NPC plumbing: controller field, guards, `ent` fields, one wandering NPC, steering tests | — (can start now) | Yes |
 | N-B | Merchants and tiers: routes, rails, director; NPC load test in CI | N-A, W4 | Yes |
