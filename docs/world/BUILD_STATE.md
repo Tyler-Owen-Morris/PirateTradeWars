@@ -29,7 +29,7 @@ Producer: Claude (main session). Approved by Theo on 2026-10-16: the wrapping-Ea
 | W4 | Ports integration: server reads ports.json, portsVersion re-seed, dock-radius checks (including trade), spawn at port, Redis player migration, client ports and towns at real sites | 2 (after W1 and W2) | agent (opus) | merged | done | — |
 | W5 | Navigation UI: world map (M), minimap with metric scaling, compass with heading and lat/lon, port distance and bearing | 2 (after W1 and W2) | agent (sonnet) | merged | done (visual check in Q) | — |
 | NPC2 | NPCs live: routes on lanes.json, director population, broadside combat, flee and surrender, pirates, navy and privateers, rep in Redis, fair-play rules, NPC load test (200 bots + 300 NPCs, tick < 25 ms) | 2 (after NPC1, W1, W2) | agent (opus) | worktree from npc2-base | in-progress | see progress/NPC2.md |
-| Q  | Integration: full gate, bots, browser play-test (circumnavigate, coast slide, ports, NPC fights), docs, **single production deploy**, prod verification | 3 | producer + QA agent | main | todo | — |
+| Q  | Integration: full gate, bots, browser play-test (circumnavigate, coast slide, ports, NPC fights), docs, **single production deploy**, prod verification | 3 | producer + QA agent | main | Q1 (world play-test, no NPCs) in-progress | see progress/Q1.md; Q2 after NPC2 merge |
 
 ## Log
 - 2026-10-16 Plan approved. Spec and ledger written. Phase 1 (W1, W2, W3, NPC1) launching in parallel.
@@ -41,3 +41,4 @@ Producer: Claude (main session). Approved by Theo on 2026-10-16: the wrapping-Ea
 - 2026-10-16 W5 merged (98db238): minimap with land, world map on M, compass HUD with lat/lon and target port in nautical miles. 194 tests, build OK. Not visually verified yet (Q play-test). W4 must supply dock and nation in /api/ports and switch GameScene/Port distance checks to the dock (told W4).
 - 2026-10-16 W3 part B merged (07c252b): terrain chunks from the SDF, shallow tint and surf, polar ice, dust on land hits. Fixed the dev double-gunzip in landTiles. main: 208 tests, build OK. Caribbean terrain seen in Chrome via Cypress; ice not yet. Port.tsx island removal left to W4.
 - 2026-10-16 W4 merged (a073d22): 27 real ports with numeric ids, re-seed by portsVersion, regional prices, dock check within 300 (trade included), starter-port spawns, migration keeps gold, coastal towns. main: 229 tests, build OK. Notes: the game has no respawn (sunk = game over); safeRadius has no gameplay effect; agents collide on local bot-test ports, so use a unique --port. Island.tsx and PortCity.tsx are now unused.
+- 2026-10-16 Q1 launched early: browser play-test of the world on main, without NPCs, server on port 5601. Q2 (NPCs) follows the NPC2 merge.
