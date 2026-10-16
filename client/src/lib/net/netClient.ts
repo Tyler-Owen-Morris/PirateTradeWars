@@ -28,7 +28,7 @@ import {
   type GoldCollectedMessage,
 } from "@shared/protocol";
 import { ServerClock } from "./clock";
-import { Predictor } from "./prediction";
+import { MAX_FRAME_DT_SEC, Predictor } from "./prediction";
 import { RemoteWorld } from "./interpolation";
 import { BallSim } from "./cannonballs";
 import { Connection, type ConnectionOptions } from "./connection";
@@ -74,6 +74,8 @@ export class NetClient {
   lastAck = -1;
   lastTick = 0;
   hidden = false;
+  /** `now()` at the previous `frameNow` call (null = the next frame gets dt 0). */
+  private lastFrameAt: number | null = null;
   readonly now: () => number;
   private readonly listeners: Listeners = {
     open: new Set(),
@@ -160,15 +162,33 @@ export class NetClient {
   // ------------------------------------------------------------------ per-frame
 
   /**
-   * Call once per render frame (from useFrame) with the frame delta in seconds and the current
-   * combined controls. Runs fixed-step prediction (sending one `input` per step) and expires balls.
+   * Per-frame entry point used by the game (Player.tsx useFrame): measures the frame delta on this
+   * client's own clock (`now()`, performance.now in the browser) and calls `frame`.
+   *
+   * Do NOT feed R3F's `delta` instead: R3F derives it from the shared THREE.Clock (`getDelta()` at
+   * frame start), and any `clock.getElapsedTime()` / `getDelta()` call elsewhere in a frame moves
+   * that clock's reference point, silently shortening the next delta. That starved prediction to
+   * ~7.7 inputs/s at 9 fps in the N3 play-test (should be 20/s).
+   */
+  frameNow(controls: Partial<ControlState>): void {
+    const now = this.now();
+    const dtSec = this.lastFrameAt === null ? 0 : Math.max(0, now - this.lastFrameAt) / 1000;
+    this.lastFrameAt = now;
+    this.frame(dtSec, controls);
+  }
+
+  /**
+   * Advance by an explicit frame delta (seconds) with the current combined controls. Runs fixed-step
+   * prediction (sending one `input` per 20 Hz step) and expires balls. The delta is clamped to
+   * MAX_FRAME_DT_SEC (5 ticks); time beyond that in one hitch is dropped on purpose — the server
+   * extrapolates the gap with our last input (see MAX_STEPS_PER_FRAME in prediction.ts).
    */
   frame(dtSec: number, controls: Partial<ControlState>): void {
     const now = this.now();
     this.balls.expire(this.clock.serverNow(now));
     if (this.hidden) return;
     const input = this.me?.sunk ? NEUTRAL_INPUT : controlsToInput(controls);
-    this.predictor.advance(Math.min(dtSec, 0.25), input, this.sendInputFn);
+    this.predictor.advance(Math.min(dtSec, MAX_FRAME_DT_SEC), input, this.sendInputFn);
   }
 
   /**
@@ -182,6 +202,7 @@ export class NetClient {
       this.predictor.sendOnly(NEUTRAL_INPUT, this.sendInputFn);
     } else {
       this.predictor.acc = 0;
+      this.lastFrameAt = null; // don't credit the hidden period to the first visible frame
     }
   }
 

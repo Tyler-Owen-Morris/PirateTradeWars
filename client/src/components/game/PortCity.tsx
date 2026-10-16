@@ -27,7 +27,7 @@ export function PortCity({ position, size = 200, seed = 1, cityName }: PortCityP
   // Gentle city animation (slight bob)
   useFrame(({ clock }) => {
     if (groupRef.current) {
-      const time = clock.getElapsedTime();
+      const time = clock.elapsedTime; // NOT getElapsedTime(): it calls getDelta() and steals time from R3F's frame delta
       groupRef.current.position.y = Math.sin(time * 0.2) * 1 + position[1];
     }
   });

@@ -143,7 +143,7 @@ export function Island({ position, name, size = 300, seed = 1, lowTide = false }
   // Animate the island gently for lowTide
   useFrame(({ clock }) => {
     if (meshRef.current && lowTide) {
-      const time = clock.getElapsedTime();
+      const time = clock.elapsedTime; // NOT getElapsedTime(): it calls getDelta() and steals time from R3F's frame delta
       meshRef.current.position.y = Math.sin(time * 0.2) * 3 - 5; // Gentle wave motion
     }
   });

@@ -2,7 +2,7 @@
  * Local player's ship. Movement is NOT simulated here: every frame (useFrame, priority -1 so it runs
  * before the camera and remote ships) we
  *   1. combine keyboard (drei KeyboardControls, read imperatively) + touch/HUD controls,
- *   2. call `net.frame(delta, controls)` — fixed 20 Hz prediction with the shared `stepShip`,
+ *   2. call `net.frameNow(controls)` (measures its own frame dt) — fixed 20 Hz prediction with the shared `stepShip`,
  *      sending one `input` per step (see lib/net/prediction.ts),
  *   3. write the predicted render state (interpolated + decaying error offset) to the Three group.
  * Server snapshots reconcile the prediction inside the net layer; there is no snapping here and the
@@ -32,9 +32,10 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player({ pla
   // Stable initial position so React re-renders never re-apply a stale position to the group.
   const initialPosition = useMemo<[number, number, number]>(() => [player.x, 0, player.z], []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     const controls = combineControls(getKeys() as Partial<ControlState>, controlsRef?.current);
-    net.frame(delta, controls);
+    // Own wall-clock delta, not R3F's `delta` (other code can shorten that via the shared clock).
+    net.frameNow(controls);
 
     if (!ref || !('current' in ref) || !ref.current) return;
     if (!net.predictor.initialized) return;

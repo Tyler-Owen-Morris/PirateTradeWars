@@ -105,7 +105,7 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
 
   useFrame(({ clock }) => {
     if (shipRef.current) {
-      const time = clock.getElapsedTime();
+      const time = clock.elapsedTime; // NOT getElapsedTime(): it calls getDelta() and steals time from R3F's frame delta
       const dims = SHIP_DIMENSIONS[type];
 
       if (!isPlayer) {
