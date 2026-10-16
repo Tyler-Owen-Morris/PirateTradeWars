@@ -67,7 +67,7 @@ function harness() {
 const me = (over: Partial<SelfState> = {}): SelfState => ({
   eid: 1,
   x: 100,
-  z: 100,
+  z: 100_000, // equator (z near 0 is the polar ice)
   r: 0,
   v: 0,
   hp: 50,
@@ -160,7 +160,7 @@ describe("NetClient", () => {
 
     const fired: boolean[] = [];
     h.net.on("fire", (_m, mine) => fired.push(mine));
-    s.deliver({ t: "fire", eid: 1, k: 2, balls: [[10, 100, 100, 1, 0]], spd: 15, life: 3000 });
+    s.deliver({ t: "fire", eid: 1, k: 2, balls: [[10, 100, 100_000, 1, 0]], spd: 15, life: 3000 });
     expect(fired).toEqual([true]);
     h.advance(100);
     // Own ball: drawn on the undelayed server timeline (offset = 50_000 - 1000).
@@ -176,17 +176,32 @@ describe("NetClient", () => {
     expect(hits).toEqual([false, true]);
     expect(h.net.me!.hp).toBe(40);
 
-    s.deliver({ t: "fire", eid: 2, k: 3, balls: [[11, 0, 0, 0, 1]], spd: 15, life: 3000 });
+    s.deliver({ t: "fire", eid: 2, k: 3, balls: [[11, 0, 100_000, 0, 1]], spd: 15, life: 3000 });
     // Remote ball: drawn INTERP_DELAY_MS (100) behind, like the remote ships.
     expect(h.net.balls.position(11, h.net.clock.serverNow(h.now))).toBeNull();
     h.advance(150);
-    expect(h.net.balls.position(11, h.net.clock.serverNow(h.now))!.z).toBeCloseTo(15 * 60 * 0.05, 6);
+    expect(h.net.balls.position(11, h.net.clock.serverNow(h.now))!.z).toBeCloseTo(100_000 + 15 * 60 * 0.05, 6);
     h.advance(3000);
     h.net.frame(0, {});
     expect(h.net.balls.balls.size).toBe(0); // lifetime expiry on the delayed timeline
 
     s.deliver({ t: "gone", eid: 2 });
     expect(h.net.remote.entities.size).toBe(0);
+  });
+
+  it("a splash (ball hit land) removes the ball like a hit and is emitted for rendering", () => {
+    const h = harness();
+    h.net.connect();
+    h.sockets[0].serverOpen();
+    const s = h.sockets[0];
+    s.deliver(snap(1, 50_000));
+    s.deliver({ t: "fire", eid: 1, k: 2, balls: [[30, 100, 100_000, 1, 0]], spd: 15, life: 3000 });
+    const splashes: any[] = [];
+    h.net.on("splash", (m) => splashes.push(m));
+    h.advance(100);
+    s.deliver({ t: "splash", x: 190, z: 100_000, land: 1, ball: 30 });
+    expect(splashes).toEqual([{ t: "splash", x: 190, z: 100_000, land: 1, ball: 30 }]);
+    expect(h.net.balls.balls.size).toBe(0); // own ball: removed at once
   });
 
   it("feeds the clock from snapshots and pongs, and forwards legacy messages", () => {

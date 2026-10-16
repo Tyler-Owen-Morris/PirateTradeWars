@@ -14,6 +14,7 @@ import { GOODS, DEFAULT_PORTS } from "@shared/gameConstants";
 import { trackEvent, shutdownSegment } from "../segmentClient";
 import { World, TICK_MS, type WorldEffect, type WorldPlayer } from "./world";
 import { FixedStepLoop } from "./loop";
+import { loadLandSync } from "./landLoader";
 
 export type { PlayerState, WorldPlayer } from "./world";
 export { GRACE_PERIOD, GOLD_COLLECTION_RADIUS, GOLD_OBJECT_LIFETIME } from "./world";
@@ -44,7 +45,8 @@ export function background(label: string, work: () => Promise<unknown>): void {
 }
 
 class GameState {
-  readonly world = new World();
+  /** The one world. Land tiles are loaded synchronously here, before the loop can start. */
+  readonly world = new World({ land: loadLandSync().field });
   state: { leaderboard: LeaderboardRow[] } = { leaderboard: [] };
   private loop: FixedStepLoop;
   private priceUpdateInterval: NodeJS.Timeout | null = null;

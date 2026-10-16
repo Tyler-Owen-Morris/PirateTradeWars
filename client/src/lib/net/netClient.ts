@@ -11,7 +11,10 @@
  *  - `gold`       latest gold rows (snapshot `g`, every 10th tick)
  *  - `me`         latest authoritative SelfState
  *
- * Netcode messages (`s`, `ent`, `gone`, `fire`, `hit`, `sunk`, `goldCollected`, `pong`) are handled
+ *  - `land`       optional ClientLandTiles: its LandField is the predictor's land (coast collision
+ *                 predicted like the server) and `frame` keeps the tiles around the ship loading
+ *
+ * Netcode messages (`s`, `ent`, `gone`, `fire`, `hit`, `sunk`, `splash`, `goldCollected`, `pong`) are handled
  * here; everything else (legacy `type` messages: connected, tradeSuccess, gameEnd, ...) is forwarded
  * to `onLegacyMessage` listeners. Times are local `now()` ms (performance.now by default).
  */
@@ -25,8 +28,10 @@ import {
   type SelfState,
   type SnapshotMessage,
   type SunkMessage,
+  type SplashMessage,
   type GoldCollectedMessage,
 } from "@shared/protocol";
+import type { ClientLandTiles } from "../world/landTiles";
 import { ServerClock } from "./clock";
 import { MAX_FRAME_DT_SEC, Predictor } from "./prediction";
 import { RemoteWorld } from "./interpolation";
@@ -49,6 +54,8 @@ export interface NetEvents {
   fire: (m: FireMessage, isMine: boolean) => void;
   hit: (m: HitMessage, isMe: boolean) => void;
   sunk: (m: SunkMessage, isMe: boolean) => void;
+  /** A cannonball hit land at (m.x, m.z) and was removed (render dust there). */
+  splash: (m: SplashMessage) => void;
   goldCollected: (m: GoldCollectedMessage) => void;
   /** Gold rows changed (snapshot `g`). */
   gold: (rows: GoldRow[]) => void;
@@ -59,11 +66,14 @@ type Listeners = { [K in keyof NetEvents]: Set<NetEvents[K]> };
 export interface NetClientOptions extends ConnectionOptions {
   /** Local clock in ms (default performance.now). Also used for ping `c`. */
   now?: () => number;
+  /** Land tile cache for prediction (the app passes `clientLand`); none = open ocean + ice. */
+  land?: ClientLandTiles | null;
 }
 
 export class NetClient {
   readonly clock = new ServerClock();
-  readonly predictor = new Predictor();
+  readonly predictor: Predictor;
+  readonly land: ClientLandTiles | null;
   readonly remote = new RemoteWorld();
   readonly balls = new BallSim();
   readonly conn: Connection;
@@ -87,6 +97,7 @@ export class NetClient {
     fire: new Set(),
     hit: new Set(),
     sunk: new Set(),
+    splash: new Set(),
     goldCollected: new Set(),
     gold: new Set(),
   };
@@ -97,6 +108,8 @@ export class NetClient {
   constructor(options: NetClientOptions = {}) {
     const perf = (globalThis as any).performance;
     this.now = options.now ?? (perf && typeof perf.now === "function" ? () => perf.now() : () => Date.now());
+    this.land = options.land ?? null;
+    this.predictor = this.land ? new Predictor(this.land.field) : new Predictor();
     this.conn = new Connection(
       {
         onOpen: () => this.emit("open"),
@@ -186,6 +199,7 @@ export class NetClient {
   frame(dtSec: number, controls: Partial<ControlState>): void {
     const now = this.now();
     this.balls.expire(this.clock.serverNow(now));
+    if (this.land && this.predictor.initialized) this.land.update(this.predictor.cur.x, this.predictor.cur.z);
     if (this.hidden) return;
     const input = this.me?.sunk ? NEUTRAL_INPUT : controlsToInput(controls);
     this.predictor.advance(Math.min(dtSec, MAX_FRAME_DT_SEC), input, this.sendInputFn);
@@ -260,6 +274,12 @@ export class NetClient {
           this.remote.markSunk(m.eid);
         }
         this.emit("sunk", m, isMe);
+        return;
+      }
+      case "splash": {
+        const m = msg as SplashMessage;
+        if (typeof m.ball === "number") this.balls.onHit(m.ball, this.clock.serverNow(now));
+        this.emit("splash", m);
         return;
       }
       case "goldCollected": {

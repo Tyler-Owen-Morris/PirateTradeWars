@@ -4,8 +4,9 @@
  * See client/CLIENT_CONTEXT.md "Netcode (client)".
  */
 import { NetClient } from "./netClient";
+import { clientLand } from "../world/landTiles";
 
-export const net = new NetClient();
+export const net = new NetClient({ land: clientLand });
 
 export { NetClient } from "./netClient";
 export type { NetEvents } from "./netClient";

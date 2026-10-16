@@ -1,18 +1,32 @@
 // Redis-free tests for the authoritative world core (server/game/world.ts) and the fixed-step loop.
 import { describe, it, expect } from "vitest";
-import { World, SpatialGrid, GRACE_PERIOD, type WorldPlayer } from "../world";
+import { World, SpatialGrid, GRACE_PERIOD, DEFAULT_SPAWN_CENTER, SPAWN_MIN_WATER, type WorldPlayer } from "../world";
 import { FixedStepLoop } from "../loop";
 import { FLAG_DISCONNECTED, FLAG_SUNK, GOLD_SNAPSHOT_EVERY, MAX_INPUT_QUEUE, type ServerMessage, type SnapshotMessage } from "@shared/protocol";
 import { TICK_DT } from "@shared/physics";
+import { WORLD_C, WORLD_H, WORLD_VERSION, metricDistSq, zOfLat } from "@shared/world/geo";
+import { buildSyntheticLand, type LandQuery } from "@shared/world/land";
+
+// The tests below were written for the old 10000² torus. Local coordinates (0..10000) are placed
+// near the equator (metricX ≈ 1) by X()/Z(); seam and latitude tests use raw coordinates.
+const EQ = WORLD_H / 2;
+const X = (x: number) => x + 195_000;
+const Z = (z: number) => z + EQ - 5000;
 
 const input = (s: number, th: -1 | 0 | 1 = 0, ru: -1 | 0 | 1 = 0, f: 0 | 1 = 0) => ({ t: "input" as const, s, th, ru, f });
 
-function mkWorld() {
+function mkWorld(land?: LandQuery) {
   let wall = 1_000_000;
-  return new World({ rng: () => 0.5, wallClock: () => (wall += 1) });
+  return new World({ rng: () => 0.5, wallClock: () => (wall += 1), land });
 }
 
+/** Add a player at LOCAL coordinates (see X/Z). */
 function add(w: World, id: string, x: number, z: number, extra: Partial<WorldPlayer> = {}): WorldPlayer {
+  return addRaw(w, id, X(x), Z(z), extra);
+}
+
+/** Add a player at raw world coordinates. */
+function addRaw(w: World, id: string, x: number, z: number, extra: Partial<WorldPlayer> = {}): WorldPlayer {
   const p = w.createPlayer({ id, name: id, shipType: "sloop", x, z });
   Object.assign(p, extra);
   w.attachClient(id);
@@ -148,14 +162,14 @@ describe("interest", () => {
     expect(ofType(w.buildMessages("a"), "ent")).toEqual([]);
 
     // Move b out of range → gone.
-    b.x = 4000;
+    b.x = X(4000);
     w.step();
     m = w.buildMessages("a");
     expect(ofType(m, "gone")).toEqual([{ t: "gone", eid: b.eid }]);
     expect(snap(m).e).toEqual([]);
 
     // Back in range → ent again.
-    b.x = 1200;
+    b.x = X(1200);
     w.step();
     expect(ofType(w.buildMessages("a"), "ent").length).toBe(1);
   });
@@ -174,8 +188,8 @@ describe("interest", () => {
 
   it("sees across the wrap seam", () => {
     const w = mkWorld();
-    add(w, "a", 9950, 9950);
-    const b = add(w, "b", 50, 50);
+    addRaw(w, "a", WORLD_C - 50, EQ - 50);
+    const b = addRaw(w, "b", 50, EQ + 50);
     w.step();
     const s = snap(w.buildMessages("a"));
     expect(s.e.map((r) => r[0])).toEqual([b.eid]);
@@ -184,8 +198,8 @@ describe("interest", () => {
   it("includes gold rows only every GOLD_SNAPSHOT_EVERY ticks and only nearby gold", () => {
     const w = mkWorld();
     add(w, "a", 2000, 2000);
-    w.dropGold(2300, 2000, 77);
-    w.dropGold(8000, 8000, 99);
+    w.dropGold(X(2300), Z(2000), 77);
+    w.dropGold(X(8000), Z(8000), 99);
     let withGold = 0;
     for (let i = 0; i < GOLD_SNAPSHOT_EVERY * 2; i++) {
       w.step();
@@ -270,8 +284,8 @@ describe("combat", () => {
 
   it("hits across the wrap seam", () => {
     const w = mkWorld();
-    add(w, "s", 9950, 5000);
-    const target = add(w, "t", 60, 5000);
+    addRaw(w, "s", WORLD_C - 50, EQ);
+    const target = addRaw(w, "t", 60, EQ);
     w.queueInput("s", input(1, 0, 0, 1));
     for (let i = 0; i < 10; i++) w.step();
     expect(target.hp).toBeLessThan(50);
@@ -302,7 +316,7 @@ describe("tick", () => {
       add(w, "a", 5000, 5000);
       add(w, "b", 5150, 5000, { gold: 999 });
       add(w, "c", 5000, 5600);
-      w.dropGold(5050, 5000, 5);
+      w.dropGold(X(5050), Z(5000), 5);
       return w;
     };
     const w1 = setup();
@@ -319,16 +333,37 @@ describe("tick", () => {
     }
   });
 
-  it("spatial grid queries wrap and return no duplicates", () => {
-    const g = new SpatialGrid<{ x: number; z: number }>(10000, 10000, 500);
-    const items = [{ x: 10, z: 10 }, { x: 9990, z: 9990 }, { x: 5000, z: 5000 }];
+  it("sparse spatial grid: wraps x across the seam, no duplicates, only non-empty cells stored", () => {
+    const g = new SpatialGrid<{ x: number; z: number }>(500);
+    const items = [{ x: 10, z: EQ + 10 }, { x: WORLD_C - 10, z: EQ - 10 }, { x: 5000, z: EQ }];
     items.forEach((i) => g.insert(i));
-    const out = g.query(0, 0, 100, []);
+    expect(g.cellCount).toBe(3);
+    const out = g.query(0, EQ, 100, []);
     expect(out).toContain(items[0]);
     expect(out).toContain(items[1]);
     expect(out).not.toContain(items[2]);
-    const all = g.query(0, 0, 100000, []);
+    const all = g.query(0, EQ, 300000, []);
     expect(all.length).toBe(3);
+    g.clear();
+    expect(g.cellCount).toBe(0);
+    expect(g.query(0, EQ, 300000, []).length).toBe(0);
+  });
+
+  it("sparse spatial grid widens the x span at high latitude (metric radius)", () => {
+    const g = new SpatialGrid<{ x: number; z: number }>(500);
+    const z65 = zOfLat(65); // metricX ≈ 0.423
+    // 2300 coordinate units east = ~972 metric: inside a metric radius of 1000
+    const near = { x: 100_000 + 2300, z: z65 };
+    const far = { x: 100_000 + 2600, z: z65 }; // ~1099 metric
+    g.insert(near);
+    g.insert(far);
+    const out = g.query(100_000, z65, 1000, []);
+    expect(out).toContain(near);
+    expect(metricDistSq(100_000, z65, near.x, near.z)).toBeLessThan(1000 * 1000);
+    // ... and across the seam at high latitude
+    const seam = { x: 900, z: zOfLat(-68) };
+    g.insert(seam);
+    expect(g.query(WORLD_C - 1000, zOfLat(-68), 1000, [])).toContain(seam);
   });
 
   it("FixedStepLoop runs whole steps from the accumulator and caps catch-up at 5", () => {
@@ -353,14 +388,25 @@ describe("tick", () => {
   //  - spread over the whole 10000² map (what the live game looks like) → asserted < 10 ms;
   //  - all 300 packed into 4000² (each client sees ~190 ships; ~5.5 KB/client/tick) → printed,
   //    asserted only loosely, as a worst case.
+  // A land field is active: islands scattered over the area, so ships hit coasts and balls splash.
+  const CENTER = { x: 200_000, z: zOfLat(20) };
+  const islands = buildSyntheticLand(
+    Array.from({ length: 12 }, (_, i) => ({
+      kind: "circle" as const,
+      x: CENTER.x - 4000 + (i % 4) * 2600,
+      z: CENTER.z - 3000 + Math.floor(i / 4) * 3000,
+      r: 300 + (i % 3) * 150,
+    })),
+  ).field;
   function budget(spread: number) {
-    const w = new World({ rng: Math.random });
+    const w = new World({ rng: Math.random, land: islands });
     let seq = 0;
     const ids: string[] = [];
     for (let i = 0; i < 300; i++) {
       const id = `p${i}`;
       ids.push(id);
-      w.createPlayer({ id, name: id, shipType: i % 2 ? "galleon" : "sloop", x: 3000 + Math.random() * spread, z: 3000 + Math.random() * spread });
+      const at = w.spawnPoint(CENTER, spread / 2);
+      w.createPlayer({ id, name: id, shipType: i % 2 ? "galleon" : "sloop", x: at.x, z: at.z });
       w.attachClient(id);
     }
     const run = (n: number) => {
@@ -385,7 +431,7 @@ describe("tick", () => {
     const { avg, bytesPerClientTick } = run(100);
     // eslint-disable-next-line no-console
     console.log(
-      `[budget] 300 ships in ${spread}x${spread}: avg ${avg.toFixed(2)} ms/tick (step + frames for all clients), ` +
+      `[budget] 300 ships in ${spread}x${spread} (land on): avg ${avg.toFixed(2)} ms/tick (step + frames for all clients), ` +
         `~${Math.round(bytesPerClientTick)} B/client/tick, ${w.balls.length} balls live`,
     );
     return avg;
@@ -398,5 +444,107 @@ describe("tick", () => {
 
   it("300 ships packed in 4000x4000 (worst case): full tick printed, < 50 ms", () => {
     expect(budget(4000)).toBeLessThan(50);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Wrapping Earth: land, splash, spawn, restore, latitude (WORLD_SPEC §3, §4.3)
+// ---------------------------------------------------------------------------------------------
+
+describe("world on the wrapping Earth", () => {
+  const ISLAND = { x: 150_000, z: EQ, r: 1500 };
+  const island = () => buildSyntheticLand([{ kind: "circle", ...ISLAND }]).field;
+
+  it("a ball that hits land is removed with a splash event (no hit)", () => {
+    const land = island();
+    const w = mkWorld(land);
+    // rotationY 0 → broadside +x, straight at the island 300 units away.
+    const s = addRaw(w, "s", ISLAND.x - ISLAND.r - 300, EQ);
+    const far = addRaw(w, "far", ISLAND.x - ISLAND.r - 300, EQ + 5000);
+    w.queueInput("s", input(1, 0, 0, 1));
+    w.step();
+    const ballId = ofType(w.buildMessages("s"), "fire")[0].balls[0][0];
+    w.buildMessages("far");
+    let splash: any = null;
+    for (let i = 0; i < 20 && !splash; i++) {
+      w.step();
+      splash = ofType(w.buildMessages("s"), "splash")[0] ?? null;
+      expect(ofType(w.buildMessages("far"), "splash")).toEqual([]); // out of interest
+    }
+    expect(splash).toMatchObject({ t: "splash", land: 1, ball: ballId });
+    expect(land.distance(splash.x, splash.z)).toBeLessThan(5);
+    expect(Math.abs(splash.x - (ISLAND.x - ISLAND.r))).toBeLessThan(60);
+    expect(w.balls.length).toBe(0);
+    expect(s.hp).toBe(50);
+    expect(far.hp).toBe(50);
+  });
+
+  it("balls splash on the polar ice too", () => {
+    const w = mkWorld();
+    addRaw(w, "s", 5000, 22_500, { rotationY: Math.PI / 2 }); // broadside = rotationY + π/2 → −z (north)
+    w.queueInput("s", input(1, 0, 0, 1));
+    let splashes = 0;
+    for (let i = 0; i < 20; i++) {
+      w.step();
+      splashes += ofType(w.buildMessages("s"), "splash").length;
+    }
+    expect(splashes).toBe(1);
+  });
+
+  it("ships sail into land without damage and without penetrating (world passes land to stepShip)", () => {
+    const land = island();
+    const w = mkWorld(land);
+    const p = addRaw(w, "a", ISLAND.x - ISLAND.r - 400, EQ, { rotationY: -Math.PI / 2 }); // heading east
+    for (let s = 1; s <= 200; s++) {
+      w.queueInput("a", input(s, 1, s % 40 < 20 ? 1 : 0));
+      w.step();
+      expect(land.distance(p.x, p.z)).toBeGreaterThan(p.physics.hullRadius - 2);
+    }
+    expect(p.hp).toBe(50);
+  });
+
+  it("spawnPoint only returns water with distance > SPAWN_MIN_WATER; default spawn is the Caribbean", () => {
+    // Land right on the spawn centre: most jittered candidates are rejected.
+    const land = buildSyntheticLand([{ kind: "circle", x: DEFAULT_SPAWN_CENTER.x, z: DEFAULT_SPAWN_CENTER.z, r: 4000 }]).field;
+    const w = new World({ land, rng: Math.random });
+    for (let i = 0; i < 100; i++) {
+      const sp = w.spawnPoint();
+      expect(land.distance(sp.x, sp.z)).toBeGreaterThan(SPAWN_MIN_WATER);
+      expect(metricDistSq(sp.x, sp.z, DEFAULT_SPAWN_CENTER.x, DEFAULT_SPAWN_CENTER.z)).toBeLessThan(2 * 5000 * 5000 + 1);
+    }
+    const p = w.createPlayer({ id: "n", name: "n", shipType: "sloop" });
+    expect(land.distance(p.x, p.z)).toBeGreaterThan(SPAWN_MIN_WATER);
+    expect(p.worldVersion).toBe(WORLD_VERSION);
+  });
+
+  it("restorePlayer relocates old-torus records and positions on land; keeps valid ones", () => {
+    const land = island();
+    const w = mkWorld(land);
+    const old = w.restorePlayer({ id: "old", name: "old", shipType: "sloop", x: 1234, z: 5678 }); // no worldVersion
+    expect(metricDistSq(old.x, old.z, DEFAULT_SPAWN_CENTER.x, DEFAULT_SPAWN_CENTER.z)).toBeLessThan(2 * 5000 * 5000 + 1);
+    expect(old.worldVersion).toBe(WORLD_VERSION);
+    const ok = w.restorePlayer({ id: "ok", name: "ok", shipType: "sloop", x: 123_456, z: EQ + 10, worldVersion: WORLD_VERSION });
+    expect([ok.x, ok.z]).toEqual([123_456, EQ + 10]);
+    const onLand = w.restorePlayer({ id: "l", name: "l", shipType: "sloop", x: ISLAND.x, z: ISLAND.z, worldVersion: WORLD_VERSION });
+    expect(land.distance(onLand.x, onLand.z)).toBeGreaterThan(SPAWN_MIN_WATER);
+  });
+
+  it("interest uses metric distance: wider in x coordinates at high latitude", () => {
+    const w = mkWorld();
+    const z65 = zOfLat(65); // metricX ≈ 0.4226; interest radius 2000 metric ≈ 4732 coordinate x
+    addRaw(w, "a", 100_000, z65);
+    const near = addRaw(w, "b", 104_500, z65); // ≈ 1902 metric
+    addRaw(w, "c", 105_000, z65); // ≈ 2113 metric
+    w.step();
+    expect(snap(w.buildMessages("a")).e.map((r) => r[0])).toEqual([near.eid]);
+  });
+
+  it("gold pickup radius is metric", () => {
+    const w = mkWorld();
+    const z60 = zOfLat(60);
+    const p = addRaw(w, "a", 100_000, z60);
+    w.dropGold(100_000 + 90, z60, 10); // 90 coordinate units = 45 metric < 50
+    w.step();
+    expect(ofType(w.buildMessages("a"), "goldCollected")).toEqual([{ t: "goldCollected", gold: 10, newTotalGold: p.gold }]);
   });
 });

@@ -11,6 +11,7 @@ import {
   smoothingFactor,
 } from "../cameraFollow";
 
+// Generic ring-size test (the class takes the ring size; W3 reworks the camera for the floating origin).
 const W = 10000;
 const SPEED = 240; // sloop top speed, units/s (4 u per 1/60 s)
 
@@ -33,7 +34,7 @@ describe("CameraFollow", () => {
   });
 
   it("snaps onto the ship on the first update and after requestSnap()", () => {
-    const f = new CameraFollow();
+    const f = new CameraFollow(W, W);
     f.update(1234, 5678, 0, 0.016);
     expect(f.focus).toMatchObject({ x: 1234, z: 5678 });
     expect(f.cam).toMatchObject({ x: 1234, y: CAMERA_OFFSET.y, z: 5678 + CAMERA_OFFSET.z });
@@ -44,7 +45,7 @@ describe("CameraFollow", () => {
   });
 
   it("snaps when the ship is > 500 u away (reconnect), wrap-aware", () => {
-    const f = new CameraFollow();
+    const f = new CameraFollow(W, W);
     f.update(100, 100, 0, 0.016);
     f.update(4000, 100, 0, 0.016);
     expect(f.focus.x).toBe(4000);
@@ -59,7 +60,7 @@ describe("CameraFollow", () => {
   });
 
   it("keeps the ship in view at 9 fps with hitches: focus lag ≤ MAX_FOCUS_ERROR", () => {
-    const f = new CameraFollow();
+    const f = new CameraFollow(W, W);
     let x = 1000;
     f.update(x, 500, Math.PI / 2, 0);
     const dts = [0.111, 0.111, 0.6, 0.111, 0.35, 0.111, 0.111, 0.25, 0.111];
@@ -77,7 +78,7 @@ describe("CameraFollow", () => {
 
   it("is frame-rate independent: 60 fps and 10 fps end at nearly the same lag", () => {
     const run = (fps: number) => {
-      const f = new CameraFollow();
+      const f = new CameraFollow(W, W);
       let x = 1000;
       f.update(x, 500, 0, 0);
       const dt = 1 / fps;

@@ -1,7 +1,11 @@
-// World-related constants
-export const MAP_WIDTH = 10000;
-export const MAP_HEIGHT = 10000;
-export const PORT_INTERACTION_RADIUS = 200;
+import { WORLD_C, WORLD_H } from "./world/geo";
+
+// World-related constants (wrapping Earth, docs/world/WORLD_SPEC.md §2). x wraps in [0, MAP_WIDTH);
+// z in [0, MAP_HEIGHT] does NOT wrap (polar ice). Gameplay distances use metricDistSq (world/geo.ts).
+export const MAP_WIDTH = WORLD_C;
+export const MAP_HEIGHT = WORLD_H;
+/** Trade/upgrade/repair allowed within this METRIC distance of a port's dock (WORLD_SPEC §5). */
+export const PORT_INTERACTION_RADIUS = 300;
 
 // Minimap constants
 export const MINIMAP_SIZE = 200; // Size in pixels

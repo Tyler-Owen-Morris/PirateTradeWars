@@ -27,13 +27,16 @@ import {
   type ShipKinematics,
 } from "@shared/physics";
 import { MAP_WIDTH, SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
+import { WORLD_C, WORLD_H, metricX, zOfLat } from "@shared/world/geo";
 
 const W: ShipInput = { th: 1, ru: 0, f: 0 };
 const S: ShipInput = { th: -1, ru: 0, f: 0 };
 const LEFT: ShipInput = { th: 0, ru: 1, f: 0 };
 const RIGHT: ShipInput = { th: 0, ru: -1, f: 0 };
 const sloop = shipPhysicsStats(SHIP_TYPES.SLOOP);
-const start: ShipKinematics = { x: 5000, z: 5000, rotationY: 0, velocity: 0 };
+// On the equator (metricX = 1), mid-ocean.
+const EQ = WORLD_H / 2;
+const start: ShipKinematics = { x: 200000, z: EQ, rotationY: 0, velocity: 0 };
 
 function run(state: ShipKinematics, inputs: ShipInput[], stats = sloop): ShipKinematics {
   return inputs.reduce((s, i) => stepShip(s, i, stats), state);
@@ -133,20 +136,38 @@ describe("stepShip", () => {
 
   it("forward (negative velocity) at rotationY=0 moves toward -z by |v| per frame", () => {
     const s = stepShip({ ...start, velocity: -4 }, W, sloop);
-    expect(s.x).toBeCloseTo(5000, 9);
-    expect(s.z).toBeCloseTo(5000 - 12, 9);
+    expect(s.x).toBeCloseTo(200000, 9);
+    expect(s.z).toBeCloseTo(EQ - 12, 9);
   });
 
-  it("wraps across the map edges", () => {
-    // heading (sin(-π/2), cos(-π/2)) = (-1, 0); negative velocity → +x
-    const s = stepShip({ x: MAP_WIDTH - 5, z: 10, rotationY: -Math.PI / 2, velocity: -4 }, W, sloop);
+  it("wraps x across the seam; z does not wrap", () => {
+    expect(MAP_WIDTH).toBe(WORLD_C);
+    // heading (sin(-π/2), cos(-π/2)) = (-1, 0); negative velocity → +x (east)
+    const s = stepShip({ x: WORLD_C - 5, z: EQ, rotationY: -Math.PI / 2, velocity: -4 }, W, sloop);
     expect(s.x).toBeCloseTo(7, 6);
-    const s2 = stepShip({ x: 50, z: 3, rotationY: 0, velocity: -4 }, W, sloop);
-    expect(s2.z).toBeCloseTo(MAP_WIDTH - 9, 6);
-    for (const v of [s.x, s.z, s2.x, s2.z]) {
-      expect(v).toBeGreaterThanOrEqual(0);
-      expect(v).toBeLessThan(MAP_WIDTH);
-    }
+    expect(s.x).toBeGreaterThanOrEqual(0);
+    expect(s.x).toBeLessThan(WORLD_C);
+    // west across the seam the other way
+    const w = stepShip({ x: 3, z: EQ, rotationY: Math.PI / 2, velocity: -4 }, W, sloop);
+    expect(w.x).toBeCloseTo(WORLD_C - 9, 6);
+    // z is clamped, never wrapped (only reachable without a land field; the ice stops ships)
+    const n = stepShip({ x: 50, z: 3, rotationY: 0, velocity: -4 }, W, sloop);
+    expect(n.z).toBe(0);
+  });
+
+  it("metric motion: heading east at lat 60 advances x twice as fast in coordinates", () => {
+    const z60 = zOfLat(60);
+    expect(metricX(z60)).toBeCloseTo(0.5, 12);
+    const east = { rotationY: -Math.PI / 2, velocity: -4 };
+    const eq = run({ x: 1000, z: EQ, ...east }, repeat(W, 20));
+    const hi = run({ x: 1000, z: z60, ...east }, repeat(W, 20));
+    expect(eq.z).toBeCloseTo(EQ, 9);
+    expect(hi.z).toBeCloseTo(z60, 9);
+    expect(hi.x - 1000).toBeCloseTo(2 * (eq.x - 1000), 6);
+    // north/south speed is unchanged by latitude
+    const nEq = run({ x: 1000, z: EQ, rotationY: 0, velocity: -4 }, repeat(W, 20));
+    const nHi = run({ x: 1000, z: z60, rotationY: 0, velocity: -4 }, repeat(W, 20));
+    expect(EQ - nEq.z).toBeCloseTo(z60 - nHi.z, 9);
   });
 
   it("clamps malformed input values", () => {
@@ -179,9 +200,9 @@ describe("wrap helpers", () => {
     expect(Math.abs(wrappedDelta(0, 5000, 10000))).toBe(5000);
   });
 
-  it("wrappedDistSq is seam-aware", () => {
-    expect(wrappedDistSq(9995, 9995, 5, 5)).toBeCloseTo(200, 9);
-    expect(wrappedDistSq(0, 0, 3, 4)).toBe(25);
+  it("wrappedDistSq (deprecated) is the metric, x-seam-aware distance", () => {
+    expect(wrappedDistSq(WORLD_C - 5, EQ, 5, EQ + 10)).toBeCloseTo(200, 4);
+    expect(wrappedDistSq(0, EQ, 3, EQ + 4)).toBeCloseTo(25, 6);
   });
 
   it("lerpWrapped interpolates across the seam", () => {
@@ -210,7 +231,7 @@ describe("cannonballs", () => {
   });
 
   it("spawnBroadside: count, spread and offset identical to old fireCannonBall", () => {
-    const ship = { x: 1000, z: 2000, rotationY: 0.3 };
+    const ship = { x: 1000, z: EQ, rotationY: 0.3 }; // equator: metric offsets == coordinate offsets
     for (let n = 1; n <= 5; n++) {
       const balls = spawnBroadside(ship, n);
       expect(balls).toHaveLength(n);
@@ -218,7 +239,7 @@ describe("cannonballs", () => {
         const angle = ship.rotationY + Math.PI / 2 + (i - (n - 1) / 2) * BALL_SPREAD;
         expect(b.dx).toBeCloseTo(Math.sin(angle), 12);
         expect(b.dz).toBeCloseTo(Math.cos(angle), 12);
-        expect(b.x).toBeCloseTo(ship.x + Math.sin(angle) * BALL_SPAWN_OFFSET, 9);
+        expect(b.x).toBeCloseTo(ship.x + Math.sin(angle) * BALL_SPAWN_OFFSET, 6);
         expect(b.z).toBeCloseTo(ship.z + Math.cos(angle) * BALL_SPAWN_OFFSET, 9);
       });
       if (n > 1) {
@@ -231,48 +252,62 @@ describe("cannonballs", () => {
   });
 
   it("spawn positions wrap", () => {
-    const [b] = spawnBroadside({ x: 9995, z: 500, rotationY: 0 }, 1); // broadside points +x
+    const [b] = spawnBroadside({ x: WORLD_C - 5, z: EQ, rotationY: 0 }, 1); // broadside points +x
     expect(b.x).toBeCloseTo(5, 9);
   });
 
-  it("ballPositionAt is analytic and matches stepBall", () => {
-    const ball = { x: 100, z: 100, dx: 1, dz: 0 };
+  it("spawn offset is metric (x offset doubles at lat 60)", () => {
+    const [b] = spawnBroadside({ x: 1000, z: zOfLat(60), rotationY: 0 }, 1);
+    expect(b.x).toBeCloseTo(1000 + 2 * BALL_SPAWN_OFFSET, 6);
+  });
+
+  it("ballPositionAt is analytic and matches stepBall (also on a diagonal across latitudes)", () => {
+    const ball = { x: 100, z: EQ, dx: 1, dz: 0 };
     expect(ballPositionAt(ball, 1).x).toBeCloseTo(100 + 900, 9);
-    let pos = { x: ball.x, z: ball.z };
-    for (let i = 0; i < 20; i++) pos = stepBall(pos, ball, TICK_DT);
-    const analytic = ballPositionAt(ball, 20 * TICK_DT);
-    expect(pos.x).toBeCloseTo(analytic.x, 6);
-    expect(pos.z).toBeCloseTo(analytic.z, 6);
+    for (const b of [ball, { x: 5000, z: zOfLat(55), dx: Math.SQRT1_2, dz: -Math.SQRT1_2 }]) {
+      let pos = { x: b.x, z: b.z };
+      for (let i = 0; i < 60; i++) pos = stepBall(pos, b, TICK_DT);
+      const analytic = ballPositionAt(b, 60 * TICK_DT);
+      expect(pos.x).toBeCloseTo(analytic.x, 4);
+      expect(pos.z).toBeCloseTo(analytic.z, 6);
+    }
     // wraps
-    expect(ballPositionAt({ x: 9900, z: 0, dx: 1, dz: 0 }, 1).x).toBeCloseTo(800, 6);
+    expect(ballPositionAt({ x: WORLD_C - 100, z: EQ, dx: 1, dz: 0 }, 1).x).toBeCloseTo(800, 6);
+    // metric: due east at lat 60 covers 2x the coordinates
+    expect(ballPositionAt({ x: 0, z: zOfLat(60), dx: 1, dz: 0 }, 1).x).toBeCloseTo(1800, 6);
   });
 });
 
-describe("segmentHitsCircle", () => {
+describe("segmentHitsCircle (metric)", () => {
+  const Z = EQ; // equator: metric == coordinates
   it("hits when the segment passes through the circle", () => {
-    expect(segmentHitsCircle(0, 100, 200, 100, 100, 110, 20)).toBe(true);
+    expect(segmentHitsCircle(0, Z, 200, Z, 100, Z + 10, 20)).toBe(true);
   });
   it("misses when the segment passes beside it", () => {
-    expect(segmentHitsCircle(0, 100, 200, 100, 100, 130, 20)).toBe(false);
+    expect(segmentHitsCircle(0, Z, 200, Z, 100, Z + 30, 20)).toBe(false);
   });
   it("misses when the circle is beyond the segment end", () => {
-    expect(segmentHitsCircle(0, 100, 50, 100, 100, 100, 20)).toBe(false);
+    expect(segmentHitsCircle(0, Z, 50, Z, 100, Z, 20)).toBe(false);
   });
   it("hits when the whole segment is inside the circle", () => {
-    expect(segmentHitsCircle(98, 100, 102, 100, 100, 100, 20)).toBe(true);
+    expect(segmentHitsCircle(98, Z, 102, Z, 100, Z, 20)).toBe(true);
   });
   it("hits a zero-length segment inside the circle", () => {
-    expect(segmentHitsCircle(105, 100, 105, 100, 100, 100, 20)).toBe(true);
+    expect(segmentHitsCircle(105, Z, 105, Z, 100, Z, 20)).toBe(true);
   });
   it("hits across the seam (segment wraps)", () => {
-    // ball moves from x=9990 to x=15 (wrapped), ship sits at x=2
-    expect(segmentHitsCircle(9990, 500, 15, 500, 2, 505, 20)).toBe(true);
+    // ball moves from x=C-10 to x=15 (wrapped), ship sits at x=2
+    expect(segmentHitsCircle(WORLD_C - 10, Z, 15, Z, 2, Z + 5, 20)).toBe(true);
   });
   it("hits across the seam (ship on the other side)", () => {
-    expect(segmentHitsCircle(5, 500, 40, 500, 9995, 500, 20)).toBe(true);
-    expect(segmentHitsCircle(500, 9995, 500, 9960, 500, 5, 20)).toBe(true);
+    expect(segmentHitsCircle(5, Z, 40, Z, WORLD_C - 5, Z, 20)).toBe(true);
   });
   it("does not hit a far-away mirror image", () => {
-    expect(segmentHitsCircle(5, 500, 40, 500, 5000, 500, 20)).toBe(false);
+    expect(segmentHitsCircle(5, Z, 40, Z, 5000, Z, 20)).toBe(false);
+  });
+  it("uses metric x: at lat 60 a 30-coordinate x gap is only 15 metric units", () => {
+    const z60 = zOfLat(60);
+    expect(segmentHitsCircle(100, z60 - 50, 100, z60 + 50, 130, z60, 20)).toBe(true);
+    expect(segmentHitsCircle(100, z60 - 50, 100, z60 + 50, 145, z60, 20)).toBe(false);
   });
 });

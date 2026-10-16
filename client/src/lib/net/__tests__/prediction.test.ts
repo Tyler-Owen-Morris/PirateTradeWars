@@ -9,9 +9,13 @@ import {
 } from "@shared/physics";
 import { MAP_WIDTH } from "@shared/gameConstants";
 import type { InputMessage } from "@shared/protocol";
+import { WORLD_C, WORLD_H, rotationForHeading } from "@shared/world/geo";
+import { ALWAYS_WATER_TEST_FIELD, buildSyntheticLand, type LandQuery } from "@shared/world/land";
 import { Predictor } from "../prediction";
 
 const stats = shipPhysicsStats("sloop");
+/** Equator (z near 0 is polar ice). */
+const EQ = WORLD_H / 2;
 
 /** Deterministic input script: ahead, turning left for a while, then right, then reverse. */
 function scriptedInput(i: number): ShipInput {
@@ -39,7 +43,7 @@ class FakeServer {
   nudgeAtTick: number | null = null;
   nudge = { x: 0, z: 0 };
   tickNo = 0;
-  constructor(start: ShipKinematics) {
+  constructor(start: ShipKinematics, readonly land: LandQuery = ALWAYS_WATER_TEST_FIELD) {
     this.state = { ...start };
   }
   receive(m: InputMessage) {
@@ -52,7 +56,7 @@ class FakeServer {
       this.lastSeq = m.s;
       this.lastInput = { th: m.th, ru: m.ru, f: m.f };
     }
-    this.state = stepShip(this.state, m ? this.lastInput : { ...this.lastInput, f: 0 }, stats);
+    this.state = stepShip(this.state, m ? this.lastInput : { ...this.lastInput, f: 0 }, stats, this.land);
     if (this.nudgeAtTick === this.tickNo) {
       this.state = { ...this.state, x: this.state.x + this.nudge.x, z: this.state.z + this.nudge.z };
     }
@@ -102,7 +106,7 @@ describe("Predictor", () => {
 
   it("runs fixed 20 Hz steps with an accumulator and sends one input per step with increasing seq", () => {
     const p = new Predictor();
-    p.reconcile({ x: 100, z: 100, r: 0, v: 0, shipType: "sloop" }, 0);
+    p.reconcile({ x: 100, z: EQ, r: 0, v: 0, shipType: "sloop" }, 0);
     const sent: InputMessage[] = [];
     // 10 frames of 16 ms = 160 ms → 3 steps (150 ms), 10 ms left over
     for (let i = 0; i < 10; i++) p.advance(0.016, { th: 1, ru: 1, f: 1 }, (m) => sent.push(m));
@@ -110,25 +114,25 @@ describe("Predictor", () => {
     expect(sent[0]).toEqual({ t: "input", s: 1, th: 1, ru: 1, f: 1 });
     expect(p.pending).toHaveLength(3);
     expect(p.acc).toBeCloseTo(0.01, 6);
-    let expected: ShipKinematics = { x: 100, z: 100, rotationY: 0, velocity: 0 };
+    let expected: ShipKinematics = { x: 100, z: EQ, rotationY: 0, velocity: 0 };
     for (let i = 0; i < 3; i++) expected = stepShip(expected, { th: 1, ru: 1, f: 1 }, stats);
     expect(p.cur).toEqual(expected);
   });
 
   it("a = -1 (nothing applied yet) replays every pending input", () => {
     const p = new Predictor();
-    p.reconcile({ x: 500, z: 500, r: 0, v: 0, shipType: "sloop" }, -1);
+    p.reconcile({ x: 500, z: EQ, r: 0, v: 0, shipType: "sloop" }, -1);
     p.advance(TICK_DT * 2 + 1e-9, { th: 1, ru: 0, f: 0 }, () => {});
-    p.reconcile({ x: 500, z: 500, r: 0, v: 0, shipType: "sloop" }, -1);
+    p.reconcile({ x: 500, z: EQ, r: 0, v: 0, shipType: "sloop" }, -1);
     expect(p.pending).toHaveLength(2);
-    let e: ShipKinematics = { x: 500, z: 500, rotationY: 0, velocity: 0 };
+    let e: ShipKinematics = { x: 500, z: EQ, rotationY: 0, velocity: 0 };
     e = stepShip(stepShip(e, { th: 1, ru: 0, f: 0 }, stats), { th: 1, ru: 0, f: 0 }, stats);
     expect(p.cur.z).toBeCloseTo(e.z, 9);
   });
 
   it("reconcile drops acked inputs and replays the rest on top of the server state", () => {
     const p = new Predictor();
-    p.reconcile({ x: 500, z: 500, r: 0, v: 0, shipType: "sloop" }, 0);
+    p.reconcile({ x: 500, z: EQ, r: 0, v: 0, shipType: "sloop" }, 0);
     const inputs: ShipInput[] = [
       { th: 1, ru: 0, f: 0 },
       { th: 1, ru: 1, f: 0 },
@@ -137,7 +141,7 @@ describe("Predictor", () => {
     ];
     for (const inp of inputs) p.advance(TICK_DT, inp, () => {});
     // Server has processed the first two.
-    let server: ShipKinematics = { x: 500, z: 500, rotationY: 0, velocity: 0 };
+    let server: ShipKinematics = { x: 500, z: EQ, rotationY: 0, velocity: 0 };
     server = stepShip(server, inputs[0], stats);
     server = stepShip(server, inputs[1], stats);
     p.reconcile({ x: server.x, z: server.z, r: server.rotationY, v: server.velocity, shipType: "sloop" }, 2);
@@ -152,7 +156,7 @@ describe("Predictor", () => {
   });
 
   it("converges with the server's stepShip under latency (no corrections when physics agree)", () => {
-    const start = { x: 9900, z: 50, rotationY: 0.3, velocity: 0 }; // near the seam
+    const start = { x: WORLD_C - 100, z: EQ, rotationY: 0.3, velocity: 0 }; // near the x seam
     const server = new FakeServer(start);
     const client = new Predictor();
     client.reconcile({ x: start.x, z: start.z, r: start.rotationY, v: 0, shipType: "sloop" }, 0);
@@ -181,7 +185,7 @@ describe("Predictor", () => {
   });
 
   it("absorbs a small server correction into a decaying visual error (no pop)", () => {
-    const start = { x: 1000, z: 1000, rotationY: 0, velocity: 0 };
+    const start = { x: 1000, z: EQ, rotationY: 0, velocity: 0 };
     const server = new FakeServer(start);
     server.nudgeAtTick = 40;
     server.nudge = { x: 30, z: 0 };
@@ -212,7 +216,7 @@ describe("Predictor", () => {
         const after = client.getRenderState();
         // Reconciliation itself never moves the rendered ship.
         expect(Math.abs(wrappedDelta(before.x, after.x, MAP_WIDTH))).toBeLessThan(1e-6);
-        expect(Math.abs(wrappedDelta(before.z, after.z, MAP_WIDTH))).toBeLessThan(1e-6);
+        expect(Math.abs(before.z - after.z)).toBeLessThan(1e-6);
       }
     }
     expect(client.snaps).toBe(0);
@@ -226,11 +230,40 @@ describe("Predictor", () => {
     expect(client.cur.x).toBeCloseTo(server.state.x, 6);
   });
 
+  it("prediction == server with a land field: identical coast slides, no corrections", () => {
+    // A straight north-south coast the scripted ship runs into and slides along.
+    const coast = buildSyntheticLand([{ kind: "rect", x0: 50_300, z0: EQ - 20_000, x1: 60_000, z1: EQ + 20_000 }]).field;
+    const start = { x: 50_000, z: EQ, rotationY: rotationForHeading(80), velocity: 0 };
+    const server = new FakeServer(start, coast);
+    const client = new Predictor(coast);
+    client.reconcile({ x: start.x, z: start.z, r: start.rotationY, v: 0, shipType: "sloop" }, 0);
+    let maxErr = 0;
+    let contacts = 0;
+    simulate({
+      ticks: 120,
+      latencyTicks: 3,
+      server,
+      client,
+      onTick: () => {
+        maxErr = Math.max(maxErr, Math.hypot(client.errX, client.errZ));
+        if (coast.distance(server.state.x, server.state.z) < stats.hullRadius + 1) contacts++;
+      },
+    });
+    expect(contacts).toBeGreaterThan(5); // the run actually touched the coast
+    expect(client.snaps).toBe(0);
+    expect(maxErr).toBeLessThan(1e-6);
+    let truth: ShipKinematics = { ...start };
+    for (let i = 0; i < client.seq; i++) truth = stepShip(truth, scriptedInput(i), stats, coast);
+    expect(client.cur.x).toBeCloseTo(truth.x, 9);
+    expect(client.cur.z).toBeCloseTo(truth.z, 9);
+    expect(coast.distance(client.cur.x, client.cur.z)).toBeGreaterThan(stats.hullRadius - 2);
+  });
+
   it("hard-snaps when the error exceeds SNAP_ERROR_DISTANCE", () => {
     const p = new Predictor();
-    p.reconcile({ x: 1000, z: 1000, r: 0, v: 0, shipType: "sloop" }, 0);
+    p.reconcile({ x: 1000, z: EQ, r: 0, v: 0, shipType: "sloop" }, 0);
     p.advance(TICK_DT, { th: 0, ru: 0, f: 0 }, () => {});
-    p.reconcile({ x: 1500, z: 1000, r: 0, v: 0, shipType: "sloop" }, 1);
+    p.reconcile({ x: 1500, z: EQ, r: 0, v: 0, shipType: "sloop" }, 1);
     expect(p.snaps).toBe(1);
     const r = p.getRenderState();
     expect(r.x).toBeCloseTo(1500, 6);
@@ -239,7 +272,7 @@ describe("Predictor", () => {
 
   it("render state interpolates between the last two predicted steps", () => {
     const p = new Predictor();
-    p.reconcile({ x: 1000, z: 1000, r: 0, v: -4, shipType: "sloop" }, 0);
+    p.reconcile({ x: 1000, z: EQ, r: 0, v: -4, shipType: "sloop" }, 0);
     p.advance(TICK_DT, { th: 1, ru: 0, f: 0 }, () => {});
     p.advance(TICK_DT / 2, { th: 1, ru: 0, f: 0 }, () => {});
     const r = p.getRenderState();
@@ -249,11 +282,11 @@ describe("Predictor", () => {
 
   it("restarts seq at 1 and clears pending on reset (server resets seq per connection)", () => {
     const p = new Predictor();
-    p.reconcile({ x: 0, z: 0, r: 0, v: 0 }, 0);
+    p.reconcile({ x: 0, z: EQ, r: 0, v: 0 }, 0);
     p.advance(TICK_DT * 2, { th: 0, ru: 0, f: 0 }, () => {});
     p.reset();
     expect(p.pending).toHaveLength(0);
-    p.reconcile({ x: 0, z: 0, r: 0, v: 0 }, 0);
+    p.reconcile({ x: 0, z: EQ, r: 0, v: 0 }, 0);
     const sent: InputMessage[] = [];
     p.advance(TICK_DT, { th: 0, ru: 0, f: 0 }, (m) => sent.push(m));
     expect(sent[0].s).toBe(1);

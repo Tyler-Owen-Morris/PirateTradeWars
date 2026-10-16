@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { type User, type Player as SharedPlayer, type ShipType, type Port, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
 import { PlayerState } from '@/types';
 import { SHIP_STATS } from '@shared/gameConstants';
-import { set } from 'node_modules/cypress/types/lodash';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -469,7 +468,10 @@ export class RedisStorage {
             cannonCount: player.cannonCount.toString(),
             lastSeen: player.lastSeen.toString(),
             dead: player.dead.toString(),
-            playerTTL: player.playerTTL.toString()
+            playerTTL: player.playerTTL.toString(),
+            // Coordinate-system version (shared/world/geo.ts WORLD_VERSION); restorePlayer relocates
+            // records without it (old 10000x10000 torus positions). W4 owns the full migration.
+            worldVersion: String((player as any).worldVersion ?? '')
         };
 
         return serialized;
@@ -541,6 +543,9 @@ export class RedisStorage {
         ) {
             throw new Error('Invalid numeric fields in deserialized player');
         }
+
+        // Optional: absent on records written before the wrapping-Earth world (World.restorePlayer relocates those).
+        if (data.worldVersion) (player as any).worldVersion = parseInt(data.worldVersion);
 
         return player;
     }

@@ -4,7 +4,9 @@
  * Balls are never streamed. A `fire` event carries each ball's spawn point and unit direction plus
  * speed (units per 1/60 s) and lifetime (ms). The server sends `fire` for tick k just before that
  * tick's snapshot, and the ball sits at its spawn point in tick k, so its spawn time ≈ the estimated
- * server time at receipt. Position = `ballPositionAt(spawn, elapsed)` (analytic, wrapped).
+ * server time at receipt. Position = `ballPositionAt(spawn, elapsed)` (analytic metric straight line,
+ * x wrapped — the same formula the server steps with). A `splash` (ball hit land) removes a ball
+ * exactly like a `hit` does (`onHit`).
  *
  * Timelines (all in estimated SERVER ms):
  *  - own balls are drawn at `serverNow` (our ship is predicted, i.e. drawn ahead of the server);
@@ -15,7 +17,6 @@
  * Expiry: when the ball's timeline passes spawn + life.
  */
 import { ballPositionAt, BALL_LIFETIME_MS, BALL_SPEED } from "@shared/physics";
-import { MAP_HEIGHT, MAP_WIDTH } from "@shared/gameConstants";
 import { INTERP_DELAY_MS, type FireMessage } from "@shared/protocol";
 
 export interface LocalBall {
@@ -40,11 +41,7 @@ export class BallSim {
   version = 0;
   private listeners = new Set<() => void>();
 
-  constructor(
-    private readonly mapWidth: number = MAP_WIDTH,
-    private readonly mapHeight: number = MAP_HEIGHT,
-    private readonly remoteDelayMs: number = INTERP_DELAY_MS,
-  ) {}
+  constructor(private readonly remoteDelayMs: number = INTERP_DELAY_MS) {}
 
   subscribe(fn: () => void): () => void {
     this.listeners.add(fn);
@@ -92,7 +89,7 @@ export class BallSim {
     if (!b) return null;
     const elapsed = this.timeFor(b, serverNow) - b.spawn;
     if (elapsed < 0 || elapsed >= b.lifeMs) return null;
-    return ballPositionAt(b, elapsed / 1000, this.mapWidth, this.mapHeight);
+    return ballPositionAt(b, elapsed / 1000);
   }
 
   /** Remove balls whose timeline has passed spawn + life. */
