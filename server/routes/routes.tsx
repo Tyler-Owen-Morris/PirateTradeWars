@@ -2,7 +2,7 @@ import type { Express } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
 import { redisStorage } from '../redisStorage'
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import { handleSocketConnection } from "../game/socketHandler";
 import { initializeGameState, gameState } from "../game/gameState";
 import { setupShipTypes } from "../game/shipTypes";
@@ -10,7 +10,7 @@ import crypto from "crypto";
 import { validate as isUUID } from "uuid";
 import { registerStripeRoutes } from "./stripeRoutes";
 import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
-import { identifyPlayer, trackEvent, flushSegment } from "../segmentClient";
+import { HEARTBEAT_INTERVAL_MS } from "@shared/protocol";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
@@ -178,8 +178,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Handle WebSocket connections
   wss.on('connection', (ws) => {
     console.log('New WebSocket connection to game server');
+    missedPongs.set(ws, 0);
+    ws.on('pong', () => missedPongs.set(ws, 0));
     handleSocketConnection(ws);
   });
+
+  // Heartbeat (PROTOCOL §3): ws-level ping every HEARTBEAT_INTERVAL_MS; a socket that missed 2
+  // pongs in a row is terminated (its 'close' handler then starts the player's grace period).
+  // Also keeps idle sockets inside the ALB/nginx idle timeouts.
+  const missedPongs = new WeakMap<WebSocket, number>();
+  const heartbeat = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      const missed = missedPongs.get(ws) ?? 0;
+      if (missed >= 2) {
+        console.log('Terminating WebSocket that missed 2 heartbeats');
+        ws.terminate();
+        return;
+      }
+      missedPongs.set(ws, missed + 1);
+      try {
+        ws.ping();
+      } catch {
+        // socket already closing
+      }
+    });
+  }, HEARTBEAT_INTERVAL_MS);
+  wss.on('close', () => clearInterval(heartbeat));
+
+  registerGracefulShutdown(httpServer, wss);
 
   // Handle upgrade requests manually via HTTP server
   httpServer.on('upgrade', (request, socket, head) => {
@@ -192,4 +218,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   return httpServer;
+}
+
+/**
+ * Graceful shutdown on SIGTERM/SIGINT (EB deploys send SIGTERM): stop the tick, persist every
+ * in-world player to Redis, flush Segment, close sockets with 1012 (service restart, so clients
+ * reconnect with backoff), then exit. A hard timeout guarantees exit even if Redis hangs.
+ */
+function registerGracefulShutdown(httpServer: Server, wss: WebSocketServer) {
+  let shuttingDown = false;
+  const onSignal = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`${signal} received: shutting down gracefully`);
+    const hardExit = setTimeout(() => {
+      console.error('Graceful shutdown timed out; exiting');
+      process.exit(1);
+    }, 10000);
+    hardExit.unref();
+    try {
+      await gameState.shutdown();
+    } catch (err) {
+      console.error('Error during game shutdown:', err);
+    }
+    wss.clients.forEach((ws) => {
+      try {
+        ws.close(1012, 'Server restarting');
+      } catch {
+        ws.terminate();
+      }
+    });
+    wss.close();
+    httpServer.close();
+    // Give close frames a moment to flush.
+    setTimeout(() => process.exit(0), 300).unref();
+  };
+  process.once('SIGTERM', () => void onSignal('SIGTERM'));
+  process.once('SIGINT', () => void onSignal('SIGINT'));
 }
