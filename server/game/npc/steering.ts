@@ -45,6 +45,9 @@ export interface SteerTarget {
   z: number;
   rotationY: number;
   velocity: number;
+  /** F1: observed turn rate, rad per 1/60 s frame (+ = rotationY increasing). Used to lead a
+   *  turning target along its arc (tactics.leadPoint). Omitted = sailing straight. */
+  turnRate?: number;
 }
 
 const ZERO: Vec = Object.freeze({ x: 0, z: 0 }) as Vec;

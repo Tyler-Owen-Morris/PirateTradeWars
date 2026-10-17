@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { WORLD_C, WORLD_H, zOfLat, xOfLon, compassHeading, metricX } from "@shared/world/geo";
+import { SHIP_STATS } from "@shared/gameConstants";
 import {
   formatLatLon,
   formatPosition,
@@ -12,6 +13,9 @@ import {
   minimapProject,
   minimapRow,
   stepMinimapRadius,
+  minimapSpanLabel,
+  speedToKnots,
+  KNOTS_PER_SPEED_UNIT,
   clampView,
   mapWorldToScreen,
   mapScreenToWorld,
@@ -118,6 +122,20 @@ describe("minimap", () => {
     expect(stepMinimapRadius(6000, 1)).toBe(3000);
     expect(stepMinimapRadius(1500, 1)).toBe(1500);
     expect(stepMinimapRadius(24000, -1)).toBe(24000);
+  });
+  it("F1/B5: HUD knots use the documented display scale (fastest ship ≈ 13.5 kn)", () => {
+    expect(KNOTS_PER_SPEED_UNIT).toBe(1.5);
+    expect(speedToKnots(-4)).toBeCloseTo(6, 9); // sloop at full ahead (velocity is negative)
+    expect(speedToKnots(2)).toBeCloseTo(3, 9); // reverse reads positive
+    const fastest = Math.max(...Object.values(SHIP_STATS).map((s) => s.speed));
+    expect(speedToKnots(fastest)).toBeGreaterThanOrEqual(12);
+    expect(speedToKnots(fastest)).toBeLessThanOrEqual(14);
+  });
+  it("F1/B4: the scale caption is the full span (2 × radius), not the radius", () => {
+    expect(minimapSpanLabel(6000)).toBe("1200 km across"); // was "Edge = 600.0 km"
+    expect(minimapSpanLabel(1500)).toBe("300 km across");
+    expect(minimapSpanLabel(24000)).toBe("4800 km across");
+    expect(minimapSpanLabel(400)).toBe("80.0 km across");
   });
 });
 

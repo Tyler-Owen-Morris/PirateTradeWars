@@ -14,6 +14,7 @@ import {
   metricDelta,
   metricDistSq,
   metricX,
+  metricX as metricXAt,
   rotationForHeading,
   xOfLon,
   zOfLat,
@@ -210,6 +211,53 @@ describe("coast collision (no damage)", () => {
     expect(minV).toBeGreaterThan(0.9 * sloop.maxSpeed);
     // made good progress north along the coast (≥ 80% of full speed · cos 10°)
     expect(start.z - s.z).toBeGreaterThan(0.8 * 400 * 3 * sloop.maxSpeed * Math.cos((10 * Math.PI) / 180));
+  });
+
+  // F1 / Q1 B1: the slide used to multiply velocity by sqrt(1 − hn²) on every contact sub-step
+  // (180×/s), so a 40–45° hit settled at ~0.1× top speed. Now |velocity| is clamped to
+  // maxSpeed·sqrt(1 − hn²) (WORLD_SPEC clarification): at 45° the speed holds at ≈ 0.71·max and the
+  // ship makes ≈ 0.5·max of progress along the coast (velocity × cos 45°), vs ≈ 0.08·max before.
+  for (const [label, stats] of [["sloop", sloop], ["galleon", galleon]] as const) {
+    it(`45° into the coast at full throttle keeps ≈ 0.71 of top speed and slides (${label})`, () => {
+      const start: ShipKinematics = { x: COAST_X - stats.hullRadius - 30, z: EQ, rotationY: rotationForHeading(45), velocity: -stats.maxSpeed };
+      let contactTicks = 0;
+      let minContactV = Infinity;
+      let firstContact: ShipKinematics | null = null;
+      const s = runTicks(start, 200, W, stats, coast, (st) => {
+        const d = coast.distance(st.x, st.z);
+        expect(d).toBeGreaterThan(stats.hullRadius - 2); // no penetration
+        if (d < stats.hullRadius + 1) {
+          contactTicks++;
+          if (!firstContact) firstContact = st;
+          else minContactV = Math.min(minContactV, Math.abs(st.velocity));
+        }
+      });
+      expect(contactTicks).toBeGreaterThan(150);
+      expect(minContactV).toBeGreaterThan(0.6 * stats.maxSpeed);
+      expect(minContactV).toBeLessThan(Math.SQRT1_2 * stats.maxSpeed + 1e-6);
+      // Along-coast progress (north = −z) over the contact ticks: ≈ 0.5·max per frame.
+      const along = firstContact!.z - s.z;
+      expect(along / ((contactTicks - 1) * 3)).toBeGreaterThan(0.45 * stats.maxSpeed);
+      expect(s.rotationY).toBeCloseTo(rotationForHeading(45), 12); // heading unchanged
+    });
+  }
+
+  it("45° into the polar ice slides along it too (no glue)", () => {
+    // Heading 45° (NE) at the north ice line: the ice normal points south (+z).
+    const start: ShipKinematics = { x: 5000, z: Z_ICE_N + sloop.hullRadius + 20, rotationY: rotationForHeading(45), velocity: -sloop.maxSpeed };
+    const s = runTicks(start, 120, W, sloop, ALWAYS_WATER_TEST_FIELD, (st) => {
+      expect(st.z).toBeGreaterThan(Z_ICE_N + sloop.hullRadius - 2);
+    });
+    expect(Math.abs(s.velocity)).toBeGreaterThan(0.6 * sloop.maxSpeed);
+    // Eastward metric progress: ≥ 0.45·max per frame over 360 frames (minus the run-in).
+    const east = (s.x - start.x) * metricXAt(s.z);
+    expect(east).toBeGreaterThan(0.45 * sloop.maxSpeed * 330);
+  });
+
+  it("head-on at full speed: |velocity| drops to ~0 on contact (clamp, not glue)", () => {
+    const s = runTicks({ x: COAST_X - 200, z: EQ, rotationY: rotationForHeading(90), velocity: -sloop.maxSpeed }, 40, W, sloop, coast);
+    expect(Math.abs(s.velocity)).toBeLessThanOrEqual(FORWARD_ACCEL + 1e-9);
+    expect(coast.distance(s.x, s.z)).toBeGreaterThan(sloop.hullRadius - 2);
   });
 
   it("the polar ice blocks ships (north and south)", () => {

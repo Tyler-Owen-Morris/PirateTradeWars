@@ -36,6 +36,9 @@ export const STAY_BONUS = 0.15;
 export const MIN_DWELL_MS = 1500;
 /** Engage when within this × engageRange, otherwise pursue. */
 export const ENGAGE_DIST_FACTOR = 1.4;
+/** F1: flee bonus when hp is at or below the courage threshold (beats any fight score; surrender, 10+,
+ *  still beats it for merchants). */
+export const HURT_FLEE_BONUS = 3;
 /** Merchants surrender below this hp fraction. */
 export const SURRENDER_HP = 0.3;
 /** Loot within this distance is worth collecting. */
@@ -100,14 +103,19 @@ export function scoreStates(arch: Archetype, p: Perception, combat: boolean): Re
   const fight = arch.aggression * Math.max(t.hostility, 0.5) * (1 + arch.courage) / Math.max(0.5, ratio);
   s.engage = fight * (near ? 1 : 0.3);
   s.pursue = fight * (near ? 0.2 : 0.9);
-  // Flee: hurt, outgunned or simply timid.
+  // Flee: hurt, outgunned or simply timid. F1 (Q1 B2): being badly hurt (hp at or below the
+  // courage threshold, tactics.shouldDisengage) is decisive: +HURT_FLEE_BONUS beats any fight score
+  // (≤ ~2.4), so a pirate at ≤ 35 % breaks off even from a weaker ship. Merely being outgunned
+  // adds +1 (it still weighs against the fight score).
+  const hurt = shouldDisengage(p.hpFrac, arch.courage, 1, 0);
   s.flee =
     (1 - p.hpFrac) * (1 - arch.courage) +
     Math.max(0, ratio - 1) * (1 - arch.courage) * 0.5 +
     (arch.aggression < 0.2 ? 0.6 : 0) +
-    (shouldDisengage(p.hpFrac, arch.courage, p.myPower, t.power) ? 1 : 0);
-  // Striking the colours beats every other option once hp is low (flee tops out around 3).
-  if (arch.surrenders) s.surrender = p.hpFrac < SURRENDER_HP ? 4 + (SURRENDER_HP - p.hpFrac) : -Infinity;
+    (hurt ? HURT_FLEE_BONUS : shouldDisengage(p.hpFrac, arch.courage, p.myPower, t.power) ? 1 : 0);
+  // Striking the colours beats every other option once hp is low (flee stays well under 10 even with
+  // F1's HURT_FLEE_BONUS).
+  if (arch.surrenders) s.surrender = p.hpFrac < SURRENDER_HP ? 10 + (SURRENDER_HP - p.hpFrac) : -Infinity;
   return s;
 }
 

@@ -189,6 +189,27 @@ export function minimapRow(
 export const MINIMAP_MIN_RADIUS = 1500;
 export const MINIMAP_MAX_RADIUS = 24000;
 export const MINIMAP_DEFAULT_RADIUS = 6000;
+/**
+ * HUD "knots" (F1/Q1 B5). Ship speed is in world units (100 m) per 1/60 s frame, so a literal
+ * conversion would be absurd (a sloop at 4 = 24 km/s): game time is heavily compressed (a lap of the
+ * equator takes ~20 minutes). The HUD instead shows a fixed, documented display scale of
+ * KNOTS_PER_SPEED_UNIT knots per unit/frame, chosen so the fastest ship's top speed reads like a
+ * fast age-of-sail ship: sloop 4 → 6 kn, brigantine 5 → 7.5, galleon 5.5 → 8.3, man-o-war 7 → 10.5,
+ * dreadnought 9 → 13.5 kn. It is a label scale only; distances on the HUD (nm) stay metric.
+ */
+export const KNOTS_PER_SPEED_UNIT = 1.5;
+export function speedToKnots(velocity: number): number {
+  return Math.abs(velocity) * KNOTS_PER_SPEED_UNIT;
+}
+
+/** Minimap scale caption. `radius` is centre-to-edge (world units of 100 m), so the minimap spans
+ *  2 × radius edge to edge (F1/Q1 B4: the old "Edge = 600 km" showed the radius as if it were the
+ *  span). Default zoom 6000 → "1200 km across". */
+export function minimapSpanLabel(radius: number): string {
+  const km = (2 * radius * METERS_PER_UNIT) / 1000;
+  return `${km >= 100 ? Math.round(km) : km.toFixed(1)} km across`;
+}
+
 /** Next zoom radius: dir +1 zooms in (smaller radius). Clamped. */
 export function stepMinimapRadius(radius: number, dir: 1 | -1): number {
   const r = dir > 0 ? radius / 2 : radius * 2;

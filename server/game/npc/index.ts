@@ -32,12 +32,12 @@ import {
   type PlayerStanding,
 } from "./factions";
 import { pointAt, projectOnto, type Lane } from "./lod";
-import { normalizeAngle, type ShipInput } from "@shared/physics";
+import { normalizeAngle, stepShip, type ShipInput } from "@shared/physics";
 import { defaultMetric, type NpcMetric } from "./metric";
 import {
   arrive,
   avoidLand,
-  evade,
+  flee,
   pursue,
   seek,
   toInput,
@@ -50,7 +50,7 @@ import {
   type WanderState,
   type AvoidMemo,
 } from "./steering";
-import { engage, firepower } from "./tactics";
+import { FIRE_RANGE_FACTOR, beamError, engage, fireTolerance, firepower } from "./tactics";
 import { callForHelp, ThreatTable } from "./threat";
 import { headingForDir, moveDir, mulberry32 } from "./util";
 import { LANES as LIVE_LANES, liveDirector, portSafeZones } from "./population";
@@ -94,6 +94,19 @@ export const NAV_REPLAN_MS = 5000;
 export const NAV_REACHED = 100;
 /** NPC2: notoriety decay cadence (ticks; 200 = every 10 s). */
 export const NOTORIETY_DECAY_EVERY_TICKS = 200;
+/** F1: an NPC a player hit may fight that player back for this long even when the player's
+ *  attacker slots (fair play, max 2) are taken by other NPCs. Without it a provoked pirate could
+ *  lose the slot race to its neighbours, drop the player and sail off without firing (Q1 B2). */
+export const SELF_DEFENCE_MS = 60_000;
+/** F1 (Q1 B3): after a hit an NPC is "under fire" this long: it will not dock at its lane end, and a
+ *  hit on a ship idling at a dock cancels the idle (it sails out instead of sitting dead in the
+ *  water for the 20–60 s dock time while being shot; port safe zones stop NPCs fighting back, so
+ *  the brain never leaves `travel` there). */
+export const UNDER_FIRE_MS = 10_000;
+/** F1 (B2): a fleeing ship keeps its escape course until the threat is more than this off dead
+ *  astern (radians; 90° = abeam, so a faster attacker can still come up alongside for a broadside),
+ *  then re-aims straight away from it (see `act`, case "flee"). */
+export const FLEE_REAIM_ANGLE = Math.PI / 2;
 const TICK_SEC = 0.05;
 
 export interface NpcSystemOptions {
@@ -150,6 +163,16 @@ export interface ActiveNpc {
   path: NavPoint[] | null;
   pathIdx: number;
   nextPlanMs: number;
+  /** F1: this volley's accepted extra beam error (0..arch.aimError), re-rolled after each shot. */
+  aimSlack: number;
+  /** F1: `p.lastFired` when `aimSlack` was rolled (a new shot → roll again). */
+  aimSlackFor: number;
+  /** F1: playerId → sim ms of that player's last hit on this NPC (self-defence, SELF_DEFENCE_MS). */
+  attackedBy: Map<string, number>;
+  /** F1 (B3): sim ms until which the NPC counts as under fire (no docking), see UNDER_FIRE_MS. */
+  underFireUntilMs: number;
+  /** F1 (B2): committed escape direction (unit, metric) while fleeing; null otherwise. */
+  fleeDir: Vec | null;
 }
 
 export interface NpcStats {
@@ -306,6 +329,11 @@ export class NpcSystem {
       path: null,
       pathIdx: 0,
       nextPlanMs: 0,
+      aimSlack: 0,
+      aimSlackFor: NaN,
+      attackedBy: new Map(),
+      underFireUntilMs: 0,
+      fleeDir: null,
     };
     this.active.set(p.eid, a);
     return a;
@@ -408,8 +436,18 @@ export class NpcSystem {
         if (shooter?.controller === "npc") this.stats.hitsByNpc++;
         const victim = this.active.get(ev.targetEid);
         if (!victim) continue;
+        // F1: friendly fire (an ally's stray ball, e.g. a pirate pair both shooting at a player
+        // between them) is not a reason to turn on that ally or call the fleet against it.
+        if (shooter?.controller === "npc" && areAllies(victim.rec.faction, shooter.faction ?? "")) continue;
         const dmg = ev.damage ?? 0;
         victim.threat.addDamage(ev.ownerEid, dmg, now);
+        if (shooter?.controller === "player") victim.attackedBy.set(shooter.id, now);
+        // F1 (B3): under fire → no docking; a ship idling at a dock leaves right away.
+        victim.underFireUntilMs = now + UNDER_FIRE_MS;
+        if (victim.rec.port && victim.idleUntilMs > now) {
+          victim.idleUntilMs = now;
+          victim.rec.departAtMs = now;
+        }
         callForHelp(
           { eid: victim.p.eid, x: victim.p.x, z: victim.p.z, faction: victim.rec.faction },
           ev.ownerEid,
@@ -503,12 +541,23 @@ export class NpcSystem {
     return baseHostility({ faction: a.rec.faction }, { kind: "player", standing: this.standingOf(o.id) });
   }
 
-  /** May `a` fight `o` now (alive, fair play, safe zones)? */
+  /** F1: did player `playerId` hit `a` within SELF_DEFENCE_MS? */
+  private defending(a: ActiveNpc, playerId: string, now: number): boolean {
+    const t = a.attackedBy.get(playerId);
+    return t !== undefined && now - t < SELF_DEFENCE_MS;
+  }
+
+  /** May `a` fight `o` now (alive, fair play, safe zones)? Never an ally. */
   private canFight(a: ActiveNpc, o: WorldPlayer | undefined, now: number): boolean {
     if (!o || o.sunk || o.dead || this.world.byEid.get(o.eid) !== o) return false;
     if (o.controller === "player") {
+      // F1: self-defence ignores the shield and the attacker-slot cap (not the safe zones).
+      if (this.defending(a, o.id, now)) {
+        return !(this.safeZones.length && (inSafeZone(o.x, o.z, this.safeZones, this.metric) || inSafeZone(a.p.x, a.p.z, this.safeZones, this.metric)));
+      }
       return this.fairplay.canEngagePlayer(a.p.eid, o.id, a.p, o, this.safeZones, this.metric, now);
     }
+    if (areAllies(a.rec.faction, o.faction ?? "")) return false;
     if (this.safeZones.length && (inSafeZone(o.x, o.z, this.safeZones, this.metric) || inSafeZone(a.p.x, a.p.z, this.safeZones, this.metric))) {
       return false;
     }
@@ -564,7 +613,7 @@ export class NpcSystem {
     const tgt = a.brain.targetEid !== null ? w.byEid.get(a.brain.targetEid) : undefined;
     const attacking = a.brain.state === "engage" || a.brain.state === "pursue";
     if (attacking && tgt?.controller === "player") {
-      if (!this.fairplay.claim(p.eid, tgt.id)) {
+      if (!this.fairplay.claim(p.eid, tgt.id, this.defending(a, tgt.id, now))) {
         a.threat.remove(tgt.eid);
         a.brain.state = prev === "engage" || prev === "pursue" ? (a.arch.patrols ? "patrol" : "travel") : prev;
         a.brain.targetEid = null;
@@ -594,27 +643,62 @@ export class NpcSystem {
     const target = a.brain.targetEid !== null ? w.byEid.get(a.brain.targetEid) : undefined;
     const live =
       target && !target.sunk && !target.dead
-        ? { x: target.x, z: target.z, rotationY: target.rotationY, velocity: target.speed }
+        ? {
+            x: target.x,
+            z: target.z,
+            rotationY: target.rotationY,
+            velocity: target.speed,
+            // F1: the rudder it is holding (players: last applied input) → lead along the arc.
+            turnRate: target.lastInput.ru * target.physics.turnSpeed,
+          }
         : undefined;
     let v: Vec = { x: 0, z: 0 };
-    let fire = false;
+    let tryFire = false;
+    if (a.brain.state !== "flee") a.fleeDir = null;
 
     switch (a.brain.state) {
       case "engage": {
         if (!live) break;
         const reloading = now - p.lastFired < p.reloadTime;
-        const order = engage(self, live, { range: a.arch.engageRange, aimError: a.arch.aimError }, reloading, this.metric, a.rng);
+        if (a.aimSlackFor !== p.lastFired) {
+          // F1: one aim-error roll per volley (re-rolled after each shot).
+          a.aimSlackFor = p.lastFired;
+          a.aimSlack = a.rng() * a.arch.aimError;
+        }
+        const order = engage(
+          self,
+          live,
+          { range: a.arch.engageRange, aimError: a.arch.aimError, cannonCount: p.cannonCount, aimSlack: a.aimSlack },
+          reloading,
+          this.metric,
+          a.rng,
+        );
         const d = moveDir(order.heading);
         v = { x: d.x * order.speed, z: d.z * order.speed };
-        fire = order.fire;
+        // F1: whether to fire is decided below on the pose AFTER this tick's rudder (see aim()).
+        tryFire = !reloading && order.dist <= a.arch.engageRange * FIRE_RANGE_FACTOR;
         break;
       }
       case "pursue":
         if (live) v = pursue(self, live, this.metric);
         break;
       case "flee":
-        if (live) v = evade(self, live, this.metric);
-        else v = wander(self, a.wander, a.rng);
+        // F1 (Q1 B2): commit to an escape course. `evade` ran from the threat's predicted position
+        // every tick; an attacker orbiting at broadside range (tactics.engage) moves tangentially,
+        // so that direction swept round and the runner sailed in circles beside it (≈ 2 laps in
+        // 17 s, never opening the range) — the 375–1060 loop Q1 saw from the player's seat. Now the
+        // course is "straight away from where the threat is" when the flight starts, and is only
+        // re-picked when the threat gets more than FLEE_REAIM_ANGLE off dead astern.
+        if (live) {
+          const away = flee(self, live.x, live.z, this.metric);
+          const al = Math.hypot(away.x, away.z);
+          if (al > 1e-9) {
+            const ux = away.x / al;
+            const uz = away.z / al;
+            if (!a.fleeDir || ux * a.fleeDir.x + uz * a.fleeDir.z < Math.cos(FLEE_REAIM_ANGLE)) a.fleeDir = { x: ux, z: uz };
+            v = { x: a.fleeDir.x * self.maxSpeed, z: a.fleeDir.z * self.maxSpeed };
+          }
+        } else v = wander(self, a.wander, a.rng);
         break;
       case "surrender":
         v = { x: 0, z: 0 };
@@ -643,8 +727,42 @@ export class NpcSystem {
     const steer = toSteer(self, withAvoidance(v, avoid));
     let input = toInput(self, steer.heading, steer.speed, p.physics);
     input = this.unstick(a, steer.speed, input, now);
-    if (fire) input.f = 1;
+    if (tryFire && target && now >= a.unstickUntilMs) input = this.aim(a, target, input);
     w.setNpcInput(p, input);
+  }
+
+  /**
+   * F1 (Q1 B2): fire control. The World applies this tick's rudder and throttle BEFORE it spawns the
+   * broadside, and one tick of rudder is 0.15 rad (≈ 75 units of aim at 500), so the shot is judged
+   * on the predicted pose: for the planned rudder and the alternatives (0, ±1) step this ship and the
+   * target one tick with the real `stepShip` (the target with the input it is holding), and fire with
+   * the rudder whose beam error is smallest, if it is within `fireTolerance` (+ this volley's aim
+   * slack). Otherwise keep the planned input and wait: the bearing sweeps as the ships move.
+   */
+  private aim(a: ActiveNpc, target: WorldPlayer, input: ShipInput): ShipInput {
+    const p = a.p;
+    const land = this.world.land;
+    const t = stepShip(
+      { x: target.x, z: target.z, rotationY: target.rotationY, velocity: target.speed },
+      { th: target.lastInput.th, ru: target.lastInput.ru, f: 0 },
+      target.physics,
+      land,
+    );
+    const tgt = { x: t.x, z: t.z, rotationY: t.rotationY, velocity: t.velocity, turnRate: target.lastInput.ru * target.physics.turnSpeed };
+    const maxDist = a.arch.engageRange * FIRE_RANGE_FACTOR;
+    let bestRu: -1 | 0 | 1 | null = null;
+    let bestErr = Infinity;
+    for (const ru of [input.ru, 0, 1, -1] as const) {
+      const me = stepShip({ x: p.x, z: p.z, rotationY: p.rotationY, velocity: p.speed }, { th: input.th, ru, f: 0 }, p.physics, land);
+      const dist = Math.sqrt(this.metric.distSq(me.x, me.z, tgt.x, tgt.z));
+      if (dist > maxDist) continue;
+      const err = Math.abs(beamError({ x: me.x, z: me.z, rotationY: me.rotationY, velocity: me.velocity }, tgt, this.metric));
+      if (err <= fireTolerance(dist, p.cannonCount) + a.aimSlack && err < bestErr - 1e-9) {
+        bestErr = err;
+        bestRu = ru;
+      }
+    }
+    return bestRu === null ? input : { th: input.th, ru: bestRu, f: 1 };
   }
 
   /**
@@ -721,8 +839,8 @@ export class NpcSystem {
     const q = pointAt(r.poly, a.followS, m, r.dir);
     const atEnd = Math.abs(a.followS - end) < 1 && m.distSq(self.x, self.z, q.x, q.z) < LANE_ARRIVE * LANE_ARRIVE;
     if (atEnd) {
-      if (!a.arch.patrols) {
-        // Merchants dock (idle) in the active tier, then sail on.
+      if (!a.arch.patrols && now >= a.underFireUntilMs) {
+        // Merchants dock (idle) in the active tier, then sail on (F1 B3: not while under fire).
         this.director.arrive(a.rec, now, true);
         a.idleUntilMs = a.rec.departAtMs;
         return { x: 0, z: 0 };

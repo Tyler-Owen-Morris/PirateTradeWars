@@ -112,11 +112,12 @@ export class FairPlay {
     return set.size < this.config.maxAttackers;
   }
 
-  /** Claim a slot (releases any slot the NPC held on another player). False if full. */
-  claim(npcEid: number, playerId: string): boolean {
+  /** Claim a slot (releases any slot the NPC held on another player). False if full, unless
+   *  `force` (F1 self-defence: an NPC the player just hit may always fight back, even as a 3rd). */
+  claim(npcEid: number, playerId: string, force = false): boolean {
     const held = this.slotOf.get(npcEid);
     if (held === playerId) return true;
-    if (!this.slotAvailable(npcEid, playerId)) return false;
+    if (!force && !this.slotAvailable(npcEid, playerId)) return false;
     this.release(npcEid);
     let set = this.attackers.get(playerId);
     if (!set) this.attackers.set(playerId, (set = new Set()));

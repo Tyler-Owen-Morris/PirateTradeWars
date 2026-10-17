@@ -11,6 +11,7 @@ import {
   MINIMAP_DEFAULT_RADIUS,
   minimapProject,
   minimapRow,
+  minimapSpanLabel,
   nationColor,
   portPoint,
   stepMinimapRadius,
@@ -132,8 +133,6 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
     ctx.strokeRect(0, 0, S, S);
   }, [gameState.player, gameState.ports, gameState.otherPlayers, radius, landReady, navTarget]);
 
-  const km = ((radius * 100) / 1000).toFixed(radius >= 10000 ? 0 : 1);
-
   return (
     <div className="fixed bottom-32 left-4 z-50">
       <div className="p-2 bg-gray-900/80 border-2 border-amber-700 rounded-lg">
@@ -159,7 +158,7 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
           </div>
         </div>
         <canvas ref={canvasRef} width={MINIMAP_SIZE} height={MINIMAP_SIZE} className="rounded" />
-        <div className="text-xs text-center mt-1 text-amber-300">Edge = {km} km</div>
+        <div className="text-xs text-center mt-1 text-amber-300">{minimapSpanLabel(radius)}</div>
       </div>
     </div>
   );

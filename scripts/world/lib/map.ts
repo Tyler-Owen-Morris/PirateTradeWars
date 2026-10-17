@@ -1,7 +1,8 @@
 // Stylised age-of-sail chart texture (equirectangular, lon -180..180 left->right, lat 90..-90
 // top->bottom), rendered from the SDF. Parchment land with a dark ink coastline, pale sea with
 // shallow tint and a couple of coastal "ripple" contour lines, white pack ice beyond ±ICE_LAT, and a
-// faint 15° graticule. Ports, ships and labels are drawn by the client (W5), not baked in.
+// faint 15° graticule (world map only; the 1024 minimap texture is built without it, F1/B4).
+// Ports, ships and labels are drawn by the client (W5), not baked in.
 import { W, H, SDF_UNIT, ICE_LAT } from "./common";
 
 type RGB = [number, number, number];
@@ -21,8 +22,15 @@ const mix = (a: RGB, b: RGB, t: number): RGB => [
   a[2] + (b[2] - a[2]) * t,
 ];
 
+export interface RenderMapOptions {
+  /** Draw the 15° graticule (default true). F1/Q1 B4: the 1024 map feeds the minimap, which is
+   *  zoomed in so far that the 1-pixel grid lines read as dark stripes, so it is built without. */
+  graticule?: boolean;
+}
+
 /** Renders the map at width x (width/2). width must divide W. */
-export function renderMap(sdf: Int8Array, width: number): Uint8Array {
+export function renderMap(sdf: Int8Array, width: number, opts: RenderMapOptions = {}): Uint8Array {
+  const graticule = opts.graticule ?? true;
   const height = width / 2;
   const f = W / width; // raster pixels per map pixel
   const out = new Uint8Array(width * height * 3);
@@ -51,7 +59,7 @@ export function renderMap(sdf: Int8Array, width: number): Uint8Array {
       const band = 30 * f;
       if (Math.abs(d) < band) c = mix(c, INK, Math.max(0, 1 - Math.abs(d) / band) * 0.85);
       // graticule (sea only, so coasts stay crisp)
-      if (d > 0) {
+      if (graticule && d > 0) {
         const gu = (u + 0.5) % gridStep;
         const gv = (v + 0.5) % gridStep;
         if (gu < 1 || gv < 1) c = [c[0] * GRID_DARKEN, c[1] * GRID_DARKEN, c[2] * GRID_DARKEN];

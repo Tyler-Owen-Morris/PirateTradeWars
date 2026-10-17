@@ -8,6 +8,8 @@ npm run world:build                 # rebuilds and writes every artifact (about 
 npm run world:build -- --check      # rebuilds in memory and validates only; writes nothing
 npm run world:build -- --debug      # also writes full-res crops with lanes, towns, docks and spawns
                                     # to scripts/world/.cache/debug_*.png
+npm run world:build -- --maps-only  # (F1) re-renders only the two map PNGs; tiles, ports, lanes and
+                                    # versions are untouched (needs the cached Natural Earth files)
 ```
 - If Node runs out of memory, prefix the command with `NODE_OPTIONS=--max-old-space-size=8192`.
 - The script throws if any validation fails, and in that case writes nothing.
@@ -60,7 +62,7 @@ The raw tiles would total 19.8 MiB, which is over the 15 MB budget. So they are 
   - Using the query row's latitude instead of the mean latitude is off by far less than one SDF_UNIT within the ±508 range.
 - `lib/ports.ts`: places each port's town, dock and spawn (see below), and builds the ocean-connectivity mask.
 - `lib/lanes.ts`: the lane grid, Dijkstra/A*, string pulling and subdivision.
-- `lib/map.ts`: the chart renderer: parchment land, an ink coastline, shallow tint and two coastal contour lines, white pack ice beyond ±70°, and a 15° graticule. Ports and labels are left to the client.
+- `lib/map.ts`: the chart renderer: parchment land, an ink coastline, shallow tint and two coastal contour lines, white pack ice beyond ±70°, and a 15° graticule. Ports and labels are left to the client. `renderMap(sdf, width, { graticule })`: the 4096 world map keeps the graticule; the 1024 minimap texture is built without it (F1/Q1 B4: zoomed in, the 1-px lines read as dark stripes). The F1 `--maps-only` rebuild reproduced the 4096 PNG byte for byte.
 - `lib/png.ts`: a pure-JS PNG encoder (node:zlib, with per-row filter choice). There are no native dependencies, and **no new npm dependencies** at all.
 
 ## Decisions
