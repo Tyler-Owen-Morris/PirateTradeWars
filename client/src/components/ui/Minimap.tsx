@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import { useGameState } from '@/lib/stores/useGameState';
 import {
   MINIMAP_SIZE,
@@ -16,14 +16,18 @@ import {
   portPoint,
   stepMinimapRadius,
 } from '@/lib/nav';
+import { clientLand } from '@/lib/world/landTiles';
+import { MinimapLandLayer } from '@/lib/world/minimapLand';
 
 const LAND_IMG_SRC = '/world/map_1024x512.png';
 
 /**
  * Minimap (card W5): north-up, centred on the player, metric scaling. `radius` world units
  * (100 m each) from centre to edge; the +/- buttons halve/double it. Land comes from the
- * equirectangular chart texture, drawn row by row (see nav.minimapRow) so east-west is scaled by
- * cos(latitude). All maths lives in lib/nav.ts (tested).
+ * SDF tiles already loaded around the ship (lib/world/minimapLand.ts), so coasts stay sharp at every
+ * zoom; the 1024 chart texture, drawn row by row (see nav.minimapRow) so east-west is scaled by
+ * cos(latitude), is only the backdrop for tiles not loaded yet. The canvas is backed at
+ * devicePixelRatio. All maths lives in lib/nav.ts and lib/world/minimapLand.ts (tested).
  */
 export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -32,6 +36,8 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
   const [radius, setRadius] = useState(MINIMAP_DEFAULT_RADIUS);
   const { gameState } = useGameState();
   const navTarget = useGameState((s) => s.getNavTargetPort());
+  const landLayer = useMemo(() => new MinimapLandLayer(clientLand.field), []);
+  const dpr = Math.min(3, Math.max(1, window.devicePixelRatio || 1));
 
   useEffect(() => {
     const img = new Image();
@@ -50,6 +56,7 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
     if (!ctx) return;
     const S = MINIMAP_SIZE;
     const half = S / 2;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Sea
     ctx.fillStyle = '#12304f';
@@ -66,6 +73,8 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
         }
       }
     }
+    // Sharp land from the SDF tiles on top (unloaded tiles stay transparent)
+    landLayer.draw(ctx, player.x, player.z, radius, S, dpr, clientLand.version);
 
     // Faint range rings
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
@@ -131,7 +140,7 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
     ctx.strokeStyle = '#c9a66b';
     ctx.lineWidth = 2;
     ctx.strokeRect(0, 0, S, S);
-  }, [gameState.player, gameState.ports, gameState.otherPlayers, radius, landReady, navTarget]);
+  }, [gameState.player, gameState.ports, gameState.otherPlayers, radius, landReady, navTarget, landLayer, dpr]);
 
   return (
     <div className="fixed bottom-32 left-4 z-50">
@@ -157,7 +166,13 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
             </button>
           </div>
         </div>
-        <canvas ref={canvasRef} width={MINIMAP_SIZE} height={MINIMAP_SIZE} className="rounded" />
+        <canvas
+          ref={canvasRef}
+          width={Math.round(MINIMAP_SIZE * dpr)}
+          height={Math.round(MINIMAP_SIZE * dpr)}
+          style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE }}
+          className="rounded"
+        />
         <div className="text-xs text-center mt-1 text-amber-300">{minimapSpanLabel(radius)}</div>
       </div>
     </div>
