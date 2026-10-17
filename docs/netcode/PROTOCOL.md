@@ -134,7 +134,7 @@ The client never sends position, speed, direction or rotation. The server is aut
   `reconnect` id, so a client can never take over an NPC.
 
 **NPC2 clarifications (live NPCs, player standing):**
-- NPCs are ON by default (`NPCS_ENABLED=0` disables). Expect ~300 NPC ships worldwide, at most 80 in
+- NPCs are ON by default (`NPCS_ENABLED=0` disables). Expect ~150 NPC ships worldwide, at most 80 in
   the world at once, and only those within ~2500 of some player; clients see them like any ship.
 - **`standing` (server → client, low rate):**
   `{ t: "standing", rep: { [faction]: number }, notoriety: number, bounty: number }`, the receiver's own

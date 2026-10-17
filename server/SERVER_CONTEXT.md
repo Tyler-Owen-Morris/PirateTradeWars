@@ -114,7 +114,7 @@ physics in `shared/physics.ts`. Both are shared with the client.
 Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
 
 - **On by default (NPC2).** `gameState` builds `createLiveNpcSystem(world)` unless `NPCS_ENABLED=0|false|off|no`:
-  the real lanes (`shared/world/lanes.json`), port safe zones, the live fleets (`npc/population.ts`, ~300
+  the real lanes (`shared/world/lanes.json`), port safe zones, the live fleets (`npc/population.ts`, ~150
   persistent NPCs, ≤ 80 active) and the World's `LandField`.
 - **An NPC is a `WorldPlayer` with `controller: "npc"`** (id `npc:<n>`, the same eid space).
   - It is never disconnected, never times out, never takes queued inputs, and is never persisted

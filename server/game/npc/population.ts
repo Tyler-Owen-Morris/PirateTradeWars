@@ -88,40 +88,40 @@ function homeWaters(nation: FactionId, zones: readonly LaneZone[], regions?: rea
 const inZones = (...zones: LaneZone[]) => (lane: Lane) => zones.includes(laneZone(lane));
 
 /**
- * The live fleets: ~300 persistent NPCs. Region labels are unique per target (the director counts
+ * The live fleets: ~150 persistent NPCs (halved from 300 on 2026-10-16). Region labels are unique per target (the director counts
  * per label + archetype). Tune counts here; the README has the same table.
  */
 export function liveFleets(): RegionTarget[] {
   const CARIB = ["caribbean", "north_atlantic"];
   const EU = ["europe"];
   return [
-    // Merchants (160): nation of the origin port; convoys of 1–3.
-    { region: "americas/merchant", archetype: "merchant", count: 60, lanes: inZones("americas"), originFaction: true },
-    { region: "atlantic/merchant", archetype: "merchant", count: 30, lanes: inZones("atlantic"), originFaction: true },
-    { region: "europe/merchant", archetype: "merchant", count: 30, lanes: inZones("europe"), originFaction: true },
-    { region: "africa/merchant", archetype: "merchant", count: 12, lanes: inZones("africa"), originFaction: true },
-    { region: "east/merchant", archetype: "merchant", count: 28, lanes: inZones("east"), originFaction: true },
-    // Navy patrols (55): near their own nation's ports.
-    { region: "americas/navy/spain", archetype: "navy", count: 10, factions: ["spain"], lanes: homeWaters("spain", ["americas"], CARIB) },
-    { region: "americas/navy/england", archetype: "navy", count: 8, factions: ["england"], lanes: homeWaters("england", ["americas"], CARIB) },
-    { region: "americas/navy/france", archetype: "navy", count: 4, factions: ["france"], lanes: homeWaters("france", ["americas"], CARIB) },
-    { region: "americas/navy/netherlands", archetype: "navy", count: 3, factions: ["netherlands"], lanes: homeWaters("netherlands", ["americas"], CARIB) },
-    { region: "europe/navy/england", archetype: "navy", count: 5, factions: ["england"], lanes: homeWaters("england", ["europe"], EU) },
-    { region: "europe/navy/spain", archetype: "navy", count: 4, factions: ["spain"], lanes: homeWaters("spain", ["europe"], EU) },
-    { region: "europe/navy/france", archetype: "navy", count: 3, factions: ["france"], lanes: homeWaters("france", ["europe"], EU) },
-    { region: "europe/navy/netherlands", archetype: "navy", count: 3, factions: ["netherlands"], lanes: homeWaters("netherlands", ["europe"], EU) },
-    { region: "europe/navy/portugal", archetype: "navy", count: 3, factions: ["portugal"], lanes: homeWaters("portugal", ["europe"], EU) },
-    { region: "east/navy/portugal", archetype: "navy", count: 4, factions: ["portugal"], lanes: homeWaters("portugal", ["east"]) },
-    { region: "east/navy/netherlands", archetype: "navy", count: 4, factions: ["netherlands"], lanes: homeWaters("netherlands", ["east", "africa"]) },
-    { region: "east/navy/spain", archetype: "navy", count: 4, factions: ["spain"], lanes: homeWaters("spain", ["east"]) },
-    // Pirates (65): around the havens and on the busy crossings.
-    { region: "americas/pirate/havens", archetype: "pirate", count: 35, lanes: (l) => laneZone(l) === "americas" && touches(l, PIRATE_PORTS) },
-    { region: "americas/pirate/lanes", archetype: "pirate", count: 6, lanes: inZones("americas") },
-    { region: "atlantic/pirate", archetype: "pirate", count: 12, lanes: inZones("atlantic") },
-    { region: "east/pirate/sainte_marie", archetype: "pirate", count: 12, lanes: (l) => touches(l, ["sainte_marie"]) },
-    // Privateers (20): letters of marque in the Caribbean, the Spanish guarda costa on the crossings.
-    { region: "americas/privateer", archetype: "privateer", count: 16, factions: ["england", "france", "netherlands"], lanes: inZones("americas") },
-    { region: "atlantic/privateer", archetype: "privateer", count: 4, factions: ["spain"], lanes: inZones("atlantic") },
+    // Merchants (80): nation of the origin port; convoys of 1–3.
+    { region: "americas/merchant", archetype: "merchant", count: 30, lanes: inZones("americas"), originFaction: true },
+    { region: "atlantic/merchant", archetype: "merchant", count: 15, lanes: inZones("atlantic"), originFaction: true },
+    { region: "europe/merchant", archetype: "merchant", count: 15, lanes: inZones("europe"), originFaction: true },
+    { region: "africa/merchant", archetype: "merchant", count: 6, lanes: inZones("africa"), originFaction: true },
+    { region: "east/merchant", archetype: "merchant", count: 14, lanes: inZones("east"), originFaction: true },
+    // Navy patrols (30): near their own nation's ports.
+    { region: "americas/navy/spain", archetype: "navy", count: 5, factions: ["spain"], lanes: homeWaters("spain", ["americas"], CARIB) },
+    { region: "americas/navy/england", archetype: "navy", count: 4, factions: ["england"], lanes: homeWaters("england", ["americas"], CARIB) },
+    { region: "americas/navy/france", archetype: "navy", count: 2, factions: ["france"], lanes: homeWaters("france", ["americas"], CARIB) },
+    { region: "americas/navy/netherlands", archetype: "navy", count: 2, factions: ["netherlands"], lanes: homeWaters("netherlands", ["americas"], CARIB) },
+    { region: "europe/navy/england", archetype: "navy", count: 3, factions: ["england"], lanes: homeWaters("england", ["europe"], EU) },
+    { region: "europe/navy/spain", archetype: "navy", count: 2, factions: ["spain"], lanes: homeWaters("spain", ["europe"], EU) },
+    { region: "europe/navy/france", archetype: "navy", count: 2, factions: ["france"], lanes: homeWaters("france", ["europe"], EU) },
+    { region: "europe/navy/netherlands", archetype: "navy", count: 2, factions: ["netherlands"], lanes: homeWaters("netherlands", ["europe"], EU) },
+    { region: "europe/navy/portugal", archetype: "navy", count: 2, factions: ["portugal"], lanes: homeWaters("portugal", ["europe"], EU) },
+    { region: "east/navy/portugal", archetype: "navy", count: 2, factions: ["portugal"], lanes: homeWaters("portugal", ["east"]) },
+    { region: "east/navy/netherlands", archetype: "navy", count: 2, factions: ["netherlands"], lanes: homeWaters("netherlands", ["east", "africa"]) },
+    { region: "east/navy/spain", archetype: "navy", count: 2, factions: ["spain"], lanes: homeWaters("spain", ["east"]) },
+    // Pirates (33): around the havens and on the busy crossings.
+    { region: "americas/pirate/havens", archetype: "pirate", count: 18, lanes: (l) => laneZone(l) === "americas" && touches(l, PIRATE_PORTS) },
+    { region: "americas/pirate/lanes", archetype: "pirate", count: 3, lanes: inZones("americas") },
+    { region: "atlantic/pirate", archetype: "pirate", count: 6, lanes: inZones("atlantic") },
+    { region: "east/pirate/sainte_marie", archetype: "pirate", count: 6, lanes: (l) => touches(l, ["sainte_marie"]) },
+    // Privateers (10): letters of marque in the Caribbean, the Spanish guarda costa on the crossings.
+    { region: "americas/privateer", archetype: "privateer", count: 8, factions: ["england", "france", "netherlands"], lanes: inZones("americas") },
+    { region: "atlantic/privateer", archetype: "privateer", count: 2, factions: ["spain"], lanes: inZones("atlantic") },
   ];
 }
 

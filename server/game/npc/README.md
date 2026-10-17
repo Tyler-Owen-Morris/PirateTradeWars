@@ -115,28 +115,30 @@ Measured in the browser (real server, F1): a pirate sloop vs a still player sloo
 
 ## Live behaviour on the real map (NPC2)
 
-### Population (`population.ts` `liveFleets()`, 300 persistent, ≤ 80 active)
+### Population (`population.ts` `liveFleets()`, 153 persistent, ≤ 80 active)
+
+Halved on 2026-10-16 (from 300: every fleet halved, rounded up). Perf numbers below were measured with 300.
 
 Lanes get a zone from their two ports' regions (`laneZone`): **americas** (both ends Caribbean/Gulf or the American Atlantic coast), **atlantic** (Americas ↔ Europe/Africa crossings), **europe**, **africa**, **east** (Indian Ocean, East Asia, Acapulco).
 
 | Fleet (region label) | Archetype | Count | Lanes | Faction |
 |---|---|---|---|---|
-| americas/merchant | merchant | 60 | americas | origin port's nation (pirate havens → merchants_guild) |
-| atlantic/merchant | merchant | 30 | atlantic | origin port |
-| europe/merchant | merchant | 30 | europe | origin port |
-| africa/merchant | merchant | 12 | africa | origin port |
-| east/merchant | merchant | 28 | east | origin port |
-| americas/navy/{spain 10, england 8, france 4, netherlands 3} | navy | 25 | americas lanes touching that nation's ports | the nation |
-| europe/navy/{england 5, spain 4, france 3, netherlands 3, portugal 3} | navy | 18 | europe lanes touching its ports | the nation |
-| east/navy/{portugal 4, netherlands 4 (+africa), spain 4} | navy | 12 | east lanes touching its ports | the nation |
-| americas/pirate/havens | pirate | 35 | americas lanes touching Nassau or Tortuga | pirates |
-| americas/pirate/lanes | pirate | 6 | americas | pirates |
-| atlantic/pirate | pirate | 12 | atlantic | pirates |
-| east/pirate/sainte_marie | pirate | 12 | lanes touching Île Sainte-Marie | pirates |
-| americas/privateer | privateer | 16 | americas | england / france / netherlands |
-| atlantic/privateer | privateer | 4 | atlantic | spain |
+| americas/merchant | merchant | 30 | americas | origin port's nation (pirate havens → merchants_guild) |
+| atlantic/merchant | merchant | 15 | atlantic | origin port |
+| europe/merchant | merchant | 15 | europe | origin port |
+| africa/merchant | merchant | 6 | africa | origin port |
+| east/merchant | merchant | 14 | east | origin port |
+| americas/navy/{spain 5, england 4, france 2, netherlands 2} | navy | 13 | americas lanes touching that nation's ports | the nation |
+| europe/navy/{england 3, spain 2, france 2, netherlands 2, portugal 2} | navy | 11 | europe lanes touching its ports | the nation |
+| east/navy/{portugal 2, netherlands 2 (+africa), spain 2} | navy | 6 | east lanes touching its ports | the nation |
+| americas/pirate/havens | pirate | 18 | americas lanes touching Nassau or Tortuga | pirates |
+| americas/pirate/lanes | pirate | 3 | americas | pirates |
+| atlantic/pirate | pirate | 6 | atlantic | pirates |
+| east/pirate/sainte_marie | pirate | 6 | lanes touching Île Sainte-Marie | pirates |
+| americas/privateer | privateer | 8 | americas | england / france / netherlands |
+| atlantic/privateer | privateer | 2 | atlantic | spain |
 
-About 63 % of the fleet is in the Caribbean/Gulf and on the crossings. A fleet's ships keep to its lanes forever: at every lane end the next lane is drawn from the fleet's lane filter (a navy that reaches a foreign port with no home lane turns around). Groups spawn from the archetype's `group` (merchant convoys 1–3, navy and pirate pairs) on one lane, `GROUP_SPACING` (160) apart, with the same ship type and faction; members leave port right after their leader and take the lane it took (`NpcRecord.leader`).
+About 62 % of the fleet is in the Caribbean/Gulf and on the crossings. A fleet's ships keep to its lanes forever: at every lane end the next lane is drawn from the fleet's lane filter (a navy that reaches a foreign port with no home lane turns around). Groups spawn from the archetype's `group` (merchant convoys 1–3, navy and pirate pairs) on one lane, `GROUP_SPACING` (160) apart, with the same ship type and faction; members leave port right after their leader and take the lane it took (`NpcRecord.leader`).
 
 ### Navigation on real coastlines (`index.ts` `followLaneOrWander` / `unstick`, `nav.ts`, `steering.ts`)
 
@@ -146,7 +148,7 @@ About 63 % of the fleet is in the Caribbean/Gulf and on the crossings. A fleet's
 4. **Coast feelers** (`avoidLand`) slide along the coast tangent closest to the *desired* direction, with side hysteresis (`AvoidMemo`), so a goal straight behind a coast never makes the rudder see-saw.
 5. **Unstick.** Two 1 s checks with < 15 % progress while touching the coast and wanting to move → 3 s of turning the bow along the land normal (reversing until within 60° of it).
 
-Measured (`__tests__/live-world.test.ts`, 100 NPCs on random lanes, 3 simulated minutes, real tiles): longest pin against a coast 3 s, ≤ 1 s of no progress beyond a 10 s window, 0.2 % of samples stuck, 0 ticks with a hull centre on land, ~36 path plans (≤ 1.1 ms each).
+Measured (`__tests__/live-world.test.ts`, 100 NPCs on random lanes, 3 simulated minutes, real tiles): longest pin against a coast 3 s, ≤ 1 s of no progress beyond a 10 s window, 0.2 % of samples stuck, 0 ticks with a hull centre on land, ~36 path plans (≤ 1.1 ms each). Known issue (2026-10-16): the result depends on which 100 ships are sampled. The test pins the pre-halving 300-ship fleet (`FLEET_300`) because other samples have NPCs stuck 14-144 s past the window (e.g. a Spanish navy on charleston-havana, an English navy on havana-port_royal).
 
 ### Player standing
 
