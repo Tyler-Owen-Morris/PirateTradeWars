@@ -25,6 +25,9 @@ Real-time model: authoritative 20 Hz server, client prediction (own ship) + inte
 - NEVER run `cdk deploy` in `infra/` (abandoned; it would create a new VPC/ALB/ASG).
 - The `replit` branch is retired. The rollback command is in `PROJECT_CONTEXT.md`.
 - Never push release tags or trigger builds unless the user asks.
+- **Game OFF/ON** ("turn the game off", "park the site", "turn it back on"): follow `docs/infra/GAME_OFF_ON.md`.
+  OFF = EB environment terminated, domain on a static parked page (~$1/mo); ON = EB environment re-created from
+  the saved template. The current state is at the top of that doc. Confirm with the user before switching.
 
 ## Netcode docs
 `docs/netcode/README.md` (start here), `PROTOCOL.md` (contract), `LOAD_TEST.md` (bots), `BUILD_STATE.md` (history, numbers).

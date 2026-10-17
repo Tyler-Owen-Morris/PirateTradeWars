@@ -84,6 +84,7 @@ See `docs/netcode/PROTOCOL.md` for the exact contract and `docs/netcode/README.m
   Never raise MaxSize above 1 without first sharding the world (otherwise players land in separate worlds).
 - Health check: `/api/health` (`.ebextensions/03_healthcheck.config`); ALB idle timeout 300 s for WebSockets (`04_alb_websocket.config`).
 - Domain: piratetradewars.com (Route 53 alias to the EB environment, ACM cert on the ALB).
+- Turning the game OFF (environment terminated, static parked page, ~$1/mo) and back ON: `docs/infra/GAME_OFF_ON.md`.
 - Multi-arch zip: the deploy job adds linux-arm64 rollup/esbuild binaries next to the x64 ones so the same zip runs on t3 (x64) and
   t4g (arm64). Verified in a `linux/arm64` container (health + `/game-ws` connect).
 - Planned single-instance + Cloudflare setup: `docs/infra/SINGLE_INSTANCE_CUTOVER.md`. `.platform/hooks/prebuild/01_fetch_origin_cert.sh`
