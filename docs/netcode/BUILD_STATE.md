@@ -35,7 +35,7 @@ progress file for any card that is `in-progress`. Each card's progress file says
 | N4 | Bot load/smoke test `scripts/bots.ts` + wire into CI (depends N1; integrates with N2) | agent-N4 (sonnet) | merged into main | done (verified) | — |
 | D  | Docs: PROJECT/SERVER/CLIENT/SHARED context files, architecture notes | agent-D (sonnet/haiku) | merged into main | done | — |
 | R  | Producer: integrate, run tests + bots locally, push, deploy, verify prod | producer + QA agent | main | done | netcode live: version 30b2f2a, 1 instance |
-| I1 | Infra: move EB to t4g.small (Graviton/arm64) — verify arm64 bundle, then apply after netcode deploy | agent-I (sonnet) + producer applies | worktree (progress/I-infra.md) | done (verify pending) | instance replaced; run prod bot check |
+| I1 | Infra: move EB to t4g.small (Graviton/arm64) — verify arm64 bundle, then apply after netcode deploy | agent-I (sonnet) + producer applies | worktree (progress/I-infra.md) | done (verified t4g.small arm64) | — |
 | I2 | Infra: Cloudflare (free) in front of piratetradewars.com — needs Theo: Cloudflare account/API token + registrar nameserver change | Theo + producer | — | in-progress | NS already on CF; need token perms Zone Settings + SSL |
 | I3 | Infra: EB SingleInstance (drop ALB, ~$23/mo) with Cloudflare Origin cert on nginx; then release the 3 ALB EIPs + delete Route53 zone | agent-I prepares, producer applies | worktree | blocked on I2 | — |
 | W2 | Colyseus migration — **deferred**, decide after Wave 1 metrics (see PROTOCOL.md §8) | — | — | deferred | — |
