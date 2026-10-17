@@ -2,6 +2,7 @@
 //
 //   npm run world:build            # full rebuild of every artifact
 //   npm run world:build -- --check # rebuild in memory and only validate (writes nothing)
+//   npm run world:build -- --maps-only # re-render only the two map PNGs (F1)
 //
 // Inputs: Natural Earth land polygons (public domain), downloaded once into scripts/world/.cache/
 // (gitignored) from a pinned release tag. Outputs (all committed):
@@ -33,6 +34,8 @@ const LAND_DIR = path.join(ROOT, "client/public/world/land");
 const PUBLIC_WORLD = path.join(ROOT, "client/public/world");
 const SHARED_WORLD = path.join(ROOT, "shared/world");
 const CHECK_ONLY = process.argv.includes("--check");
+/** F1: `npm run world:build -- --maps-only` re-renders just the two map PNGs. */
+const MAPS_ONLY = process.argv.includes("--maps-only");
 
 /** Natural Earth 5.1.2 (pinned tag). sha256 recorded so a silent upstream change is noticed. */
 const NE_TAG = "v5.1.2";
@@ -313,6 +316,12 @@ async function main() {
   log("land mask done");
   const sdf = buildSdf(land);
   log("SDF done");
+  if (MAPS_ONLY) {
+    // Re-render only the map PNGs (no tiles, ports, lanes or versions are touched).
+    writeMaps(sdf);
+    log("done (--maps-only)");
+    return;
+  }
 
   const tiles = cutTiles(sdf);
   const rawBytes = tiles.tiles.length * TILE * TILE;
@@ -379,13 +388,18 @@ async function main() {
     lanes: hashFile(path.join(SHARED_WORLD, "lanes.json")),
   });
 
-  // ---- map textures
-  for (const w of [4096, 1024]) {
-    const png = encodePngRgb(w, w / 2, renderMap(sdf, w));
-    fs.writeFileSync(path.join(PUBLIC_WORLD, `map_${w}x${w / 2}.png`), png);
-    log(`map_${w}x${w / 2}.png ${(png.length / 1048576).toFixed(2)} MiB`);
-  }
+  writeMaps(sdf);
   log("done");
+}
+
+/** Map textures. The 4096 world map (M) keeps the 15° graticule; the 1024 one only feeds the
+ *  minimap, where the grid lines showed as dark stripes (Q1 B4), so it has none. */
+function writeMaps(sdf: Int8Array) {
+  for (const [w, graticule] of [[4096, true], [1024, false]] as const) {
+    const png = encodePngRgb(w, w / 2, renderMap(sdf, w, { graticule }));
+    fs.writeFileSync(path.join(PUBLIC_WORLD, `map_${w}x${w / 2}.png`), png);
+    log(`map_${w}x${w / 2}.png ${(png.length / 1048576).toFixed(2)} MiB (graticule ${graticule})`);
+  }
 }
 
 main().catch((e) => {

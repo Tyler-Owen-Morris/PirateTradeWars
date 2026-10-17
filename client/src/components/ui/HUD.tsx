@@ -15,6 +15,7 @@ import {
   DialogClose
 } from './dialog';
 import { useSocket } from '@/lib/stores/useSocket';
+import { speedToKnots } from '@/lib/nav';
 
 interface ControlState {
   forward: boolean;
@@ -146,7 +147,7 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
       <div className="absolute top-16 right-2 sm:top-20 sm:right-4 bg-black/50 p-2 sm:p-3 rounded-md text-white">
         <div className="flex items-center justify-between mb-0.5 sm:mb-1">
           <ChevronsRight className={`h-4 w-4 sm:h-5 sm:w-5 ${Math.abs(player.speed) > 0 ? 'text-green-400' : 'text-gray-400'}`} />
-          <span className="ml-1 sm:ml-2 font-bold text-sm sm:text-base">{Math.abs(player.speed).toFixed(1)}</span>
+          <span className="ml-1 sm:ml-2 font-bold text-sm sm:text-base">{speedToKnots(player.speed).toFixed(1)}</span>
           <span className="ml-1 text-[0.6rem] sm:text-xs">knots</span>
         </div>
       </div>

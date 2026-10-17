@@ -26,7 +26,7 @@ The changes to `server/game/world.ts` are all marked `NPC1`:
 | `metric.ts` | pure | `NpcMetric` {delta, distSq, offset}; `geoMetric` (default: shared/world/geo.ts, x wraps, z clamped, x scaled by cos lat), `torusMetric` (logic-only tests) |
 | `util.ts` | pure | `moveDir(r)`, `headingForDir(dx,dz)`, `bearingOf`, `clamp`, `mulberry32` |
 | `steering.ts` | pure | `LandQuery`, `OPEN_SEA`; behaviours `seek/flee/arrive/pursue/evade/wander/avoidLand`; `arbitrate`, `withAvoidance`, `toSteer`, `toInput(ship, heading, speed, stats)` |
-| `tactics.ts` | pure | `engage(self, target, {range, aimError}, reloading, metric, rng)` → {heading, speed, fire}; `leadPoint`, `beamError`, `inBroadsidePosition`, `firepower`, `shouldDisengage`, `DEFAULT_CANNON_RANGE` (600) |
+| `tactics.ts` | pure | `engage(self, target, {range, aimError, cannonCount?, aimSlack?}, reloading, metric, rng)` → {heading, speed, fire}; `leadPoint` (arc lead for turning targets), `displacement`, `fireTolerance`, `beamError`, `inBroadsidePosition`, `firepower`, `shouldDisengage`, `DEFAULT_CANNON_RANGE` (600) |
 | `threat.ts` | pure | `ThreatTable` (addDamage, addProximity, decay, top with hysteresis), `callForHelp` |
 | `factions.ts` | pure | `FACTION_IDS`, `FACTIONS`, `RELATIONS`, `relation`, `areAllies`, `PlayerStanding`, **`baseHostility`**, `repChangesFor`, `applyRepChanges`, `emitRepChanges` |
 | `archetypes.ts` | data | `ARCHETYPES` (merchant, navy, pirate, privateer, pirate_hunter stub), `titleFor`, `rollNpc` |
@@ -55,9 +55,9 @@ The changes to `server/game/world.ts` are all marked `NPC1`:
      | State | Behaviour |
      |---|---|
      | travel/patrol | follow the lane (or wander on a leash) |
-     | engage | `tactics.engage` |
+     | engage | `tactics.engage`, then `aim` (F1 fire control, one tick ahead) |
      | pursue | intercept |
-     | flee | evade |
+     | flee | committed course straight away from the threat (F1; was `evade`) |
      | loot | arrive at gold |
      | surrender | stop |
 
@@ -73,14 +73,33 @@ The cost was measured in tests on a desktop:
 - `spawnBroadside` fires only along `r + π/2`, the **starboard** side. Tactics models a `Side`, but `GUN_SIDES = ["starboard"]`. If port guns are added to physics, add `"port"` there and `chooseSide` picks the cheaper turn.
 - Balls don't inherit ship velocity. Lead = target velocity × flight time (900 units/s).
 
+## Combat fixes after Q1 (card F1, bug B2/B3)
+
+Q1 saw a provoked pirate loop 375 → 1060 → 375 around a still player, never fire and never break off. What was actually wrong (each has a regression test in `__tests__/combat-b2.test.ts`, which runs the real World + NpcSystem):
+
+| Problem | Fix |
+|---|---|
+| **Shots went wide.** The fire gate was ±12° of the beam plus ±aimError noise (≈ 100+ units off at 500), judged on the pose *before* the tick's rudder, but the World fires *after* movement and one tick of rudder is 0.15 rad. 1 hit in 28 volleys on a still target. | `tactics.fireTolerance(dist, cannons)`: the angle the 20-unit hit circle subtends (× 0.8) plus half the broadside fan. `NpcSystem.aim` re-checks the shot one tick ahead with the real `stepShip` for the planned rudder and 0/±1, and fires with the best one. Turning targets are led along their arc (`SteerTarget.turnRate` = the rudder they hold). Now ≈ 25–90 % hits depending on ship and target motion. |
+| **The loop was a flee.** A pirate evading an attacker's *predicted* position while the attacker orbits it at broadside range sweeps its escape course round: it sails in circles (≈ 2 laps in 17 s) beside the attacker — the radial in/out Q1 measured from the player's seat (Q1's pirate was most likely fleeing a navy beyond its 2,500 filter). | A fleeing ship commits to a course straight away from where the threat is, re-aimed only when the threat gets more than `FLEE_REAIM_ANGLE` (90°) off dead astern. |
+| **Lost the slot race.** Fair play caps attackers at 2 per player; a pirate the player hit could lose both slots to its neighbours, drop the player and sail off. | Self-defence: an NPC hit by a player may fight that player for `SELF_DEFENCE_MS` (60 s) regardless of the shield and the slot cap (`FairPlay.claim(…, force)`); safe zones still apply. |
+| **Friendly fire** from a partner's stray ball added threat and called help against the partner, so pirate pairs turned on each other. | Hits from allies (`areAllies`) are ignored; allies are never a valid target (`canFight`). |
+| **Hurt pirates fought on.** Disengage was hp < (1 − courage) × 0.6 and only +1 to the flee score, which a fight against a weaker ship (score up to ≈ 2.4) beat. | `shouldDisengage`: hp ≤ (1 − courage) × 0.7 (`DISENGAGE_HP_SCALE`): pirate 35 %, privateer 28 %, navy 7 %. Being that hurt adds `HURT_FLEE_BONUS` (3), which beats any fight score; being merely outgunned still adds 1. Merchants' surrender score is now 10+ so it still beats flee. |
+| **Merchant dead in the water (B3).** A merchant arriving at its lane end docks (idles 20–60 s); in a port safe zone it cannot react to an attacker, so it sat still while being shot. | A hit marks the NPC under fire for `UNDER_FIRE_MS` (10 s): it will not dock, and a hit on a docked ship cancels the idle (it sails out on its next lane). |
+
+Engagement geometry: TURN_SPEED is a fixed 0.05 rad/frame at any speed, so the turning radius is 20 × speed (sloop 80 … dreadnought 180), well inside the hold band; slowing down is not needed to tighten the turn. Far from the target the course is held `APPROACH_MAX_K` (π/3) off straight-at-it, a spiral that brings the target onto the starboard beam on the approach. Guns: physics fires starboard only, for players and NPCs alike (`spawnBroadside`), so `GUN_SIDES` stays `["starboard"]`. Known limit: a starboard-only sloop cannot catch a sloop running straight away at the same speed (a stern chase at equal speed never closes); it gets its broadside in on a crossing or head-on pass, and faster ships run slower ones down.
+
+Measured in the browser (real server, F1): a pirate sloop vs a still player sloop fired 14–15 times in 30 s and hit 6–7 times; vs a circling player 12 shots / 10 hits; a brigantine vs a straight-sailing sloop 8 / 7 (sank it); at 30 % hp both ship types turned and ran within a second (510 → 1,700–1,970 units in 4–6 s).
+
 ## Tuning
 
-- **Difficulty:** `Archetype.aimError`, in radians of noise added to the beam check (navy 0.08, pirate 0.15, merchant 0.25).
+- **Difficulty:** `Archetype.aimError` (navy 0.08, pirate 0.15, merchant 0.25): per volley, the NPC accepts up to rng × aimError radians of extra beam error (`ActiveNpc.aimSlack`, re-rolled after each shot). Pirates are now dangerous: a still player sloop is sunk by a pirate sloop in roughly 30–40 s. Raise `aimError` or lower `HIT_TOLERANCE_FRAC` to soften them.
+- **Fire control:** `fireTolerance` (`HIT_TOLERANCE_FRAC` 0.8), `FIRE_RANGE_FACTOR` (1.5 × engage range = 900 units), `APPROACH_MAX_K`.
+- **Breaking off:** `DISENGAGE_HP_SCALE` (0.7), `HURT_FLEE_BONUS` (3), `FLEE_REAIM_ANGLE` (90°), `SELF_DEFENCE_MS` (60 s), `UNDER_FIRE_MS` (10 s).
 - **How readily NPCs fight:**
   - `aggression` and `courage` per archetype
   - `COMBAT_ENTER` / `COMBAT_EXIT` (threat hysteresis)
   - `STAY_BONUS` and `MIN_DWELL_MS` (state hysteresis), in `brain.ts`
-- **Engagement range:** `DEFAULT_CANNON_RANGE` (600). The hold band is `HOLD_MIN`–`HOLD_MAX` (0.6–0.85); while reloading the NPC kites to 0.85. The fire arc is `FIRE_ARC` (12°).
+- **Engagement range:** `DEFAULT_CANNON_RANGE` (600). The hold band is `HOLD_MIN`–`HOLD_MAX` (0.6–0.85); while reloading the NPC kites to 0.85. `FIRE_ARC` (12°) now only judges "in broadside position" (tests); firing uses `fireTolerance` (F1).
 - **Population:**
   - `DEFAULT_TARGETS` and `DEFAULT_DIRECTOR` (`maxPersistent` 300, `maxActive` 80, `minSpawnDist` 3000, respawn 2–5 min)
   - Pass `director: { targets, laneRegion }` to `NpcSystem` for per-region fleets

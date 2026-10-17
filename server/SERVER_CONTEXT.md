@@ -136,6 +136,11 @@ Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
   online (every 10 s) and for the offline time on `reconnect` (`decayNotoriety` in socketHandler). The
   client gets its own standing as a low-rate `standing` message (PROTOCOL.md "NPC2 clarifications").
 - **`ent`** gains `npc: 1`, `faction` and `title` for NPCs.
+- **Combat (F1, after Q1 B2/B3).** NPC fire control checks each shot one tick ahead with the real
+  `stepShip` and a hit-circle tolerance (`NpcSystem.aim`, `tactics.fireTolerance`); hurt NPCs break off
+  at hp ≤ (1 − courage) × 0.7 on a committed escape course; an NPC a player hit may fight back past the
+  attacker-slot cap (self-defence, 60 s); ally friendly fire is ignored; a hit cancels dock idling. See
+  `game/npc/README.md` "Combat fixes after Q1".
 - **Tiers.** Only *active* NPCs (a player within 2500) are World ships. Rail and docked NPCs are
   director records, so they cost nothing per tick.
 - **Navigation on real coasts (NPC2):** lane following with a line-of-sight check, coast feelers with

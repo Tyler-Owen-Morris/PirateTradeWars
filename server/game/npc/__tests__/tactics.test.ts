@@ -5,9 +5,10 @@ import { toInput } from "../steering";
 import {
   BALL_SPEED_PER_SEC,
   DEFAULT_CANNON_RANGE,
-  FIRE_ARC,
+  FIRE_RANGE_FACTOR,
   beamError,
   engage,
+  fireTolerance,
   firepower,
   gunAngle,
   inBroadsidePosition,
@@ -124,19 +125,54 @@ describe("engage", () => {
     expect(r.first).toBeLessThan(500);
   });
 
-  it("only fires within ±12° of the beam (aimError 0) and in range", () => {
+  it("F1: fires only when the lead point is inside the hit tolerance (aimError 0) and within fire range", () => {
     const self = { x: 5000, z: 5000, rotationY: 0, velocity: 0, maxSpeed: 5 };
     // Starboard of r=0 is +x (east).
     const onBeam = { x: 5400, z: 5000, rotationY: 0, velocity: 0 };
     expect(Math.abs(beamError(self, onBeam, m))).toBeLessThan(1e-9);
     expect(engage(self, onBeam, { range, aimError: 0 }, false, m).fire).toBe(true);
     expect(engage(self, onBeam, { range, aimError: 0 }, true, m).fire).toBe(false); // reloading
-    const offBeam = { x: 5400, z: 5000 - Math.tan(FIRE_ARC * 1.5) * 400, rotationY: 0, velocity: 0 };
+    // A sloop (1 gun) at 400 tolerates atan(16/400) ≈ 2.3°; 5° off the beam is a miss: hold fire.
+    const tol = fireTolerance(400, 1);
+    expect(tol).toBeCloseTo(Math.atan2(16, 400), 6);
+    const offBeam = { x: 5400, z: 5000 - Math.tan(tol * 2) * 400, rotationY: 0, velocity: 0 };
     expect(engage(self, offBeam, { range, aimError: 0 }, false, m).fire).toBe(false);
-    const far = { x: 5000 + range * 1.2, z: 5000, rotationY: 0, velocity: 0 };
+    // ...but a 4-gun broadside fans ±0.15 rad, so it covers that.
+    expect(engage(self, offBeam, { range, aimError: 0, cannonCount: 4 }, false, m).fire).toBe(true);
+    // Aim slack (sloppy gunners) widens it too.
+    expect(engage(self, offBeam, { range, aimError: 0.2, aimSlack: 0.1 }, false, m).fire).toBe(true);
+    // Beyond the hold band but within FIRE_RANGE_FACTOR × range: still a shot.
+    const mid = { x: 5000 + range * 1.2, z: 5000, rotationY: 0, velocity: 0 };
+    expect(engage(self, mid, { range, aimError: 0 }, false, m).fire).toBe(true);
+    const far = { x: 5000 + range * (FIRE_RANGE_FACTOR + 0.1), z: 5000, rotationY: 0, velocity: 0 };
     expect(engage(self, far, { range, aimError: 0 }, false, m).fire).toBe(false);
     const port = { x: 4600, z: 5000, rotationY: 0, velocity: 0 }; // no port guns
     expect(engage(self, port, { range, aimError: 0 }, false, m).fire).toBe(false);
+  });
+
+  it("F1: leads a turning target along its arc", () => {
+    const self = { x: 5000, z: 5000 };
+    // Target 500 east, sailing north at 4/frame while turning left at full rudder (0.05 rad/frame).
+    const straight = { x: 5500, z: 5000, rotationY: 0, velocity: -4 };
+    const turning = { ...straight, turnRate: 0.05 };
+    const ls = leadPoint(self, straight, m);
+    const lt = leadPoint(self, turning, m);
+    // Straight: lead purely north. Turning (rotationY increasing = turning toward −x/west): the arc
+    // curls west, so the turning lead point is west of (and less far north than) the straight one.
+    expect(ls.dx).toBeCloseTo(500, 6);
+    expect(lt.dx).toBeLessThan(ls.dx - 20);
+    expect(lt.dz).toBeGreaterThan(ls.dz);
+    // Exact arc check against stepping the physics one frame at a time.
+    const frames = lt.t * 60;
+    let x = 0, z = 0, r = 0;
+    for (let i = 0; i < Math.round(frames * 100); i++) {
+      const f = 1 / 100;
+      x += -Math.sin(r) * 4 * f;
+      z += -Math.cos(r) * 4 * f;
+      r += 0.05 * f;
+    }
+    expect(lt.dx).toBeCloseTo(500 + x, 0);
+    expect(lt.dz).toBeCloseTo(z, 0);
   });
 
   it("kites: holds a longer range while reloading", () => {

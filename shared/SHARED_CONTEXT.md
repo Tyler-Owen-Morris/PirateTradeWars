@@ -29,8 +29,12 @@ The shared directory contains code and types that are used by both the client an
   - `physics.ts` - Deterministic ship/cannonball simulation used by BOTH server (authoritative 20 Hz
     tick) and client (prediction). `stepShip(state, input, stats, land?)` = metric motion
     (z += cos·v; x += sin·v / metricX(z); x wraps, z clamped) plus no-damage coast collision when a
-    `LandQuery` is given (push out along the normal by hullRadius − d, then scale velocity by
-    |cos(heading, coast)| if moving into land; heading unchanged). `ShipPhysicsStats.hullRadius`
+    `LandQuery` is given (push out along the normal by hullRadius − d, then, if moving into land,
+    CLAMP |velocity| to maxSpeed·sqrt(1 − hn²), hn = heading·normal; heading unchanged). F1 (Q1 B1):
+    this was a per-sub-step multiply that compounded to ~0.1× speed; the clamp is idempotent, so a
+    45° hit keeps ≈ 0.71·max speed (≈ 0.5·max of progress along the coast) and head-on still stops
+    (WORLD_SPEC clarification after Q1). Client and server share it, so prediction stays exact.
+    `ShipPhysicsStats.hullRadius`
     (`HULL_RADIUS`: sloop 12 … dreadnaught 30). Helpers: `lerpWrapped`, `lerpAngle`, `normalizeAngle`,
     `metricXAdvance`, re-exported `wrap`/`wrappedDelta`/`metricX`/`metricDelta`/`metricDistSq`;
     `wrappedDistSq` is a deprecated alias of `metricDistSq`. Cannonballs: `spawnBroadside`,

@@ -144,8 +144,10 @@ export function physicsStatsFromMaxSpeed(maxSpeed: number, hullRadius: number = 
  *     to [0, H]; the ice keeps ships far from the poles).
  *  4. land (if `land` given, WORLD_SPEC §4.3, no damage): if distance(x,z) < hullRadius, push the
  *     ship out along the land normal by (hullRadius − d) (up to COLLISION_ITERATIONS times), and
- *     if it was moving into the land scale velocity by |cos(angle between heading and coast)| so
- *     it slides along the coast; head-on stops. Heading never changes.
+ *     if it was moving into the land clamp |velocity| to maxSpeed·sqrt(1 − hn²), hn = heading·normal
+ *     (the tangential share of top speed), so it slides along the coast at ≈ |cos(angle to the
+ *     coast)| × maxSpeed; head-on stops. Heading never changes. (F1/B1: was a per-sub-step
+ *     multiply, which compounded to ~0.1× speed; see the WORLD_SPEC clarification.)
  * Inputs are defensively clamped to {-1,0,1}, so malformed values cannot speed a ship up.
  */
 export function stepShip(
@@ -194,8 +196,16 @@ export function stepShip(
         x = wrap(x + (n.nx * push) / metricX(z), WORLD_C);
         if (k === 0 && velocity !== 0) {
           // Motion is heading*velocity; it goes into the land when (heading·n)*velocity < 0.
+          // Slide (WORLD_SPEC clarification after Q1 B1): CLAMP |velocity| to the tangential share
+          // of top speed, maxSpeed·sqrt(1 − hn²) (sqrt(1 − hn²) = |sin| of the angle between the
+          // heading and the coast normal). Clamping is idempotent, so a ship held against the coast
+          // keeps that speed every sub-step instead of compounding a multiply 180 times a second
+          // (which glued ships to the coast at ~0.1× speed). Head-on (|hn| = 1) still stops.
           const hn = hx * n.nx + hz * n.nz;
-          if (hn * velocity < 0) velocity *= Math.sqrt(Math.max(0, 1 - hn * hn));
+          if (hn * velocity < 0) {
+            const cap = stats.maxSpeed * Math.sqrt(Math.max(0, 1 - hn * hn));
+            if (Math.abs(velocity) > cap) velocity = Math.sign(velocity) * cap;
+          }
         }
       }
     }
