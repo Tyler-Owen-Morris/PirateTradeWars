@@ -16,7 +16,7 @@ starting, even if he asked earlier.
 | AWS account / region | 835677831294 / us-east-2 (the CLI on Theo's desktop is logged in as `Tyler_Admin`) |
 | EB application / environment | `PirateTradeWarsApp` / `PirateTradeWarsEnv` (LoadBalanced, ALB, t4g.small, ASG 1/1) |
 | Platform | `64bit Amazon Linux 2023 v6.11.5 running Node.js 20` |
-| Domain DNS | Route 53 hosted zone `Z08294463XUHSUXHY5VS` (piratetradewars.com). Registered elsewhere, not in Route 53 Domains. Only the apex `A` alias matters (no www record). |
+| Domain DNS | Route 53 hosted zone `Z08294463XUHSUXHY5VS` (piratetradewars.com). Registered elsewhere, not in Route 53 Domains. Only the apex `A` alias matters (no www record). Check the live nameservers before any DNS work: a Cloudflare zone also exists (see `SINGLE_INSTANCE_CUTOVER.md`, incident 2026-10-21). |
 | ALB HTTPS cert | ACM us-east-2 `arn:aws:acm:us-east-2:835677831294:certificate/73add82a-2aa2-4a1e-8eda-7424da554d03` (keep it; the saved template points at it) |
 | Data | Upstash Redis (`REDIS_CONN_STRING`, also in Secrets Manager `piratetradewars/redis-prod`). Outside AWS; it is never touched by OFF/ON, so the leaderboard and players survive. |
 | EB env vars | `REDIS_CONN_STRING`, `STRIPE_SECRET_KEY`, `STRIPE_*_PRICE_ID`, `VITE_STRIPE_PUBLISHABLE_KEY`, `SEGMENT_WRITE_KEY`, `PORT`, `DUMMY`. The values live only in the EB config; the saved template keeps them. Never print or commit them. |

@@ -24,6 +24,17 @@ Verified facts (read-only, 2026-10-16):
 Note the EIPs show as associated to ENIs (`eni-092f5255b76c272d3`, `eni-00c86587827322eb8`, `eni-0379d69ce20ec7a05`); confirm
 in step 9 they are free before release.
 
+## Incident 2026-10-21: site 404 after an early nameserver switch
+
+On 2026-10-16 the GoDaddy nameservers were switched to Cloudflare (`cloe`/`dimitris.ns.cloudflare.com`). The Cloudflare
+zone held three proxied apex `A` records with the ALB's IPs at the time. ALB IPs are NOT stable: by 10-21 only
+`16.59.66.41` was still ours, and the others served another tenant's site (its 404 carried a `docutalk.org` CSP), so
+piratetradewars.com returned 404. Fix: the GoDaddy nameservers were set back to Route 53 (live path now), and the Cloudflare zone
+(`b04bc41a29018b85041fdbf36458e4bb`) now has ONE proxied apex CNAME to the EB env CNAME, verified 200 through the
+Cloudflare edge. Rule: never put ALB IPs in any DNS record. Agents can use the `CLOUDFLARE_API_TOKEN` user env var
+(zone DNS edit only; it cannot read zone settings such as the SSL mode). Prerequisite "Cloudflare zone active and proxying" is
+therefore met, but the live nameservers are Route 53 again; switching them to Cloudflare at GoDaddy is a deliberate step.
+
 ## How the repo side works (already in the repo)
 
 - `.platform/hooks/prebuild/01_fetch_origin_cert.sh` (and the identical copy in `.platform/confighooks/prebuild/`) runs on
