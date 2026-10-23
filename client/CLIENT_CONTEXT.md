@@ -84,6 +84,12 @@ All 2D UI uses one theme layer. Read `components/ui/pirate/README.md` before sty
   `appearance`), TradingToast, HelpTooltip, TouchControls ring.
 - **Not restyled:** `TradeMenu.tsx`. It is being redesigned separately as a manifest / "bill of
   goods", with its own style guide.
+- **Trade prompt (GameUI):** the "Click here or press T to trade" plaque shows on arriving at a port,
+  fades after 8 s (instant under reduced motion) or hides on its X (`aria-label="Dismiss trade prompt"`,
+  44px target, click does not bubble to open trade). It stays hidden until the player leaves range or
+  reaches another port; then a tappable "T Trade" chip above "Press H for help" remains. The 3D dock
+  "press T" label in `Port.tsx` was removed (duplicate); the big port name label stays. Shots:
+  `tradeprompt-*.jpg`.
 - Screenshots are in `docs/proposals/2026-10-23-theme-screens/`. Notes are in
   `docs/proposals/2026-10-23-theme-NOTES.md`.
 

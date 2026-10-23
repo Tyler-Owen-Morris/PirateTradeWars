@@ -59,11 +59,6 @@ export function Port({ port }: PortProps) {
 
       {/* Dock: the interaction ring (radius PORT_INTERACTION_RADIUS) and prompt; the mooring is in PortCity */}
       <group ref={dockRef} position={[0, -10000, 0]}>
-        <Billboard position={[0, 40, 0]} follow={true}>
-          <Text fontSize={10} color="#FFFFFF" anchorX="center" anchorY="middle" outlineWidth={1} outlineColor="#000000" renderOrder={101}>
-            {`${port.name} dock - press T to trade`}
-          </Text>
-        </Billboard>
         <mesh position={[0, 0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[PORT_INTERACTION_RADIUS - 6, PORT_INTERACTION_RADIUS, 96]} />
           <meshBasicMaterial color="#4CAF50" transparent opacity={0.3} side={THREE.DoubleSide} />
