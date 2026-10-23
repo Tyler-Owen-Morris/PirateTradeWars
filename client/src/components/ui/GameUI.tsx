@@ -329,6 +329,8 @@ export default function GameUI({ controlsRef }: GameUIProps) {
             <div>Trade at Port</div>
             <div><Kbd>Tab</Kbd></div>
             <div>View Leaderboard</div>
+            <div><Kbd>Enter</Kbd></div>
+            <div>Chat</div>
             <div><Kbd>M</Kbd></div>
             <div>World Map</div>
             <div><Kbd>H</Kbd></div>
