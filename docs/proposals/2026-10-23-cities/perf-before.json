@@ -1,0 +1,134 @@
+{
+ "havana-far": {
+  "calls": 154,
+  "triangles": 60990,
+  "geometries": 113,
+  "textures": 8,
+  "frames": 728,
+  "avgMs": 2.76,
+  "p95Ms": 4.7,
+  "portCalls": 70,
+  "portTris": 1884
+ },
+ "havana-near": {
+  "calls": 166,
+  "triangles": 64526,
+  "geometries": 94,
+  "textures": 9,
+  "frames": 726,
+  "avgMs": 2.76,
+  "p95Ms": 4.1,
+  "portCalls": 60,
+  "portTris": -1262
+ },
+ "amsterdam-far": {
+  "calls": 188,
+  "triangles": 81050,
+  "geometries": 148,
+  "textures": 10,
+  "frames": 639,
+  "avgMs": 3.14,
+  "p95Ms": 4.7,
+  "portCalls": 70,
+  "portTris": 1932
+ },
+ "amsterdam-near": {
+  "calls": 188,
+  "triangles": 89610,
+  "geometries": 113,
+  "textures": 10,
+  "frames": 587,
+  "avgMs": 3.41,
+  "p95Ms": 5.8,
+  "portCalls": 64,
+  "portTris": 1788
+ },
+ "nassau-far": {
+  "calls": 158,
+  "triangles": 74214,
+  "geometries": 125,
+  "textures": 13,
+  "frames": 708,
+  "avgMs": 2.83,
+  "p95Ms": 5.2,
+  "portCalls": 60,
+  "portTris": -1238
+ },
+ "nassau-near": {
+  "calls": 162,
+  "triangles": 72516,
+  "geometries": 99,
+  "textures": 14,
+  "frames": 722,
+  "avgMs": 2.77,
+  "p95Ms": 4.6,
+  "portCalls": 70,
+  "portTris": 1884
+ },
+ "london-far": {
+  "calls": 244,
+  "triangles": 112580,
+  "geometries": 172,
+  "textures": 14,
+  "frames": 519,
+  "avgMs": 3.87,
+  "p95Ms": 6.6,
+  "portCalls": 70,
+  "portTris": 1884
+ },
+ "london-near": {
+  "calls": 255,
+  "triangles": 115864,
+  "geometries": 164,
+  "textures": 14,
+  "frames": 524,
+  "avgMs": 3.82,
+  "p95Ms": 6.5,
+  "portCalls": 79,
+  "portTris": 1762
+ },
+ "port_royal-far": {
+  "calls": 126,
+  "triangles": 36182,
+  "geometries": 122,
+  "textures": 14,
+  "frames": 809,
+  "avgMs": 2.48,
+  "p95Ms": 4.4,
+  "portCalls": 70,
+  "portTris": 1932
+ },
+ "port_royal-near": {
+  "calls": 123,
+  "triangles": 39482,
+  "geometries": 72,
+  "textures": 14,
+  "frames": 810,
+  "avgMs": 2.47,
+  "p95Ms": 3.7,
+  "portCalls": 67,
+  "portTris": 1904
+ },
+ "elmina-far": {
+  "calls": 132,
+  "triangles": 40462,
+  "geometries": 113,
+  "textures": 15,
+  "frames": 806,
+  "avgMs": 2.49,
+  "p95Ms": 4.2,
+  "portCalls": 70,
+  "portTris": 1884
+ },
+ "elmina-near": {
+  "calls": 140,
+  "triangles": 47118,
+  "geometries": 85,
+  "textures": 15,
+  "frames": 784,
+  "avgMs": 2.56,
+  "p95Ms": 4.5,
+  "portCalls": 70,
+  "portTris": 1884
+ }
+}

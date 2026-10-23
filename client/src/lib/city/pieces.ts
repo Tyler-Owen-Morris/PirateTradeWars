@@ -10,7 +10,7 @@
  * To add a piece: write `function myPiece(ctx, x, z, yaw, scale)` and register it in EXTRA_PIECES
  * (or add a case to the house/roof/landmark/fort switch). Keep it to a few hundred triangles.
  */
-import { MeshBuilder, hex, shade, mixRGB, type RGB, type V3 } from "./meshBuilder";
+import { MeshBuilder, hex, shade, type RGB, type V3 } from "./meshBuilder";
 import type { CityStyle, FortKind, HouseKind, LandmarkKind, RoofKind, TreeKind } from "./styles";
 
 export type Rng = () => number;
@@ -113,7 +113,6 @@ function windows(ctx: CityCtx, w: number, d: number, face: 0 | 1 | 2 | 3, floorY
   const win = hex(st.window);
   const ww = tall ? 1.3 : 1.4;
   const wh = tall ? 2.4 : 1.9;
-  const cw = face < 2 ? w : d;
   for (let f = 0; f < floors; f++) {
     for (let k = 0; k < cols; k++) {
       const u = (k + 0.5) * (span / cols) - span / 2;
@@ -129,7 +128,6 @@ function windows(ctx: CityCtx, w: number, d: number, face: 0 | 1 | 2 | 3, floorY
       }
     }
   }
-  void cw;
 }
 
 /** Roof of kind `k` on a w × d body whose walls end at `top`. Returns the roof's peak height. */
@@ -956,4 +954,3 @@ export function extraRadius(piece: string, scale: number): number {
   if (piece === "facade" || piece === "basilica_facade" || piece === "keep" || piece === "belem_tower") return 18 * scale;
   return 10 * scale;
 }
-void mixRGB;

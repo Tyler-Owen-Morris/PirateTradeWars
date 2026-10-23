@@ -24,11 +24,9 @@ import {
   groundSpan,
   house,
   landmark,
-  pick,
   rampart,
   range,
   rngFor,
-  ship,
   tree,
   treeKindAt,
   wallTower,
@@ -370,7 +368,7 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
 
   // --- 4. extras ---------------------------------------------------------------------------------
   const extras: ExtraRef[] = [...st.extras, ...(custom?.extras ?? [])];
-  let anchorYaw = yawSea + Math.PI / 2 + (rng() - 0.5) * 0.6;
+  const anchorYaw = yawSea + Math.PI / 2 + (rng() - 0.5) * 0.6;
   const placeExtra = (ref: ExtraRef) => {
     const fn = EXTRA_PIECES[ref.piece];
     if (!fn) return;
@@ -442,8 +440,6 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
   };
   for (const ref of extras) for (let i = 0; i < (ref.count ?? 1); i++) placeExtra(ref);
   for (let i = 0; i < st.shipsAtAnchor; i++) placeExtra({ piece: st.id === "pirate_haven" ? "pirate_ship" : "ship", where: "water", scale: range(rng, 0.8, 1.05) });
-  void anchorYaw;
-  anchorYaw = 0;
 
   // --- 5. ramparts -------------------------------------------------------------------------------
   const Rw = R * 0.95;
@@ -562,8 +558,6 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
   const flags = ctx.flags.finish();
   stats.ms = Math.round(((typeof performance !== "undefined" ? performance.now() : Date.now()) - t0) * 10) / 10;
   const dockDist = Math.hypot(input.dock.x, input.dock.z);
-  void pick;
-  void ship;
   return {
     styleId: st.id,
     main,
