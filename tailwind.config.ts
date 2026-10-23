@@ -3,6 +3,9 @@ import type { Config } from "tailwindcss";
 export default {
   darkMode: ["class"],
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
+  // Pirate theme classes live in @layer components (client/src/styles/pirate.css). Some are built
+  // from props (e.g. ptw-btn--${variant}), so keep every ptw-* class out of the purge.
+  safelist: [{ pattern: /^ptw-/ }],
   theme: {
     extend: {
       borderRadius: {
@@ -10,7 +13,33 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      // Pirate theme (client/src/styles/pirate.css): font-display / font-label / font-body,
+      // and ptw-* colours with alpha support, e.g. `text-ptw-ink`, `bg-ptw-wood/80`.
+      fontFamily: {
+        display: ["var(--ptw-font-display)"],
+        label: ["var(--ptw-font-label)"],
+        body: ["var(--ptw-font-body)"],
+      },
       colors: {
+        ptw: {
+          ink: "rgb(var(--ptw-ink-rgb) / <alpha-value>)",
+          "ink-soft": "rgb(var(--ptw-ink-soft-rgb) / <alpha-value>)",
+          parchment: "rgb(var(--ptw-parchment-rgb) / <alpha-value>)",
+          "parchment-hi": "rgb(var(--ptw-parchment-hi-rgb) / <alpha-value>)",
+          burn: "rgb(var(--ptw-burn-rgb) / <alpha-value>)",
+          wood: "rgb(var(--ptw-wood-rgb) / <alpha-value>)",
+          "wood-dark": "rgb(var(--ptw-wood-dark-rgb) / <alpha-value>)",
+          brass: "rgb(var(--ptw-brass-rgb) / <alpha-value>)",
+          "brass-hi": "rgb(var(--ptw-brass-hi-rgb) / <alpha-value>)",
+          wax: "rgb(var(--ptw-wax-rgb) / <alpha-value>)",
+          sea: "rgb(var(--ptw-sea-rgb) / <alpha-value>)",
+          cream: "rgb(var(--ptw-cream-rgb) / <alpha-value>)",
+          gold: "rgb(var(--ptw-gold-rgb) / <alpha-value>)",
+          good: "rgb(var(--ptw-good-rgb) / <alpha-value>)",
+          bad: "rgb(var(--ptw-bad-rgb) / <alpha-value>)",
+          "good-ink": "rgb(var(--ptw-good-ink-rgb) / <alpha-value>)",
+          "bad-ink": "rgb(var(--ptw-bad-ink-rgb) / <alpha-value>)",
+        },
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {
