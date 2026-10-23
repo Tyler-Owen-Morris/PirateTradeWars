@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GRACE_PERIOD, TICK_MS, World, isNpcId, type WorldEffect } from "../../world";
+import { FIRE_STARBOARD } from "@shared/physics";
 import type { EntMessage } from "@shared/protocol";
 import { parseEntNpcMeta } from "@shared/protocol";
 import { NpcSystem, npcsEnabled } from "../index";
@@ -44,13 +45,13 @@ describe("World NPC plumbing", () => {
     w.npcHook = (world, prev) => {
       seen.push(world.tick);
       expect(Array.isArray(prev)).toBe(true);
-      world.setNpcInput(n, { th: 1, ru: 0, f: world.tick === 3 ? 1 : 0 });
+      world.setNpcInput(n, { th: 1, ru: 0, f: world.tick === 3 ? FIRE_STARBOARD : 0 });
     };
     const z0 = n.z;
     for (let i = 0; i < 5; i++) w.step();
     expect(seen).toEqual([1, 2, 3, 4, 5]);
     expect(n.z).toBeLessThan(z0); // sailed north
-    expect(w.balls.length).toBe(1); // fired once at tick 3 (no connection needed)
+    expect(w.balls.length).toBe(1); // fired the starboard battery once at tick 3 (no connection needed)
   });
 
   it("ent carries npc/faction/title for NPCs only", () => {

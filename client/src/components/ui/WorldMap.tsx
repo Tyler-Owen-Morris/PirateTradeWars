@@ -13,6 +13,9 @@ import {
   portPoint,
   zoomAt,
   formatLatLon,
+  placeLabels,
+  portLabelPriority,
+  type LabelCandidate,
 } from '@/lib/nav';
 
 const MAP_SRC = '/world/map_4096x2048.png';
@@ -133,9 +136,11 @@ export function WorldMap({ onClose }: { onClose: () => void }) {
       ctx.fillText(`${Math.abs(lon)}°${lon > 0 ? 'E' : lon < 0 ? 'W' : ''}`, x + 3, h - 6);
     }
 
-    // Ports
+    // Ports: every dot, then the labels that fit (lib/nav placeLabels: target, major ports, then by id),
+    // so the crowded Caribbean and River Plate thin out when zoomed out.
     ctx.textAlign = 'center';
     ctx.font = 'bold 12px Arial';
+    const labels: LabelCandidate[] = [];
     for (const p of ports) {
       const pt = portPoint(p);
       const s = mapWorldToScreen(v, w, h, pt.x, pt.z);
@@ -148,11 +153,16 @@ export function WorldMap({ onClose }: { onClose: () => void }) {
       ctx.arc(s.x, s.y, sel ? 7 : 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      ctx.lineWidth = 3;
+      labels.push({ id: p.id, x: s.x, y: s.y - 10, text: p.name, priority: portLabelPriority(p as { key?: string; id: number }, sel) });
+    }
+    const shown = placeLabels(labels, (t) => ctx.measureText(t).width, 13);
+    ctx.lineWidth = 3;
+    for (const l of labels) {
+      if (!shown.has(l.id)) continue;
       ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.strokeText(p.name, s.x, s.y - 10);
+      ctx.strokeText(l.text, l.x, l.y);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(p.name, s.x, s.y - 10);
+      ctx.fillText(l.text, l.x, l.y);
     }
 
     // Player
@@ -272,23 +282,23 @@ export function WorldMap({ onClose }: { onClose: () => void }) {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       />
-      <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/70 text-amber-200 rounded-md px-3 py-2 text-xs sm:text-sm pointer-events-none">
-        <div className="font-bold text-amber-400">World Map</div>
+      <div className="ptw-parchment absolute top-2 left-2 sm:top-4 sm:left-4 max-w-[calc(100%-4.5rem)] sm:max-w-sm px-3.5 py-2.5 text-xs sm:text-sm pointer-events-none shadow-[0_4px_14px_rgba(0,0,0,0.5)]">
+        <div className="ptw-font-display text-xl sm:text-2xl leading-none mb-1">World Map</div>
         <div>Drag to pan, wheel/pinch to zoom, click a port to navigate to it.</div>
-        <div className="opacity-70">Centre {formatLatLon(centreLat, centreLon)}{hover ? ` · ${hover}` : ''}</div>
-        <div className="opacity-70">Dashed lines: polar pack ice (70°)</div>
+        <div className="ptw-num text-ptw-ink-soft">Centre {formatLatLon(centreLat, centreLon)}{hover ? ` · ${hover}` : ''}</div>
+        <div className="text-ptw-ink-soft italic">Dashed lines: polar pack ice (70°)</div>
       </div>
       <div className="absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-col gap-2">
-        <button className="h-10 w-10 rounded bg-black/70 text-white text-xl" onClick={onClose} title="Close (Esc / M)" aria-label="Close map">
+        <button className="ptw-btn ptw-btn--porthole text-xl" onClick={onClose} title="Close (Esc / M)" aria-label="Close map">
           ×
         </button>
-        <button className="h-10 w-10 rounded bg-black/70 text-white text-xl" onClick={() => zoomBtn(1.5)} aria-label="Zoom in">
+        <button className="ptw-btn ptw-btn--porthole text-xl" onClick={() => zoomBtn(1.5)} aria-label="Zoom in">
           +
         </button>
-        <button className="h-10 w-10 rounded bg-black/70 text-white text-xl" onClick={() => zoomBtn(1 / 1.5)} aria-label="Zoom out">
+        <button className="ptw-btn ptw-btn--porthole text-xl" onClick={() => zoomBtn(1 / 1.5)} aria-label="Zoom out">
           −
         </button>
-        <button className="h-10 w-10 rounded bg-black/70 text-white text-xs" onClick={centerOnPlayer} aria-label="Centre on ship" title="Centre on ship">
+        <button className="ptw-btn ptw-btn--porthole ptw-font-label text-xs" onClick={centerOnPlayer} aria-label="Centre on ship" title="Centre on ship">
           Me
         </button>
       </div>

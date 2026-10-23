@@ -31,6 +31,8 @@ implementer must deviate, they write the deviation into their progress file AND 
 - `stepShip(state, input, stats) → state` is a pure function. Unit tested for determinism and wrapping.
 - Cannonballs: `stepBall`, speed 15 units/(1/60 s), lifetime 3000 ms, spawn rule identical to today's
   `fireCannonBall` (cannonCount balls, spread 0.1 rad, broadside `rotationY + π/2`, 10 units out).
+  Since 2026-10-23 there are two broadsides: starboard `rotationY + π/2` (RIGHT) and port
+  `rotationY − π/2` (LEFT); see "Broadsides clarifications" below.
   Position of a ball at time t is analytic: `p0 + dir * speed * 60 * t` (wrapped) — clients simulate locally.
 
 ## 3. Transport
@@ -38,7 +40,7 @@ implementer must deviate, they write the deviation into their progress file AND 
 - Heartbeat: server pings every 15 s via ws ping; a socket missing 2 pongs is terminated.
   Server also sends `{t:"pong"}` in reply to client `{t:"ping",c:<clientTime>}` (used for RTT/clock offset).
 - Every server→client message has `t` (type). Existing messages that the UI relies on keep their names
-  (`connected`, `reconnected`, `tradeSuccess`, `upgradeSuccess`, `repairSuccess`, `gameEnd`, `error`,
+  (`connected`, `reconnected`, `tradeSuccess`, `tradeResult` (2026-10-23), `upgradeSuccess`, `repairSuccess`, `gameEnd`, `error`,
   `nameError`, `welcome`) and payload shapes, EXCEPT that `players`/`cannonBalls`/`goldObjects` full dumps
   are removed from them (the first snapshot delivers world state). They may keep `type` instead of `t`
   for backward-compat; new messages use `t`.
@@ -47,9 +49,10 @@ implementer must deviate, they write the deviation into their progress file AND 
 | msg | fields | notes |
 |-----|--------|-------|
 | `connect` / `reconnect` | unchanged | existing name/ship flow |
-| `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0|1}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). Server clamps values, ignores out-of-order seq, caps queue at 40 (= 2 s, drop oldest; was 10 before 2026-10-23). |
+| `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0..7}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). `f` = fire bit flags: 1 fire every loaded side (legacy `f:1`), 2 port (left), 4 starboard (right); see "Broadsides clarifications". Server clamps values, ignores out-of-order seq, caps queue at 40 (= 2 s, drop oldest; was 10 before 2026-10-23). |
 | `ping` | `{t:"ping", c:clientTimeMs}` | every 2 s |
-| `trade`, `upgradeShip`, `repairShip`, `scuttle` | unchanged shape | W4: trade, upgrade and repair are rejected with `error "Too far from port"` unless the ship is within 300 (metric) of the port's dock. `portId` is the numeric id from `GET /api/ports` (1-based index in ports.json). |
+| `chat` | `{t:"chat", text}` | global chat line, ≤ 200 chars after sanitizing; see "Global chat" below |
+| `trade`, `sellAll`, `upgradeShip`, `repairShip`, `scuttle` | `trade` gains optional `ref`/`expectedPrice`; `sellAll` is new (2026-10-23, see "Trading clarifications") | W4: trade, upgrade and repair are rejected with `error "Too far from port"` unless the ship is within 300 (metric) of the port's dock. `portId` is the numeric id from `GET /api/ports` (1-based index in ports.json). |
 
 The client never sends position, speed, direction or rotation. The server is authoritative.
 
@@ -79,7 +82,7 @@ The client never sends position, speed, direction or rotation. The server is aut
 ## 6. Server → client snapshot (every tick)
 ```
 { t:"s", k:tick, st:serverTimeMs, a:lastProcessedInputSeq,
-  me:{ x,z,r,v,hp,maxHp,gold,cargoUsed,cargoCapacity,sunk,canFire,reloadMs, shipType },   // full private self state
+  me:{ x,z,r,v,hp,maxHp,gold,cargoUsed,cargoCapacity,sunk,canFire,reloadMs,reloadPortMs?,reloadStarboardMs?, shipType },   // full private self state
   e:[ [eid, x, z, r, v, hp, flags], ... ],   // other visible ships, numbers rounded (x,z 1 decimal, r 3 decimals)
   g?:[ [id, x, z, gold], ... ]               // gold objects in range, only every 10th tick
 }
@@ -90,7 +93,7 @@ The client never sends position, speed, direction or rotation. The server is aut
   `{t:"ent", eid, id, name, shipType, maxHp}`. On leaving view: `{t:"gone", eid}`. Server tracks the
   known-set per client. Other players' gold/cargo/inventory are NEVER sent.
 - Events (sent immediately, to clients that can see them):
-  - `{t:"fire", eid, k:tick, balls:[[id, x, z, dx, dz]...], spd, life}` — clients simulate the balls.
+  - `{t:"fire", eid, k:tick, side?, balls:[[id, x, z, dx, dz]...], spd, life}` — clients simulate the balls.
   - `{t:"hit", target:eid|"me", ball:id, hp}` — remove ball, show impact.
   - `{t:"sunk", eid}` ; `{t:"goldCollected", gold, newTotalGold}` (to the collector).
 
@@ -201,6 +204,91 @@ The client never sends position, speed, direction or rotation. The server is aut
   (or the ice) at (x, z) and was removed. Sent to clients within `INTEREST_RADIUS` (metric) of (x, z),
   after the view diff and before the snapshot, like other events. `ball` is the id from the `fire`
   row (an addition to the spec's `{x, z, land:1}`), so clients remove the ball exactly as on `hit`.
+
+**Global chat (2026-10-23; shapes in `shared/protocol.ts`, server policy in `server/game/chat.ts`):**
+- **Client → server** `{t:"chat", text}`. `parseClientMessage` accepts it (also under `type`), rejects
+  non-string text or raw text longer than 4 × `MAX_CHAT_LENGTH`, and normalizes with `sanitizeChatText`:
+  tabs/newlines → spaces, C0/DEL/C1 control chars, zero-width / invisible chars (U+200B–U+200F, U+FEFF)
+  and bidi overrides/isolates (U+202A–U+202E, U+2060–U+2069) removed, whitespace runs collapsed, trimmed,
+  cut to `MAX_CHAT_LENGTH` (200) code points without splitting a surrogate pair. Empty after that → dropped.
+  Every other field (e.g. `from`, `sys`) is dropped: the client can never choose the sender name.
+- **Who may chat:** a socket that has joined (`connected`/`reconnected`), is still the player's attached
+  socket, and whose ship is a live player ship (not sunk, not dead). Anything else is dropped silently.
+- **Server → client** `{t:"chat", id, from, text, ts, sys?}` (`ChatMessage`):
+  - `id` increasing server sequence number (> 0) for broadcast lines; `0` for private system notices.
+  - `from` is the sender's ship name from the server's player record (`""` for system lines).
+  - `text` is sanitized, runs of > 3 identical characters are cut to 3, and a small built-in word list
+    (profanity and slurs, leet-tolerant) is masked with asterisks of the same length.
+  - `ts` server `Date.now()` when accepted; `sys: 1` marks a system line.
+  - Player lines are broadcast at once to every attached socket (all players, not interest-filtered), from
+    the socket message path. Chat never runs inside `World.step()` and never waits on the tick.
+- **Rate limit:** a token bucket per player id: burst 5, refill 1 per second (a reconnect does not refill
+  it). A throttled line is dropped and the sender alone gets a private notice
+  `{t:"chat", id:0, from:"", sys:1, text:"Easy there, matey! ..."}`, at most once per 3 s.
+- **History:** the server keeps the last `CHAT_HISTORY_SIZE` (30) broadcast lines in memory and sends
+  `{t:"chatHistory", lines:[ChatMessage...]}` (oldest first) right after every `connected`/`reconnected`.
+  Nothing is stored in Redis: a server restart (deploy) clears the chat. Private notices are not kept.
+- **Clients** must render chat as plain text (never HTML), re-validate each line (`parseChatLine`) and
+  de-duplicate by `id` (history is replayed on every reconnect).
+- **Backward compatibility:** older clients pass unknown `t` values to their legacy handler, which logs
+  "Unknown message type" and ignores them, so `chat`/`chatHistory` are harmless to them.
+
+**Broadsides clarifications (2026-10-23; `shared/physics.ts` fire flags, `server/game/world.ts`):**
+- **Root cause of "cannons only fire right":** `spawnBroadside` always used `rotationY + π/2`. The bow
+  points along `(−sin r, −cos r)` (negative velocity = forward) with y up, so that direction,
+  `(cos r, −sin r)`, is the ship's RIGHT (starboard). There was one `lastFired` per ship.
+- **Sides.** `broadsideAngle(r, side)`: starboard (RIGHT) = `r + π/2`, port (LEFT) = `r − π/2`. A/Left
+  rudder (`ru = 1`) turns the bow toward the port side. `spawnBroadside(ship, n, side = "starboard")`.
+- **Input `f` is a bit set** (`FIRE_ALL = 1`, `FIRE_PORT = 2`, `FIRE_STARBOARD = 4`, `FIRE_MASK = 7`):
+  - 1 = fire every battery that is loaded (both, one or none). Space / F / the HUD and touch fire
+    button. This is exactly what an old cached client's `f:1` means, so old clients keep firing.
+  - 2 = port only (Q), 4 = starboard only (E). Bits combine (Q+E = 6, Q+Space = 3).
+  - `parseClientMessage` → `fireFlags()`: `true` → 1; numbers floored and masked to 7; a positive value
+    with no known bit (0.5, 8) → 1 (the old "any positive fires"); negative / NaN / non-number → 0.
+  - New client against an old server (not a supported deploy, but harmless): the old `unit()` clamp turns
+    2/4/6 into 1, i.e. fire-all.
+- **Server.** Each ship has `lastFiredPort` / `lastFiredStarboard`; each battery reloads in the ship
+  type's `reloadTime` independently (`World.sideReady`, `World.reloadLeftMs`). Per tick the flags of the
+  consumed input(s) are OR-ed (catch-up consumes 2) and `fireSides(f, portReady, starboardReady)` picks
+  the sides. Holding a key re-fires each requested side whenever it is loaded. `lastFired` (persisted)
+  = the most recent volley of either side.
+- **`fire` event** gains `side: "port" | "starboard"`. One event per side volley, so firing both in one
+  tick sends two `fire` events with the same `k` (the client plays one bang per eid+tick). The ball rows
+  already carry the geometry, so old clients draw port balls correctly without knowing `side`.
+- **`me` snapshot**: `reloadPortMs` and `reloadStarboardMs` (ms until that battery is loaded, 0 = ready).
+  `canFire` = at least one side loaded; `reloadMs` = min of the two (legacy single gauge).
+- **NPCs** fire one side at a time: the side facing their target (`tactics.chooseSide`, 25° hysteresis),
+  with that side's reload, sending `FIRE_PORT` or `FIRE_STARBOARD` (never `FIRE_ALL`).
+
+**Trading clarifications (2026-10-23; `shared/protocol.ts`, `shared/market.ts`, `server/game/trade.ts`):**
+- **Serialized.** Every `trade`, `sellAll`, `upgradeShip` and `repairShip` of one player runs one at a time
+  on the server, in arrival order (`playerQueue`), and each port's stock write runs one at a time
+  (`portQueue`, also used by the price updater). Before this, two trades in flight read the same inventory
+  and both wrote: two sells paid twice. Nothing of this touches the tick.
+- **Prices.** A port good's `currentPrice` is what the port CHARGES. It PAYS `sellPriceOf(currentPrice)` =
+  `max(1, round(currentPrice × 0.9))` (the ~10% spread). Buying takes the units from the port's `stock`;
+  selling adds them. `GET /api/ports/:id/goods` rows keep their stored fields and add `buyPrice` (null = the
+  port doesn't sell it; it still buys it), `sellPrice` and `wanted` (regional demand).
+- **`trade`** gains two optional fields: `ref` (client nonce, integer ≥ 1) and `expectedPrice` (the unit
+  price the player saw). With `ref`, the reply is `tradeResult` (below) and NOT the legacy
+  `tradeSuccess`/`error`; without `ref` (cached old clients) the legacy replies are unchanged, with the old
+  error texts. `expectedPrice` refuses the trade with `price_changed` only if the price moved AGAINST the
+  player (buy price up, sell price down); otherwise it runs at the current, better price.
+- **`sellAll`** `{type:"sellAll", portId, ref?, lines?:[{goodId, quantity, expectedPrice?}]}`: sell
+  everything aboard, all or nothing. `lines`, if sent, must match the hold exactly (`hold_changed`
+  otherwise) and carry the per-line price guard. Always answered with `tradeResult` (`action:"sellAll"`,
+  `lines:[{goodId, quantity, price}]`).
+- **`tradeResult`** `{type:"tradeResult", ref?, ok, action:"buy"|"sell"|"sellAll", code?, message?, good?,
+  quantity?, price?, total?, lines?, gold, cargoUsed, inventory, timestamp}`. `gold`, `cargoUsed` and
+  `inventory` are authoritative (the new values on success, the unchanged ones on refusal). Codes:
+  `too_far, no_port, not_traded, not_sold, no_stock, no_gold, no_space, not_owned, price_changed,
+  hold_changed, empty_hold, dead, server`. Old clients log it as an unknown message type and ignore it.
+- **Inventory rows** (`tradeResult.inventory`, `tradeSuccess.inventory`, `GET /api/players/:id/inventory`)
+  may carry `avgPaid` = the weighted average unit price paid (absent for cargo bought before 2026-10-23;
+  on the next purchase those old units are counted at the new price).
+- **Removed:** `PUT /api/players/:id/inventory` (it let anyone write any cargo; old clients called it after
+  every trade and overwrote the server's inventory). Old clients' PUT now 404s, harmlessly.
+- `upgradeShip` / `repairShip` keep their shapes and replies (`upgradeSuccess`, `repairSuccess`, `error`).
 
 ## 8. Wave 2 (deferred): Colyseus
 Wave 1 fixes the transport-independent causes (split worlds, physics mismatch, snapping, tick stalls,

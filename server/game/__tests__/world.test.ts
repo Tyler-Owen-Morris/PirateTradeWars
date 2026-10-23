@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { World, SpatialGrid, GRACE_PERIOD, DEFAULT_SPAWN_CENTER, SPAWN_MIN_WATER, type WorldPlayer } from "../world";
 import { FixedStepLoop } from "../loop";
 import { FLAG_DISCONNECTED, FLAG_SUNK, GOLD_SNAPSHOT_EVERY, MAX_INPUT_QUEUE, type ServerMessage, type SnapshotMessage } from "@shared/protocol";
-import { TICK_DT } from "@shared/physics";
+import { FIRE_ALL, FIRE_PORT, FIRE_STARBOARD, TICK_DT } from "@shared/physics";
 import { WORLD_C, WORLD_H, WORLD_VERSION, metricDistSq, zOfLat } from "@shared/world/geo";
 import { buildSyntheticLand, type LandQuery } from "@shared/world/land";
 import { STARTER_PORTS } from "@shared/world/ports";
@@ -14,7 +14,7 @@ const EQ = WORLD_H / 2;
 const X = (x: number) => x + 195_000;
 const Z = (z: number) => z + EQ - 5000;
 
-const input = (s: number, th: -1 | 0 | 1 = 0, ru: -1 | 0 | 1 = 0, f: 0 | 1 = 0) => ({ t: "input" as const, s, th, ru, f });
+const input = (s: number, th: -1 | 0 | 1 = 0, ru: -1 | 0 | 1 = 0, f: number = 0) => ({ t: "input" as const, s, th, ru, f });
 
 function mkWorld(land?: LandQuery) {
   let wall = 1_000_000;
@@ -85,7 +85,7 @@ describe("input queue", () => {
     const w = mkWorld();
     const p = add(w, "a", 5000, 5000);
     const ref = add(w, "ref", 6000, 5000); // same inputs, never starved
-    w.queueInput("a", input(1, 1, 0, 1));
+    w.queueInput("a", input(1, 1, 0, FIRE_STARBOARD)); // one side: fire-all would fire both batteries
     w.queueInput("ref", input(1, 1));
     w.step();
     expect(w.balls.length).toBe(1);
@@ -253,7 +253,7 @@ describe("combat", () => {
     const shooter = add(w, "s", 5000, 5000);
     const target = add(w, "t", 5200, 5000, { hp: 3, gold: 300 });
     const far = add(w, "far", 9000, 9000);
-    w.queueInput("s", input(1, 0, 0, 1));
+    w.queueInput("s", input(1, 0, 0, FIRE_STARBOARD));
     w.step();
     const sm = w.buildMessages("s");
     const fire = ofType(sm, "fire");
@@ -264,8 +264,12 @@ describe("combat", () => {
     expect(fire[0].life).toBe(3000);
     expect(ofType(w.buildMessages("t"), "fire").length).toBe(1); // target sees it
     expect(ofType(w.buildMessages("far"), "fire").length).toBe(0); // out of interest
-    expect(snap(sm).me.canFire).toBe(false);
-    expect(snap(sm).me.reloadMs).toBeGreaterThan(0);
+    expect(fire[0].side).toBe("starboard");
+    // Broadsides: only the starboard battery fired; the port one is still loaded.
+    expect(snap(sm).me.canFire).toBe(true);
+    expect(snap(sm).me.reloadMs).toBe(0);
+    expect(snap(sm).me.reloadStarboardMs).toBeGreaterThan(0);
+    expect(snap(sm).me.reloadPortMs).toBe(0);
 
     let hitFor: { s: ServerMessage[]; t: ServerMessage[] } | null = null;
     for (let i = 0; i < 20 && !hitFor; i++) {
@@ -331,6 +335,73 @@ describe("combat", () => {
     for (let i = 0; i < 80; i++) w.step();
     expect(s.hp).toBe(50);
     expect(w.balls.length).toBe(0); // expired after 3 s
+  });
+});
+
+describe("broadsides (port + starboard, independent reloads)", () => {
+  /** Queue one input with fire flags `f` and step; returns this tick's fire messages for "s". */
+  function fireTick(w: World, seq: number, f: number): any[] {
+    w.queueInput("s", input(seq, 0, 0, f));
+    w.step();
+    return ofType(w.buildMessages("s"), "fire");
+  }
+  const ticksFor = (ms: number) => Math.ceil(ms / 50);
+
+  it("legacy f:1 (FIRE_ALL) fires both loaded batteries, port to the LEFT and starboard to the RIGHT", () => {
+    const w = mkWorld();
+    const s = add(w, "s", 5000, 5000); // rotationY 0: bow −z (north), right = +x, left = −x
+    const fires = fireTick(w, 1, FIRE_ALL);
+    expect(fires.map((f) => f.side).sort()).toEqual(["port", "starboard"]);
+    const port = fires.find((f) => f.side === "port")!;
+    const stbd = fires.find((f) => f.side === "starboard")!;
+    expect(port.balls[0][3]).toBeCloseTo(-1, 4); // dx
+    expect(port.balls[0][1]).toBeLessThan(s.x);
+    expect(stbd.balls[0][3]).toBeCloseTo(1, 4);
+    expect(stbd.balls[0][1]).toBeGreaterThan(s.x);
+    expect(w.balls.length).toBe(2);
+    const me = snap(w.buildMessages("s")).me;
+    expect(me.canFire).toBe(false);
+    expect(me.reloadPortMs).toBeGreaterThan(0);
+    expect(me.reloadStarboardMs).toBeGreaterThan(0);
+  });
+
+  it("Q (port) then Space (fire all) fires the other side; each side reloads on its own", () => {
+    const w = mkWorld();
+    const s = add(w, "s", 5000, 5000);
+    let seq = 1;
+    expect(fireTick(w, seq++, FIRE_PORT).map((f) => f.side)).toEqual(["port"]);
+    expect(s.canFire).toBe(true); // starboard still loaded
+    // Next tick, fire-all: only starboard is loaded.
+    expect(fireTick(w, seq++, FIRE_ALL).map((f) => f.side)).toEqual(["starboard"]);
+    expect(s.canFire).toBe(false);
+    // Fire-all again right away: nothing loaded.
+    expect(fireTick(w, seq++, FIRE_ALL)).toEqual([]);
+    // Hold fire-all: port comes back first (fired one tick earlier), then starboard, then nothing.
+    const order: string[] = [];
+    for (let i = 0; i < ticksFor(s.reloadTime) + 2; i++) for (const f of fireTick(w, seq++, FIRE_ALL)) order.push(f.side);
+    expect(order).toEqual(["port", "starboard"]);
+  });
+
+  it("holding one side's key fires only that side, once per reload", () => {
+    const w = mkWorld();
+    const s = add(w, "s", 5000, 5000);
+    let seq = 1;
+    const sides: string[] = [];
+    const n = ticksFor(s.reloadTime) * 3; // ~3 reloads
+    for (let i = 0; i < n; i++) for (const f of fireTick(w, seq++, FIRE_STARBOARD)) sides.push(f.side);
+    expect(sides).toEqual(["starboard", "starboard", "starboard"]);
+    expect(s.canFire).toBe(true); // port never fired
+  });
+
+  it("flags from a catch-up pair of inputs are OR-ed", () => {
+    const w = mkWorld();
+    add(w, "s", 5000, 5000);
+    // Five queued inputs → the tick consumes 2 (catch-up): PORT then STARBOARD → both fire.
+    w.queueInput("s", input(1, 0, 0, FIRE_PORT));
+    w.queueInput("s", input(2, 0, 0, FIRE_STARBOARD));
+    for (let i = 3; i <= 5; i++) w.queueInput("s", input(i));
+    w.step();
+    expect(ofType(w.buildMessages("s"), "fire").map((f) => f.side).sort()).toEqual(["port", "starboard"]);
   });
 });
 
@@ -499,7 +570,7 @@ describe("world on the wrapping Earth", () => {
     // rotationY 0 → broadside +x, straight at the island 300 units away.
     const s = addRaw(w, "s", ISLAND.x - ISLAND.r - 300, EQ);
     const far = addRaw(w, "far", ISLAND.x - ISLAND.r - 300, EQ + 5000);
-    w.queueInput("s", input(1, 0, 0, 1));
+    w.queueInput("s", input(1, 0, 0, FIRE_STARBOARD));
     w.step();
     const ballId = ofType(w.buildMessages("s"), "fire")[0].balls[0][0];
     w.buildMessages("far");
@@ -519,8 +590,8 @@ describe("world on the wrapping Earth", () => {
 
   it("balls splash on the polar ice too", () => {
     const w = mkWorld();
-    addRaw(w, "s", 5000, 22_500, { rotationY: Math.PI / 2 }); // broadside = rotationY + π/2 → −z (north)
-    w.queueInput("s", input(1, 0, 0, 1));
+    addRaw(w, "s", 5000, 22_500, { rotationY: Math.PI / 2 }); // starboard = rotationY + π/2 → −z (north)
+    w.queueInput("s", input(1, 0, 0, FIRE_STARBOARD));
     let splashes = 0;
     for (let i = 0; i < 20; i++) {
       w.step();

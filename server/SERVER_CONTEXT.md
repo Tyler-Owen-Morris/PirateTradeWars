@@ -48,16 +48,21 @@ physics in `shared/physics.ts`. Both are shared with the client.
        reintroduce "repeat the last input" here: it was the 2026-10-23 own-ship jump bug
        (docs/netcode/BUILD_STATE.md). `world.inputStats` (held / overflow / catchUp) is in the
        `[tick]` log line, with the max tick ms.
+       The fire flags of the consumed input(s) are OR-ed (broadsides: `FIRE_ALL`/`FIRE_PORT`/`FIRE_STARBOARD`).
      - A disconnected ship gets neutral input, so it coasts to 0.
   3. Rebuild the grid.
   4. Cannonballs: `stepBall` (metric straight line), a metric `segmentHitsCircle` hit test against
      ships near the ball, and armor `round(dmg * (1 - armor/100))`. A ship that reaches 0 hp is sunk,
      drops its gold, and emits a `playerSunk` effect. A ball whose half-tick or full-tick position is
      on land (`ballHitsLand`, incl. ice) is removed and emits a `splash` event `{ball, x, z}`.
-  5. Spawn new broadsides with `spawnBroadside`, gated by `reloadTime` from SHIP_STATS. A ball fired
+  5. Spawn new broadsides with `spawnBroadside(p, n, side)`. Broadsides (2026-10-23): each ship has a
+     port and a starboard battery, each gated by `reloadTime` on its own (`lastFiredPort` /
+     `lastFiredStarboard`, `sideReady`, `reloadLeftMs`); `fireSides` picks which fire, and each side
+     volley is its own `fire` event with `side`. A ball fired
      at tick k is still at its spawn point at tick k.
   6. Gold: it expires after 60 s. Any ship within 50 units picks it up.
-  7. Derived flags: `firing` (for 6 ticks after a broadside) and `canFire`.
+  7. Derived flags: `firing` (for 6 ticks after a broadside) and `canFire` (either side loaded).
+     The snapshot `me` carries `reloadPortMs` / `reloadStarboardMs` (+ legacy `reloadMs` = min).
 - **Events and effects.**
   - `world.events` holds this tick's `fire`/`hit`/`sunk`/`splash`/`goldCollected`. `splash` goes to
     clients within `INTEREST_RADIUS` (metric) of the splash point as `{t:"splash",x,z,land:1,ball}`.
@@ -96,7 +101,15 @@ physics in `shared/physics.ts`. Both are shared with the client.
   - `input` → `world.queueInput` (out-of-order seqs are ignored; the queue is capped at 10, dropping
     the oldest).
   - `ping` → `{t:"pong", c, st}`.
-  - connect, reconnect, trade, upgradeShip, repairShip and scuttle work as before (they are async
+  - `chat` → `handleChat` (synchronous, message path, never the tick): only the attached socket of a
+    live player ship (`gameState.isRegisteredSocket`, not sunk/dead) may chat. `gameState.chat`
+    (`game/chat.ts` `ChatService`) applies a per-player token bucket (burst 5, 1/s; throttled → one private
+    `sys` notice per 3 s), `collapseRepeats` and `maskProfanity` (small built-in list, same-length
+    asterisks, leet-tolerant, pirate words allowed), stamps the server-side name, and keeps a 30-line
+    in-memory ring buffer. Accepted lines go out with `gameState.broadcast(json)` to every attached socket.
+    After `connected`/`reconnected` the socket gets `{t:"chatHistory", lines}`. Nothing is in Redis; a
+    restart clears chat. Tests: `game/__tests__/chat.test.ts` (policy), `chatSocket.test.ts` (handler).
+  - connect, reconnect, trade, sellAll, upgradeShip, repairShip and scuttle (trading: see "Trade Processing") are async
     with Redis, outside the tick), but on the world's live player objects.
   - `connected`/`reconnected` no longer carry the `players`/`cannonBalls`/`goldObjects` dumps. The
     socket is attached after that message, so the next tick's snapshot delivers the world.
@@ -145,6 +158,10 @@ Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
   at hp ≤ (1 − courage) × 0.7 on a committed escape course; an NPC a player hit may fight back past the
   attacker-slot cap (self-defence, 60 s); ally friendly fire is ignored; a hit cancels dock idling. See
   `game/npc/README.md` "Combat fixes after Q1".
+- **Broadsides (2026-10-23).** NPCs have both batteries. They fight with the side facing the target
+  (`tactics.chooseSide`, `SIDE_SWITCH_MARGIN` 25° hysteresis, kept in `ActiveNpc.gunSide`), use that
+  side's reload, and fire only it (`FIRE_PORT`/`FIRE_STARBOARD`). Sustained damage is about unchanged;
+  the first hit comes sooner (see `docs/proposals/2026-10-23-broadsides-NOTES.md`).
 - **Tiers.** Only *active* NPCs (a player within 2500) are World ships. Rail and docked NPCs are
   director records, so they cost nothing per tick.
 - **Navigation on real coasts (NPC2):** lane following with a line-of-sight check, coast feelers with
@@ -167,19 +184,27 @@ Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
 - **Seeding, `game/ports.ts`:** `initializeGameState` calls `seedPorts(redisStorage)`: when the Redis key
   `portsVersion` differs from `PORTS_VERSION` (or is missing), `redisStorage.replacePorts` rewrites the
   `ports` hash (id -> JSON GamePort), deletes `port:<id>:goods` for every old and new id, and stores the new
-  version, in one MULTI. Then `ensurePortGoods` creates goods for ports that have none and restocks low goods.
-  The GOODS catalogue is unchanged, so player inventories (by goodId) stay valid.
-- **Markets:** prices = base x regional factor x fluctuation (`portGoodPrice`), stock by `portGoodStock`.
-  `REGION_MARKETS` lists each region's cheap specialities (x0.7, more stock) and goods in demand (x1.35, less
-  stock); pirate havens also sell cheap Rum. The 5-minute `updatePrices` runs `ensurePortGoods` +
-  `updatePortMarkets`, so the regional factors persist.
+  version, in one MULTI. Then `seedGoods` writes every GOODS id missing from the `goods` hash (by id, via
+  `redisStorage.putGood`; it used to seed only an empty hash, so new goods never reached a live server), and
+  `ensurePortGoods` gives every port a row for every good (whole markets for new ports, the missing rows for new
+  goods) and restocks low goods the port sells. GOODS ids are append-only, so player inventories stay valid.
+- **Markets (New Horizons phase 1, 2026-10-23):** prices, stock and `notSold` come from the market model
+  `shared/world/goodMarkets.ts` (`GOOD_MARKETS`: per good, its sources and where it is wanted; price rises with
+  sea-lane distance from the nearest source, 0.6x to 2.0x, x1.3 where wanted; exotic goods are `notSold` away from
+  their sources, stock 0, but every port still buys them). The 5-minute `updatePrices` runs `ensurePortGoods` +
+  `updatePortMarkets`, which also re-syncs each row's `notSold` with the model (`redisStorage.updatePortGoodNotSold`).
+  `npm run market:sim` prints the best routes. To check a re-seed against an old world:
+  `REDIS_CONN_STRING=redis://localhost:6379/7 npx tsx scripts/market/seed-old-world.ts <old ports.json> <old version>`,
+  then boot the server on that DB (docs/world/expansion-phase1/NOTES.md).
 - **Interaction gate:** trade, upgradeShip and repairShip (`socketHandler.withinPort`) need the metric distance
   from the ship to the port's **dock** <= `PORT_INTERACTION_RADIUS` (300); otherwise `error "Too far from port"`.
   Trade had no distance check before W4.
 - **Safe zone:** `safeRadius` (600, around the dock) is stored and served but has no gameplay effect; before W4
   it was only (mis)used as the interaction radius, and there was never a no-damage zone. Kept as data for later.
 - **API:** `GET /api/ports` returns the GamePort list sorted by id (the client also bundles `PORTS` as a fallback).
-- Tests: `game/__tests__/ports.test.ts` (seeding with a fake store, spawns on the real land, migration),
+- Tests: `game/__tests__/ports.test.ts` (seeding with a fake store, goods seeding by id, missing goods rows, notSold
+  sync, spawns on the real land, migration), `game/__tests__/goodsCompat.test.ts` (protocol + inventory back-compat
+  with goods 9-13),
   `game/__tests__/portActions.test.ts` (dock gate through the real socket handler, Redis mocked),
   `shared/world/__tests__/ports.test.ts`.
 
@@ -223,13 +248,14 @@ Socket handling in `socketHandler.ts`:
    - `connect` / `reconnect` - Player registration
    - `input` - `{t:"input", s, th, ru, f}` throttle/rudder/fire intents (never positions)
    - `ping` - RTT probe
+   - `chat` - `{t:"chat", text}` global chat (see "Socket handling" above)
    - `trade`, `upgradeShip`, `repairShip`, `scuttle` - port and ship actions
    (authoritative list: `shared/protocol.ts`, `parseClientMessage`)
 
 2. **Socket Management**:
    - Each connected client gets a unique ID
    - Messages parsed and validated
-   - Replies sent directly; world state goes out per client as interest-filtered snapshots after each tick (there is no global broadcast)
+   - Replies sent directly; world state goes out per client as interest-filtered snapshots after each tick. The only global broadcast is chat (`gameState.broadcast`)
 
 ## Data Storage
 
@@ -276,11 +302,20 @@ The trading system spans multiple components:
    - Dynamic goods with regional prices and fluctuation
    - Stock management (supply/demand)
 
-2. **Trade Processing**:
-   - Buy/sell validation
-   - Inventory updates
-   - Gold transfers
-   - Stock adjustments
+2. **Trade Processing** (2026-10-23; contract: docs/netcode/PROTOCOL.md "Trading clarifications"):
+   - `game/trade.ts`: pure `applyTrade` / `applySellAll` (validation, spread via `shared/market.ts`
+     `sellPriceOf`, stock taken on buy / returned on sell, `avgPaid` per inventory row, `expectedPrice`
+     guard) and `KeyedQueue`. `playerQueue` serializes every port action of a player (trade, sellAll,
+     upgrade, repair); `portQueue` serializes each port's goods writes (redisStorage's
+     `updatePortGoodPrice/Stock` and `createPortGood` run through it too). Tests: `__tests__/trade.test.ts`
+     (rules), `__tests__/tradeSocket.test.ts` (the race, ref/legacy replies, sellAll, with a slow fake Redis).
+   - `socketHandler.tsx` `doTrade` / `doSellAll`: load port goods + inventory, re-check the dock radius,
+     decide and apply to the live player (gold, cargoUsed) in one synchronous block, then persist with
+     `redisStorage.saveTrade` (inventory + cargoUsed + gold in one MULTI) and `setPortGoods`.
+     Requests with `ref` get `tradeResult`; legacy requests get `tradeSuccess` / `error` as before.
+   - `GET /api/ports/:id/goods` adds `buyPrice` / `sellPrice` / `wanted` (`portGoodView`).
+     `PUT /api/players/:id/inventory` was removed (unauthenticated cargo writes).
+   - The bot test runs a trade round trip (`scripts/tradeCheck.ts`).
 
 3. **Price Fluctuation**:
    - Automated price changes

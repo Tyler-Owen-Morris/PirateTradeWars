@@ -23,7 +23,44 @@ import {
   mapImageOffsets,
   pickPort,
   gridLines,
+  placeLabels,
+  portLabelPriority,
 } from "../nav";
+import { PORTS } from "@shared/world/ports";
+
+describe("placeLabels (map label decluttering)", () => {
+  const measure = (t: string) => t.length * 6;
+  it("keeps every label when nothing overlaps", () => {
+    const shown = placeLabels(
+      [
+        { id: 1, x: 0, y: 0, text: "Havana", priority: 0 },
+        { id: 2, x: 200, y: 0, text: "Nassau", priority: 0 },
+      ],
+      measure,
+      12,
+    );
+    expect([...shown].sort()).toEqual([1, 2]);
+  });
+  it("drops the lower-priority label of an overlapping pair; the target always wins", () => {
+    const c = [
+      { id: 30, x: 0, y: 0, text: "Montevideo", priority: 0 },
+      { id: 29, x: 10, y: 2, text: "Buenos Aires", priority: portLabelPriority({ key: "buenos_aires", id: 29 }, false) },
+    ];
+    expect([...placeLabels(c, measure, 12)]).toEqual([29]);
+    c[0].priority = portLabelPriority({ key: "montevideo", id: 30 }, true);
+    expect([...placeLabels(c, measure, 12)]).toEqual([30]);
+  });
+  it("thins the real ports out when zoomed out but keeps them all when zoomed in", () => {
+    const cands = (scale: number) =>
+      PORTS.map((p) => ({ id: p.id, x: p.dock.x * scale, y: p.dock.z * scale, text: p.name, priority: portLabelPriority(p, false) }));
+    const far = placeLabels(cands(0.004), measure, 12); // the whole world in ~1600 px
+    const near = placeLabels(cands(1), measure, 12);
+    expect(far.size).toBeLessThan(PORTS.length);
+    expect(far.size).toBeGreaterThan(15);
+    expect(near.size).toBe(PORTS.length);
+    for (const k of ["port_royal", "london", "callao", "rio_de_janeiro"]) expect(far.has(PORTS.find((p) => p.key === k)!.id), k).toBe(true);
+  });
+});
 
 describe("formatting", () => {
   it("formats lat/lon", () => {

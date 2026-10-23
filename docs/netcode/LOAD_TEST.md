@@ -64,6 +64,11 @@ Fail if any of:
 - visibility asymmetry above 15% (only checked with >= 10 bot-bot pairs). Spawns are random in a 10000x10000
   world with interest radius 2000, so "everyone sees everyone" cannot be asserted; but if A knows B, B should
   know A (allowing transient mismatch). The count is always reported.
+- global chat (2026-10-23): a connected bot got no `chatHistory` after joining; half-way through the run
+  one afloat bot says a unique line, and an afloat bot that did not receive it (or received it under another
+  name) fails; a second bot sends a burst of 8 lines: more than 5 delivered, or a throttle-notice count other
+  than exactly 1 for the spammer, or any other bot seeing a `sys` notice, fails. Printed as `CHAT {...}`.
+  A malformed `chat` line is a protocol violation.
 
 ## Protocol assumptions (verify at integration)
 - `connected` arrives with `type` (not `t`); the bot reads `m.t ?? m.type`.

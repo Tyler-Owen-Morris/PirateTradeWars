@@ -3,7 +3,8 @@
  *
  * Every frame is validated with `parseClientMessage`; invalid frames are dropped silently (no
  * per-frame error replies). Hot-path messages are synchronous: `input` goes straight into the
- * world's per-player input queue (consumed by the 20 Hz tick) and `ping` is answered with `pong`.
+ * world's per-player input queue (consumed by the 20 Hz tick), `ping` is answered with `pong`, and
+ * `chat` is rate-limited/cleaned by `gameState.chat` (server/game/chat.ts) and broadcast at once.
  * The legacy flows (connect / reconnect / trade / upgradeShip / repairShip / scuttle) stay async
  * (Redis) but run outside the tick and operate on the live world player objects.
  */
@@ -12,13 +13,18 @@ import { gameState, type WorldPlayer } from "./gameState";
 import { isNpcId } from "./world";
 import { decayNotoriety } from "./npc/factions";
 import { WebSocket } from "ws";
-import { SHIP_UPGRADE_PATH, SHIP_STATS } from "@shared/gameConstants";
+import { SHIP_UPGRADE_PATH, SHIP_STATS, GOODS } from "@shared/gameConstants";
+import { applyTrade, applySellAll, refuse, playerQueue, portQueue, type Refusal } from "./trade";
 import { withinDock, type DockedPortLike } from "@shared/world/ports";
 import {
   parseClientMessage,
   type ConnectMessage,
   type ReconnectMessage,
   type TradeMessage,
+  type SellAllMessage,
+  type TradeResultMessage,
+  type InventoryRow,
+  type TradeCode,
   type ClientMessage,
 } from "@shared/protocol";
 import { identifyPlayer, trackEvent } from "../segmentClient";
@@ -35,6 +41,8 @@ export function handleSocketConnection(ws: WebSocket) {
         if (playerId) gameState.world.queueInput(playerId, data);
       } else if (data.t === "ping") {
         send(ws, { t: "pong", c: data.c, st: Date.now() });
+      } else if (data.t === "chat") {
+        handleChat(data.text);
       }
       return;
     }
@@ -54,6 +62,25 @@ export function handleSocketConnection(ws: WebSocket) {
 
   send(ws, { type: "welcome", message: "Welcome to Pirate Trade Wars!", timestamp: Date.now() });
 
+  /**
+   * Global chat (synchronous, message path only; never touches the tick). Only a joined player whose
+   * socket is the one attached, and whose ship is afloat, may chat. The name comes from the world's
+   * player record. `text` was already sanitized by parseClientMessage.
+   */
+  function handleChat(text: string) {
+    if (!playerId || !gameState.isRegisteredSocket(playerId, ws)) return;
+    const player = gameState.getPlayer(playerId);
+    if (!player || player.controller !== "player" || player.dead || player.sunk) return;
+    const res = gameState.chat.submit({ id: playerId, name: player.name }, text);
+    if (res.ok) gameState.broadcast(JSON.stringify(res.line));
+    else if (res.notice) send(ws, res.notice);
+  }
+
+  /** Global chat: replay the recent history to this socket (after `connected`/`reconnected`). */
+  function sendChatHistory() {
+    send(ws, { t: "chatHistory", lines: gameState.chat.history() });
+  }
+
   async function handleLegacy(data: Exclude<ClientMessage, { t: string }>) {
     switch (data.type) {
       case "connect":
@@ -63,11 +90,14 @@ export function handleSocketConnection(ws: WebSocket) {
       case "trade":
         if (playerId) return handleTrade(playerId, data);
         return;
+      case "sellAll":
+        if (playerId) return handleSellAll(playerId, data);
+        return;
       case "upgradeShip":
-        if (playerId && data.portId) return handleUpgradeShip(playerId, data.portId);
+        if (playerId && data.portId) { const id = playerId; return playerQueue.run(id, () => handleUpgradeShip(id, data.portId)); }
         return;
       case "repairShip":
-        if (playerId && data.portId) return handleRepairShip(playerId, data.portId);
+        if (playerId && data.portId) { const id = playerId; return playerQueue.run(id, () => handleRepairShip(id, data.portId)); }
         return;
       case "scuttle":
         if (playerId) return handleScuttle(playerId);
@@ -92,6 +122,11 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
     }
+    // Local testing only: DEV_START_GOLD=<n> gives every new captain n gold. Ignored unless NODE_ENV=development.
+    const devStartGold = Number(process.env.DEV_START_GOLD);
+    if (process.env.NODE_ENV === "development" && Number.isFinite(devStartGold) && devStartGold > 0) {
+      addedPlayer.gold = Math.floor(devStartGold);
+    }
     await redisStorage.createPlayer(addedPlayer);
     await redisStorage.addActiveName(addedPlayer.name, addedPlayer.id);
 
@@ -115,6 +150,7 @@ export function handleSocketConnection(ws: WebSocket) {
       timestamp: Date.now(),
     });
     gameState.registerClient(addedPlayer.id, ws);
+    sendChatHistory();
     console.log(`Player ${addedPlayer.name} connected with ID ${addedPlayer.id} (players in world: ${gameState.playerCount})`);
   }
 
@@ -154,84 +190,96 @@ export function handleSocketConnection(ws: WebSocket) {
       timestamp: Date.now(),
     });
     gameState.registerClient(playerId, ws);
+    sendChatHistory();
     console.log(`Player ${existingPlayer.name} reconnected with ID ${playerId}`);
   }
 
-  async function handleTrade(playerId: string, data: TradeMessage) {
-    const player = gameState.getPlayer(playerId);
-    if (!player || player.dead) return;
+  /** Every port action of a player runs one at a time (trade.ts `playerQueue`): no read-await-write races. */
+  function handleTrade(playerId: string, data: TradeMessage) {
+    return playerQueue.run(playerId, () => doTrade(playerId, data));
+  }
+  function handleSellAll(playerId: string, data: SellAllMessage) {
+    return playerQueue.run(playerId, () => doSellAll(playerId, data));
+  }
 
-    const port = await redisStorage.getPort(data.portId);
-    if (!port) return sendError(ws, "Port not found");
-    if (!withinPort(player, port)) return sendError(ws, "Too far from port");
-
-    const portGoods = await redisStorage.getPortGoods(port.id);
-    const portGood = portGoods.find((pg) => pg.goodId === data.goodId);
-    if (!portGood) return sendError(ws, "Good not available at this port");
-
-    const inventory = await redisStorage.getPlayerInventory(player.playerId);
-    const inventoryItem = inventory.find((item) => item.goodId === data.goodId);
-    const currentQuantity = inventoryItem ? inventoryItem.quantity : 0;
-
-    if (data.action === "buy") {
-      if (portGood.stock < data.quantity) return sendError(ws, "Not enough stock available");
-      const totalCost = portGood.currentPrice * data.quantity;
-      if (player.gold < totalCost) return sendError(ws, "Not enough gold");
-      if (player.cargoUsed + data.quantity > player.cargoCapacity) return sendError(ws, "Not enough cargo space");
-
-      player.gold -= totalCost;
-      player.cargoUsed += data.quantity;
-      await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity + data.quantity);
-      await redisStorage.updatePlayerGold(player.playerId, player.gold);
-      const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
-      trackEvent(playerId, "Trade Buy", {
-        portId: data.portId,
-        goodId: data.goodId,
-        quantity: data.quantity,
-        totalCost,
-        gold: player.gold,
-      });
-
-      send(ws, {
-        type: "tradeSuccess",
-        action: "buy",
-        good: portGood.goodId,
-        quantity: data.quantity,
-        price: portGood.currentPrice,
-        totalCost,
-        gold: player.gold,
-        inventory: updatedInventory,
-        timestamp: Date.now(),
-      });
-    } else if (data.action === "sell") {
-      if (currentQuantity < data.quantity) return sendError(ws, "Not enough goods to sell");
-      const totalEarnings = portGood.currentPrice * data.quantity;
-
-      player.gold += totalEarnings;
-      player.cargoUsed -= data.quantity;
-      await redisStorage.updatePlayerInventory(player.playerId, data.goodId, currentQuantity - data.quantity);
-      await redisStorage.updatePlayerGold(player.playerId, player.gold);
-      const updatedInventory = await redisStorage.getPlayerInventory(player.playerId);
-      trackEvent(playerId, "Trade Sell", {
-        portId: data.portId,
-        goodId: data.goodId,
-        quantity: data.quantity,
-        totalEarnings,
-        gold: player.gold,
-      });
-
-      send(ws, {
-        type: "tradeSuccess",
-        action: "sell",
-        good: portGood.goodId,
-        quantity: data.quantity,
-        price: portGood.currentPrice,
-        totalEarnings,
-        gold: player.gold,
-        inventory: updatedInventory,
-        timestamp: Date.now(),
+  /** Answer a trade: `tradeResult` when the request carried a `ref` (new clients) or was a sellAll;
+   *  otherwise the legacy `tradeSuccess` / `error` (cached old clients). */
+  function answer(
+    player: WorldPlayer,
+    req: { ref?: number; action: "buy" | "sell" | "sellAll"; legacy: boolean },
+    res: Refusal | ({ ok: true; inventory: InventoryRow[]; total: number } & Partial<{ good: number; quantity: number; price: number; lines: { goodId: number; quantity: number; price: number }[] }>),
+    inventory: InventoryRow[],
+  ) {
+    if (req.legacy) {
+      if (!res.ok) return sendError(ws, LEGACY_TRADE_ERRORS[res.code] ?? res.message);
+      return send(ws, {
+        type: "tradeSuccess", action: req.action, good: res.good, quantity: res.quantity, price: res.price,
+        ...(req.action === "buy" ? { totalCost: res.total } : { totalEarnings: res.total }),
+        gold: player.gold, inventory: res.inventory, timestamp: Date.now(),
       });
     }
+    const msg: TradeResultMessage = res.ok
+      ? { type: "tradeResult", ok: true, action: req.action, good: res.good, quantity: res.quantity, price: res.price, total: res.total, lines: res.lines,
+          gold: player.gold, cargoUsed: player.cargoUsed, inventory: res.inventory, timestamp: Date.now() }
+      : { type: "tradeResult", ok: false, action: req.action, code: res.code, message: res.message,
+          gold: player.gold, cargoUsed: player.cargoUsed, inventory, timestamp: Date.now() };
+    if (req.ref !== undefined) msg.ref = req.ref;
+    send(ws, msg);
+  }
+
+  async function doTrade(playerId: string, data: TradeMessage) {
+    const player = gameState.getPlayer(playerId);
+    if (!player) return;
+    const req = { ref: data.ref, action: data.action, legacy: data.ref === undefined };
+    const goodName = GOODS.find((g) => g.id === data.goodId)?.name ?? "that good";
+    if (player.dead || player.sunk) return answer(player, req, refuse("dead", "A sunk ship can't trade."), []);
+    const port = await redisStorage.getPort(data.portId);
+    if (!port) return answer(player, req, refuse("no_port", "Port not found"), []);
+    if (!withinPort(player, port)) return answer(player, req, refuse("too_far", "Too far from port"), []);
+
+    await portQueue.run(`port:${port.id}`, async () => {
+      const [market, inventory] = await Promise.all([redisStorage.getPortGoods(port.id), redisStorage.getPlayerInventory(player.playerId)]);
+      // Decide and apply in one synchronous block (the tick may change gold between awaits).
+      if (!withinPort(player, port)) return answer(player, req, refuse("too_far", "Too far from port"), inventory);
+      const res = applyTrade({ gold: player.gold, cargoCapacity: player.cargoCapacity, inventory }, market, data, goodName);
+      if (!res.ok) return answer(player, req, res, inventory);
+      player.gold = res.gold;
+      player.cargoUsed = res.cargoUsed;
+      await Promise.all([
+        redisStorage.saveTrade(player.playerId, res.inventory, res.gold),
+        redisStorage.setPortGoods(port.id, res.market as typeof market),
+      ]);
+      trackEvent(playerId, data.action === "buy" ? "Trade Buy" : "Trade Sell", {
+        portId: data.portId, goodId: data.goodId, quantity: data.quantity,
+        ...(data.action === "buy" ? { totalCost: res.total } : { totalEarnings: res.total }), gold: player.gold,
+      });
+      answer(player, req, { ...res, good: data.goodId, quantity: data.quantity }, res.inventory);
+    });
+  }
+
+  async function doSellAll(playerId: string, data: SellAllMessage) {
+    const player = gameState.getPlayer(playerId);
+    if (!player) return;
+    const req = { ref: data.ref, action: "sellAll" as const, legacy: false };
+    if (player.dead || player.sunk) return answer(player, req, refuse("dead", "A sunk ship can't trade."), []);
+    const port = await redisStorage.getPort(data.portId);
+    if (!port) return answer(player, req, refuse("no_port", "Port not found"), []);
+    if (!withinPort(player, port)) return answer(player, req, refuse("too_far", "Too far from port"), []);
+    await portQueue.run(`port:${port.id}`, async () => {
+      const [market, inventory] = await Promise.all([redisStorage.getPortGoods(port.id), redisStorage.getPlayerInventory(player.playerId)]);
+      if (!withinPort(player, port)) return answer(player, req, refuse("too_far", "Too far from port"), inventory);
+      const res = applySellAll({ gold: player.gold, cargoCapacity: player.cargoCapacity, inventory }, market, data.lines,
+        (id) => GOODS.find((g) => g.id === id)?.name ?? "that good");
+      if (!res.ok) return answer(player, req, res, inventory);
+      player.gold = res.gold;
+      player.cargoUsed = 0;
+      await Promise.all([
+        redisStorage.saveTrade(player.playerId, [], res.gold),
+        redisStorage.setPortGoods(port.id, res.market as typeof market),
+      ]);
+      trackEvent(playerId, "Trade Sell All", { portId: data.portId, lines: res.lines.length, totalEarnings: res.total, gold: player.gold });
+      answer(player, req, res, []);
+    });
   }
 
   async function handleUpgradeShip(playerId: string, portId: number) {
@@ -338,6 +386,18 @@ export function handleSocketConnection(ws: WebSocket) {
 export function withinPort(player: { x: number; z: number }, port: DockedPortLike): boolean {
   return withinDock(player.x, player.z, port);
 }
+
+/** Legacy `error` texts for old clients (no `ref`), kept identical to the pre-2026-10-23 server. */
+const LEGACY_TRADE_ERRORS: Partial<Record<TradeCode, string>> = {
+  too_far: "Too far from port",
+  no_port: "Port not found",
+  not_traded: "Good not available at this port",
+  not_sold: "Good not available at this port",
+  no_stock: "Not enough stock available",
+  no_gold: "Not enough gold",
+  no_space: "Not enough cargo space",
+  not_owned: "Not enough goods to sell",
+};
 
 function send(ws: WebSocket, msg: object) {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));

@@ -18,7 +18,7 @@ export interface ShipStats {
   playerTTL: number;
 }
 
-// Own player state as seen by React UI (HUD, Minimap, TradeMenu, ...).
+// Own player state as seen by React UI (HUD, Minimap, BillOfGoods, ...).
 // Populated by useSocket from the netcode layer at ~5 Hz (immediately when hp/gold/sunk change):
 // stats come from the snapshot `me`, x/z/rotationY/speed from the client's predicted ship.
 // Rendering of the ship itself never reads this — Player.tsx reads `net` inside useFrame.
@@ -40,8 +40,11 @@ export interface PlayerState {
   cargoUsed: number;
   cargoCapacity: number;
   canFire: boolean;
-  /** ms until cannons are reloaded (0 = ready) */
+  /** ms until the first battery is reloaded (0 = at least one side ready) */
   reloadMs: number;
+  /** Broadsides: ms until the port (left) / starboard (right) battery is reloaded (0 = ready). */
+  reloadPortMs?: number;
+  reloadStarboardMs?: number;
   /** full reload duration in ms for this ship type */
   reloadTime: number;
   sunk: boolean;
@@ -125,6 +128,8 @@ export interface InventoryItem {
   playerId: string;
   goodId: number;
   quantity: number;
+  /** Average unit price paid (server-tracked since 2026-10-23; absent for older cargo). */
+  avgPaid?: number;
   good?: Good;
 }
 

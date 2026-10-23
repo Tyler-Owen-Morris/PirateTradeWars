@@ -7,9 +7,9 @@ import { handleSocketConnection } from "../game/socketHandler";
 import { initializeGameState, gameState } from "../game/gameState";
 import { setupShipTypes } from "../game/shipTypes";
 import crypto from "crypto";
-import { validate as isUUID } from "uuid";
 import { registerStripeRoutes } from "./stripeRoutes";
-import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
+import { SHIP_STATS, SHIP_TYPES, GOODS } from "@shared/gameConstants";
+import { portGoodView } from "@shared/market";
 import { HEARTBEAT_INTERVAL_MS } from "@shared/protocol";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -90,18 +90,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const portGoods = await redisStorage.getPortGoods(portId);
+      let portGoods = await redisStorage.getPortGoods(portId);
 
       // If the port has no goods, trigger an update
       if (portGoods.length === 0) {
         console.log(`Port ${portId} has no goods, triggering price update`);
         await gameState.updatePrices();
-        // Fetch updated goods after regeneration
-        const updatedGoods = await redisStorage.getPortGoods(portId);
-        res.json(updatedGoods);
-      } else {
-        res.json(portGoods);
+        portGoods = await redisStorage.getPortGoods(portId);
       }
+      // Trading (2026-10-23): each row keeps the stored fields (legacy clients read `currentPrice`) and adds
+      // the trade screen's view: `buyPrice` (null = not sold here), `sellPrice` (the ~10% spread), `wanted`.
+      const port = await redisStorage.getPort(portId);
+      res.json(portGoods.map((pg) => ({
+        ...pg,
+        ...portGoodView(pg, port ?? null, GOODS.find((g) => g.id === pg.goodId)?.name ?? ""),
+      })));
     } catch (error) {
       console.error('Error fetching port goods:', error);
       res.status(500).json({ message: 'Failed to fetch port goods' });
@@ -127,35 +130,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update player inventory
-  app.put('/api/players/:playerId/inventory', async (req, res) => {
-    const playerId = req.params.playerId;
-    const inventory = req.body;
-
-    if (!playerId) {
-      return res.status(400).json({ message: 'Invalid player ID' });
-    }
-
-    if (!Array.isArray(inventory)) {
-      return res.status(400).json({ message: 'Inventory must be an array' });
-    }
-
-    if (!isUUID(playerId)) {
-      return res.status(400).json({ message: 'Invalid player ID' });
-    }
-
-    try {
-      // Update each item in the inventory
-      for (const item of inventory) {
-        await redisStorage.updatePlayerInventory(playerId, item.goodId, item.quantity);
-      }
-
-      res.json({ success: true, message: 'Inventory updated successfully' });
-    } catch (error) {
-      console.error('Error updating player inventory:', error);
-      res.status(500).json({ message: 'Failed to update player inventory' });
-    }
-  });
+  // (2026-10-23) The old `PUT /api/players/:playerId/inventory` is gone: it let any caller write any cargo,
+  // and the client used it to overwrite the server's inventory after every trade (a race). The server is
+  // the only writer of inventories now (server/game/trade.ts via the socket).
 
   // Endpoint to manually trigger price and stock updates
   app.post('/api/update-prices', async (req, res) => {

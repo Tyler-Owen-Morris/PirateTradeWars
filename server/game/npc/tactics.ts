@@ -1,8 +1,12 @@
 /**
  * Broadside combat tactics (proposal §3 "Broadside tactics"). Pure.
  *
- * Guns: `spawnBroadside` (shared/physics.ts) fires along rotationY + π/2 only, i.e. the STARBOARD
- * side. `Side` is modelled so port guns can be added later, but today `GUN_SIDES = ["starboard"]`.
+ * Guns: since 2026-10-23 (broadsides) every ship has a port battery (rotationY − π/2, LEFT) and a
+ * starboard battery (rotationY + π/2, RIGHT), each with its own reload (shared/physics.ts
+ * `broadsideAngle`, `spawnBroadside(ship, n, side)`). `GUN_SIDES` = both. An NPC fights with the side
+ * that faces its target (`chooseSide`, with SIDE_SWITCH_MARGIN hysteresis) and only fires that side;
+ * it never swings round just because the other battery is loaded (balance: see
+ * docs/proposals/2026-10-23-broadsides-NOTES.md).
  *
  * Engagement geometry: to put the target on the beam the ship must sail perpendicular to the line
  * of sight. Range is held with an orbit controller: the movement direction is the perpendicular,
@@ -22,17 +26,21 @@
  * Turning circle: TURN_SPEED is a fixed 0.05 rad per frame at any speed, so the radius is
  * 20 × speed: 80 (sloop at 4) to 180 (dreadnought at 9) units, well inside the 435–510 hold band.
  * Approaching from far away the course stays APPROACH_MAX_K short of straight at the target (a
- * spiral, 30° off the line of sight) so the target drifts onto the starboard beam on the way in.
+ * spiral, 30° off the line of sight) so the target drifts onto the chosen beam on the way in.
  */
-import { BALL_LIFETIME_MS, BALL_SPEED, BALL_SPREAD, FRAMES_PER_SECOND, SHIP_HIT_RADIUS, normalizeAngle } from "@shared/physics";
+import { BALL_LIFETIME_MS, BALL_SPEED, BALL_SPREAD, FRAMES_PER_SECOND, SHIP_HIT_RADIUS, broadsideAngle, normalizeAngle } from "@shared/physics";
 import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
 import type { NpcMetric } from "./metric";
 import { velocityOf, type SteerShip, type SteerTarget } from "./steering";
 import { bearingOf, clamp, moveDir } from "./util";
 
 export type Side = "starboard" | "port";
-/** Sides that actually have guns (spawnBroadside fires +π/2 only). */
-export const GUN_SIDES: readonly Side[] = ["starboard"];
+/** Sides that have guns: both (broadsides, 2026-10-23). */
+export const GUN_SIDES: readonly Side[] = ["port", "starboard"];
+/** Keep the current gun side unless the other one needs at least this much less turn (radians).
+ *  Without it a target near the bow or stern (both sides ≈ 90° off) flips the side every tick and
+ *  the orbit course with it. */
+export const SIDE_SWITCH_MARGIN = (25 * Math.PI) / 180;
 
 /** Ball ground speed, units per second. */
 export const BALL_SPEED_PER_SEC = BALL_SPEED * FRAMES_PER_SECOND;
@@ -65,7 +73,7 @@ export const PACE_GAIN = 1.5;
 
 /** Angle (sin/cos convention) the guns on `side` point along for rotationY `r`. */
 export function gunAngle(r: number, side: Side): number {
-  return side === "starboard" ? r + Math.PI / 2 : r - Math.PI / 2;
+  return broadsideAngle(r, side);
 }
 
 /**
@@ -117,17 +125,21 @@ export function beamError(self: SteerTarget, target: SteerTarget, m: NpcMetric, 
   return normalizeAngle(bearingOf(lp.dx, lp.dz) - gunAngle(self.rotationY, side));
 }
 
-/** Pick the gunned side needing the smallest turn to bear (only starboard today). */
-export function chooseSide(self: SteerTarget, target: SteerTarget, m: NpcMetric, sides: readonly Side[] = GUN_SIDES): Side {
+/** Pick the gunned side needing the smallest turn to bear. With `prev` (the side used last tick),
+ *  stay on it unless another side is better by more than SIDE_SWITCH_MARGIN (hysteresis). */
+export function chooseSide(self: SteerTarget, target: SteerTarget, m: NpcMetric, sides: readonly Side[] = GUN_SIDES, prev?: Side): Side {
   let best = sides[0];
   let bestErr = Infinity;
+  let prevErr = Infinity;
   for (const s of sides) {
     const e = Math.abs(beamError(self, target, m, s));
+    if (s === prev) prevErr = e;
     if (e < bestErr) {
       bestErr = e;
       best = s;
     }
   }
+  if (prev !== undefined && best !== prev && prevErr !== Infinity && prevErr - bestErr < SIDE_SWITCH_MARGIN) return prev;
   return best;
 }
 
@@ -143,6 +155,8 @@ export interface EngageParams {
   /** This volley's accepted extra error (0..aimError). The NPC system samples it once per reload
    *  so a volley does not re-roll every tick; when omitted it is rng() × aimError per call. */
   aimSlack?: number;
+  /** Broadsides: the side engaged last tick (chooseSide hysteresis). */
+  prevSide?: Side;
 }
 
 export interface EngageOrder {
@@ -158,18 +172,20 @@ export interface EngageOrder {
 }
 
 /**
- * One tick of broadside engagement against `target`. `reloading` = guns not ready (kite).
+ * One tick of broadside engagement against `target`. `reloading` = guns not ready (kite): a boolean
+ * for both sides, or per side (broadsides), in which case the CHOSEN side's reload counts.
  * `rng` supplies the aim noise (seeded per NPC).
  */
 export function engage(
   self: SteerShip,
   target: SteerTarget,
   params: EngageParams,
-  reloading: boolean,
+  reloadingBySide: boolean | Readonly<Record<Side, boolean>>,
   m: NpcMetric,
   rng: () => number = Math.random,
 ): EngageOrder {
-  const side = chooseSide(self, target, m, params.sides ?? GUN_SIDES);
+  const side = chooseSide(self, target, m, params.sides ?? GUN_SIDES, params.prevSide);
+  const reloading = typeof reloadingBySide === "boolean" ? reloadingBySide : reloadingBySide[side];
   const d = m.delta(self.x, self.z, target.x, target.z);
   const dist = Math.hypot(d.dx, d.dz);
   const los = bearingOf(d.dx, d.dz);

@@ -1,6 +1,7 @@
 import { portPoint } from "@/lib/nav";
 import { useState, useEffect } from 'react';
 import { useGameState } from '@/lib/stores/useGameState';
+import { isTextEntryActive } from '@/lib/stores/useInputFocus';
 
 interface TradingToastProps {
   message: string;
@@ -14,27 +15,22 @@ interface TradingToastProps {
  */
 export function TradingToast({ message, type, duration = 3000 }: TradingToastProps) {
   const [visible, setVisible] = useState(true);
-  
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setVisible(false);
     }, duration);
-    
+
     return () => clearTimeout(timer);
   }, [duration]);
-  
+
   if (!visible) return null;
-  
-  const bgColorMap = {
-    success: 'bg-green-800/90',
-    error: 'bg-red-800/90',
-    info: 'bg-blue-800/90'
-  };
-  
-  const borderColorMap = {
-    success: 'border-green-500',
-    error: 'border-red-500',
-    info: 'border-blue-500'
+
+  // Accent colour of the slip's left edge and icon (on parchment, so dark inks).
+  const accentMap = {
+    success: '#2f6b2a',
+    error: '#8e1a14',
+    info: '#1f4a6b'
   };
   
   const iconMap = {
@@ -42,12 +38,16 @@ export function TradingToast({ message, type, duration = 3000 }: TradingToastPro
     error: '✗',
     info: 'ℹ'
   };
-  
+
   return (
-    <div className={`fixed top-20 right-5 z-50 ${bgColorMap[type]} border ${borderColorMap[type]} text-white p-3 rounded-md shadow-lg animate-fade-in max-w-xs`}>
+    <div
+      role="status"
+      className="ptw-toast fixed top-20 right-5 z-50 px-3 py-2.5 motion-safe:animate-fade-in max-w-xs"
+      style={{ ['--ptw-toast-c' as string]: accentMap[type] } as React.CSSProperties}
+    >
       <div className="flex items-start gap-2">
-        <div className="font-bold text-lg">{iconMap[type]}</div>
-        <div>{message}</div>
+        <div className="font-bold text-lg leading-none mt-0.5" style={{ color: accentMap[type] }} aria-hidden="true">{iconMap[type]}</div>
+        <div className="leading-snug">{message}</div>
       </div>
     </div>
   );
@@ -59,15 +59,18 @@ export function TradingToast({ message, type, duration = 3000 }: TradingToastPro
 export function ToastContainer() {
   const [toasts, setToasts] = useState<{id: number, message: string, type: 'success' | 'error' | 'info'}[]>([]);
   const { gameState } = useGameState();
-  
+
   // Listen for toast events in a real application, this would be handled by a proper toast manager
   useEffect(() => {
     // This is just for demonstration, in a real app you would use a pub/sub system or context
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 't' || e.key === 'T') {
-        // Add toast messages for trading interactions
+        // 2026-10-23: no "Trading at ..." toast any more (it duplicated the screen opening); only the
+        // too-far / no-port explanations remain. Ignored while trading or typing (chat).
+        const gs = useGameState.getState();
+        if (gs.isTrading || isTextEntryActive()) return;
         if (gameState.nearestPort && gameState.isNearPort) {
-          addToast(`Trading at ${gameState.nearestPort.name}`, 'success');
+          return;
         } else {
           const nearestPort = useGameState.getState().getNearestPort();
           if (nearestPort) {
@@ -84,32 +87,32 @@ export function ToastContainer() {
         }
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
-    
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [gameState.nearestPort, gameState.isNearPort, gameState.player]);
-  
+
   // Add a new toast
   const addToast = (message: string, type: 'success' | 'error' | 'info') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
-    
+
     // Remove the toast after 3 seconds
     setTimeout(() => {
       setToasts(prev => prev.filter(toast => toast.id !== id));
     }, 3000);
   };
-  
+
   return (
     <div className="fixed top-5 right-5 z-50 space-y-2">
       {toasts.map(toast => (
-        <TradingToast 
-          key={toast.id} 
-          message={toast.message} 
-          type={toast.type} 
+        <TradingToast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
         />
       ))}
     </div>

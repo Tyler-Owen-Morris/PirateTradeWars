@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "./card";
-import { Button } from "./button";
+import { cn } from "@/lib/utils";
 import { useShip } from "@/lib/stores/useShip";
 import { useGameState } from "@/lib/stores/useGameState";
 import { useSocket } from "@/lib/stores/useSocket";
-import { Alert, AlertDescription } from "./alert";
-import { AlertCircle, Loader2, HelpCircle } from "lucide-react";
+import { AlertCircle, HelpCircle, X } from "lucide-react";
+import {
+  CompassRose,
+  ParchmentPanel,
+  PirateButton,
+  SeaChartBackdrop,
+  SectionTitle,
+  TitleLockup,
+  WaxSeal,
+  WoodPanel,
+} from "./pirate";
 import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES, SHIP_STATS, SHIP_DISPLAY_NAMES, SHIP_UPGRADE_PATH } from "@shared/gameConstants";
 import PaymentModal from "./PaymentModal";
 import pirateNamesData from "./pirateNames.json";
@@ -38,58 +39,55 @@ const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000] p-4"
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-[1000] p-3 sm:p-4"
       onClick={onClose}
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
-      <Card
-        className="w-full max-w-3xl bg-gray-900 border-amber-500 border-2 rounded-xl flex flex-col"
+      <ParchmentPanel
+        torn
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ptw-instructions-title"
+        className="w-full max-w-3xl flex flex-col"
         style={{ height: "80vh" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <CardHeader className="bg-amber-900 text-amber-100 rounded-t-xl relative flex-none">
-          <CardTitle className="text-2xl text-center">Game Instructions</CardTitle>
-          <button
-            className="absolute top-4 right-4 text-amber-200 hover:text-amber-400"
+        <div className="relative flex-none px-5 pt-6 pb-3">
+          <SectionTitle id="ptw-instructions-title" className="text-3xl sm:text-4xl px-10">
+            Game Instructions
+          </SectionTitle>
+          <PirateButton
+            variant="porthole"
+            size="sm"
+            className="absolute top-5 right-5"
             onClick={onClose}
+            aria-label="Close instructions"
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </CardHeader>
-        <div className="flex-none bg-amber-900/50 px-4 py-2">
-          <div className="flex flex-wrap gap-2">
+            <X />
+          </PirateButton>
+        </div>
+        <div className="flex-none px-4 sm:px-5">
+          <div role="tablist" aria-label="Instruction sections" className="ptw-tabs">
             {["overview", "ships", "rules", "faq"].map((tab) => (
-              <Button
+              <button
                 key={tab}
-                className={`px-4 py-2 text-sm font-bold rounded-md ${activeTab === tab
-                  ? "bg-amber-600 text-white"
-                  : "bg-amber-900 text-amber-200 hover:bg-amber-700"
-                  }`}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
+                data-state={activeTab === tab ? "active" : "inactive"}
+                className="ptw-tab"
                 onClick={() => handleTabChange(tab)}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </Button>
+                {tab === "faq" ? "FAQ" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
             ))}
           </div>
         </div>
-        <CardContent className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-4 text-[1.05rem] leading-relaxed">
           {activeTab === "overview" && (
-            <div className="text-amber-100">
-              <h3 className="text-xl font-bold mb-2">Welcome to Pirate Trade Wars</h3>
+            <div>
+              <h3 className="ptw-font-display text-2xl mb-2">Welcome to Pirate Trade Wars</h3>
               <p>Sail an infinite ocean, battle rival ships, and claim riches across 16 scattered islands. Choose your starting ship, upgrade to larger more formidable ships, and become the ultimate pirate legend!</p>
               <ul className="list-disc ml-6 mt-2">
                 <li><span className="font-semibold">Objective</span>: Amass wealth through combat or trade.</li>
@@ -100,13 +98,13 @@ const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           )}
 
           {activeTab === "ships" && (
-            <div className="text-amber-100">
-              <h3 className="text-xl font-bold mb-2">Ships & Stats</h3>
+            <div>
+              <h3 className="ptw-font-display text-2xl mb-2">Ships & Stats</h3>
               <p>There are 5 ships, each with unique stats. The sloop is free; others require purchase via Stripe, and the dreadnaught can only acquired with ingame money. Game currency can be earned by winning battles or trading at islands (not available for purchase).</p>
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse mt-4 text-sm">
+                <table className="ptw-ledger ptw-num w-full text-left mt-4 text-sm">
                   <thead>
-                    <tr className="bg-amber-900 text-amber-100">
+                    <tr>
                       <th className="p-2">Ship</th>
                       <th className="p-2">Speed</th>
                       <th className="p-2">Cannons</th>
@@ -120,8 +118,8 @@ const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     {Object.entries(SHIP_STATS).map(([shipType, stats], index) => {
                       const upgradeInfo = SHIP_UPGRADE_PATH.find(upgrade => upgrade.to === shipType);
                       return (
-                        <tr key={shipType} className={index % 2 === 0 ? "bg-gray-800" : "bg-gray-700"}>
-                          <td className="p-2">{SHIP_DISPLAY_NAMES[shipType]}</td>
+                        <tr key={shipType}>
+                          <td className="p-2 font-bold">{SHIP_DISPLAY_NAMES[shipType]}</td>
                           <td>{stats.speed}</td>
                           <td>{stats.cannonCount} ({stats.cannonDamage} dmg)</td>
                           <td>{stats.hullStrength} HP</td>
@@ -142,10 +140,10 @@ const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           )}
 
           {activeTab === "rules" && (
-            <div className="text-amber-100">
-              <h3 className="text-xl font-bold mb-2">Gameplay Rules</h3>
+            <div>
+              <h3 className="ptw-font-display text-2xl mb-2">Gameplay Rules</h3>
               <ul className="list-disc ml-6">
-                <li><span className="font-semibold">Combat</span>: All ships have cannons firing 90° to their bow. Position strategically to hit enemies.</li>
+                <li><span className="font-semibold">Combat</span>: All ships carry cannons on both sides, firing 90° to their bow (Q left, E right, Space both). Each side reloads separately. Position strategically to hit enemies.</li>
                 <li><span className="font-semibold">Navigation</span>: Sail an infinite ocean that wraps around. Find 16 islands for resources or search for other pirates to do battle.</li>
                 <li><span className="font-semibold">Stats</span>:
                   <ul className="list-circle ml-6">
@@ -161,26 +159,23 @@ const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           )}
 
           {activeTab === "faq" && (
-            <div className="text-amber-100">
-              <h3 className="text-xl font-bold mb-2">FAQ</h3>
+            <div>
+              <h3 className="ptw-font-display text-2xl mb-2">FAQ</h3>
               <ul className="list-disc ml-6">
                 <li><span className="font-semibold">What happens if my ship sinks?</span> Your score is recorded on the leaderboard (only if it's greater than 0), and your game is over. You will return to the main menu, and you can start a new game.</li>
                 <li><span className="font-semibold">How do I earn money?</span> The safest way to earn money is to buy low and sell high, sailing between islands to find the best deals. Players drop their gold when they are destroyed though, so you can also get rich by sinking other players after their hulls are full of gold!</li>
-                <li><span className="font-semibold">Can I play with friends?</span> Yes! PTW is a multiplayer game. Every player you see is another person playing the game. You can use the QR code in the game to easily add people to the game, or they can visit <a href="https://play.piratetradewars.com" target="_blank" rel="noopener noreferrer">piratetradewars.com</a> to join the game.</li>
+                <li><span className="font-semibold">Can I play with friends?</span> Yes! PTW is a multiplayer game. Every player you see is another person playing the game. You can use the QR code in the game to easily add people to the game, or they can visit <a className="underline decoration-ptw-burn underline-offset-2 font-bold" href="https://play.piratetradewars.com" target="_blank" rel="noopener noreferrer">piratetradewars.com</a> to join the game.</li>
                 <li><span className="font-semibold">What is this?</span> This is a simple passion project made for fun by one person. The idea was to lean as heavily on AI as possible, and see how far I could get with my coding skills (I'm a software engineer by trade). After a few short weeks, I made something I enjoyed - so here it is, and I hope you enjoy it too! (Don't go too hard on me! I'm only one person...)</li>
               </ul>
             </div>
           )}
-        </CardContent>
-        <CardFooter className="bg-amber-900 p-4 rounded-b-xl flex-none">
-          <Button
-            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold"
-            onClick={onClose}
-          >
+        </div>
+        <div className="flex-none px-5 pb-6 pt-2">
+          <PirateButton block onClick={onClose}>
             Close
-          </Button>
-        </CardFooter>
-      </Card>
+          </PirateButton>
+        </div>
+      </ParchmentPanel>
     </div>
   );
 };
@@ -429,212 +424,250 @@ export default function ShipSelection() {
 
   if (loading) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800">
-        <div className="flex flex-col items-center">
-          <Loader2 className="h-12 w-12 text-amber-500 animate-spin" />
-          <p className="mt-4 text-white text-lg">Preparing your ship...</p>
+      <div className="fixed inset-0">
+        <SeaChartBackdrop />
+        <div className="relative h-full flex flex-col items-center justify-center" role="status">
+          <CompassRose className="h-24 w-24 text-ptw-brass motion-safe:animate-[spin_8s_linear_infinite]" />
+          <p className="mt-5 ptw-font-label text-xl text-ptw-cream">Preparing your ship...</p>
         </div>
       </div>
     );
   }
 
+  const nameTooShort = !!playerName && playerName.length < 3;
+
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-gray-900 to-gray-800 p-4">
-      <Card className="w-full max-w-5xl border-amber-500 border flex flex-col rounded-xl" style={{
-        maxHeight: '83vh',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        zIndex: 1
-      }}>
-        <CardHeader className="bg-amber-900 text-white rounded-t-xl sticky top-0" style={{
-          zIndex: 1
-        }}>
-          <CardTitle className="text-2xl md:text-3xl text-center">
-            Choose Your <span className="text-amber-100">Captain's Name</span> and <span className="text-amber-100">Ship</span>
-          </CardTitle>
-          <div className="mt-4">
-            <label
-              htmlFor="playerName"
-              className="block text-sm font-medium mb-2 text-white"
-            >
-              Your Captain's Name:
-            </label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                id="playerName"
-                className="px-3 py-2 bg-gray-100 text-black border border-amber-300 rounded-md w-full text-sm"
-                value={playerName}
-                onChange={(e) => {
-                  setPlayerName(e.target.value);
-                  localStorage.setItem("playerName", e.target.value);
-                }}
-                placeholder="Enter your name (min. 3 characters)"
-              />
-              <Button
-                onClick={generatePirateName}
-                className="bg-amber-700 hover:bg-amber-600 text-white py-2 px-4 rounded-md transition text-sm whitespace-nowrap"
-                data-testid="cypress-generate-random-name-button"
-              >
-                Random Name
-              </Button>
-            </div>
-          </div>
-          {(shipError || socketError || nameError) && (
-            <Alert onClick={() => { setNameError(null); useSocket.getState().resetError(); }} variant="destructive" className="mb-4 bg-red-900/90 border-red-700">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 mt-0.5 text-red-200" />
-                <AlertDescription className="text-red-100">
-                  {shipError || socketError || nameError}
-                </AlertDescription>
+    <div className="fixed inset-0">
+      <SeaChartBackdrop />
+      <div className="absolute inset-0 overflow-y-auto overflow-x-hidden">
+        <div className="relative min-h-full flex flex-col items-center px-3 sm:px-6 pt-8 sm:pt-12">
+          <TitleLockup className="mb-6 sm:mb-10" />
+
+          <WoodPanel className="w-full max-w-5xl flex flex-col mb-4" style={{ position: "relative", zIndex: 1 }}>
+            <div className="px-4 sm:px-7 pt-6 pb-4">
+              <SectionTitle className="text-[1.6rem] sm:text-3xl text-ptw-brass-hi">
+                Choose Your Captain&rsquo;s Name and Ship
+              </SectionTitle>
+              <div className="mt-4 max-w-2xl mx-auto">
+                <label htmlFor="playerName" className="ptw-label mb-1.5 text-ptw-cream">
+                  Your Captain&rsquo;s Name
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    id="playerName"
+                    className="ptw-input"
+                    value={playerName}
+                    onChange={(e) => {
+                      setPlayerName(e.target.value);
+                      localStorage.setItem("playerName", e.target.value);
+                    }}
+                    placeholder="Enter your name (min. 3 characters)"
+                    autoComplete="off"
+                  />
+                  <PirateButton
+                    variant="rope"
+                    onClick={generatePirateName}
+                    data-testid="cypress-generate-random-name-button"
+                  >
+                    Random Name
+                  </PirateButton>
+                </div>
+                {(shipError || socketError || nameError) && (
+                  <div
+                    role="alert"
+                    className="ptw-alert mt-3 cursor-pointer"
+                    onClick={() => { setNameError(null); useSocket.getState().resetError(); }}
+                  >
+                    <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" aria-hidden="true" />
+                    <span>{shipError || socketError || nameError}</span>
+                  </div>
+                )}
               </div>
-            </Alert>
-          )}
-        </CardHeader>
+            </div>
 
-        <CardContent className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              {
-                type: SHIP_TYPES.SLOOP,
-                name: SHIP_DISPLAY_NAMES[SHIP_TYPES.SLOOP],
-                tier: "Free",
-                color: "blue-100",
-                stats: {
-                  price: "Free",
-                  ttl: `${SHIP_STATS[SHIP_TYPES.SLOOP].playerTTL / 60} min`,
-                  hull: `${SHIP_STATS[SHIP_TYPES.SLOOP].hullStrength} HP`,
-                  cargo: `${SHIP_STATS[SHIP_TYPES.SLOOP].cargoCapacity} units`,
-                  cannons: `${SHIP_STATS[SHIP_TYPES.SLOOP].cannonCount} (${SHIP_STATS[SHIP_TYPES.SLOOP].cannonDamage} dmg)`,
-                  startingGold: `${SHIP_STATS[SHIP_TYPES.SLOOP].startingGold}`,
-                },
-                testId: "cypress-sloop-card",
-              },
-              {
-                type: SHIP_TYPES.BRIGANTINE,
-                name: SHIP_DISPLAY_NAMES[SHIP_TYPES.BRIGANTINE],
-                tier: "Premium Tier 1",
-                color: "green-100",
-                stats: {
-                  price: `$${(SHIP_PRICES[SHIP_TYPES.BRIGANTINE] / 100).toFixed(2)}`,
-                  ttl: `${(SHIP_STATS[SHIP_TYPES.BRIGANTINE].playerTTL / 60) / 60} hour`,
-                  hull: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].hullStrength} HP`,
-                  cargo: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cargoCapacity} units`,
-                  cannons: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cannonCount} (${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cannonDamage} dmg)`,
-                  startingGold: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].startingGold}`,
-                },
-                testId: "cypress-brigantine-card",
-              },
-              {
-                type: SHIP_TYPES.GALLEON,
-                name: SHIP_DISPLAY_NAMES[SHIP_TYPES.GALLEON],
-                tier: "Premium Tier 2",
-                color: "yellow-100",
-                stats: {
-                  price: `$${(SHIP_PRICES[SHIP_TYPES.GALLEON] / 100).toFixed(2)}`,
-                  ttl: `${(SHIP_STATS[SHIP_TYPES.GALLEON].playerTTL / 60) / 60} hours`,
-                  hull: `${SHIP_STATS[SHIP_TYPES.GALLEON].hullStrength} HP`,
-                  cargo: `${SHIP_STATS[SHIP_TYPES.GALLEON].cargoCapacity} units`,
-                  cannons: `${SHIP_STATS[SHIP_TYPES.GALLEON].cannonCount} (${SHIP_STATS[SHIP_TYPES.GALLEON].cannonDamage} dmg)`,
-                  startingGold: `${SHIP_STATS[SHIP_TYPES.GALLEON].startingGold}`,
-                },
-                testId: "cypress-galleon-card",
-              },
-              {
-                type: SHIP_TYPES.MAN_O_WAR,
-                name: SHIP_DISPLAY_NAMES[SHIP_TYPES.MAN_O_WAR],
-                tier: "Premium Tier 3",
-                color: "red-100",
-                stats: {
-                  price: `$${(SHIP_PRICES[SHIP_TYPES.MAN_O_WAR] / 100).toFixed(2)}`,
-                  ttl: `${(SHIP_STATS[SHIP_TYPES.MAN_O_WAR].playerTTL / 60) / 60} hours`,
-                  hull: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].hullStrength} HP`,
-                  cargo: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cargoCapacity} units`,
-                  cannons: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cannonCount} (${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cannonDamage} dmg)`,
-                  startingGold: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].startingGold}`,
-                },
-                testId: "cypress-man-o-war-card",
-              },
-            ].map((ship) => (
-              <Card
-                key={ship.type}
-                className={`cursor-pointer transition-all transform hover:scale-105 rounded-xl overflow-hidden ${selectedShip?.name === ship.type
-                  ? "border-amber-500 border-4 shadow-lg shadow-amber-500/50 bg-amber-50"
-                  : "bg-gray-50 border-2 border-transparent"
-                  }`}
-                onClick={() => handleShipSelect(ship.type)}
-                data-testid={ship.testId}
-              >
-                <CardHeader className="p-3 bg-amber-100 relative">
-                  <CardTitle className="text-lg text-amber-900 pr-16">{ship.name}</CardTitle>
-                  <CardDescription className="text-xs text-amber-700">{ship.tier}</CardDescription>
-                  <div className="absolute top-3 right-3 flex flex-col items-end">
-                    {!PURCHASES_ENABLED && ship.type !== SHIP_TYPES.SLOOP && (
-                      <span className="text-white bg-green-600 text-xs font-bold px-2 py-1 rounded-full mb-1">Free</span>
-                    )}
-                    <div className={`bg-amber-600 text-white text-xs font-bold px-2 py-1 rounded-full ${!PURCHASES_ENABLED && ship.type !== SHIP_TYPES.SLOOP ? 'line-through text-red-200' : ''}`}>
-                      {ship.stats.price}
+            <div className="px-4 sm:px-7 pt-2 pb-7">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {[
+                  {
+                    type: SHIP_TYPES.SLOOP,
+                    name: SHIP_DISPLAY_NAMES[SHIP_TYPES.SLOOP],
+                    tier: "Free",
+                    color: "blue-100",
+                    stats: {
+                      price: "Free",
+                      ttl: `${SHIP_STATS[SHIP_TYPES.SLOOP].playerTTL / 60} min`,
+                      hull: `${SHIP_STATS[SHIP_TYPES.SLOOP].hullStrength} HP`,
+                      cargo: `${SHIP_STATS[SHIP_TYPES.SLOOP].cargoCapacity} units`,
+                      cannons: `${SHIP_STATS[SHIP_TYPES.SLOOP].cannonCount} (${SHIP_STATS[SHIP_TYPES.SLOOP].cannonDamage} dmg)`,
+                      startingGold: `${SHIP_STATS[SHIP_TYPES.SLOOP].startingGold}`,
+                    },
+                    testId: "cypress-sloop-card",
+                  },
+                  {
+                    type: SHIP_TYPES.BRIGANTINE,
+                    name: SHIP_DISPLAY_NAMES[SHIP_TYPES.BRIGANTINE],
+                    tier: "Premium Tier 1",
+                    color: "green-100",
+                    stats: {
+                      price: `$${(SHIP_PRICES[SHIP_TYPES.BRIGANTINE] / 100).toFixed(2)}`,
+                      ttl: `${(SHIP_STATS[SHIP_TYPES.BRIGANTINE].playerTTL / 60) / 60} hour`,
+                      hull: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].hullStrength} HP`,
+                      cargo: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cargoCapacity} units`,
+                      cannons: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cannonCount} (${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cannonDamage} dmg)`,
+                      startingGold: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].startingGold}`,
+                    },
+                    testId: "cypress-brigantine-card",
+                  },
+                  {
+                    type: SHIP_TYPES.GALLEON,
+                    name: SHIP_DISPLAY_NAMES[SHIP_TYPES.GALLEON],
+                    tier: "Premium Tier 2",
+                    color: "yellow-100",
+                    stats: {
+                      price: `$${(SHIP_PRICES[SHIP_TYPES.GALLEON] / 100).toFixed(2)}`,
+                      ttl: `${(SHIP_STATS[SHIP_TYPES.GALLEON].playerTTL / 60) / 60} hours`,
+                      hull: `${SHIP_STATS[SHIP_TYPES.GALLEON].hullStrength} HP`,
+                      cargo: `${SHIP_STATS[SHIP_TYPES.GALLEON].cargoCapacity} units`,
+                      cannons: `${SHIP_STATS[SHIP_TYPES.GALLEON].cannonCount} (${SHIP_STATS[SHIP_TYPES.GALLEON].cannonDamage} dmg)`,
+                      startingGold: `${SHIP_STATS[SHIP_TYPES.GALLEON].startingGold}`,
+                    },
+                    testId: "cypress-galleon-card",
+                  },
+                  {
+                    type: SHIP_TYPES.MAN_O_WAR,
+                    name: SHIP_DISPLAY_NAMES[SHIP_TYPES.MAN_O_WAR],
+                    tier: "Premium Tier 3",
+                    color: "red-100",
+                    stats: {
+                      price: `$${(SHIP_PRICES[SHIP_TYPES.MAN_O_WAR] / 100).toFixed(2)}`,
+                      ttl: `${(SHIP_STATS[SHIP_TYPES.MAN_O_WAR].playerTTL / 60) / 60} hours`,
+                      hull: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].hullStrength} HP`,
+                      cargo: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cargoCapacity} units`,
+                      cannons: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cannonCount} (${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cannonDamage} dmg)`,
+                      startingGold: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].startingGold}`,
+                    },
+                    testId: "cypress-man-o-war-card",
+                  },
+                ].map((ship) => {
+                  const selected = selectedShip?.name === ship.type;
+                  return (
+                    <div
+                      key={ship.type}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={selected}
+                      className={cn("ptw-card ptw-card--interactive", selected && "is-selected")}
+                      onClick={() => handleShipSelect(ship.type)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleShipSelect(ship.type);
+                        }
+                      }}
+                      data-testid={ship.testId}
+                    >
+                      <div className="relative px-3.5 pt-3.5 pb-2.5">
+                        {selected && (
+                          <span className="ptw-ribbon absolute -top-3 left-1/2 -translate-x-1/2 text-xs px-5 py-0.5 shadow" aria-hidden="true">
+                            Your Ship
+                          </span>
+                        )}
+                        <h3 className="ptw-font-display text-[1.6rem] leading-none pr-20">{ship.name}</h3>
+                        <p className="ptw-font-label text-sm text-ptw-ink-soft mt-1">{ship.tier}</p>
+                        <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
+                          {!PURCHASES_ENABLED && ship.type !== SHIP_TYPES.SLOOP && (
+                            <span className="ptw-tag ptw-tag--green">Free</span>
+                          )}
+                          <span
+                            className={cn(
+                              "ptw-tag",
+                              ship.type === SHIP_TYPES.SLOOP && "ptw-tag--green",
+                              !PURCHASES_ENABLED && ship.type !== SHIP_TYPES.SLOOP && "line-through",
+                            )}
+                          >
+                            {ship.stats.price}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="relative px-3.5">
+                        {selected && (
+                          <WaxSeal emblem="skull" title="Chosen ship" className="absolute -bottom-4 right-1 h-14 w-14 z-[1] drop-shadow-[0_2px_2px_rgba(0,0,0,0.5)]" />
+                        )}
+                        <div className="ptw-plate h-32">
+                          <img
+                            src={`/images/ships/${ship.type.toLowerCase()}.jpg`}
+                            alt={ship.name}
+                            className="object-cover h-full w-full"
+                          />
+                        </div>
+                      </div>
+                      <div className="px-3.5 pt-3 pb-3.5 flex-1 flex flex-col">
+                        <p className="italic leading-snug text-[0.95rem] text-ptw-ink-soft min-h-[2.6rem] mb-2">
+                          {SHIP_DESCRIPTIONS[ship.type]}
+                        </p>
+                        <dl className="ptw-ledger ptw-num text-sm mt-auto">
+                          {[
+                            ["Persistence", ship.stats.ttl],
+                            ["Hull", ship.stats.hull],
+                            ["Cargo", ship.stats.cargo],
+                            ["Cannons", ship.stats.cannons],
+                            ["Starting Gold", ship.stats.startingGold],
+                          ].map(([k, v], i) => (
+                            <div key={k} className="ptw-ledger__row flex items-baseline justify-between gap-2 py-1 last:border-b-0">
+                              <dt className="ptw-font-label">{k}</dt>
+                              <dd className={cn("text-right", i === 0 ? "font-bold text-ptw-burn" : "font-medium")}>{v}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-3">
-                  <div className={`h-32 bg-${ship.color} rounded-lg flex items-center justify-center border border-amber-200`}>
-                    <img
-                      src={`/images/ships/${ship.type.toLowerCase()}.jpg`}
-                      alt={ship.name}
-                      className="object-cover h-full w-full rounded-lg"
-                    />
-                  </div>
-                  <div className="mt-3 text-xs text-gray-800">
-                    <p className="mb-2 text-xsm h-10">{SHIP_DESCRIPTIONS[ship.type]}</p>
-                    <ul className="space-y-1">
-                      <li>
-                        <span className="font-bold text-amber-700 text-sm">Persistence:</span>
-                        <span className="ml-1 text-amber-600 font-semibold text-sm">{ship.stats.ttl}</span>
-                      </li>
-                      <li><span className="font-semibold">Hull:</span> {ship.stats.hull}</li>
-                      <li><span className="font-semibold">Cargo:</span> {ship.stats.cargo}</li>
-                      <li><span className="font-semibold">Cannons:</span> {ship.stats.cannons}</li>
-                      <li><span className="font-semibold">Starting Gold:</span> {ship.stats.startingGold}</li>
-                    </ul>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </CardContent>
+                  );
+                })}
+              </div>
+            </div>
 
-        <CardFooter className="flex flex-col sm:flex-row items-center justify-center p-4 bg-amber-900 rounded-b-xl sticky bottom-0 gap-4" style={{
-          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 20px))',
-          zIndex: 1
-        }}>
-          <Button
-            onClick={handleStartGame}
-            disabled={!selectedShip || !playerName || playerName.length < 3 || loading}
-            className="w-full sm:w-1/3 bg-amber-600 hover:bg-amber-700 text-white font-bold border-2 border-amber-200 text-sm py-3 rounded-lg"
-            data-testid="cypress-start-game-button"
-          >
-            {loading ? "Preparing Ship..." : "Set Sail!"}
-          </Button>
-          {!playerName && (
-            <p className="text-sm text-amber-200 text-center">Enter your name first!</p>
-          )}
-          {playerName && playerName.length < 3 && (
-            <p className="text-sm text-amber-200 text-center">Name must be at least 3 characters</p>
-          )}
-          <button
-            onClick={() => setShowInstructions(true)}
-            className="fixed bottom-6 right-6 w-10 h-10 rounded-full bg-amber-600 hover:bg-amber-700 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-110 z-50"
-            style={{
-              marginBottom: 'env(safe-area-inset-bottom, 0)',
-              marginRight: 'env(safe-area-inset-right, 0)'
-            }}
-          >
-            <HelpCircle className="w-5 h-5" />
-          </button>
-        </CardFooter>
-      </Card>
+            <div
+              className="sticky bottom-0 z-[2] ptw-wood ptw-wood--plain rounded-t-none rounded-b-[4px] border-x-0 border-b-0 border-t-2 border-t-ptw-brass/70 flex flex-col sm:flex-row items-center justify-center gap-3 px-4 pt-4"
+              style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -8px 18px rgb(0 0 0 / 0.45)" }}
+            >
+              <PirateButton
+                size="lg"
+                onClick={handleStartGame}
+                disabled={!selectedShip || !playerName || playerName.length < 3 || loading}
+                className="w-full sm:w-auto sm:min-w-[18rem]"
+                data-testid="cypress-start-game-button"
+              >
+                {loading ? "Preparing Ship..." : "Set Sail!"}
+              </PirateButton>
+              {!playerName && (
+                <p className="ptw-font-label text-ptw-brass-hi text-center">Enter your name first!</p>
+              )}
+              {nameTooShort && (
+                <p className="ptw-font-label text-ptw-brass-hi text-center">Name must be at least 3 characters</p>
+              )}
+              {playerName && !nameTooShort && !selectedShip && (
+                <p className="ptw-font-label text-ptw-brass-hi text-center">Pick a ship to sail</p>
+              )}
+            </div>
+          </WoodPanel>
+          <div className="h-16 shrink-0" aria-hidden="true" />
+        </div>
+      </div>
+      <PirateButton
+        variant="porthole"
+        size="lg"
+        onClick={() => setShowInstructions(true)}
+        className="fixed top-3 right-3 sm:top-auto sm:bottom-5 sm:right-5 z-50"
+        style={{
+          marginBottom: "env(safe-area-inset-bottom, 0)",
+          marginRight: "env(safe-area-inset-right, 0)",
+        }}
+        aria-label="Game instructions"
+        title="Game instructions"
+      >
+        <HelpCircle />
+      </PirateButton>
       {showPaymentModal && clientSecret && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}>
           <PaymentModal

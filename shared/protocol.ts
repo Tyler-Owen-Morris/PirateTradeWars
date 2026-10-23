@@ -8,6 +8,7 @@
  * Units: positions in world units, rotation in radians, velocity in units per 1/60 s
  * (negative = forward), times in milliseconds unless the name says otherwise.
  */
+import { FIRE_ALL, FIRE_MASK, type BroadsideSide, type FireFlags } from "./physics";
 
 // ---------------------------------------------------------------------------------------------
 // Constants
@@ -45,8 +46,14 @@ export const MAX_NAME_LENGTH = 32;
 export const MAX_ID_LENGTH = 128;
 /** Max quantity accepted in one trade message. */
 export const MAX_TRADE_QUANTITY = 100000;
+/** Max `lines` in one `sellAll` message. */
+export const MAX_SELL_ALL_LINES = 64;
 /** Input sequence numbers are integers in [0, MAX_SEQ]. */
 export const MAX_SEQ = 0x7fffffff;
+/** Global chat: max characters (code points) of one chat line after sanitizing (longer text is cut). */
+export const MAX_CHAT_LENGTH = 200;
+/** Global chat: how many recent lines the server keeps in memory and replays on (re)join. */
+export const CHAT_HISTORY_SIZE = 30;
 
 /** Entity flag bits (EntityRow[6]). */
 export const FLAG_SUNK = 1;
@@ -89,13 +96,15 @@ export interface ReconnectMessage {
   tempPlayerId?: string;
 }
 /** One client sim step of intent (20/s). `s` = monotonically increasing sequence number.
- *  th: 1 = W ahead, −1 = S reverse; ru: 1 = left, −1 = right; f: 1 = fire. */
+ *  th: 1 = W ahead, −1 = S reverse; ru: 1 = left, −1 = right.
+ *  f: fire bit flags (shared/physics.ts): 1 = FIRE_ALL (fire every loaded side; the legacy `f:1`
+ *  of old clients), 2 = FIRE_PORT (left, Q), 4 = FIRE_STARBOARD (right, E); 0 = not firing. */
 export interface InputMessage {
   t: "input";
   s: number;
   th: -1 | 0 | 1;
   ru: -1 | 0 | 1;
-  f: 0 | 1;
+  f: FireFlags;
 }
 /** RTT / clock probe; `c` = client time in ms (echoed back in `pong`). */
 export interface PingMessage {
@@ -108,7 +117,35 @@ export interface TradeMessage {
   action: "buy" | "sell";
   goodId: number;
   quantity: number;
+  /** Optional client nonce (1..2^31). When present the server answers with `tradeResult` (same `ref`)
+   *  INSTEAD of the legacy `tradeSuccess` / `error`. */
+  ref?: number;
+  /** Optional unit price the player saw. The trade is refused (`price_changed`) only if the price moved
+   *  AGAINST the player (buy price up, sell price down); otherwise it runs at the current, better price. */
+  expectedPrice?: number;
 }
+/** Sell everything aboard at this port, all or nothing (one atomic server step). Always answered with
+ *  `tradeResult` (`action: "sellAll"`). `lines`, if given, must match the hold exactly (else `hold_changed`)
+ *  and carry the per-good `expectedPrice` guard. */
+export interface SellAllMessage {
+  type: "sellAll";
+  portId: number;
+  ref?: number;
+  lines?: { goodId: number; quantity: number; expectedPrice?: number }[];
+}
+/** One inventory row as stored and sent (`tradeSuccess.inventory`, `tradeResult.inventory`,
+ *  `GET /api/players/:id/inventory`). `avgPaid` = weighted average unit price paid (absent for cargo
+ *  bought before 2026-10-23). */
+export interface InventoryRow {
+  playerId?: string;
+  goodId: number;
+  quantity: number;
+  avgPaid?: number;
+}
+/** Refusal reasons in `tradeResult.code`. */
+export type TradeCode =
+  | "too_far" | "no_port" | "not_traded" | "not_sold" | "no_stock" | "no_gold" | "no_space"
+  | "not_owned" | "price_changed" | "hold_changed" | "empty_hold" | "dead" | "no_upgrade" | "server";
 export interface UpgradeShipMessage {
   type: "upgradeShip";
   portId: number;
@@ -120,6 +157,11 @@ export interface RepairShipMessage {
 export interface ScuttleMessage {
   type: "scuttle";
 }
+/** Global chat: send one line to everyone. `text` is sanitized by parseClientMessage (sanitizeChatText). */
+export interface ChatSendMessage {
+  t: "chat";
+  text: string;
+}
 
 export type ClientMessage =
   | ConnectMessage
@@ -127,13 +169,15 @@ export type ClientMessage =
   | InputMessage
   | PingMessage
   | TradeMessage
+  | SellAllMessage
   | UpgradeShipMessage
   | RepairShipMessage
-  | ScuttleMessage;
+  | ScuttleMessage
+  | ChatSendMessage;
 
 /** The discriminator of a ClientMessage, whichever key (`t` or `type`) it uses. */
 export type ClientMessageKind =
-  | "connect" | "reconnect" | "input" | "ping" | "trade" | "upgradeShip" | "repairShip" | "scuttle";
+  | "connect" | "reconnect" | "input" | "ping" | "trade" | "sellAll" | "upgradeShip" | "repairShip" | "scuttle" | "chat";
 export function clientMessageKind(m: ClientMessage): ClientMessageKind {
   return "t" in m ? m.t : m.type;
 }
@@ -158,9 +202,15 @@ export interface SelfState {
   cargoUsed: number;
   cargoCapacity: number;
   sunk: boolean;
+  /** At least one battery (port or starboard) is loaded. */
   canFire: boolean;
-  /** ms until the cannons are reloaded (0 = ready) */
+  /** ms until the FIRST battery is reloaded (0 = at least one ready) = min of the two below. */
   reloadMs: number;
+  /** Broadsides (2026-10-23): ms until the port (left) battery is reloaded (0 = ready). Optional so
+   *  old servers / test fixtures without it still parse; old clients ignore it. */
+  reloadPortMs?: number;
+  /** ms until the starboard (right) battery is reloaded (0 = ready). */
+  reloadStarboardMs?: number;
   shipType: string;
 }
 
@@ -236,6 +286,9 @@ export interface FireMessage {
   t: "fire";
   eid: number;
   k: number;
+  /** Broadsides (2026-10-23): which battery fired. One `fire` event per side volley. Old servers
+   *  (always starboard) omit it; old clients ignore it (the ball rows already carry the geometry). */
+  side?: BroadsideSide;
   balls: BallRow[];
   spd: number;
   life: number;
@@ -313,6 +366,29 @@ export function parseStanding(v: unknown): StandingState | null {
   }
   return { rep, notoriety: num(o.notoriety, 0, 100) ?? 0, bounty: num(o.bounty, 0, 1e9) ?? 0 };
 }
+/**
+ * Global chat line (server -> client). Broadcast to every attached player, or (sys notices such as
+ * the rate-limit warning) sent to one player only.
+ * - `id`   server sequence number (> 0, increasing) for broadcast lines; 0 for private system notices.
+ * - `from` the sender's ship name from the SERVER's player record ("" for system lines).
+ * - `text` sanitized + profanity-masked plain text. Clients must render it as text, never as HTML.
+ * - `ts`   server time (ms, Date.now()) when the line was accepted.
+ * - `sys`  1 = system line (join notices, throttle warnings); absent for player lines.
+ */
+export interface ChatMessage {
+  t: "chat";
+  id: number;
+  from: string;
+  text: string;
+  ts: number;
+  sys?: 1;
+}
+/** Global chat: the last CHAT_HISTORY_SIZE broadcast lines, oldest first; sent on connect/reconnect. */
+export interface ChatHistoryMessage {
+  t: "chatHistory";
+  lines: ChatMessage[];
+}
+
 /** Reply to `ping`: `c` echoes the client time, `st` is server time (ms). */
 export interface PongMessage {
   t: "pong";
@@ -356,6 +432,30 @@ export interface TradeSuccessMessage {
   inventory: unknown[];
   timestamp: number;
 }
+/** Answer to a `trade` that carried a `ref`, and to every `sellAll`. On success `gold`, `cargoUsed` and
+ *  `inventory` are the authoritative new values; on refusal they are the unchanged current values. */
+export interface TradeResultMessage {
+  type: "tradeResult";
+  ref?: number;
+  ok: boolean;
+  action: "buy" | "sell" | "sellAll";
+  /** Refusal reason (ok = false). */
+  code?: TradeCode;
+  /** Plain-English reason (ok = false). */
+  message?: string;
+  good?: number;
+  quantity?: number;
+  /** Unit price actually used (single trade). */
+  price?: number;
+  /** Gold paid (buy) or received (sell / sellAll). */
+  total?: number;
+  /** sellAll: the lines sold. */
+  lines?: { goodId: number; quantity: number; price: number }[];
+  gold: number;
+  cargoUsed: number;
+  inventory: InventoryRow[];
+  timestamp: number;
+}
 export interface UpgradeSuccessMessage {
   type: "upgradeSuccess";
   newShipType: string;
@@ -392,11 +492,14 @@ export type ServerMessage =
   | SplashMessage
   | GoldCollectedMessage
   | StandingMessage
+  | ChatMessage
+  | ChatHistoryMessage
   | PongMessage
   | WelcomeMessage
   | ConnectedMessage
   | ReconnectedMessage
   | TradeSuccessMessage
+  | TradeResultMessage
   | UpgradeSuccessMessage
   | RepairSuccessMessage
   | GameEndMessage
@@ -442,6 +545,16 @@ function unit(v: unknown): -1 | 0 | 1 {
   const n = typeof v === "number" ? v : typeof v === "boolean" ? (v ? 1 : 0) : 0;
   return n > 0 ? 1 : n < 0 ? -1 : 0;
 }
+/** Input fire flags: booleans → 1 (legacy), numbers floored and masked to FIRE_MASK, anything
+ *  else / negative / non-finite → 0. Old clients send `f: 0 | 1`, which maps to itself. */
+export function fireFlags(v: unknown): FireFlags {
+  if (typeof v === "boolean") return v ? 1 : 0;
+  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return 0;
+  // Any positive value used to mean "fire" (unit() clamp). Keep that: a positive value with no
+  // known bit (0.5, 8, ...) is FIRE_ALL; otherwise keep the known bits.
+  const bits = Math.floor(v) & FIRE_MASK;
+  return bits === 0 ? FIRE_ALL : bits;
+}
 function shortString(v: unknown, max: number): string | null {
   return typeof v === "string" && v.length > 0 && v.length <= max ? v : null;
 }
@@ -454,6 +567,57 @@ function posInt(v: unknown): number | null {
   const n = Math.floor(v);
   return n >= 0 && n <= MAX_SEQ ? n : null;
 }
+/** Optional `ref`: undefined if absent, null if malformed, else an integer 1..MAX_SEQ. */
+function optRef(v: unknown): number | undefined | null {
+  if (v === undefined || v === null) return undefined;
+  const n = posInt(v);
+  return n === null || n < 1 ? null : n;
+}
+/** Optional unit price: undefined if absent, null if malformed, else a positive integer. */
+function optPrice(v: unknown): number | undefined | null {
+  if (v === undefined || v === null) return undefined;
+  const n = posInt(v);
+  return n === null || n < 1 ? null : n;
+}
+
+// Control chars (C0, DEL, C1), zero-width chars and bidi overrides/isolates (which can reorder or
+// hide text) are removed from chat text. Tabs/newlines become spaces first.
+// eslint-disable-next-line no-control-regex
+const CHAT_STRIP_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+// eslint-disable-next-line no-control-regex
+const CHAT_SPACE_RE = /\s+/g;
+
+/**
+ * Global chat: normalize untrusted chat text. Strips control / zero-width / bidi-override chars,
+ * collapses whitespace runs to one space, trims, and cuts to MAX_CHAT_LENGTH code points (never
+ * splitting a surrogate pair). Returns null when nothing is left (or the input is not a string).
+ * Used by parseClientMessage (server) and parseChatLine (client), so both sides agree.
+ */
+export function sanitizeChatText(v: unknown, max: number = MAX_CHAT_LENGTH): string | null {
+  if (typeof v !== "string") return null;
+  const cleaned = v.replace(CHAT_SPACE_RE, " ").replace(CHAT_STRIP_RE, "").replace(/ {2,}/g, " ").trim();
+  if (!cleaned) return null;
+  const cps = Array.from(cleaned);
+  const out = cps.length > max ? cps.slice(0, max).join("").trimEnd() : cleaned;
+  return out || null;
+}
+
+/**
+ * Global chat (client side): validate one server chat line defensively. Returns null if malformed.
+ * Text and name are re-sanitized (the client never trusts the wire), names cut to MAX_NAME_LENGTH.
+ */
+export function parseChatLine(v: unknown): ChatMessage | null {
+  if (!isObj(v)) return null;
+  if (v.t !== undefined && v.t !== "chat") return null;
+  const text = sanitizeChatText(v.text);
+  if (!text) return null;
+  const id = isFiniteNum(v.id) && v.id >= 0 ? Math.floor(v.id) : 0;
+  const ts = isFiniteNum(v.ts) ? v.ts : 0;
+  const from = typeof v.from === "string" ? sanitizeChatText(v.from, MAX_NAME_LENGTH) ?? "" : "";
+  const m: ChatMessage = { t: "chat", id, from, text, ts };
+  if (v.sys === 1 || v.sys === true) m.sys = 1;
+  return m;
+}
 
 /** Type guard for an already-validated InputMessage shape. */
 export function isInputMessage(m: unknown): m is InputMessage {
@@ -463,14 +627,14 @@ export function isInputMessage(m: unknown): m is InputMessage {
     posInt(m.s) === m.s &&
     (m.th === -1 || m.th === 0 || m.th === 1) &&
     (m.ru === -1 || m.ru === 0 || m.ru === 1) &&
-    (m.f === 0 || m.f === 1)
+    typeof m.f === "number" && Number.isInteger(m.f) && m.f >= 0 && m.f <= FIRE_MASK
   );
 }
 
 /**
  * Validate and normalize an untrusted client frame (a raw JSON string, Buffer-decoded string, or
  * an already-parsed value). Returns a well-formed ClientMessage or `null` if it must be ignored.
- * Clamps rather than rejects where safe: input th/ru are clamped to {-1,0,1}, f to {0,1} and
+ * Clamps rather than rejects where safe: input th/ru are clamped to {-1,0,1}, f to fire bits 0..7 and
  * the seq is floored to an integer. Names are trimmed and limited to MAX_NAME_LENGTH. Accepts the
  * discriminator under either `t` or `type`. Unknown fields are dropped.
  */
@@ -491,7 +655,7 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case "input": {
       const s = posInt(data.s);
       if (s === null) return null;
-      return { t: "input", s, th: unit(data.th), ru: unit(data.ru), f: unit(data.f) === 1 ? 1 : 0 };
+      return { t: "input", s, th: unit(data.th), ru: unit(data.ru), f: fireFlags(data.f) };
     }
     case "ping": {
       if (!isFiniteNum(data.c)) return null;
@@ -522,7 +686,31 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       if (portId === null || goodId === null || quantity === null) return null;
       if (data.action !== "buy" && data.action !== "sell") return null;
       if (quantity < 1 || quantity > MAX_TRADE_QUANTITY) return null;
-      return { type: "trade", portId, action: data.action, goodId, quantity };
+      const m: TradeMessage = { type: "trade", portId, action: data.action, goodId, quantity };
+      const ref = optRef(data.ref), expectedPrice = optPrice(data.expectedPrice);
+      if (ref === null || expectedPrice === null) return null;
+      if (ref !== undefined) m.ref = ref;
+      if (expectedPrice !== undefined) m.expectedPrice = expectedPrice;
+      return m;
+    }
+    case "sellAll": {
+      const portId = posInt(data.portId);
+      const ref = optRef(data.ref);
+      if (portId === null || ref === null) return null;
+      const m: SellAllMessage = { type: "sellAll", portId };
+      if (ref !== undefined) m.ref = ref;
+      if (data.lines !== undefined) {
+        if (!Array.isArray(data.lines) || data.lines.length > MAX_SELL_ALL_LINES) return null;
+        const lines: NonNullable<SellAllMessage["lines"]> = [];
+        for (const l of data.lines) {
+          if (!isObj(l)) return null;
+          const goodId = posInt(l.goodId), quantity = posInt(l.quantity), expectedPrice = optPrice(l.expectedPrice);
+          if (goodId === null || quantity === null || quantity < 1 || quantity > MAX_TRADE_QUANTITY || expectedPrice === null) return null;
+          lines.push(expectedPrice === undefined ? { goodId, quantity } : { goodId, quantity, expectedPrice });
+        }
+        m.lines = lines;
+      }
+      return m;
     }
     case "upgradeShip":
     case "repairShip": {
@@ -532,6 +720,13 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     }
     case "scuttle":
       return { type: "scuttle" };
+    case "chat": {
+      // Raw text over 4x the cap is rejected outright (the frame cap is 4096 anyway).
+      if (typeof data.text !== "string" || data.text.length > MAX_CHAT_LENGTH * 4) return null;
+      const text = sanitizeChatText(data.text);
+      if (!text) return null;
+      return { t: "chat", text };
+    }
     default:
       return null;
   }

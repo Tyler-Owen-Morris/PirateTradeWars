@@ -125,6 +125,20 @@ describe("parseClientMessage", () => {
     expect(parseClientMessage({ type: "scuttle", extra: 1 })).toEqual({ type: "scuttle" });
   });
 
+  it("trading (2026-10-23): trade ref / expectedPrice and sellAll", () => {
+    expect(parseClientMessage({ type: "trade", portId: 1, action: "buy", goodId: 2, quantity: 3, ref: 5, expectedPrice: 18 })).toEqual({
+      type: "trade", portId: 1, action: "buy", goodId: 2, quantity: 3, ref: 5, expectedPrice: 18,
+    });
+    expect(parseClientMessage({ type: "trade", portId: 1, action: "buy", goodId: 2, quantity: 3, ref: 0 })).toBeNull();
+    expect(parseClientMessage({ type: "trade", portId: 1, action: "buy", goodId: 2, quantity: 3, expectedPrice: "18" })).toBeNull();
+    expect(parseClientMessage({ type: "sellAll", portId: 2 })).toEqual({ type: "sellAll", portId: 2 });
+    expect(parseClientMessage({ type: "sellAll", portId: 2, ref: 1, lines: [{ goodId: 1, quantity: 4, expectedPrice: 9 }] })).toEqual({
+      type: "sellAll", portId: 2, ref: 1, lines: [{ goodId: 1, quantity: 4, expectedPrice: 9 }],
+    });
+    expect(parseClientMessage({ type: "sellAll", portId: 2, lines: [{ goodId: 1, quantity: 0 }] })).toBeNull();
+    expect(parseClientMessage({ type: "sellAll", portId: 2, lines: "all" })).toBeNull();
+  });
+
   it("clientMessageKind reads either discriminator", () => {
     expect(clientMessageKind({ t: "ping", c: 1 })).toBe("ping");
     expect(clientMessageKind({ type: "scuttle" })).toBe("scuttle");

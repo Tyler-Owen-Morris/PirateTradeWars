@@ -10,13 +10,13 @@
  */
 import { redisStorage } from "../redisStorage";
 import { v4 as uuidv4 } from "uuid";
-import { GOODS } from "@shared/gameConstants";
-import { seedPorts, ensurePortGoods, updatePortMarkets } from "./ports";
+import { seedPorts, seedGoods, ensurePortGoods, updatePortMarkets } from "./ports";
 import { trackEvent, shutdownSegment } from "../segmentClient";
 import { World, TICK_MS, isNpcId, type WorldEffect, type WorldPlayer } from "./world";
 import { FixedStepLoop } from "./loop";
 import { loadLandSync } from "./landLoader";
 import { createLiveNpcSystem, npcsEnabled, type NpcSystem } from "./npc";
+import { ChatService } from "./chat";
 
 export type { PlayerState, WorldPlayer } from "./world";
 export { GRACE_PERIOD, GOLD_COLLECTION_RADIUS, GOLD_OBJECT_LIFETIME } from "./world";
@@ -65,6 +65,9 @@ class GameState {
   readonly npcs: NpcSystem | null = npcsEnabled() ? createLiveNpcSystem(this.world).attach() : null;
   /** NPC2: players whose standing changed this tick (npcRepChange), written to Redis once each. */
   private readonly standingDirty = new Set<string>();
+  /** Global chat: rate limits, text policy and the in-memory history (server/game/chat.ts). Used from
+   *  the socket message path only, never from the tick. Not persisted. */
+  readonly chat = new ChatService();
 
   constructor() {
     this.loop = new FixedStepLoop(() => this.runTick(), { stepMs: TICK_MS, maxCatchUp: 5 });
@@ -113,6 +116,29 @@ class GameState {
     this.sockets.delete(playerId);
     this.world.detachClient(playerId);
     this.world.setConnected(playerId, false);
+  }
+
+  /** True when `ws` is the socket currently attached for `playerId` (chat eligibility). */
+  isRegisteredSocket(playerId: string, ws: ClientSocket): boolean {
+    return this.sockets.get(playerId) === ws;
+  }
+
+  /**
+   * Send one pre-serialized frame to every attached, open socket (global chat). Synchronous; called
+   * from the socket message path, never from the tick. Returns the number of sockets written to.
+   */
+  broadcast(data: string): number {
+    let n = 0;
+    this.sockets.forEach((ws, playerId) => {
+      if (ws.readyState !== OPEN) return;
+      try {
+        ws.send(data);
+        n++;
+      } catch (err) {
+        console.error(`Error broadcasting to ${playerId}:`, err);
+      }
+    });
+    return n;
   }
 
   /** Name check against Redis, then create the player in the world. Null on name conflict. */
@@ -251,7 +277,7 @@ class GameState {
     await shutdownSegment().catch((err) => console.error("Segment flush failed:", err));
   }
 
-  /** Periodic market move (regional prices + restock, server/game/ports.ts); creates missing goods. */
+  /** Periodic market move (market-model prices, notSold sync, restock: server/game/ports.ts); creates missing goods rows. */
   async updatePrices() {
     try {
       await ensurePortGoods(redisStorage);
@@ -273,11 +299,8 @@ export async function initializeGameState() {
   try {
     // Ports come from shared/world/ports.json; re-seeded (with fresh goods) when portsVersion changes.
     await seedPorts(redisStorage);
-    const goods = await redisStorage.getGoods();
-    if (goods.length === 0) {
-      for (const good of GOODS) await redisStorage.createGood(good);
-      console.log("Goods initialized");
-    }
+    // Goods: every catalogue id missing from Redis is written by id (new goods reach a live server).
+    await seedGoods(redisStorage);
     await ensurePortGoods(redisStorage);
     gameState.start();
   } catch (err) {

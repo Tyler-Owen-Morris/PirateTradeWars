@@ -4,8 +4,11 @@
  *   npx tsx scripts/bots.ts --bots 20 --duration 30 --url ws://localhost:5055/game-ws [--assert] [--json out.json]
  *
  * Each bot connects, registers, then sends `input` at 20 Hz (wandering pattern) and `ping` every 2 s,
- * while recording what the server sends back. Written strictly against docs/netcode/PROTOCOL.md and
- * shared/protocol.ts. Uses `ws`, `shared/*`, node built-ins, the real client Predictor
+ * while recording what the server sends back. Global chat check: every bot must get a `chatHistory`
+ * after joining; half-way through, one bot says a unique line that every bot must receive with that
+ * bot's name, and another sends a burst of 8 lines that the server must rate-limit (one private notice).
+ * Written strictly against docs/netcode/PROTOCOL.md and shared/protocol.ts. Uses `ws`, `shared/*`,
+ * node built-ins, the real client Predictor
  * (client/src/lib/net/prediction.ts) and the server's land loader (same tiles as the server).
  *
  * Own-ship check (bug 2026-10-23): every bot predicts its own ship exactly like the browser does
@@ -22,6 +25,7 @@ import { MAX_NAME_LENGTH, PING_INTERVAL_MS } from "../shared/protocol";
 import type { ShipInput } from "../shared/physics";
 import { Predictor } from "../client/src/lib/net/prediction";
 import { loadLandSync } from "../server/game/landLoader";
+import { tradeRoundTrip, type TradeCheckResult } from "./tradeCheck";
 
 /** Largest own-ship reconciliation correction (world units) a bot may see after warmup. */
 const MAX_OWN_CORRECTION = 1;
@@ -89,6 +93,12 @@ interface BotStats {
   events: Record<string, number>;
   errors: string[];
   violations: string[];
+  /** Global chat: got the `chatHistory` replay after joining. */
+  chatHistory: boolean;
+  /** Global chat lines received (player lines and system notices). */
+  chat: Array<{ id: number; from: string; text: string; sys: boolean }>;
+  /** Own ship sunk (snapshot me.sunk): a sunk ship may not chat. */
+  sunk: boolean;
   /** Own-ship prediction: reconciles after warmup, corrections > 1 unit, largest correction. */
   reconciles: number;
   corrections: number;
@@ -115,7 +125,8 @@ class Bot {
       name, playerId: null, eid: null, connected: false, closedEarly: false, snapshots: 0, bytes: 0,
       firstSnapAt: 0, lastSnapAt: 0, maxGapMs: 0, gapSumMs: 0, gapCount: 0, maxEntRows: 0,
       entSeen: new Set(), known: new Map(), rtts: [], firstAck: null, lastAck: null,
-      events: {}, errors: [], violations: [], reconciles: 0, corrections: 0, maxCorrection: 0,
+      events: {}, errors: [], violations: [], chatHistory: false, chat: [], sunk: false,
+      reconciles: 0, corrections: 0, maxCorrection: 0,
     };
   }
 
@@ -181,6 +192,17 @@ class Bot {
       case "pong":
         if (typeof m.c === "number") this.s.rtts.push(Date.now() - m.c);
         break;
+      case "chatHistory":
+        if (!Array.isArray(m.lines)) this.s.violations.push("chatHistory.lines not an array");
+        this.s.chatHistory = true;
+        break;
+      case "chat":
+        if (typeof m.id !== "number" || typeof m.from !== "string" || typeof m.text !== "string" || typeof m.ts !== "number") {
+          this.s.violations.push("malformed chat line");
+        } else {
+          this.s.chat.push({ id: m.id, from: m.from, text: m.text, sys: m.sys === 1 });
+        }
+        break;
       case "error":
       case "nameError":
         { const msg = `server ${kind}: ${m.message}`; if (this.s.errors.length < 5 && !this.s.errors.includes(msg)) this.s.errors.push(msg); }
@@ -211,6 +233,7 @@ class Bot {
     if (!m.me || typeof m.me !== "object" || Array.isArray(m.me)) s.violations.push("snapshot.me missing / not an object");
     else {
       if (typeof m.me.eid === "number") s.eid = m.me.eid;
+      s.sunk = m.me.sunk === true;
       // Own-ship prediction check. Sinking legitimately stops the ship server-side: stop measuring.
       if (m.me.sunk) this.sunk = true;
       const d = this.pred.reconcile(m.me, typeof m.a === "number" ? m.a : -1);
@@ -257,7 +280,16 @@ class Bot {
       this.throttle = Math.random() < 0.9 ? 1 : 0;
       this.throttleUntil = now + 300 + Math.random() * 2000;
     }
-    return { th: this.throttle, ru: this.rudder, f: Math.random() < 0.01 ? 1 : 0 };
+    return {
+      th: this.throttle, ru: this.rudder,
+      // Fire flags (PROTOCOL §4 broadsides): mostly legacy f:1 (fire all loaded), some port-only (2) / starboard-only (4).
+      f: Math.random() < 0.03 ? [1, 1, 2, 4][Math.floor(Math.random() * 4)] : 0,
+    };
+  }
+
+  /** Global chat: say one line. */
+  say(text: string): void {
+    this.send({ t: "chat", text });
   }
 
   private send(obj: unknown): void {
@@ -330,6 +362,8 @@ async function main(): Promise<void> {
   }
   console.log(`bots: ${opts.bots} -> ${opts.url}, ${opts.duration}s${opts.assert ? ", --assert" : ""}`);
   for (const b of bots) { b.start(); await sleep(25); }
+  // Trade round trip (one extra, idle player at its port spawn); awaited before the report.
+  const tradeCheck: Promise<TradeCheckResult> = tradeRoundTrip(opts.url, `trd${runId}`.slice(0, MAX_NAME_LENGTH));
 
   // If nothing can connect (server down) fail fast with a clear message.
   await sleep(2000);
@@ -341,7 +375,17 @@ async function main(): Promise<void> {
     bots.forEach((b) => b.stop());
     process.exit(2);
   }
-  await sleep(Math.max(0, opts.duration * 1000 - 2000));
+  // Global chat round trip, half-way through the run.
+  const half = Math.max(0, opts.duration * 500 - 2000);
+  await sleep(half);
+  const chatToken = `chat check ${runId} ${Date.now().toString(36)}`;
+  // Only afloat ships may chat (NPCs can sink a bot at any time).
+  const chatSender = bots.find((b) => b.s.connected && !b.s.sunk) ?? null;
+  const spammer = bots.find((b) => b.s.connected && !b.s.sunk && b !== chatSender) ?? null;
+  const chatAudience = bots.filter((b) => b.s.connected && !b.s.sunk);
+  chatSender?.say(chatToken);
+  for (let i = 0; i < 8; i++) spammer?.say(`spam ${runId} ${i}`);
+  await sleep(Math.max(1500, opts.duration * 1000 - 2000 - half));
 
   // Visibility symmetry, measured before closing sockets (closing triggers `gone`).
   const byPid = new Map<string, Bot>();
@@ -406,6 +450,33 @@ async function main(): Promise<void> {
   for (const b of bots) if (b.s.closedEarly) failures.push(`${b.s.name}: socket closed unexpectedly`);
   // Symmetric-ish visibility: allow transient mismatch (interest edge, join/leave in flight).
   if (pairs >= 10 && asym / pairs > 0.15) failures.push(`visibility asymmetry ${summary.asymmetryPct}% of ${pairs} pairs (tolerance 15%)`);
+  // Global chat.
+  for (const b of bots) if (b.s.connected && !b.s.chatHistory) failures.push(`${b.s.name}: no chatHistory after joining`);
+  let chatHeard = 0;
+  if (chatSender) {
+    for (const b of chatAudience) {
+      const got = b.s.chat.find((l) => l.text === chatToken);
+      if (!got) failures.push(`${b.s.name}: did not receive the chat round-trip line`);
+      else {
+        chatHeard++;
+        if (got.from !== chatSender.s.name) failures.push(`${b.s.name}: chat line from "${got.from}", expected "${chatSender.s.name}"`);
+      }
+    }
+  }
+  let spamDelivered = 0, spamNotices = 0;
+  if (spammer) {
+    spamDelivered = (chatSender ?? spammer).s.chat.filter((l) => !l.sys && l.text.startsWith(`spam ${runId}`)).length;
+    spamNotices = spammer.s.chat.filter((l) => l.sys).length;
+    if (spamDelivered > 5) failures.push(`chat rate limit: ${spamDelivered} of 8 burst lines delivered (max 5)`);
+    if (spamNotices !== 1) failures.push(`chat rate limit: spammer got ${spamNotices} throttle notices (expected 1)`);
+    for (const b of bots) if (b !== spammer && b.s.chat.some((l) => l.sys)) failures.push(`${b.s.name}: saw another player's throttle notice`);
+  }
+  console.log(`CHAT ${JSON.stringify({ heard: chatHeard, audience: chatAudience.length, spamDelivered, spamNotices })}`);
+
+  const trade = await tradeCheck;
+  if (!trade.ran) console.log(`\ntrade round trip skipped: ${trade.skipped}`);
+  else if (!trade.failures.length) console.log("\ntrade round trip ok (concurrent buys, expectedPrice guard, sellAll, empty_hold)");
+  failures.push(...trade.failures);
 
   if (opts.json) {
     writeFileSync(opts.json, JSON.stringify({ summary, bots: reports, failures }, null, 2));

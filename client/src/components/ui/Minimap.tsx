@@ -15,6 +15,9 @@ import {
   nationColor,
   portPoint,
   stepMinimapRadius,
+  placeLabels,
+  portLabelPriority,
+  type LabelCandidate,
 } from '@/lib/nav';
 import { clientLand } from '@/lib/world/landTiles';
 import { MinimapLandLayer } from '@/lib/world/minimapLand';
@@ -88,6 +91,7 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
     // Ports
     ctx.font = '10px Arial';
     ctx.textAlign = 'center';
+    const labels: LabelCandidate[] = [];
     for (const port of gameState.ports) {
       const pt = portPoint(port);
       const { x, y } = minimapProject(player.x, player.z, pt.x, pt.z, radius, S);
@@ -100,9 +104,12 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
       ctx.strokeStyle = isTarget ? '#ffffff' : 'rgba(0,0,0,0.7)';
       ctx.lineWidth = isTarget ? 2 : 1;
       ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(port.name, x, y - MINIMAP_PORT_DOT_SIZE);
+      labels.push({ id: port.id, x, y: y - MINIMAP_PORT_DOT_SIZE, text: port.name, priority: portLabelPriority(port as { key?: string; id: number }, isTarget) });
     }
+    // Labels that fit (zoomed out, Buenos Aires/Montevideo or Panamá/Portobelo would overprint).
+    const shown = placeLabels(labels, (t) => ctx.measureText(t).width, 11);
+    ctx.fillStyle = '#ffffff';
+    for (const l of labels) if (shown.has(l.id)) ctx.fillText(l.text, l.x, l.y);
 
     // Other ships / NPCs
     ctx.fillStyle = '#ff6347';
@@ -144,12 +151,12 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
 
   return (
     <div className="fixed bottom-32 left-4 z-50">
-      <div className="p-2 bg-gray-900/80 border-2 border-amber-700 rounded-lg">
+      <div className="ptw-hud p-2 pt-1.5">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-bold text-amber-400 text-sm">Navigation Map</h3>
+          <h3 className="ptw-font-label text-ptw-brass-hi text-sm">Navigation Map</h3>
           <div className="flex gap-1">
             <button
-              className="w-6 h-6 rounded bg-amber-700/60 text-white text-sm leading-none pointer-events-auto"
+              className="ptw-btn ptw-btn--porthole ptw-btn--sm pointer-events-auto leading-none"
               onClick={() => setRadius((r) => stepMinimapRadius(r, 1))}
               title="Zoom in"
               aria-label="Zoom in"
@@ -157,7 +164,7 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
               +
             </button>
             <button
-              className="w-6 h-6 rounded bg-amber-700/60 text-white text-sm leading-none pointer-events-auto"
+              className="ptw-btn ptw-btn--porthole ptw-btn--sm pointer-events-auto leading-none"
               onClick={() => setRadius((r) => stepMinimapRadius(r, -1))}
               title="Zoom out"
               aria-label="Zoom out"
@@ -171,9 +178,9 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
           width={Math.round(MINIMAP_SIZE * dpr)}
           height={Math.round(MINIMAP_SIZE * dpr)}
           style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE }}
-          className="rounded"
+          className="block rounded-sm shadow-[0_0_0_1px_#120a05,0_0_0_3px_#c9a24d,0_0_0_4px_#120a05]"
         />
-        <div className="text-xs text-center mt-1 text-amber-300">{minimapSpanLabel(radius)}</div>
+        <div className="ptw-num text-xs text-center mt-1.5 text-ptw-cream/85">{minimapSpanLabel(radius)}</div>
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 // Card W4: Redis port seeding (fake store), port spawns on the REAL land data, and player migration.
 import { describe, expect, it } from "vitest";
 import path from "path";
-import { ensurePortGoods, seedPorts, updatePortMarkets, type PortStore, type PortGoodRow, type GoodRow } from "../ports";
+import { ensurePortGoods, seedGoods, seedPorts, updatePortMarkets, type PortStore, type PortGoodRow, type GoodRow } from "../ports";
+import { isSoldAt, SOURCE_FACTOR } from "@shared/world/goodMarkets";
 import { loadLandSync } from "../landLoader";
 import { World, PORT_SPAWN_MIN_WATER, needsRelocation } from "../world";
 import { PORTS, PORTS_VERSION, STARTER_PORTS, portByKey, type GamePort } from "@shared/world/ports";
@@ -14,7 +15,7 @@ class FakeStore implements PortStore {
   version: string | null = null;
   ports = new Map<number, GamePort>();
   goods: GoodRow[] = GOODS.map((g) => ({ ...g }));
-  portGoods = new Map<number, { goodId: number; stock: number; currentPrice: number }[]>();
+  portGoods = new Map<number, { goodId: number; stock: number; currentPrice: number; notSold?: boolean }[]>();
   replaced = 0;
   async getPortsVersion() {
     return this.version;
@@ -31,12 +32,15 @@ class FakeStore implements PortStore {
   async getGoods() {
     return this.goods;
   }
+  async putGood(g: GoodRow) {
+    this.goods = [...this.goods.filter((x) => x.id !== g.id), { ...g }];
+  }
   async getPortGoods(id: number) {
     return (this.portGoods.get(id) ?? []).map((r) => ({ ...r }));
   }
   async createPortGood(row: PortGoodRow) {
     const list = this.portGoods.get(row.portId) ?? [];
-    list.push({ goodId: row.goodId, stock: row.stock, currentPrice: row.currentPrice });
+    list.push({ goodId: row.goodId, stock: row.stock, currentPrice: row.currentPrice, ...(row.notSold ? { notSold: true } : {}) });
     this.portGoods.set(row.portId, list);
   }
   async updatePortGoodPrice(portId: number, goodId: number, price: number) {
@@ -46,6 +50,11 @@ class FakeStore implements PortStore {
   async updatePortGoodStock(portId: number, goodId: number, stock: number) {
     const r = this.portGoods.get(portId)?.find((g) => g.goodId === goodId);
     if (r) r.stock = stock;
+  }
+  async updatePortGoodNotSold(portId: number, goodId: number, notSold: boolean) {
+    const r = this.portGoods.get(portId)?.find((g) => g.goodId === goodId);
+    if (!r) return;
+    if (notSold) { r.notSold = true; r.stock = 0; } else delete r.notSold;
   }
 }
 
@@ -81,7 +90,7 @@ describe("port seeding (portsVersion)", () => {
     expect(s.version).toBe("different");
   });
 
-  it("market updates keep regional pricing and restock low goods", async () => {
+  it("market updates keep model pricing and restock low goods", async () => {
     const s = new FakeStore();
     await seedPorts(s);
     await ensurePortGoods(s, () => 0.5);
@@ -90,8 +99,65 @@ describe("port seeding (portsVersion)", () => {
     await s.updatePortGoodStock(pr.id, sugar.id, 2);
     await updatePortMarkets(s, () => 0.5);
     const row = (await s.getPortGoods(pr.id)).find((g) => g.goodId === sugar.id)!;
-    expect(row.currentPrice).toBe(Math.round(sugar.basePrice * 0.7));
+    expect(row.currentPrice).toBe(Math.round(sugar.basePrice * SOURCE_FACTOR)); // Port Royal is a Sugar source
     expect(row.stock).toBeGreaterThanOrEqual(20);
+  });
+
+  it("market updates re-sync notSold with the model (and never restock a good the port doesn't sell)", async () => {
+    const s = new FakeStore();
+    await seedPorts(s);
+    await ensurePortGoods(s, () => 0.5);
+    const pr = portByKey("port_royal")!;
+    const silver = GOODS.find((g) => g.name === "Silver")!;
+    const fish = GOODS.find((g) => g.name === "Fish")!;
+    const list = s.portGoods.get(pr.id)!;
+    list.find((g) => g.goodId === silver.id)!.notSold = undefined; // stale: sold where the model says not
+    list.find((g) => g.goodId === fish.id)!.notSold = true; // stale: a staple flagged not sold
+    await updatePortMarkets(s, () => 0.5);
+    const after = await s.getPortGoods(pr.id);
+    expect(after.find((g) => g.goodId === silver.id)).toMatchObject({ notSold: true, stock: 0 });
+    expect(after.find((g) => g.goodId === fish.id)!.notSold).toBeUndefined();
+  });
+});
+
+describe("goods seeding by id (New Horizons phase 1)", () => {
+  it("writes every catalogue good missing from the store, by its own id, and leaves existing ones", async () => {
+    const s = new FakeStore();
+    // A live server's Redis: the 8 original goods, one of them with a tweaked price that must survive.
+    s.goods = GOODS.filter((g) => g.id <= 8).map((g) => ({ id: g.id, name: g.name, basePrice: g.id === 1 ? 11 : g.basePrice, fluctuation: g.fluctuation }));
+    const added = await seedGoods(s);
+    expect(added).toEqual([9, 10, 11, 12, 13]);
+    expect(s.goods.map((g) => g.id).sort((a, b) => a - b)).toEqual(GOODS.map((g) => g.id));
+    for (const g of GOODS) expect(s.goods.find((x) => x.id === g.id)!.name).toBe(g.name);
+    expect(s.goods.find((g) => g.id === 1)!.basePrice).toBe(11);
+    expect(await seedGoods(s)).toEqual([]); // idempotent
+  });
+
+  it("an empty store gets the whole catalogue", async () => {
+    const s = new FakeStore();
+    s.goods = [];
+    expect(await seedGoods(s)).toEqual(GOODS.map((g) => g.id));
+  });
+
+  it("ensurePortGoods adds the new goods' rows to ports that already have a market, with notSold from the model", async () => {
+    const s = new FakeStore();
+    await seedPorts(s);
+    s.goods = GOODS.filter((g) => g.id <= 8).map((g) => ({ ...g }));
+    await ensurePortGoods(s, () => 0.5); // old markets: 8 rows each
+    const pr = portByKey("port_royal")!;
+    const oldSugar = (await s.getPortGoods(pr.id)).find((g) => g.goodId === 3)!;
+    await seedGoods(s);
+    await ensurePortGoods(s, () => 0.5);
+    for (const p of PORTS) {
+      const rows = await s.getPortGoods(p.id);
+      expect(rows.map((r) => r.goodId).sort((a, b) => a - b), p.key).toEqual(GOODS.map((g) => g.id));
+      for (const r of rows) {
+        const name = GOODS.find((g) => g.id === r.goodId)!.name;
+        expect(!!r.notSold, `${p.key} ${name}`).toBe(!isSoldAt(p, name));
+        if (r.notSold) expect(r.stock).toBe(0);
+      }
+    }
+    expect((await s.getPortGoods(pr.id)).find((g) => g.goodId === 3)).toEqual(oldSugar); // old rows untouched
   });
 });
 

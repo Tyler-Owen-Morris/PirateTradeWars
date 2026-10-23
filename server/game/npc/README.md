@@ -70,7 +70,7 @@ The cost was measured in tests on a desktop:
 ## Physics conventions to remember
 
 - The ship moves along `(−sin r, −cos r)` when sailing ahead, because velocity is negative. `rotationY = 0` is north (−z). `headingForDir` inverts this.
-- `spawnBroadside` fires only along `r + π/2`, the **starboard** side. Tactics models a `Side`, but `GUN_SIDES = ["starboard"]`. If port guns are added to physics, add `"port"` there and `chooseSide` picks the cheaper turn.
+- Broadsides (2026-10-23): every ship has a starboard battery (`r + π/2`, RIGHT) and a port battery (`r − π/2`, LEFT), each with its own reload (`World.sideReady`). `GUN_SIDES = ["port", "starboard"]`. `chooseSide` picks the side needing the smaller turn, but keeps the previous side (`ActiveNpc.gunSide`) unless the other is better by `SIDE_SWITCH_MARGIN` (25°), so a target near the bow does not flip the orbit every tick. `engage` takes per-side reloading and uses the chosen side's; `aim` fires `FIRE_PORT` or `FIRE_STARBOARD` only. NPCs never swing round just because the other battery is loaded. Measured (60 s duels, 6 seeds): sustained hits/min within about ±10 % of starboard-only, first hit sooner (brigantine chasing a running sloop 8.5 s → 3.1 s); see `docs/proposals/2026-10-23-broadsides-NOTES.md`.
 - Balls don't inherit ship velocity. Lead = target velocity × flight time (900 units/s).
 
 ## Combat fixes after Q1 (card F1, bug B2/B3)
@@ -86,7 +86,7 @@ Q1 saw a provoked pirate loop 375 → 1060 → 375 around a still player, never 
 | **Hurt pirates fought on.** Disengage was hp < (1 − courage) × 0.6 and only +1 to the flee score, which a fight against a weaker ship (score up to ≈ 2.4) beat. | `shouldDisengage`: hp ≤ (1 − courage) × 0.7 (`DISENGAGE_HP_SCALE`): pirate 35 %, privateer 28 %, navy 7 %. Being that hurt adds `HURT_FLEE_BONUS` (3), which beats any fight score; being merely outgunned still adds 1. Merchants' surrender score is now 10+ so it still beats flee. |
 | **Merchant dead in the water (B3).** A merchant arriving at its lane end docks (idles 20–60 s); in a port safe zone it cannot react to an attacker, so it sat still while being shot. | A hit marks the NPC under fire for `UNDER_FIRE_MS` (10 s): it will not dock, and a hit on a docked ship cancels the idle (it sails out on its next lane). |
 
-Engagement geometry: TURN_SPEED is a fixed 0.05 rad/frame at any speed, so the turning radius is 20 × speed (sloop 80 … dreadnought 180), well inside the hold band; slowing down is not needed to tighten the turn. Far from the target the course is held `APPROACH_MAX_K` (π/3) off straight-at-it, a spiral that brings the target onto the starboard beam on the approach. Guns: physics fires starboard only, for players and NPCs alike (`spawnBroadside`), so `GUN_SIDES` stays `["starboard"]`. Known limit: a starboard-only sloop cannot catch a sloop running straight away at the same speed (a stern chase at equal speed never closes); it gets its broadside in on a crossing or head-on pass, and faster ships run slower ones down.
+Engagement geometry: TURN_SPEED is a fixed 0.05 rad/frame at any speed, so the turning radius is 20 × speed (sloop 80 … dreadnought 180), well inside the hold band; slowing down is not needed to tighten the turn. Far from the target the course is held `APPROACH_MAX_K` (π/3) off straight-at-it, a spiral that brings the target onto the starboard beam on the approach. Guns: since 2026-10-23 both sides (see "Physics conventions"); the approach spiral now brings the target onto whichever beam `chooseSide` picked. Known limit (still true with two sides): a sloop cannot catch a sloop running straight away at the same speed (a stern chase at equal speed never closes); it gets its broadside in on a crossing or head-on pass, and faster ships run slower ones down.
 
 Measured in the browser (real server, F1): a pirate sloop vs a still player sloop fired 14–15 times in 30 s and hit 6–7 times; vs a circling player 12 shots / 10 hits; a brigantine vs a straight-sailing sloop 8 / 7 (sank it); at 30 % hp both ship types turned and ran within a second (510 → 1,700–1,970 units in 4–6 s).
 
@@ -115,11 +115,14 @@ Measured in the browser (real server, F1): a pirate sloop vs a still player sloo
 
 ## Live behaviour on the real map (NPC2)
 
-### Population (`population.ts` `liveFleets()`, 153 persistent, ≤ 80 active)
+### Population (`population.ts` `liveFleets()`, 185 persistent, ≤ 80 active)
 
-Halved on 2026-10-16 (from 300: every fleet halved, rounded up). Perf numbers below were measured with 300.
+Halved on 2026-10-16 (from 300: every fleet halved, rounded up, to 153). Perf numbers below were measured with 300.
+New Horizons phase 1 (2026-10-23) added 32 ships in two new zones for the 16 new ports and left every older fleet
+as it was, so the Caribbean keeps its 72. Measured with 185 (live-world load test, 200 players, real map): avg
+2.1 ms/tick spread over all ports, 1.9 ms packed at the starter ports (worst 7.1 ms; budget 25 ms).
 
-Lanes get a zone from their two ports' regions (`laneZone`): **americas** (both ends Caribbean/Gulf or the American Atlantic coast), **atlantic** (Americas ↔ Europe/Africa crossings), **europe**, **africa**, **east** (Indian Ocean, East Asia, Acapulco).
+Lanes get a zone from their two ports' regions (`laneZone`), in this order of precedence: **east** (touches the Indian Ocean or East Asia, incl. the Manila galleon), **pacific** (touches the Pacific coast of the Americas: Acapulco, Panamá, Guayaquil, Callao, Valparaíso, Juan Fernández, incl. the Cape Horn lane), **south** (touches the South Atlantic: Brazil and the River Plate), then **americas** (both ends Caribbean/Gulf or the American Atlantic coast), **atlantic** (Americas ↔ Europe/Africa crossings), **africa**, **europe**.
 
 | Fleet (region label) | Archetype | Count | Lanes | Faction |
 |---|---|---|---|---|
@@ -128,17 +131,23 @@ Lanes get a zone from their two ports' regions (`laneZone`): **americas** (both 
 | europe/merchant | merchant | 15 | europe | origin port |
 | africa/merchant | merchant | 6 | africa | origin port |
 | east/merchant | merchant | 14 | east | origin port |
+| south/merchant | merchant | 10 | south | origin port |
+| pacific/merchant | merchant | 8 | pacific | origin port |
 | americas/navy/{spain 5, england 4, france 2, netherlands 2} | navy | 13 | americas lanes touching that nation's ports | the nation |
 | europe/navy/{england 3, spain 2, france 2, netherlands 2, portugal 2} | navy | 11 | europe lanes touching its ports | the nation |
 | east/navy/{portugal 2, netherlands 2 (+africa), spain 2} | navy | 6 | east lanes touching its ports | the nation |
+| south/navy/{portugal 3, spain 1} | navy | 4 | south lanes touching its South Atlantic ports | the nation |
+| pacific/navy/spain | navy | 3 | pacific lanes touching Spain's Pacific ports (the Armada del Mar del Sur) | spain |
 | americas/pirate/havens | pirate | 18 | americas lanes touching Nassau or Tortuga | pirates |
 | americas/pirate/lanes | pirate | 3 | americas | pirates |
 | atlantic/pirate | pirate | 6 | atlantic | pirates |
 | east/pirate/sainte_marie | pirate | 6 | lanes touching Île Sainte-Marie | pirates |
+| pacific/pirate/juan_fernandez | pirate | 4 | lanes touching Juan Fernández | pirates |
+| south/pirate | pirate | 3 | south | pirates |
 | americas/privateer | privateer | 8 | americas | england / france / netherlands |
 | atlantic/privateer | privateer | 2 | atlantic | spain |
 
-About 62 % of the fleet is in the Caribbean/Gulf and on the crossings. A fleet's ships keep to its lanes forever: at every lane end the next lane is drawn from the fleet's lane filter (a navy that reaches a foreign port with no home lane turns around). Groups spawn from the archetype's `group` (merchant convoys 1–3, navy and pirate pairs) on one lane, `GROUP_SPACING` (160) apart, with the same ship type and faction; members leave port right after their leader and take the lane it took (`NpcRecord.leader`).
+About 51 % of the fleet is in the Caribbean/Gulf and on the crossings (62 % before the South Atlantic and Pacific fleets). A fleet's ships keep to its lanes forever: at every lane end the next lane is drawn from the fleet's lane filter (a navy that reaches a foreign port with no home lane turns around). Groups spawn from the archetype's `group` (merchant convoys 1–3, navy and pirate pairs) on one lane, `GROUP_SPACING` (160) apart, with the same ship type and faction; members leave port right after their leader and take the lane it took (`NpcRecord.leader`).
 
 ### Navigation on real coastlines (`index.ts` `followLaneOrWander` / `unstick`, `nav.ts`, `steering.ts`)
 

@@ -48,27 +48,76 @@ The game uses Zustand for state management with several stores:
 - `OtherShips.tsx` - Renders other players in the game
 - `Ocean.tsx` - Water rendering
 - `CannonBall.tsx` - Projectiles
-- `Port.tsx` / `Ports.tsx` - real-world ports (card W4), see "Ports (W4)" below
+- `Port.tsx` / `Ports.tsx` - real-world ports (card W4), see "Ports (W4)" below; `PortCity.tsx` - the town (procedural city kit, see "Port cities" below)
 
 ### UI Components
-- `TradeMenu.tsx` - Trading interface for ports
+- `trade/BillOfGoods.tsx` - the trade screen (see "Trading: the bill of goods")
 - Ship selection screens
 - Game status indicators and HUD
 - Damage indicators and ship status
 
+## Pirate UI theme (2026-10-23)
+All 2D UI uses one theme layer. Read `components/ui/pirate/README.md` before styling anything.
+- **Tokens and classes:** `src/styles/pirate.css`, imported at the top of `index.css`.
+  - Palette vars: `--ptw-*`, plus `-rgb` triplets for alpha.
+  - Fonts: `--ptw-font-display` Pirata One, `--ptw-font-label` IM Fell English SC, `--ptw-font-body`
+    Alegreya. They load from Google Fonts in `client/index.html` with `display=swap`.
+  - Inline SVG data-URI textures: noise, wood grain, torn edges. No raster assets.
+  - The shadcn HSL tokens (`--background`, `--primary`, …) are now defined (they were missing).
+  - `ptw-*` component classes sit in `@layer components`, so Tailwind utilities still win for layout.
+    All `ptw-*` classes are safelisted in `tailwind.config.ts`, which also adds `font-display/label/body`
+    and `ptw-*` colours.
+- **Primitives:** `components/ui/pirate/`: `PirateButton` (brass/wood/rope/wax/iron/porthole),
+  `ParchmentPanel` (`torn`), `WoodPanel`, `HudPanel`, `SectionTitle`, `PirateMeter`, `Kbd`, `WaxSeal`,
+  `CompassRose`, `TitleLockup`, `SeaChartBackdrop`, and `ptwDialog`/`ptwDialogTorn` for shadcn
+  DialogContent.
+- **Principle:** surfaces are physical objects a captain would handle (charts, ledgers, brass, wax),
+  and selected/active states and primary actions must be unmistakable.
+- **HUD overlays** use `HudPanel` only: readable over any sky, with no backdrop-filter, filter or
+  animation.
+- **Compass layout:** below the `lg` breakpoint, `CompassHUD` stacks under the top-right buttons and the
+  speed plate moves below it, so nothing overlaps on phones. At `lg` and up the compass is
+  top-centre. It also has `z-40`: the HUD's full-screen root used to sit over it and swallow clicks on
+  its Map button.
+- **Restyled:** ShipSelection (landing, instructions modal, loading), NameRegistration, HUD, GameUI,
+  CompassHUD, Minimap frame, WorldMap chrome, GameOver, Leaderboard, PaymentModal (+ Stripe
+  `appearance`), TradingToast, HelpTooltip, TouchControls ring.
+- **Not restyled:** `TradeMenu.tsx`. It is being redesigned separately as a manifest / "bill of
+  goods", with its own style guide.
+- Screenshots are in `docs/proposals/2026-10-23-theme-screens/`. Notes are in
+  `docs/proposals/2026-10-23-theme-NOTES.md`.
+
 ## Navigation UI (card W5)
 All maths is pure and tested in `client/src/lib/nav.ts` (`lib/__tests__/nav.test.ts`); components only draw. It uses `shared/world/geo.ts` (`metricDelta`, `metricDist`, `bearingDeg`, `compassHeading`, `lonOf`/`latOf`) - never raw x deltas.
-- `ui/Minimap.tsx`: north-up, centred on the player. Radius (world units centre-to-edge) defaults to 6000 (1 unit = 100 m, so 600 km), +/- halve/double (1500..24000). The caption is the full span, `minimapSpanLabel(radius)` = "1200 km across" at the default (F1/Q1 B4: it used to print the radius as "Edge = 600 km"). Land is drawn from the SDF tiles already loaded around the ship (`clientLand`) by `lib/world/minimapLand.ts` (2026-10-16 fix: the 1024 texture is ~390 units/px, so zoomed in it showed as big blurred blocks): chart colours like the world map texture, coast anti-aliased over one device px, and below one SDF px per output px it blurs the SDF under the view (~1 SDF px) so coasts read as curves, not 49-unit stair-steps. `MinimapLandLayer` keeps a 1.5x offscreen buffer and only re-renders (~5-10 ms at dpr 2) when the ship has moved far, the zoom changes or a tile arrives (`clientLand.version`). Pixels on unloaded tiles stay transparent over the old texture backdrop, drawn row by row from `/world/map_1024x512.png` (no graticule since F1) via `minimapRow` (each row spans +-radius/metricX(z) x-units, split in two across the x seam). The canvas is backed at devicePixelRatio (capped at 3). Ports (nation-coloured, at their dock), ships/NPCs (`otherPlayers`), heading arrow, highlighted target port.
-- `ui/WorldMap.tsx`: full-screen canvas over `/world/map_4096x2048.png`. Opened by `M` or the "Map" button in the compass HUD (GameUI owns the toggle; Esc closes). View = `{cx, cz, k}` (k = px per world unit, same on both axes); drag pans with x wrap, wheel/pinch zoom about the cursor, clicking a port (no drag) calls `setNavTarget(port.id)`. Draws 30 degree grid, +-70 degree ice lines/shading, ports and names, player arrow.
+- `ui/Minimap.tsx`: north-up, centred on the player. Radius (world units centre-to-edge) defaults to 6000 (1 unit = 100 m, so 600 km), +/- halve/double (1500..24000). The caption is the full span, `minimapSpanLabel(radius)` = "1200 km across" at the default (F1/Q1 B4: it used to print the radius as "Edge = 600 km"). Land is drawn from the SDF tiles already loaded around the ship (`clientLand`) by `lib/world/minimapLand.ts` (2026-10-16 fix: the 1024 texture is ~390 units/px, so zoomed in it showed as big blurred blocks): chart colours like the world map texture, coast anti-aliased over one device px, and below one SDF px per output px it blurs the SDF under the view (~1 SDF px) so coasts read as curves, not 49-unit stair-steps. `MinimapLandLayer` keeps a 1.5x offscreen buffer and only re-renders (~5-10 ms at dpr 2) when the ship has moved far, the zoom changes or a tile arrives (`clientLand.version`). Pixels on unloaded tiles stay transparent over the old texture backdrop, drawn row by row from `/world/map_1024x512.png` (no graticule since F1) via `minimapRow` (each row spans +-radius/metricX(z) x-units, split in two across the x seam). The canvas is backed at devicePixelRatio (capped at 3). Ports (nation-coloured, at their dock; labels decluttered by `lib/nav.ts` `placeLabels`), ships/NPCs (`otherPlayers`), heading arrow, highlighted target port.
+- `ui/WorldMap.tsx`: full-screen canvas over `/world/map_4096x2048.png`. Opened by `M` or the "Map" button in the compass HUD (GameUI owns the toggle; Esc closes). View = `{cx, cz, k}` (k = px per world unit, same on both axes); drag pans with x wrap, wheel/pinch zoom about the cursor, clicking a port (no drag) calls `setNavTarget(port.id)`. Draws 30 degree grid, +-70 degree ice lines/shading, ports and names, player arrow. Labels (New Horizons phase 1, 43 ports): every dot is drawn, then `placeLabels` (lib/nav.ts) keeps only labels that don't overlap one already placed, in priority order: the nav target, `MAJOR_PORT_KEYS`, then by port id; zoomed in, all show.
 - `ui/CompassHUD.tsx` (top centre): heading tape + `deg + cardinal`, lat/lon like `17°56′N 76°50′W`, and the target port with distance in sea miles (`nm`, 1 nm = 18.52 units), compass bearing and an arrow relative to the bow. Speed stays in `HUD.tsx` (knots): `speedToKnots(v)` = |v| × `KNOTS_PER_SPEED_UNIT` (1.5), a fixed display scale (F1/Q1 B5; game time is compressed, so a literal m/s conversion is meaningless): sloop 4 → 6 kn … dreadnought 9 → 13.5 kn.
 - **Ports (W4).** Data: `shared/world/ports.ts` (`PORTS`, typed view of the generated `ports.json`; numeric
   `id` = 1-based index, `key` = string id, town `x/z`, `dock`, `spawn`, `nation`, `region`). `useGameState.loadPorts`
   fetches `GET /api/ports` (same shape) and falls back to the bundled `PORTS`. `Ports.tsx` renders the store's
-  ports; `Port.tsx` draws a procedural town on the coast at x/z (houses, tower, flag in `nationColor`, name label)
-  and a pier + 300-unit ring at the dock. No island .glb any more: land is the W3 terrain (`Island.tsx` is unused).
+  ports; `Port.tsx` mounts `PortCity` (the town, see "Port cities" below), the name label over the town
+  and the 300-unit ring + trade prompt at the dock. No island .glb any more: land is the W3 terrain (`Island.tsx` is unused).
   Docking: `GameScene.checkPortProximity` (10 Hz) uses `nearestDockPort` and enters the port when the metric
   distance to the dock is <= `PORT_INTERACTION_RADIUS` (300), the same rule the server enforces for trade, upgrade
   and repair. `isPlayerNearPort` uses the same 300 radius.
+- **Port cities (2026-10-23).** Kit in `src/lib/city/` (README there: styles, pieces, layout, how to add a style
+  or customise a city); drawn by `components/game/PortCity.tsx`. One generic look per CITY TYPE
+  (`styles.ts`: spanish_colonial, english, dutch, french, portuguese, pirate_haven, east_asian; picked by
+  `port.nation`) plus a small per-city entry in `cities.ts` keyed by `port.key` (landmark, fort placement, extras
+  such as El Morro, Belém Tower, St Paul's dome, windmills, pirate ships). `layout.ts` builds a deterministic town
+  (seeded by the key) on the real coast: quay + piers + boats + warehouses, plaza + landmark, harbour fort, extras,
+  optional ramparts, houses on a street grid (only on land, not on steep ground), trees by latitude, flags.
+  Rendering: three merged layers per city (`main`; `detail` = windows/doors/chimneys/cannons/bollards, hidden
+  beyond `DETAIL_DISTANCE` 1300; `flags` = waving in the vertex shader), one ShaderMaterial program for all cities
+  (`cityMaterial.ts`) that applies the WORLD_SPEC §7 transform per vertex like the terrain, so towns sit exactly on
+  the terrain and never drift. Built lazily within 3200 of the focus once its land tiles are loaded (one build per
+  frame, ~3–20 ms), CPU builds cached (LRU 6), GPU geometry disposed beyond 4200, culled beyond 2300 + radius.
+  ~6–18k triangles and 3 draw calls per city (old towns: ~60–80 draw calls each). No per-frame work except the
+  per-city origin uniforms. Stats for every port: `CITY_REPORT=1 npx vitest run client/src/lib/city`.
+  Dev tools (Vite dev or `?citydebug=1`, `lib/world/cityDebug.ts`): `__cityCam("havana", {dist, height, yaw})`
+  flies the camera to a town (`__cityCam(null)` returns), `__cityHide(true)` unmounts all ports,
+  `__ptwRenderInfo()` / `__ptwFrameStats(ms)` measure; `/?citydebug=1&citygallery=1` shows every piece
+  (`components/dev/CityGallery.tsx`, lazy chunk), `&citystyle=dutch` a whole town of one style.
 - Store (`useGameState`): `calculateDistance` is `metricDist`; `getNearestPort` uses dock points (`portPoint`, x/z fallback); `navTargetId` / `setNavTarget` / `getNavTargetPort()` (selected target, else nearest). The `Port` type has optional `dock` and `nation` (filled by W4's port source).
 
 ## WebSocket Communication
@@ -107,7 +156,16 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
 - `clock.ts` — `ServerClock`: offset = EMA of `snapshot.st − receiveTime` (early samples weigh more,
   >1 s jumps reset); RTT EMA from `pong`. `serverNow(local)` = local + offset.
 - `controls.ts` — keyboard/touch booleans → `{th,ru,f}`: W/Up th 1 (ahead), S/Down th −1 (reverse),
-  A/Left ru 1, D/Right ru −1, Space/F f 1; opposing keys cancel.
+  A/Left ru 1, D/Right ru −1; opposing keys cancel. Fire is a bit set (broadsides, 2026-10-23):
+  Space/F/HUD+touch fire button `fire` → 1 (every loaded side), Q `firePort` → 2 (left), E
+  `fireStarboard` → 4 (right); keys combine. `firePort`/`fireStarboard` are optional in `ControlState`
+  (only the keyboard map in `App.tsx` sets them). `FireLatch` keeps a short tap until a 20 Hz step has
+  sent it (`NetClient.frame`; reset while hidden / sunk / before the first snapshot).
+- `autoSail.ts` — keyboard auto-sail latch (framework-free `AutoSail` class). Double-tap forward (<=300 ms between
+  presses) latches full-ahead with no key held; a fresh forward press or backward cancels (the cancel press does
+  not count as a first tap). `Player.tsx` feeds it keyboard-only forward/backward each frame, ORs the result into
+  `forward`, and resets it on sunk / trade menu / focused text input / unmount. State is mirrored to
+  `stores/useAutoSail.ts` for `ui/AutoSailIndicator.tsx`. Wire input is still `th: 1`; touch is unaffected.
 - **Wrapping Earth (card W1, docs/world/WORLD_SPEC.md).** x wraps at `WORLD_C` (400 000); z is
   0 (north pole) … 200 000 and does NOT wrap. Only x uses `lerpWrapped`/`wrappedDelta`; z is a plain
   lerp. Motion is metric (east-west speed divided by `metricX(z)` = cos lat). Geometry helpers live
@@ -146,7 +204,7 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   (ball hit land) removes the ball exactly like a `hit`.
 - `netClient.ts` — `NetClient` hub; `index.ts` exports the app singleton `net`. Handles `s`, `ent`,
   `gone`, `fire`, `hit`, `sunk`, `splash` (emitted as the `splash` event for dust effects),
-  `goldCollected`, `pong`; forwards every other (legacy `type`) message
+  `goldCollected`, `standing`, `chat`/`chatHistory` (see "Global chat"), `pong`; forwards every other (legacy `type`) message
   via the `legacy` event. `net.frameNow(controls)` = per-frame prediction step; it measures the frame
   dt on its own clock (`now()`), then calls `net.frame(dt, controls)`. Don't pass R3F's `delta`: it
   comes from the shared THREE.Clock, and any `clock.getElapsedTime()`/`getDelta()` call in a useFrame
@@ -164,7 +222,7 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   correction > 5 u to the console as `[netdebug] correction ...`. `Predictor.diag` holds the counters.
 
 **How React reads it:**
-- `Player.tsx` — useFrame(priority −1): keyboard (drei `get()`) + `controlsRef` → `net.frameNow` →
+- `Player.tsx` — useFrame(priority −1): keyboard (drei `get()`, neutral while `isTextEntryActive()`) + `controlsRef` → `net.frameNow` →
   writes `net.getOwnRenderState()` to the group. No local physics, no snapping, no store mutation.
 - `OtherShips.tsx` — `useSyncExternalStore(net.remote)` for membership/metadata only; useFrame writes
   `net.remote.sample(eid, net.remoteRenderTime())` to each group. HP bars read live hp via `getHp`.
@@ -180,9 +238,10 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   smoothing state carries over the moving origin (no jump at the seam).
 - `useSocket.tsx` — zustand façade: connection status/errors, register/trade/upgrade/repair/scuttle,
   and the bridge into `useGameState`: `me` → `gameState.player` at ~5 Hz (immediately on
-  hp/gold/sunk/shipType/cargo/canFire change; x/z/rotationY/speed come from the predicted ship),
+  hp/gold/sunk/shipType/cargo/canFire or a side's ready state change; x/z/rotationY/speed come from the
+  predicted ship). `player.reloadPortMs`/`reloadStarboardMs` feed `ui/ReloadGauges.tsx` (L/R gauges in HUD),
   other ships → `gameState.otherPlayers` (Minimap) at ~5 Hz, gold rows → `gameState.goldObjects`.
-  Sounds: fire (once per event), hit on me, goldCollected. `gameEnd` freezes the mirror for GameOver.
+  Sounds: fire (once per eid+tick: a double broadside is two `fire` events), hit on me, goldCollected. `gameEnd` freezes the mirror for GameOver.
 - No client file may import from `server/`.
 
 ## Rendering: floating origin (WORLD_SPEC §7)
@@ -250,18 +309,58 @@ frame-budget test on the real generated tiles (Jamaica, English Channel: < 0.2 m
   `splash` events with `land: 1`, projected with `toRender`.
 - Port towns / the old decorative island .glb in `Port.tsx` belong to W4 (ports card).
 
+## Global chat (2026-10-23)
+
+Contract: `docs/netcode/PROTOCOL.md` "Global chat".
+- `NetClient` handles `chat` (→ `chat` event) and `chatHistory` (→ `chatHistory` event), each line
+  re-validated with `parseChatLine`. `useSocket` wires them into `lib/stores/useChat.ts` and exposes
+  `sendChat(text)` (sanitizes, sends `{t:"chat", text}`, returns false if empty/offline).
+- `useChat` (zustand): `lines` capped at 100, de-duplicated by server `id` (history is replayed on every
+  connect/reconnect); private notices (`id` 0) get a local key; replayed lines get `receivedAt` 0 so they
+  don't pop up in the collapsed log.
+- `components/ui/ChatPanel.tsx` (one mount line in `GameUI.tsx`): bottom-left; collapsed it shows the last
+  5 lines, each fading out 10 s after it arrived; Enter opens the input, Enter sends, Esc closes (T is
+  already "trade at port", so it does not open chat). A small chat button toggles it on touch devices.
+  Lines are React text nodes only, never HTML. Styling is plain Tailwind kept inside the file. On unmount
+  it clears the focus flag and the buffer.
+- **"Is the player typing?" — `lib/stores/useInputFocus.ts`.** `useInputFocus` holds `chatFocused`
+  (ChatPanel sets it on focus/blur). `isTextEntryActive()` = `chatFocused` OR `document.activeElement` is
+  an editable element (input/textarea/select/contenteditable). drei `KeyboardControls` listens on `window`,
+  so **any code that turns keys into ship actions must check `isTextEntryActive()`**: `Player.tsx` feeds
+  `NEUTRAL_CONTROLS` for the keyboard while it is true (touch/HUD controls still apply). The chat input
+  also stops keydown propagation (GameUI H/T/Tab/M hotkeys, WorldMap Esc) but lets keyup through, so keys
+  held before opening chat are released normally.
+- Tests: `lib/net/__tests__/chat.test.ts` (net events, buffer, focus check).
+
 ## Input Handling
 
-- Keyboard controls for movement and combat
+- Keyboard controls for movement and combat (neutral while typing: `isTextEntryActive()`, see "Global chat")
 - Mouse interaction for UI elements
 - Uses @react-three/drei for keyboard control helpers
 
-## Trading System (Client-Side)
+## Trading: the bill of goods (2026-10-23)
 
-- `TradeMenu.tsx` displays goods available at a port
-- Local inventory state synchronized with global game state
-- Sends trade requests via WebSocket
-- Updates UI on successful trades
+Design: `docs/design/STYLE_GUIDE.md` (rules, tokens, banned list) and `docs/proposals/trade-redesign/`
+(PROPOSAL.md, prototype.html). Protocol: docs/netcode/PROTOCOL.md "Trading clarifications".
+- `components/ui/trade/BillOfGoods.tsx` (mounted by App.tsx while `isTrading`; replaced `TradeMenu.tsx`):
+  the ledger (every good of `GOODS`, grouped by `GOOD_GROUPS`, with "You buy" / "You sell" figures as
+  `.ptw-cell` buttons), the bill of sale (amount, limit, preview, the brass Sign button), and the
+  Shipwright tab (repair; refit with a two-step, 400 ms-guarded confirm). Styles: `styles/trade.css`
+  (imported by index.css after pirate.css; layout by container queries on `.ptw-trade`).
+- Pure rules in `lib/trade/logic.ts` (tested in `lib/trade/__tests__/logic.test.ts`): `buildLedger`,
+  `groupLedger`, `limitFor` (max + reason), `parseTyped` (the box, the Sign label and the request always
+  agree), `selReducer` (ONE selection `{goodId, side}`; pointer re-press clears, keyboard only chooses).
+  Sounds: `lib/trade/sounds.ts` (synthesised cues; follows the SFX mute/volume).
+- Data: `GET /api/ports/:id/goods` on open, after every result and every 30 s; inventory from
+  `GET /api/players/:id/inventory` on open, then from `tradeResult`.
+- Requests: `useSocket.sendTrade(portId, side, goodId, qty, {ref, expectedPrice})`, `sendSellAll`,
+  `sendRepairShip`, `sendUpgradeShip`. `useSocket` applies `tradeResult` (gold, cargoUsed, inventory) to
+  useGameState and re-emits it (and upgrade/repair replies, errors) via `onTradeEvent(fn)`. The screen locks
+  while a request is pending and accepts only the reply with its `ref` (5 s timeout).
+- While trading: GameUI hotkeys and the touch joystick are suspended; ChatPanel ignores Enter;
+  `Player.tsx` sends neutral input. Keys: ↑↓ lines, ←→ buy/sell column, B/S choose a side, +/− (Shift 10),
+  M max, Enter sign, Esc back, 1/2 tabs, T close; Tab is trapped in the screen.
+- `useGameState.updatePlayerInventory` no longer PUTs the inventory to the server.
 
 ## Animation and Effects
 

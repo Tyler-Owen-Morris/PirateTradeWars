@@ -9,7 +9,7 @@ import GameUI from "./components/ui/GameUI";
 import ShipSelection from "./components/ui/ShipSelection";
 import GameOver from "./components/ui/GameOver";
 import { useGameState } from "./lib/stores/useGameState";
-import TradeMenu from "./components/ui/TradeMenu";
+import BillOfGoods from "./components/ui/trade/BillOfGoods";
 // import TouchControls from './components/ui/TouchControls'
 import { isMobile } from 'react-device-detect';
 import { net } from "./lib/net";
@@ -20,7 +20,9 @@ const controls = [
   { name: "backward", keys: ["KeyS", "ArrowDown"] },
   { name: "left", keys: ["KeyA", "ArrowLeft"] },
   { name: "right", keys: ["KeyD", "ArrowRight"] },
-  { name: "fire", keys: ["Space", "KeyF"] },
+  { name: "fire", keys: ["Space", "KeyF"] }, // fire every loaded side
+  { name: "firePort", keys: ["KeyQ"] }, // broadsides: left battery
+  { name: "fireStarboard", keys: ["KeyE"] }, // right battery
 ];
 
 // Interface for control state
@@ -188,7 +190,7 @@ function App() {
 
                 <GameUI controlsRef={controlsRef} />
 
-                {isTrading && <TradeMenu />}
+                {isTrading && <BillOfGoods />}
 
                 {isSunk && <GameOver score={gameState.player?.gold || 0} />}
 

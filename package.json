@@ -12,6 +12,7 @@
     "bots": "tsx scripts/bots.ts",
     "test:bots": "tsx scripts/run-bot-test.ts",
     "world:build": "tsx scripts/world/build-world.ts",
+    "market:sim": "tsx scripts/market/run-price-sim.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

@@ -96,7 +96,8 @@ export interface TileSource { get(tx: number, ty: number): Int8Array | 'water' |
 ```
 [{ "id": "port_royal", "name": "Port Royal", "lat": 17.94, "lon": -76.84,
    "nation": "england" | "spain" | "france" | "portugal" | "netherlands" | "pirates",
-   "region": "caribbean" | "north_atlantic" | "europe" | "africa" | "indian_ocean" | "east_asia" | "americas_pacific",
+   "region": "caribbean" | "north_atlantic" | "europe" | "africa" | "indian_ocean" | "east_asia" | "americas_pacific"
+             | "south_atlantic",   // south_atlantic: 2026-10-23 clarification
    "x": …, "z": …,              // the town itself: on land, near the coast
    "dock": { "x": …, "z": … },  // the harbour point in water with distance > 80, ≤ 400 from the coast near the town
    "spawn": { "x": …, "z": … }, // water with distance > 150, used for player spawn
@@ -143,3 +144,21 @@ export interface TileSource { get(tx: number, ty: number): Int8Array | 'water' |
   - There are 27 ports.
   - `shared/world/versions.json` holds the content hashes; use the ports hash as `portsVersion`.
 - 2026-10-16 (producer, after Q1 B1): the §4.3 slide is too strong. Applying the cosine factor on every substep compounds it 180 times a second, so a 45° glancing hit leaves about 0.1× speed. **Intent:** a glancing hit keeps the tangential speed. Clamp `|velocity|` to at most `maxSpeed·sqrt(1 − hn²)` once per contact, where hn = cos(angle between heading and the coast normal). Don't multiply per substep. A head-on hit still ends near 0.
+- 2026-10-23 (New Horizons phase 1, "The Americas, both coasts"; approved by the owner with the whole expansion pitch;
+  era window 1650–1800):
+  - §5 gains a region: `"south_atlantic"` (Brazil and the River Plate). The region list is now caribbean | north_atlantic |
+    europe | africa | indian_ocean | east_asia | americas_pacific | south_atlantic.
+  - **There are 43 ports.** The 16 new ones are APPENDED to `scripts/world/portDefs.ts` (numeric port ids are 1-based
+    indices, so the old 27 keep ids 1–27): Salvador da Bahia, Rio de Janeiro, Recife (portugal, south_atlantic); Buenos
+    Aires, Montevideo (spain, south_atlantic); Paramaribo (netherlands), La Guaira, Portobelo (spain) (caribbean); Panamá,
+    Guayaquil, Callao, Valparaíso (spain), Juan Fernández (pirates) (americas_pacific); New York (england,
+    north_atlantic); Porto, Funchal (portugal, europe).
+  - Placement used the normal rules. Guayaquil's town moved 362 units to the Guayas mouth (the river is narrower than a
+    pixel); every other new port moved ≤ 52. Buenos Aires needed no move: the River Plate is wide enough at 4.9 km/px.
+    Panamá's dock is on the Pacific, Portobelo's on the Caribbean; every port is reachable from Port Royal on the lane graph.
+  - §6 named lanes added: lisbon–rio_de_janeiro (the Brazil fleet), cadiz–portobelo (the galeones), callao–panama (the
+    Armada del Mar del Sur), buenos_aires–valparaiso (Cape Horn), rio_de_janeiro–cape_town. 117 lanes in all.
+  - §8 NPC budget unchanged (≤ 80 active); the persistent population is 185 (two new lane zones, `south` and `pacific`).
+    Load test: 200 players + 185 NPC records, avg tick 2.1 ms (budget 25 ms).
+  - Changing PORTS_VERSION re-seeds the ports and regenerates every port market (accepted; verified on a local Redis
+    holding the old 27-port world).

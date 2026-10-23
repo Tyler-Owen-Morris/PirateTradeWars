@@ -13,6 +13,8 @@ vi.mock("../../redisStorage", () => ({
     getPortGoods: vi.fn(async () => [{ goodId: 1, currentPrice: 10, stock: 100 }]),
     getPlayerInventory: vi.fn(async () => [{ goodId: 1, quantity: 5 }]),
     updatePlayerInventory: vi.fn(async () => {}),
+    saveTrade: vi.fn(async () => {}),
+    setPortGoods: vi.fn(async () => {}),
     updatePlayerGold: vi.fn(async () => {}),
     updatePlayerState: vi.fn(async () => {}),
     addActiveName: vi.fn(async () => {}),
@@ -28,6 +30,7 @@ vi.mock("../gameState", () => ({
     removeClient: vi.fn(),
     playerCount: 1,
     world: { setShipType: vi.fn(), queueInput: vi.fn() },
+    chat: { history: () => [] },
   },
 }));
 

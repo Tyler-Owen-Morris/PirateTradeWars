@@ -23,9 +23,25 @@ The shared directory contains code and types that are used by both the client an
     which rasterizes real tiles. Loaders: `server/game/landLoader.ts`, `client/src/lib/world/landTiles.ts`.
   - `world/ports.ts` - Game ports (card W4): `PORTS` (typed `GamePort` view of ports.json, numeric `id` =
     1-based index, `key` = string id), `PORTS_VERSION`, `STARTER_PORTS`, dock checks (`withinDock`,
-    `dockDistance`, `nearestDockPort`, metric, radius 300) and market profiles (`REGION_MARKETS`,
-    `portGoodPrice`, `portGoodStock`). Used by the server (seed, gate, spawns) and the client (towns, docking).
+    `dockDistance`, `nearestDockPort`, metric, radius 300). Used by the server (seed, gate, spawns) and the client
+    (towns, docking). Regions include `south_atlantic` (New Horizons phase 1, 2026-10-23); 43 ports.
+  - `world/goodMarkets.ts` - The market model (New Horizons phase 1, replaced the flat `REGION_MARKETS` 0.7×/1.35×):
+    `GOOD_MARKETS[goodName] = { sources, wanted, exotic? }` (selectors: port key, region id or `nation:<id>`);
+    price = base × `distanceFactor(lane distance to the nearest source)` (0.6 at a source → 2.0 at 200k units,
+    curve exponent 0.6) × 1.3 if wanted × fluctuation. Exotics (Spices, Silk, Silver, Gold, Cacao, Hides, Wine) are
+    only on sale within 3000 lane units of a source (`isSoldAt` false → the row is `notSold`); staples are sold
+    everywhere; pirate havens are Rum sources. `goodMarketAt`, `goodPriceFactor`, `isWanted`, `isSoldAt`,
+    `portGoodPrice`, `portGoodStock`, `laneDistance`, `sourceDistance`. Lane graph built lazily from lanes.json (the
+    client bundle tree-shakes it). Tune with `npm run market:sim` (scripts/market/priceSim.ts).
   - `world/ports.json`, `world/lanes.json`, `world/versions.json` - generated world data (card W2).
+  - `market.ts` - Trading rules shared by server and client (2026-10-23): `SELL_SPREAD` (0.9),
+    `sellPriceOf(buyPrice)` (what a port pays), `MarketRow` (stored port good, optional `notSold`) and
+    `portGoodView` (the goods-API row: `buyPrice`/`sellPrice`/`wanted` from `isWanted`). `gameConstants.ts` `GOODS`
+    carry a `group` and `GOOD_GROUPS` orders the trade screen's sections (staples, colonial, luxuries, specie,
+    northern). GOODS ids are APPEND ONLY (inventories are keyed by goodId): 9 Silver, 10 Gold (specie), 11 Cacao,
+    12 Hides, 13 Wine (colonial) were added 2026-10-23.
+  - `protocol.ts` trading messages: `trade` (+ optional `ref`, `expectedPrice`), `sellAll`, `tradeResult`,
+    `InventoryRow` (+ `avgPaid`), `TradeCode`; see docs/netcode/PROTOCOL.md "Trading clarifications".
   - `physics.ts` - Deterministic ship/cannonball simulation used by BOTH server (authoritative 20 Hz
     tick) and client (prediction). `stepShip(state, input, stats, land?)` = metric motion
     (z += cos·v; x += sin·v / metricX(z); x wraps, z clamped) plus no-damage coast collision when a
@@ -37,16 +53,25 @@ The shared directory contains code and types that are used by both the client an
     `ShipPhysicsStats.hullRadius`
     (`HULL_RADIUS`: sloop 12 … dreadnaught 30). Helpers: `lerpWrapped`, `lerpAngle`, `normalizeAngle`,
     `metricXAdvance`, re-exported `wrap`/`wrappedDelta`/`metricX`/`metricDelta`/`metricDistSq`;
-    `wrappedDistSq` is a deprecated alias of `metricDistSq`. Cannonballs: `spawnBroadside`,
+    `wrappedDistSq` is a deprecated alias of `metricDistSq`. Broadsides (2026-10-23): `ShipInput.f` is a
+    bit set `FIRE_ALL` 1 (every loaded side; legacy `f:1`) | `FIRE_PORT` 2 | `FIRE_STARBOARD` 4,
+    `fireSides(f, portReady, starboardReady)` picks the sides, `broadsideAngle(r, side)` = r − π/2 (port,
+    LEFT) / r + π/2 (starboard, RIGHT). Cannonballs: `spawnBroadside(ship, n, side = "starboard")`,
     `ballPositionAt`, `stepBall` (exact metric straight line), `ballHitsLand`, metric
     `segmentHitsCircle`. Pure. Units: speed = metric units per 1/60 s, negative velocity = forward (W).
   - `protocol.ts` - WebSocket message types (`ClientMessage`, `ServerMessage`), snapshot entity rows
     (`packEntityRow`/`unpackEntityRow`), flag bits, netcode constants (interest radius, grid cell,
-    interpolation delay, input queue cap) and `parseClientMessage` (validates/clamps untrusted frames).
+    interpolation delay, input queue cap) and `parseClientMessage` (validates/clamps untrusted frames;
+    input `f` via `fireFlags()`, back-compatible with old clients' `f:1`).
+    Global chat: `ChatSendMessage` (c→s `{t:"chat", text}`), `ChatMessage` (s→c `{t:"chat", id, from, text,
+    ts, sys?}`), `ChatHistoryMessage` (`{t:"chatHistory", lines}`), `MAX_CHAT_LENGTH` (200),
+    `CHAT_HISTORY_SIZE` (30), `sanitizeChatText` (strip control/zero-width/bidi chars, collapse whitespace,
+    trim, cut by code points; used by both sides) and `parseChatLine` (client-side validation). The
+    server's profanity/rate-limit policy is in `server/game/chat.ts`, not here. Tests: `__tests__/chat.test.ts`.
   - `__tests__/` - vitest unit tests (`npm test`).
   - `world/` - generated world data (do not hand-edit; regenerate with `npm run world:build`, see
-    `docs/world/DATA_PIPELINE.md`): `ports.json` (27 real ports with town/dock/spawn, spec §5),
-    `lanes.json` (sea lanes, spec §6), `versions.json` (content hashes: land/ports/lanes). The land
+    `docs/world/DATA_PIPELINE.md`): `ports.json` (43 real ports with town/dock/spawn, spec §5),
+    `lanes.json` (117 sea lanes, spec §6), `versions.json` (content hashes: land/ports/lanes). The land
     SDF tiles + manifest live in `client/public/world/land/` (gzipped, `encoding: "gzip"`), the map
     textures in `client/public/world/map_*.png`. `world/__tests__/data.test.ts` validates them.
 

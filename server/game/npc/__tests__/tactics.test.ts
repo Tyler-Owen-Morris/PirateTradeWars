@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { shipPhysicsStats, spawnBroadside, stepShip, type ShipInput, type ShipKinematics } from "@shared/physics";
+import { normalizeAngle, shipPhysicsStats, spawnBroadside, stepShip, type ShipInput, type ShipKinematics } from "@shared/physics";
 import { geoMetric, torusMetric } from "../metric";
 import { toInput } from "../steering";
 import {
   BALL_SPEED_PER_SEC,
   DEFAULT_CANNON_RANGE,
   FIRE_RANGE_FACTOR,
+  GUN_SIDES,
   beamError,
+  chooseSide,
   engage,
   fireTolerance,
   firepower,
@@ -14,6 +16,7 @@ import {
   inBroadsidePosition,
   leadPoint,
   shouldDisengage,
+  type Side,
 } from "../tactics";
 import { bearingOf, headingForDir, mulberry32 } from "../util";
 
@@ -43,8 +46,10 @@ function sim(
   let inPos = 0;
   let fires = 0;
   const rng = mulberry32(3);
+  let prevSide: Side | undefined;
   for (let i = 0; i < ticks; i++) {
-    const order = engage({ ...npc, maxSpeed: ns.maxSpeed }, tgt, { range, aimError: 0 }, false, gm, rng);
+    const order = engage({ ...npc, maxSpeed: ns.maxSpeed }, tgt, { range, aimError: 0, prevSide }, false, gm, rng);
+    prevSide = order.side;
     const inp = toInput(npc, order.heading, order.speed, ns);
     if (order.fire) fires++;
     npc = stepShip(npc, inp, ns);
@@ -58,10 +63,33 @@ function sim(
 }
 
 describe("broadside geometry", () => {
-  it("guns point starboard (rotationY + π/2), matching spawnBroadside", () => {
+  it("guns point starboard (rotationY + π/2) and port (rotationY − π/2), matching spawnBroadside", () => {
     const r = 0.4;
-    const b = spawnBroadside({ x: 0, z: 0, rotationY: r }, 1, W, W)[0];
+    const b = spawnBroadside({ x: 0, z: 0, rotationY: r }, 1)[0];
     expect(bearingOf(b.dx, b.dz)).toBeCloseTo(gunAngle(r, "starboard"));
+    const pb = spawnBroadside({ x: 0, z: 0, rotationY: r }, 1, "port")[0];
+    expect(normalizeAngle(bearingOf(pb.dx, pb.dz) - gunAngle(r, "port"))).toBeCloseTo(0);
+    expect(GUN_SIDES).toEqual(["port", "starboard"]);
+  });
+
+  it("chooseSide picks the side facing the target, with hysteresis near the bow", () => {
+    const self = { x: 5000, z: 5000, rotationY: 0, velocity: 0 };
+    // r = 0: bow points −z (north), starboard (+π/2) is +x (east), port is −x (west).
+    expect(chooseSide(self, { x: 5400, z: 5000, rotationY: 0, velocity: 0 }, m)).toBe("starboard");
+    expect(chooseSide(self, { x: 4600, z: 5000, rotationY: 0, velocity: 0 }, m)).toBe("port");
+    // Target almost dead ahead, slightly to port: without history → port; engaged starboard → stay.
+    const nearBow = { x: 4990, z: 4600, rotationY: 0, velocity: 0 };
+    expect(chooseSide(self, nearBow, m)).toBe("port");
+    expect(chooseSide(self, nearBow, m, GUN_SIDES, "starboard")).toBe("starboard");
+    // Clearly on the port beam: switch even with history.
+    expect(chooseSide(self, { x: 4600, z: 4900, rotationY: 0, velocity: 0 }, m, GUN_SIDES, "starboard")).toBe("port");
+  });
+
+  it("per-side reload: the engaged side's reload gates the shot", () => {
+    const self = { x: 5000, z: 5000, rotationY: 0, velocity: 0, maxSpeed: 5 };
+    const onPort = { x: 4600, z: 5000, rotationY: 0, velocity: 0 };
+    expect(engage(self, onPort, { range, aimError: 0 }, { port: false, starboard: true }, m).fire).toBe(true);
+    expect(engage(self, onPort, { range, aimError: 0 }, { port: true, starboard: false }, m).fire).toBe(false);
   });
 
   it("leadPoint leads a moving target by the ball flight time", () => {
@@ -146,8 +174,10 @@ describe("engage", () => {
     expect(engage(self, mid, { range, aimError: 0 }, false, m).fire).toBe(true);
     const far = { x: 5000 + range * (FIRE_RANGE_FACTOR + 0.1), z: 5000, rotationY: 0, velocity: 0 };
     expect(engage(self, far, { range, aimError: 0 }, false, m).fire).toBe(false);
-    const port = { x: 4600, z: 5000, rotationY: 0, velocity: 0 }; // no port guns
-    expect(engage(self, port, { range, aimError: 0 }, false, m).fire).toBe(false);
+    const port = { x: 4600, z: 5000, rotationY: 0, velocity: 0 }; // broadsides: port guns since 2026-10-23
+    const po = engage(self, port, { range, aimError: 0 }, false, m);
+    expect(po.side).toBe("port");
+    expect(po.fire).toBe(true);
   });
 
   it("F1: leads a turning target along its arc", () => {

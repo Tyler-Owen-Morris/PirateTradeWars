@@ -1,3 +1,9 @@
+/* Pirate theme layer: tokens + ptw-* component classes (see components/ui/pirate/README.md). */
+@import "./styles/pirate.css";
+/* Trade screen (bill of goods): components/ui/trade/BillOfGoods.tsx, docs/design/STYLE_GUIDE.md. */
+@import "./styles/trade.css";
+@import "./styles/trade-slip.css"; /* the handwritten bill of sale (layered over trade.css) */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -24,7 +30,8 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply antialiased bg-background text-foreground;
+    font-family: var(--ptw-font-body);
     margin: 0;
     padding: 0;
     overflow: hidden;

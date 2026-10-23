@@ -14,7 +14,8 @@
  *  - `land`       optional ClientLandTiles: its LandField is the predictor's land (coast collision
  *                 predicted like the server) and `frame` keeps the tiles around the ship loading
  *
- * Netcode messages (`s`, `ent`, `gone`, `fire`, `hit`, `sunk`, `splash`, `goldCollected`, `pong`) are handled
+ * Netcode messages (`s`, `ent`, `gone`, `fire`, `hit`, `sunk`, `splash`, `goldCollected`, `standing`,
+ * `chat`, `chatHistory`, `pong`) are handled
  * here; everything else (legacy `type` messages: connected, tradeSuccess, gameEnd, ...) is forwarded
  * to `onLegacyMessage` listeners. Times are local `now()` ms (performance.now by default).
  */
@@ -31,7 +32,9 @@ import {
   type SplashMessage,
   type GoldCollectedMessage,
   type StandingState,
+  type ChatMessage,
   parseStanding,
+  parseChatLine,
 } from "@shared/protocol";
 import type { ClientLandTiles } from "../world/landTiles";
 import { ServerClock } from "./clock";
@@ -39,7 +42,7 @@ import { MAX_FRAME_DT_SEC, Predictor } from "./prediction";
 import { RemoteWorld } from "./interpolation";
 import { BallSim } from "./cannonballs";
 import { Connection, type ConnectionOptions } from "./connection";
-import { controlsToInput, type ControlState } from "./controls";
+import { FireLatch, controlsToInput, type ControlState } from "./controls";
 
 export interface NetEvents {
   /** Socket opened (fresh or after a reconnect). */
@@ -61,6 +64,10 @@ export interface NetEvents {
   /** A cannonball hit land at (m.x, m.z) and was removed (render dust there). */
   splash: (m: SplashMessage) => void;
   goldCollected: (m: GoldCollectedMessage) => void;
+  /** Global chat: one validated line (broadcast, or a private system notice with id 0). */
+  chat: (m: ChatMessage) => void;
+  /** Global chat: the recent history (oldest first), sent after connected/reconnected. */
+  chatHistory: (lines: ChatMessage[]) => void;
   /** Gold rows changed (snapshot `g`). */
   gold: (rows: GoldRow[]) => void;
 }
@@ -90,6 +97,8 @@ export class NetClient {
   lastAck = -1;
   lastTick = 0;
   hidden = false;
+  /** Broadsides: keeps a quick Space/Q/E tap alive until a 20 Hz step has sent it (controls.ts). */
+  private readonly fireLatch = new FireLatch();
   /** `now()` at the previous `frameNow` call (null = the next frame gets dt 0). */
   private lastFrameAt: number | null = null;
   readonly now: () => number;
@@ -106,6 +115,8 @@ export class NetClient {
     standing: new Set(),
     splash: new Set(),
     goldCollected: new Set(),
+    chat: new Set(),
+    chatHistory: new Set(),
     gold: new Set(),
   };
   private readonly sendInputFn = (m: InputMessage) => {
@@ -208,9 +219,13 @@ export class NetClient {
     const now = this.now();
     this.balls.expire(this.clock.serverNow(now));
     if (this.land && this.predictor.initialized) this.land.update(this.predictor.cur.x, this.predictor.cur.z);
+    if (this.hidden || this.me?.sunk) this.fireLatch.reset();
     if (this.hidden) return;
-    const input = this.me?.sunk ? NEUTRAL_INPUT : controlsToInput(controls);
-    this.predictor.advance(Math.min(dtSec, MAX_FRAME_DT_SEC), input, this.sendInputFn);
+    const raw = this.me?.sunk ? NEUTRAL_INPUT : controlsToInput(controls);
+    const input = raw.f === this.fireLatch.peek(raw.f) ? raw : { ...raw, f: this.fireLatch.peek(raw.f) };
+    const steps = this.predictor.advance(Math.min(dtSec, MAX_FRAME_DT_SEC), input, this.sendInputFn);
+    if (this.predictor.initialized) this.fireLatch.commit(raw.f, steps > 0);
+    else this.fireLatch.reset(); // no stale press fires on the first step after (re)joining
   }
 
   /**
@@ -304,6 +319,22 @@ export class NetClient {
           this.standing = st;
           this.emit("standing", st);
         }
+        return;
+      }
+      case "chat": {
+        // Global chat: re-validated here; text is plain text (never render as HTML).
+        const line = parseChatLine(msg);
+        if (line) this.emit("chat", line);
+        return;
+      }
+      case "chatHistory": {
+        if (!Array.isArray(msg.lines)) return;
+        const lines: ChatMessage[] = [];
+        for (const raw of msg.lines.slice(-100)) {
+          const line = parseChatLine(raw);
+          if (line) lines.push(line);
+        }
+        this.emit("chatHistory", lines);
         return;
       }
       case "pong":

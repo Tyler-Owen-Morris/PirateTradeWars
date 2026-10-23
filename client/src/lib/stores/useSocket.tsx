@@ -4,8 +4,8 @@
  * - Transport, prediction, interpolation and cannonballs live in `net` (see lib/net/netClient.ts).
  *   3D components read from `net` inside useFrame; nothing here runs per frame.
  * - This store exposes connection status / player id / errors and the UI actions (register, trade,
- *   upgrade, repair, scuttle).
- * - It bridges net events into useGameState for the HUD/Minimap/TradeMenu/GameOver UI:
+ *   upgrade, repair, scuttle, sendChat). Global chat lines (`chat`/`chatHistory` net events) go to useChat.
+ * - It bridges net events into useGameState for the HUD/Minimap/trade screen (BillOfGoods)/GameOver UI:
  *   `me` → gameState.player at ~5 Hz (immediately when hp/gold/sunk/shipType/cargo change), other
  *   ships → gameState.otherPlayers at ~5 Hz, gold rows → gameState.goldObjects when they change.
  * - Never import from `server/` here (it would bundle server code into the client).
@@ -13,10 +13,11 @@
 import { create } from "zustand";
 import { useGameState } from "./useGameState";
 import { useAudio } from "./useAudio";
+import { useChat } from "./useChat";
 import type { PlayerState, RemoteShipSummary, GoldObject } from "@/types";
 import { net } from "@/lib/net";
 import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
-import { FLAG_SUNK, type GoldRow, type SelfState } from "@shared/protocol";
+import { FLAG_SUNK, sanitizeChatText, type GoldRow, type SelfState, type TradeMessage, type TradeResultMessage } from "@shared/protocol";
 
 /** UI mirror refresh period (ms) for position-ish fields of the own ship and the minimap. */
 export const UI_SYNC_INTERVAL_MS = 200;
@@ -32,10 +33,15 @@ interface SocketState {
   resetError: () => void;
 
   register: (name: string, shipType: string, tempPlayerId?: string) => void;
-  sendTrade: (portId: number, action: "buy" | "sell", goodId: number, quantity: number) => void;
-  sendUpgradeShip: (portId: number) => void;
-  sendRepairShip: (portId: number) => void;
+  /** Returns false if nothing was sent (offline). With `ref` the server answers `tradeResult`. */
+  sendTrade: (portId: number, action: "buy" | "sell", goodId: number, quantity: number, opts?: { ref?: number; expectedPrice?: number }) => boolean;
+  /** Sell the whole hold, atomically (always answered with `tradeResult`). */
+  sendSellAll: (portId: number, ref: number, lines: { goodId: number; quantity: number; expectedPrice?: number }[]) => boolean;
+  sendUpgradeShip: (portId: number) => boolean;
+  sendRepairShip: (portId: number) => boolean;
   scuttleShip: () => void;
+  /** Global chat: send one line. Returns false if nothing was sent (empty after sanitizing, or offline). */
+  sendChat: (text: string) => boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -68,6 +74,9 @@ function buildPlayer(me: SelfState): PlayerState {
     cargoCapacity: me.cargoCapacity,
     canFire: me.canFire,
     reloadMs: me.reloadMs,
+    // Broadsides: per-side gauges (an older server without them → both follow the single gauge).
+    reloadPortMs: me.reloadPortMs ?? me.reloadMs,
+    reloadStarboardMs: me.reloadStarboardMs ?? me.reloadMs,
     reloadTime: stats.cannonReload * 1000,
     sunk: me.sunk,
     eid: me.eid,
@@ -107,7 +116,9 @@ function syncSelf(me: SelfState, force: boolean): void {
     prev.sunk !== me.sunk ||
     prev.shipType !== me.shipType ||
     prev.cargoUsed !== me.cargoUsed ||
-    prev.canFire !== me.canFire;
+    prev.canFire !== me.canFire ||
+    (prev.reloadPortMs === 0) !== ((me.reloadPortMs ?? me.reloadMs) === 0) ||
+    (prev.reloadStarboardMs === 0) !== ((me.reloadStarboardMs ?? me.reloadMs) === 0);
   if (!force && !important && now - lastUiSync < UI_SYNC_INTERVAL_MS) return;
   const periodic = now - lastUiSync >= UI_SYNC_INTERVAL_MS;
   lastUiSync = now;
@@ -172,7 +183,12 @@ function wireNet(): void {
     if (net.me) syncSelf(net.me, true);
   });
 
-  net.on("fire", () => {
+  // Broadsides: a ship firing both batteries sends two `fire` events in one tick; play one bang.
+  let lastBang = "";
+  net.on("fire", (m) => {
+    const key = `${m.eid}:${m.k}`;
+    if (key === lastBang) return;
+    lastBang = key;
     useAudio.getState().playCannonFire();
   });
 
@@ -181,7 +197,30 @@ function wireNet(): void {
     if (!sameGold(current, rows)) useGameState.getState().updateGoldObjects(goldRowsToObjects(rows));
   });
 
+  // Global chat → useChat (ChatPanel renders it).
+  net.on("chat", (line) => useChat.getState().addLine(line));
+  net.on("chatHistory", (lines) => useChat.getState().mergeHistory(lines));
+
   net.on("legacy", (message) => handleLegacyMessage(message));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Trade screen events (tradeResult, upgradeSuccess, repairSuccess, error)
+// ---------------------------------------------------------------------------------------------
+
+export type TradeEvent =
+  | (TradeResultMessage & { type: "tradeResult" })
+  | { type: "upgradeSuccess"; newShipType: string; gold: number }
+  | { type: "repairSuccess"; gold: number; hp: number }
+  | { type: "error"; message: string };
+const tradeListeners = new Set<(e: TradeEvent) => void>();
+function emitTradeEvent(m: TradeEvent): void {
+  tradeListeners.forEach((fn) => fn(m));
+}
+/** Subscribe to trade-related replies. Returns the unsubscribe function. */
+export function onTradeEvent(fn: (e: TradeEvent) => void): () => void {
+  tradeListeners.add(fn);
+  return () => tradeListeners.delete(fn);
 }
 
 /** Legacy `type` messages (PROTOCOL §3) — world dumps are gone; the first snapshot spawns us. */
@@ -230,11 +269,12 @@ function handleLegacyMessage(message: any): void {
         useGameState.getState().restartGame();
       } else {
         useSocket.setState({ error: message.message });
+        emitTradeEvent(message); // the trade screen reads it only while a repair/refit is pending
       }
       break;
 
     case "tradeSuccess": {
-      useAudio.getState().playPlayerHit();
+      // Legacy reply (a trade sent without `ref`). The trade screen sends `ref` and gets `tradeResult`.
       const player = useGameState.getState().gameState.player;
       if (player && typeof message.gold === "number") {
         useGameState.getState().updatePlayer({ ...player, gold: message.gold });
@@ -247,10 +287,24 @@ function handleLegacyMessage(message: any): void {
       break;
     }
 
+    case "tradeResult": {
+      // Trading (2026-10-23): authoritative gold / cargo / inventory, then the trade screen's listener.
+      const player = useGameState.getState().gameState.player;
+      if (player && typeof message.gold === "number") {
+        useGameState.getState().updatePlayer({
+          ...player, gold: message.gold, cargoUsed: typeof message.cargoUsed === "number" ? message.cargoUsed : player.cargoUsed,
+        });
+      }
+      if (Array.isArray(message.inventory)) useGameState.getState().updatePlayerInventory(message.inventory);
+      emitTradeEvent(message);
+      break;
+    }
+
     case "upgradeSuccess":
       // The next snapshot carries the new shipType / maxHp / cargo; prediction picks up new stats.
       console.log("Ship upgraded successfully to", message?.newShipType);
       if (net.me) syncSelf(net.me, true);
+      emitTradeEvent(message);
       break;
 
     case "repairSuccess": {
@@ -258,6 +312,7 @@ function handleLegacyMessage(message: any): void {
       if (player && typeof message.gold === "number" && typeof message.hp === "number") {
         useGameState.getState().updatePlayer({ ...player, gold: message.gold, hp: message.hp });
       }
+      emitTradeEvent(message);
       break;
     }
 
@@ -325,19 +380,40 @@ export const useSocket = create<SocketState>((set, get) => ({
     }
   },
 
-  sendTrade: (portId, action, goodId, quantity) => {
-    if (!net.send({ type: "trade", portId, action, goodId, quantity })) notConnectedError();
+  sendTrade: (portId, action, goodId, quantity, opts) => {
+    const m: TradeMessage = { type: "trade", portId, action, goodId, quantity };
+    if (opts?.ref !== undefined) m.ref = opts.ref;
+    if (opts?.expectedPrice !== undefined) m.expectedPrice = opts.expectedPrice;
+    const ok = net.send(m);
+    if (!ok) notConnectedError();
+    return ok;
+  },
+
+  sendSellAll: (portId, ref, lines) => {
+    const ok = net.send({ type: "sellAll", portId, ref, lines });
+    if (!ok) notConnectedError();
+    return ok;
   },
 
   sendUpgradeShip: (portId: number) => {
-    if (!net.send({ type: "upgradeShip", portId })) notConnectedError();
+    const ok = net.send({ type: "upgradeShip", portId });
+    if (!ok) notConnectedError();
+    return ok;
   },
 
   sendRepairShip: (portId: number) => {
-    if (!net.send({ type: "repairShip", portId })) notConnectedError();
+    const ok = net.send({ type: "repairShip", portId });
+    if (!ok) notConnectedError();
+    return ok;
   },
 
   scuttleShip: () => {
     if (!net.send({ type: "scuttle" })) notConnectedError();
+  },
+
+  sendChat: (text: string) => {
+    const clean = sanitizeChatText(text);
+    if (!clean) return false;
+    return net.send({ t: "chat", text: clean });
   },
 }));
