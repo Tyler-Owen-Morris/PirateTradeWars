@@ -64,3 +64,57 @@ progress file for any card that is `in-progress`. Each card's progress file says
 - 2026-10-16 CF token now has SSL and Certificates (origin cert API OK) but still NOT Zone Settings (9109) — asked Theo again. Merged card I (bbb3b41) and pushed to deploy the arm64-ready zip; next: apply t4g.small.
 - 2026-10-16 Deploy run 38970447878 succeeded (bbb3b41 = arm64-ready zip live). Applied I1: InstanceTypes=t4g.small, SupportedArchitectures=arm64. EB replaced i-07bb6858309c4b82d with i-0234eb825c08906c3, "Environment update completed successfully" 21:45 UTC. Post-switch verification (instance type, ASG 1/1, health, prod bots) NOT yet run — Theo interrupted; do it next.
 - 2026-10-16 Theo requested research + proposal (no build yet): (1) world map — seamless globe instead of jumping wrap, real land with collision, navigation UI; (2) NPC ships (fight/flee/attack) with a threat system as groundwork for factions. Research agents launched; proposal goes to docs/proposals/.
+
+## Bug 2026-10-23: own ship jumps back, then warps forward ~10 km (FIXED on branch, not deployed)
+Report (Theo, live): "I'll go a few km, then get jumped backwards, then warp forwards 10 km."
+Notes/resume file: `docs/proposals/2026-10-23-netcode-jumps-NOTES.md`.
+
+**Root cause: the server's "starved queue" rule.** When a connected player's input queue was empty at a
+tick (its next input late by even a few ms), `World.step()` stepped the ship with the last input anyway
+(a "phantom" tick, old PROTOCOL §5). When the late input arrived it was simulated as well, and nothing ever
+paid the phantom back. The client predicts sim(inputs 1..n) and reconciles to `me` + replay(seq > a), so:
+- every starved tick put the server one tick of travel AHEAD of the client's input history: a forward
+  correction of 12 u (1.2 km) for a sloop, 27 u (2.7 km) for a dreadnaught, each one smoothed over
+  ~0.12 s (looks like a surge/warp; several in a row after a TCP stall = "warp forward 10 km");
+- after a stall, the burst of late inputs overflowed the 10-input queue (`MAX_INPUT_QUEUE`); dropped inputs
+  were never simulated, so the client was corrected BACKWARDS by one tick per dropped input ("jumped
+  backwards"), a hard snap above 150 u.
+Uplink jitter, TCP head-of-line stalls (WiFi loss, Cloudflare -> ALB -> nginx), browser frame hitches
+(tile loading, tab throttling) and server stalls all trigger it. The Q1 world QA "fake netcode snaps of up
+to 1,250 units" under SwiftShader (docs/world/qa/Q1-REPORT.md) were this bug too (client hitches).
+
+**Evidence.**
+- `server/game/__tests__/ownShipSim.ts`: real client `Predictor` + real `World` + `FixedStepLoop` over
+  simulated in-order TCP links (latency, jitter, stalls; 1 ms resolution). Old server, sloop, 30 s straight:
+  uplink stall 400 ms -> 7 forward corrections of 12 u; uplink stall 800 ms -> 15 x 12 u forward then 72 u
+  backward; server stall 1 s -> 132 u backward; client hitch 600 ms -> 11 x 12 u forward.
+- Bots (`npm run test:bots`, new own-ship assertion): old server, 30 bots on localhost, 30 s -> max own
+  correction 11.99 u. Fixed server, 60 bots, 75 s -> 0 corrections in 84 343 reconciles (held=190 starved
+  ticks that would each have been a forward warp).
+- Production (EB tail, 2026-10-23 18:35 UTC, read-only): `[tick] avg 0.43 ms`, `dropped=1`, npc max
+  <= 1.8 ms. Server overload is not the trigger in prod; the network/client side is.
+- Ruled out: wrap seam (all sims cross x = 0 with zero error: reconcile uses `wrappedDelta`, render space is
+  float64 deltas), float precision (x < 400 000 in float64; render space is relative), clock sync (own
+  ship does not use it), downlink stalls (no correction), land mismatch (client and server share
+  `LandField` and the same tiles; only possible near a coast while a tile is still loading).
+
+**Fix.**
+- `server/game/world.ts`: an empty queue now HOLDS the ship (no step, `a` unchanged). Invariant: server
+  state = stepShip over inputs 1..a. The late input is simulated on arrival; catch-up (2/tick when > 3
+  queued) repays the pause. Hidden tab: the ship now holds instead of coasting.
+- `shared/protocol.ts`: `MAX_INPUT_QUEUE` 10 -> 40 (2 s), so a burst after a stall < 2 s is simulated in
+  full. Longer outages still cost one backward correction for the dropped inputs (bounded, tested).
+- Diagnostics: `world.inputStats` (held / overflow / catchUp) and the max tick ms in the `[tick]` log;
+  `?netdebug=1` client overlay (`client/src/lib/net/netDebug.ts`) with correction counts/magnitudes, snaps,
+  ack stalls, pending, RTT, socket closes; `Predictor.diag`.
+- Tests: `ownShipSim.test.ts` (9 lossy-link scenarios, zero correction; > 2 s outage bounded), world tests
+  for hold + catch-up, bots assert own-ship correction <= 1 u.
+- Trade-off: other players see a ship pause for a starved tick and then catch up at 2x for a tick or two
+  (interpolation's 100 ms buffer hides most of it). Not addressed (pre-existing): a client sending > 20
+  inputs/s gets up to 2x speed through catch-up; a token budget would close it.
+- Unproven until live: the real uplink pattern from the owner's connection. Verify with `?netdebug=1`
+  (corrections should stay ~0 on open water) and the `input held=` counter in the `[tick]` log.
+
+## Log (continued)
+- 2026-10-23 Own-ship jump bug: root cause found (phantom step on a starved input queue + 10-input cap),
+  fixed on branch `worktree-agent-ad19e3e3e2b2b5b20`; npm test, test:bots, tsc pass. Not merged/deployed.

@@ -79,16 +79,48 @@ describe("input queue", () => {
     expect(p.lastSeq).toBe(5);
   });
 
-  it("starved queue repeats the last input without firing", () => {
+  it("starved queue HOLDS the ship (no phantom step); the late input is then simulated exactly once", () => {
+    // Bug 2026-10-23: a starved tick used to step with the last input AND the late input was
+    // stepped again on arrival, so the server ran ahead of the client's input history.
     const w = mkWorld();
     const p = add(w, "a", 5000, 5000);
+    const ref = add(w, "ref", 6000, 5000); // same inputs, never starved
     w.queueInput("a", input(1, 1, 0, 1));
+    w.queueInput("ref", input(1, 1));
     w.step();
-    const v1 = p.speed;
-    w.step(); // no input: keeps th=1
-    expect(p.speed).toBeLessThan(v1);
-    expect(p.lastInput.f).toBe(1);
-    expect(w.balls.length).toBe(1); // only the first tick fired
+    expect(w.balls.length).toBe(1);
+    const held = { x: p.x, z: p.z, r: p.rotationY, v: p.speed };
+    w.queueInput("ref", input(2, 1));
+    w.step(); // "a" starved: holds position AND velocity, does not fire again
+    expect({ x: p.x, z: p.z, r: p.rotationY, v: p.speed }).toEqual(held);
+    expect(p.lastSeq).toBe(1);
+    expect(w.balls.length).toBe(1);
+    expect(w.inputStats.held).toBe(1);
+    // The late input arrives together with the next one; both are simulated (one per tick).
+    w.queueInput("a", input(2, 1));
+    w.queueInput("a", input(3, 1));
+    w.queueInput("ref", input(3, 1));
+    w.step();
+    w.step();
+    expect(p.lastSeq).toBe(3);
+    expect(p.speed).toBe(ref.speed);
+    expect(p.x - X(5000)).toBeCloseTo(ref.x - X(6000), 9);
+    expect(p.z).toBe(ref.z);
+  });
+
+  it("a burst after a stall shorter than MAX_INPUT_QUEUE ticks is simulated in full (no overflow)", () => {
+    const w = mkWorld();
+    const p = add(w, "a", 5000, 5000);
+    for (let s = 1; s <= MAX_INPUT_QUEUE; s++) w.queueInput("a", input(s, 1));
+    expect(w.inputStats.overflow).toBe(0);
+    let ticks = 0;
+    while (p.lastSeq < MAX_INPUT_QUEUE && ticks < 100) {
+      w.step();
+      ticks++;
+    }
+    expect(p.lastSeq).toBe(MAX_INPUT_QUEUE);
+    expect(ticks).toBeLessThan(MAX_INPUT_QUEUE); // catch-up consumed 2 per tick
+    expect(w.inputStats.catchUp).toBeGreaterThan(0);
   });
 
   it("attachClient resets seq tracking so a reconnecting client may restart its seq", () => {
