@@ -6,14 +6,30 @@
  * Each bot connects, registers, then sends `input` at 20 Hz (wandering pattern) and `ping` every 2 s,
  * while recording what the server sends back. Global chat check: every bot must get a `chatHistory`
  * after joining; half-way through, one bot says a unique line that every bot must receive with that
- * bot's name, and another sends a burst of 8 lines that the server must rate-limit (one private notice). Written strictly against docs/netcode/PROTOCOL.md and
- * shared/protocol.ts. Only uses `ws`, `shared/*` and node built-ins.
+ * bot's name, and another sends a burst of 8 lines that the server must rate-limit (one private notice).
+ * Written strictly against docs/netcode/PROTOCOL.md and shared/protocol.ts. Uses `ws`, `shared/*`,
+ * node built-ins, the real client Predictor
+ * (client/src/lib/net/prediction.ts) and the server's land loader (same tiles as the server).
+ *
+ * Own-ship check (bug 2026-10-23): every bot predicts its own ship exactly like the browser does
+ * (fixed 20 Hz steps, reconcile to `me` + replay unacked inputs) with the same land field as the
+ * server, and records the size of every reconciliation correction after warmup. With identical
+ * physics and land the correction must be ~0; `--assert` fails a bot whose largest correction
+ * exceeds MAX_OWN_CORRECTION units (1 unit ~ 100 m).
  * Exit codes: 0 ok, 1 assertion failure, 2 usage / could not reach server.
  */
 import WebSocket from "ws";
 import { writeFileSync } from "node:fs";
 import { SHIP_TYPES } from "../shared/gameConstants";
 import { MAX_NAME_LENGTH, PING_INTERVAL_MS } from "../shared/protocol";
+import type { ShipInput } from "../shared/physics";
+import { Predictor } from "../client/src/lib/net/prediction";
+import { loadLandSync } from "../server/game/landLoader";
+
+/** Largest own-ship reconciliation correction (world units) a bot may see after warmup. */
+const MAX_OWN_CORRECTION = 1;
+/** Same land tiles as the server (dev: client/public/world/land), loaded once for all bots. */
+const LAND = loadLandSync(undefined, () => {}).field;
 
 // ---------------------------------------------------------------- options
 interface Opts {
@@ -82,12 +98,15 @@ interface BotStats {
   chat: Array<{ id: number; from: string; text: string; sys: boolean }>;
   /** Own ship sunk (snapshot me.sunk): a sunk ship may not chat. */
   sunk: boolean;
+  /** Own-ship prediction: reconciles after warmup, corrections > 1 unit, largest correction. */
+  reconciles: number;
+  corrections: number;
+  maxCorrection: number;
 }
 
 class Bot {
   s: BotStats;
   ws!: WebSocket;
-  private seq = 0;
   private inputTimer?: NodeJS.Timeout;
   private pingTimer?: NodeJS.Timeout;
   private connectTimer?: NodeJS.Timeout;
@@ -95,6 +114,10 @@ class Bot {
   private rudderUntil = 0;
   private stopped = false;
   private warmupEndsAt = Infinity;
+  private readonly pred = new Predictor(LAND);
+  private throttle: 0 | 1 = 1;
+  private throttleUntil = 0;
+  private sunk = false;
 
   constructor(name: string, private opts: Opts, private onSocketError: (e: Error) => void) {
     this.s = {
@@ -102,6 +125,7 @@ class Bot {
       firstSnapAt: 0, lastSnapAt: 0, maxGapMs: 0, gapSumMs: 0, gapCount: 0, maxEntRows: 0,
       entSeen: new Set(), known: new Map(), rtts: [], firstAck: null, lastAck: null,
       events: {}, errors: [], violations: [], chatHistory: false, chat: [], sunk: false,
+      reconciles: 0, corrections: 0, maxCorrection: 0,
     };
   }
 
@@ -209,6 +233,14 @@ class Bot {
     else {
       if (typeof m.me.eid === "number") s.eid = m.me.eid;
       s.sunk = m.me.sunk === true;
+      // Own-ship prediction check. Sinking legitimately stops the ship server-side: stop measuring.
+      if (m.me.sunk) this.sunk = true;
+      const d = this.pred.reconcile(m.me, typeof m.a === "number" ? m.a : -1);
+      if (!this.sunk && now >= this.warmupEndsAt) {
+        s.reconciles++;
+        if (d > 1) s.corrections++;
+        if (d > s.maxCorrection) s.maxCorrection = d;
+      }
     }
     // `e` rows must be plain arrays of 7 numbers: [eid,x,z,r,v,hp,flags]. Objects would carry private fields.
     if (!Array.isArray(m.e)) { s.violations.push("snapshot.e not an array"); return; }
@@ -223,31 +255,31 @@ class Bot {
   }
 
   private beginSending(): void {
-    const stepMs = 1000 / INPUT_HZ;
-    let next = performance.now();
+    // A 100 Hz "frame" loop driving the real Predictor, like the browser's useFrame: it runs fixed
+    // 20 Hz steps from an accumulator (≤ 5 per frame), sending one input per step, starting after
+    // the first snapshot initialized it.
+    let last = performance.now();
     this.inputTimer = setInterval(() => {
-      // Catch up if the event loop was late, so the long-run rate stays 20 Hz.
       const now = performance.now();
-      let sent = 0;
-      while (next <= now && sent < 5) { this.sendInput(now); next += stepMs; sent++; }
-      if (next <= now) next = now + stepMs;
+      const dt = (now - last) / 1000;
+      last = now;
+      this.pred.advance(Math.min(dt, 0.25), this.nextInput(now), (msg) => this.send(msg));
     }, 10);
     this.pingTimer = setInterval(() => this.send({ t: "ping", c: Date.now() }), PING_INTERVAL_MS);
     this.send({ t: "ping", c: Date.now() });
   }
 
-  private sendInput(now: number): void {
+  private nextInput(now: number): ShipInput {
     if (now >= this.rudderUntil) {
       const r = Math.random();
       this.rudder = r < 0.4 ? 0 : r < 0.7 ? 1 : -1;
       this.rudderUntil = now + 500 + Math.random() * 2500;
     }
-    this.send({
-      t: "input", s: ++this.seq,
-      th: Math.random() < 0.9 ? 1 : 0,
-      ru: this.rudder,
-      f: Math.random() < 0.03 ? 1 : 0,
-    });
+    if (now >= this.throttleUntil) {
+      this.throttle = Math.random() < 0.9 ? 1 : 0;
+      this.throttleUntil = now + 300 + Math.random() * 2000;
+    }
+    return { th: this.throttle, ru: this.rudder, f: Math.random() < 0.01 ? 1 : 0 };
   }
 
   /** Global chat: say one line. */
@@ -279,6 +311,9 @@ interface BotReport {
   events: Record<string, number>;
   errors: string[];
   violations: string[];
+  ownReconciles: number;
+  ownCorrections: number;
+  ownMaxCorrection: number;
 }
 
 function report(b: Bot): BotReport {
@@ -303,6 +338,9 @@ function report(b: Bot): BotReport {
     events: s.events,
     errors: s.errors,
     violations: s.violations,
+    ownReconciles: s.reconciles,
+    ownCorrections: s.corrections,
+    ownMaxCorrection: +s.maxCorrection.toFixed(3),
   };
 }
 
@@ -370,6 +408,9 @@ async function main(): Promise<void> {
     maxKnown: Math.max(0, ...reports.map((r) => r.known)),
     visibilityPairs: pairs, asymmetricPairs: asym,
     asymmetryPct: pairs ? +((asym / pairs) * 100).toFixed(1) : 0,
+    ownMaxCorrection: Math.max(0, ...reports.map((r) => r.ownMaxCorrection)),
+    ownCorrections: reports.reduce((a, r) => a + r.ownCorrections, 0),
+    ownReconciles: reports.reduce((a, r) => a + r.ownReconciles, 0),
   };
 
   console.log("\nname            conn snap/s  KB/s  maxGap avgGap known seen rows  rttAvg rttMax ack(first->last)  events");
@@ -392,6 +433,9 @@ async function main(): Promise<void> {
       if (r.snapsPerSec < 15) failures.push(`${r.name}: snapshot rate ${r.snapsPerSec}/s < 15`);
       if (r.maxGapMs > 1000) failures.push(`${r.name}: inter-snapshot gap ${r.maxGapMs} ms > 1000 after warmup`);
       if (!r.ackAdvanced) failures.push(`${r.name}: acked seq did not advance (${r.ackFirst} -> ${r.ackLast})`);
+      if (r.ownMaxCorrection > MAX_OWN_CORRECTION) {
+        failures.push(`${r.name}: own-ship correction ${r.ownMaxCorrection} units > ${MAX_OWN_CORRECTION} (${r.ownCorrections} of ${r.ownReconciles} snapshots)`);
+      }
     }
     for (const e of r.errors) failures.push(`${r.name}: ${e}`);
     for (const v of r.violations.slice(0, 3)) failures.push(`${r.name}: protocol/privacy violation: ${v}`);

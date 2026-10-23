@@ -210,8 +210,8 @@ export class NetClient {
   /**
    * Advance by an explicit frame delta (seconds) with the current combined controls. Runs fixed-step
    * prediction (sending one `input` per 20 Hz step) and expires balls. The delta is clamped to
-   * MAX_FRAME_DT_SEC (5 ticks); time beyond that in one hitch is dropped on purpose — the server
-   * extrapolates the gap with our last input (see MAX_STEPS_PER_FRAME in prediction.ts).
+   * MAX_FRAME_DT_SEC (5 ticks); time beyond that in one hitch is dropped on purpose — no inputs
+   * exist for it, so the server's ship holds for it too (see MAX_STEPS_PER_FRAME in prediction.ts).
    */
   frame(dtSec: number, controls: Partial<ControlState>): void {
     const now = this.now();
@@ -223,8 +223,9 @@ export class NetClient {
   }
 
   /**
-   * Tab visibility. When hidden we send one neutral input (the server re-uses the last input when
-   * its queue is empty, so this makes the ship coast to a stop) and stop sending.
+   * Tab visibility. When hidden we send one neutral input and stop sending. Since 2026-10-23 the
+   * server HOLDS a ship whose input queue is empty (no phantom steps), so the ship stays where it
+   * was while the tab is hidden and the prediction resumes from exactly the same state on return.
    */
   setHidden(hidden: boolean): void {
     if (hidden === this.hidden) return;

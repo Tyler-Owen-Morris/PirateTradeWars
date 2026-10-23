@@ -5,8 +5,11 @@
  */
 import { NetClient } from "./netClient";
 import { clientLand } from "../world/landTiles";
+import { installNetDebug } from "./netDebug";
 
 export const net = new NetClient({ land: clientLand });
+// `?netdebug=1` own-ship correction overlay (no-op otherwise); see netDebug.ts.
+installNetDebug(net);
 
 export { NetClient } from "./netClient";
 export type { NetEvents } from "./netClient";

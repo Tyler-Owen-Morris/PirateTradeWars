@@ -157,13 +157,16 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   comes from the shared THREE.Clock, and any `clock.getElapsedTime()`/`getDelta()` call in a useFrame
   shortens the next frame's delta. That bug starved inputs to ~8/s at 9 fps (N3-fix). Animations
   must read `clock.elapsedTime` instead. `net.setHidden(true)` (App.tsx visibilitychange) sends one
-  neutral input then stops sending, so the ship coasts. On un-hide the next frame gets dt 0.
+  neutral input then stops sending; the server holds the ship (empty queue = no step), so it stays
+  put and prediction resumes from the same state. On un-hide the next frame gets dt 0.
 - Hitches: a frame's dt is clamped to `MAX_FRAME_DT_SEC` (= `MAX_STEPS_PER_FRAME` 5 × 50 ms), and
-  any time beyond that is dropped, not replayed. This is deliberate. While the client stalls, the
-  server's queue runs dry and it re-uses our last input each tick, so it has already simulated the
-  gap. Replaying the backlog would step the ship twice for the same wall time. The next snapshot
-  reconciles us onto the server's extrapolated position: a decaying error offset, or a snap above
-  150 u.
+  any time beyond that is dropped, not replayed. This is deliberate and consistent with the server:
+  while the client stalls, the server's queue runs dry and it HOLDS the ship (no step; since
+  2026-10-23), so the dropped time is dropped on both sides and there is no correction.
+- Diagnostics: `?netdebug=1` in the page URL shows a small overlay (lib/net/netDebug.ts) with own-ship
+  reconciliation corrections > 100 m (10 s window and total), max correction, snaps, snapshots/s,
+  "ack stalls" (server queue ran dry), pending inputs, RTT and socket closes, and logs each
+  correction > 5 u to the console as `[netdebug] correction ...`. `Predictor.diag` holds the counters.
 
 **How React reads it:**
 - `Player.tsx` — useFrame(priority −1): keyboard (drei `get()`, neutral while `isTextEntryActive()`) + `controlsRef` → `net.frameNow` →

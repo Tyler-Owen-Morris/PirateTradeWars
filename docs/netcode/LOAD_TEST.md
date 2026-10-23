@@ -52,6 +52,12 @@ Fail if any of:
 - a bot's snapshot rate < 15/s (server nominal 20/s)
 - any inter-snapshot gap > 1000 ms after warmup
 - acked seq did not advance (`a` last <= first)
+- own-ship prediction drifted: each bot runs the real client `Predictor` (fixed 20 Hz steps, reconcile to
+  `me` + replay unacked inputs) with the same land tiles as the server (`loadLandSync`), and fails if any
+  reconciliation after warmup moved its predicted ship by more than 1 unit (~100 m). Summary fields:
+  `ownMaxCorrection`, `ownCorrections`, `ownReconciles`. Added for the 2026-10-23 jump bug: against the
+  old server (starved queue = phantom step) 30 bots on localhost already showed a 12-unit correction in
+  30 s; with the fix, 0 corrections in 84 343 reconciles (60 bots, 75 s).
 - a server `error` / `nameError` message arrived
 - privacy/shape violation: `me` not an object, `e` not an array, any `e` row that is not an array of exactly
   7 numbers, or an `ent` message carrying gold/cargo/inventory fields

@@ -43,7 +43,11 @@ physics in `shared/physics.ts`. Both are shared with the client.
   1b. The NPC AI hook (`npcHook`), when one is set. See "NPC ships" below.
   2. Movement. A sunk ship stays put.
      - A connected ship consumes one queued input, or two if more than 3 are queued (catch-up).
-       If the queue is empty, it reuses the last input with `f:0`. Then it runs `stepShip`.
+       Then it runs `stepShip`. If the queue is empty the ship HOLDS (no step, `a` unchanged), so the
+       server state is always `stepShip` over inputs 1..a, exactly what the client predicts. Do not
+       reintroduce "repeat the last input" here: it was the 2026-10-23 own-ship jump bug
+       (docs/netcode/BUILD_STATE.md). `world.inputStats` (held / overflow / catchUp) is in the
+       `[tick]` log line, with the max tick ms.
      - A disconnected ship gets neutral input, so it coasts to 0.
   3. Rebuild the grid.
   4. Cannonballs: `stepBall` (metric straight line), a metric `segmentHitsCircle` hit test against

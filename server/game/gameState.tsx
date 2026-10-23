@@ -58,6 +58,8 @@ class GameState {
   private readonly sockets = new Map<string, ClientSocket>();
   private tickCount = 0;
   private tickTimeTotal = 0;
+  /** Longest single tick (ms) in the current 60 s log window. */
+  private tickTimeMax = 0;
 
   /** NPC2: the live NPC system (lanes.json, port safe zones, ~300 NPCs, the World's land). ON by
    *  default; NPCS_ENABLED=0 turns it off. */
@@ -184,15 +186,21 @@ class GameState {
     for (const e of effects) this.runEffect(e);
     this.flushStandings();
 
-    this.tickTimeTotal += performance.now() - t0;
+    const tickMs = performance.now() - t0;
+    this.tickTimeTotal += tickMs;
+    if (tickMs > this.tickTimeMax) this.tickTimeMax = tickMs;
     if (++this.tickCount % (20 * 60) === 0) {
       console.log(
-        `[tick] avg ${(this.tickTimeTotal / (20 * 60)).toFixed(2)} ms over 60 s, players=${this.world.players.size}, ` +
+        `[tick] avg ${(this.tickTimeTotal / (20 * 60)).toFixed(2)} ms (max ${this.tickTimeMax.toFixed(1)}) over 60 s, players=${this.world.players.size}, ` +
           `sockets=${this.sockets.size}, balls=${this.world.balls.length}, dropped=${this.loop.dropped}` +
+          // Input queue totals since start (world.inputStats): held = starved ticks (late input, ship
+          // held), overflow = inputs dropped by the queue cap, catchUp = 2-input ticks.
+          `, input held=${this.world.inputStats.held} overflow=${this.world.inputStats.overflow} catchUp=${this.world.inputStats.catchUp}` +
           (this.npcs ? `, npcs=${this.npcs.stats.active}/${this.npcs.stats.records} (npc max ${this.npcs.stats.maxTickMs.toFixed(1)} ms)` : ""),
       );
       if (this.npcs) this.npcs.stats.maxTickMs = 0;
       this.tickTimeTotal = 0;
+      this.tickTimeMax = 0;
     }
   }
 

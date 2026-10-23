@@ -26,7 +26,7 @@ describe("constants", () => {
     expect(GOLD_INTEREST_RADIUS).toBe(1000);
     expect(GRID_CELL).toBe(500);
     expect(INTERP_DELAY_MS).toBe(100);
-    expect(MAX_INPUT_QUEUE).toBe(10);
+    expect(MAX_INPUT_QUEUE).toBe(40); // 2 s (was 10; bug 2026-10-23)
     expect([FLAG_SUNK, FLAG_DISCONNECTED, FLAG_FIRING]).toEqual([1, 2, 4]);
   });
 });
