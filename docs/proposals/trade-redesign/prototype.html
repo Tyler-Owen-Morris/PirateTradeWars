@@ -1,54 +1,61 @@
 <title>Bill of Goods</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Pirata+One&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;0,700;1,400;1,500&family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Pirata+One&display=swap" rel="stylesheet">
 <style>
 /* =====================================================================================
-   Pirate Trade Wars - "Bill of Goods" trade screen prototype.
-   Tokens mirror the theme layer (client/src/styles/pirate.css, --ptw-*) and add the
-   trade-screen tokens proposed in docs/design/STYLE_GUIDE.md (--ptw-ledger-*, --ptw-sel-*).
-   Layout responds to the DEVICE container (container queries), not the window, so the
-   frame switcher shows true phone / landscape / desktop layouts.
+   Pirate Trade Wars - "Bill of Goods" trade screen prototype, revision 2 (after reviews).
+   Tokens mirror the theme layer (client/src/styles/pirate.css, --ptw-*) plus the trade
+   tokens in docs/design/STYLE_GUIDE.md. Layout responds to the DEVICE container
+   (container queries), so the frame switcher shows true phone / landscape / desktop layouts.
+   Selection grammar: INKED (solid ink fill or solid ink rule) = selected, everywhere.
+   BRASS = the single Sign button, nothing else.  Digits are always Alegreya (.num).
    ===================================================================================== */
 :root{
   --ptw-ink:#2a1a0c; --ptw-ink-soft:#5c3e1e; --ptw-ink-blue:#1f3a5a; --ptw-ink-off:#7d6748;
-  --ptw-parchment:#ecdcb4; --ptw-parchment-hi:#f7ecd2; --ptw-parchment-lo:#d6bc88;
-  --ptw-burn:#7a4a1a; --ptw-wood:#3b2414; --ptw-wood-dark:#20130a; --ptw-wood-black:#120a05;
+  --ptw-parchment:#ecdcb4; --ptw-parchment-hi:#f7ecd2; --ptw-parchment-lo:#d6bc88; --ptw-slip:#dcc597;
+  --ptw-burn:#7a4a1a; --ptw-wood:#3b2414; --ptw-wood-dark:#20130a; --ptw-wood-black:#120a05; --ptw-iron:#2c2e32;
   --ptw-brass-hi:#f6e0a0; --ptw-brass:#c9a24d; --ptw-brass-lo:#7a571e;
   --ptw-wax:#8e1a14; --ptw-wax-hi:#d0453a; --ptw-wax-lo:#540a08; --ptw-wax-text:#fbe9d6;
   --ptw-cream:#f5e9cc; --ptw-gold:#f2c35b; --ptw-good-ink:#265c22; --ptw-bad-ink:#8e1a14;
   --ptw-focus:#ffe08a;
-  --ptw-ledger-rule:rgb(42 26 12 / .2); --ptw-ledger-margin:rgb(142 26 20 / .45);
-  --ptw-sel-wash:#e3c98a; --ptw-hover-wash:rgb(122 74 26 / .09);
+  --ptw-ledger-rule:rgb(42 26 12 / .2); --ptw-ledger-margin:rgb(142 26 20 / .45); --ptw-leader:rgb(42 26 12 / .4);
+  --ptw-sel-wash:#e8d29c; --ptw-hover-wash:rgb(122 74 26 / .08);
   --ptw-font-display:"Pirata One","IM Fell English SC",Georgia,serif;
   --ptw-font-label:"IM Fell English SC",Georgia,serif;
-  --ptw-font-hand:"IM Fell English",Georgia,serif;
+  --ptw-font-note:"IM Fell English",Georgia,serif;
   --ptw-font-body:"Alegreya",Georgia,serif;
-  --ptw-tap:44px;
+  --ptw-tap:44px; --row:40px;
   --ptw-tex-noise:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32 0 0 0 0 .2 0 0 0 0 .07 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   --ptw-tex-grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='120'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006 .22' numOctaves='3' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .05 0 0 0 0 .02 0 0 0 0 0 0 0 0 1.4 -.45'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --ptw-torn-top:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='6'%3E%3Cpath d='M0 6V2.6L3 1.8 5 3.2 8 2.1 10.5.9 13 2.4 16 1.5 18 3.4 21 2.2 24 .6 27 2 29 1.2 32 3 35 2.4 37 1 40 2.2 43 3.5 45 1.8 48 .8 51 2.5 54 1.6 56 3.1 59 2 61.5 1.3 64 2.6V6Z'/%3E%3C/svg%3E");
+  --ptw-torn-bottom:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='6'%3E%3Cpath transform='matrix(1 0 0 -1 0 6)' d='M0 6V2.6L3 1.8 5 3.2 8 2.1 10.5.9 13 2.4 16 1.5 18 3.4 21 2.2 24 .6 27 2 29 1.2 32 3 35 2.4 37 1 40 2.2 43 3.5 45 1.8 48 .8 51 2.5 54 1.6 56 3.1 59 2 61.5 1.3 64 2.6V6Z'/%3E%3C/svg%3E");
+  --ptw-torn-left:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='64'%3E%3Cpath transform='matrix(0 1 1 0 0 0)' d='M0 6V2.6L3 1.8 5 3.2 8 2.1 10.5.9 13 2.4 16 1.5 18 3.4 21 2.2 24 .6 27 2 29 1.2 32 3 35 2.4 37 1 40 2.2 43 3.5 45 1.8 48 .8 51 2.5 54 1.6 56 3.1 59 2 61.5 1.3 64 2.6V6Z'/%3E%3C/svg%3E");
+  --ptw-torn-right:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='64'%3E%3Cpath transform='matrix(0 1 -1 0 6 0)' d='M0 6V2.6L3 1.8 5 3.2 8 2.1 10.5.9 13 2.4 16 1.5 18 3.4 21 2.2 24 .6 27 2 29 1.2 32 3 35 2.4 37 1 40 2.2 43 3.5 45 1.8 48 .8 51 2.5 54 1.6 56 3.1 59 2 61.5 1.3 64 2.6V6Z'/%3E%3C/svg%3E");
+  --ptw-ink-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='50'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.6 2.1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
   color-scheme: dark;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#07121b;color:var(--ptw-cream);font-family:var(--ptw-font-body)}
-button,input{font:inherit;color:inherit}
+button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
-.num{font-variant-numeric:lining-nums tabular-nums;font-feature-settings:"lnum" 1,"tnum" 1}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.num{font-family:var(--ptw-font-body);font-variant-numeric:lining-nums tabular-nums;font-feature-settings:"lnum" 1,"tnum" 1;letter-spacing:0}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 :focus-visible{outline:none}
-/* Focus: gold ring + dark halo, visible on parchment (ink halo) and on wood / sea. */
-.bog :is(button,input,[tabindex]):focus-visible{box-shadow:0 0 0 2px var(--ptw-ink),0 0 0 5px var(--ptw-focus),0 0 0 7px var(--ptw-ink)!important;position:relative;z-index:2}
+/* Focus: gold ring inside an ink halo (visible on parchment, wood and sea). */
+.bog :is(button,input,select,[tabindex]):focus-visible{box-shadow:0 0 0 2px var(--ptw-ink),0 0 0 5px var(--ptw-focus),0 0 0 7px var(--ptw-ink)!important;position:relative;z-index:3}
 
-/* ---------------------------------------------------------------- prototype chrome */
-.proto{display:flex;flex-direction:column;height:100dvh;height:100vh;height:100dvh}
+/* ---------------------------------------------------------------- prototype chrome (not part of the design) */
+.proto{display:flex;flex-direction:column;height:100vh;height:100dvh}
 .pbar{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:6px 10px;background:#0b1a24;border-bottom:1px solid #1f3a4a;font:13px/1.2 system-ui,sans-serif;color:#cfe0ea}
 .pbar b{font-family:var(--ptw-font-label);font-weight:400;font-size:15px;color:var(--ptw-gold);letter-spacing:.04em}
 .pbar label{display:flex;gap:4px;align-items:center}
-.pbar select,.pbar .pb{background:#132a38;border:1px solid #2c4c60;border-radius:4px;color:#e7f1f6;padding:4px 6px;min-height:30px;font:13px system-ui,sans-serif}
-.pbar .pb[aria-pressed=true]{background:#2c4c60}
+.pbar select,.pb{background:#132a38;border:1px solid #2c4c60;border-radius:4px;color:#e7f1f6;padding:4px 8px;min-height:30px;font:13px system-ui,sans-serif}
+.pb[aria-pressed=true]{background:#2c4c60}
 .pnote{font-size:12px;opacity:.7}
 #pToggle{display:none;margin-left:auto}
 @media (max-width:760px){#pToggle{display:inline-block}.pbar:not(.open) > label,.pbar:not(.open) > .pb:not(#pToggle){display:none}}
+.proto.bare .pbar{display:none}
 .stage{position:relative;flex:1;min-height:0;display:grid;place-items:center;overflow:hidden}
 .devwrap{position:relative}
 .device{position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;container-type:size;container-name:dev;background:#000}
@@ -60,309 +67,365 @@ button{cursor:pointer}
 .world{position:absolute;inset:0;--sky1:#9fd3ec;--sky2:#e8f3f8;--sea1:#7cc4dc;--sea2:#1f6f8f;--land:#4f6b3a;--sun:#fff6d8;--ship:#2b1a0e}
 .device[data-sea=night] .world{--sky1:#02060c;--sky2:#0b1d2c;--sea1:#0b2333;--sea2:#03090f;--land:#0f1a12;--sun:#cfd8e6;--ship:#000}
 .world svg{width:100%;height:100%;display:block}
-.hudfake{position:absolute;left:10px;top:10px;padding:6px 10px;background:rgb(18 10 5 / .78);border:1px solid rgb(201 162 77 / .5);border-radius:4px;font:12px var(--ptw-font-label);color:var(--ptw-cream)}
-.scrim{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgb(7 18 27 / .35),rgb(7 18 27 / .7))}
+.scrim{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgb(7 18 27 / .35),rgb(7 18 27 / .72))}
 
-/* ---------------------------------------------------------------- the sheet: wood counter + parchment ledger */
-.bog{position:absolute;inset:0;margin:auto;width:min(960px,calc(100% - 32px));height:min(800px,calc(100% - 32px));
-  padding:10px;border-radius:6px;
-  background:var(--ptw-tex-grain),linear-gradient(180deg,#4a2e19,var(--ptw-wood) 40%,var(--ptw-wood-dark));
-  box-shadow:0 0 0 1px var(--ptw-wood-black),inset 0 1px 0 rgb(246 224 160 / .18),0 18px 50px rgb(0 0 0 / .65)}
-.bog::before,.bog::after{content:"";position:absolute;width:22px;height:22px;pointer-events:none;
-  background:radial-gradient(circle at 50% 50%,var(--ptw-brass-hi) 0 2px,var(--ptw-brass) 3px,var(--ptw-brass-lo) 6px,transparent 7px)}
-.bog::before{left:2px;top:2px}.bog::after{right:2px;top:2px}
-.page{position:relative;height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto;
-  grid-template-areas:"head" "tools" "ledger" "slip";
-  color:var(--ptw-ink);border-radius:2px;overflow:hidden;
-  background:var(--ptw-tex-noise),radial-gradient(ellipse at 50% 40%,var(--ptw-parchment-hi),var(--ptw-parchment) 60%,var(--ptw-parchment-lo));
-  box-shadow:inset 0 0 0 1px rgb(122 74 26 / .5),inset 0 0 28px rgb(122 74 26 / .35)}
+/* ---------------------------------------------------------------- the counter (wood plank) */
+.bog{position:absolute;inset:0;margin:auto;width:min(1120px,calc(100% - 32px));height:min(820px,calc(100% - 32px));
+  display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:minmax(0,1fr);
+  padding:18px 18px 20px;border-radius:3px;
+  background:var(--ptw-tex-grain),repeating-linear-gradient(180deg,transparent 0 118px,rgb(0 0 0 / .35) 118px 120px),linear-gradient(180deg,#4d301a,var(--ptw-wood) 45%,var(--ptw-wood-dark));
+  box-shadow:0 0 0 1px var(--ptw-wood-black),inset 0 1px 0 rgb(246 224 160 / .18),inset 0 -3px 0 rgb(0 0 0 / .4),0 10px 12px rgb(0 0 0 / .55);
+  animation:onto .2s ease-out}
 .bog[hidden]{display:none}
+@keyframes onto{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.nail{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#6b6e74,var(--ptw-iron) 60%,#111);box-shadow:0 1px 0 rgb(255 255 255 / .12)}
+.nail.a{left:5px;top:5px}.nail.b{right:5px;top:5px}.nail.c{left:5px;bottom:6px}.nail.d{right:5px;bottom:6px}
+/* close: a turned-wood knob on the counter (brass is reserved for Sign) */
+.close{position:absolute;right:-6px;top:-10px;z-index:6;width:var(--ptw-tap);height:var(--ptw-tap);border-radius:50%;border:1px solid var(--ptw-wood-black);
+  background:radial-gradient(circle at 38% 30%,#7a5232,var(--ptw-wood) 55%,var(--ptw-wood-dark));color:var(--ptw-cream);display:grid;place-items:center;box-shadow:inset 0 1px 0 rgb(246 224 160 / .25),0 3px 3px rgb(0 0 0 / .5)}
+.close svg{width:16px;height:16px}
+.close:active{transform:translateY(2px)}
+.close:disabled{opacity:.5;cursor:not-allowed}
+
+/* ---------------------------------------------------------------- the page (torn parchment) */
+.pagewrap{min-width:0;min-height:0;filter:drop-shadow(0 3px 3px rgb(0 0 0 / .55));position:relative;z-index:1}
+.page{height:100%;display:grid;grid-template-rows:auto auto minmax(0,1fr);grid-template-columns:minmax(0,1fr);color:var(--ptw-ink);
+  background:var(--ptw-tex-noise),radial-gradient(ellipse at 50% 35%,var(--ptw-parchment-hi),var(--ptw-parchment) 60%,var(--ptw-parchment-lo));
+  box-shadow:inset 0 0 26px rgb(122 74 26 / .35);
+  -webkit-mask:var(--ptw-torn-top) top/64px 6px repeat-x,var(--ptw-torn-bottom) bottom/64px 6px repeat-x,var(--ptw-torn-left) left/6px 64px repeat-y,var(--ptw-torn-right) right/6px 64px repeat-y,linear-gradient(#000,#000) center/calc(100% - 10px) calc(100% - 10px) no-repeat;
+  mask:var(--ptw-torn-top) top/64px 6px repeat-x,var(--ptw-torn-bottom) bottom/64px 6px repeat-x,var(--ptw-torn-left) left/6px 64px repeat-y,var(--ptw-torn-right) right/6px 64px repeat-y,linear-gradient(#000,#000) center/calc(100% - 10px) calc(100% - 10px) no-repeat}
 
 /* header */
-.head{grid-area:head;padding:10px 14px 8px 16px;border-bottom:1.5px solid var(--ptw-ink)}
-.trow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
-.trow .instr{margin:0;flex:none}
-.trow .close{order:4}
-.flag{flex:none;width:40px;height:28px;border:1px solid var(--ptw-ink);box-shadow:1px 1px 0 rgb(42 26 12 / .3)}
+.head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;padding:12px 18px 8px 20px;border-bottom:1.5px solid var(--ptw-ink)}
+.flag{flex:none;width:40px;height:24px}
 .titles{flex:1;min-width:0}
-.port{margin:0;font:400 34px/1 var(--ptw-font-display);letter-spacing:.01em}
-.sub{margin:2px 0 0;font:15px/1.2 var(--ptw-font-hand);font-style:italic;color:var(--ptw-ink-soft)}
-.close{flex:none;width:var(--ptw-tap);height:var(--ptw-tap);border-radius:50%;border:2px solid var(--ptw-ink);background:radial-gradient(circle at 35% 30%,var(--ptw-brass-hi),var(--ptw-brass) 55%,var(--ptw-brass-lo));display:grid;place-items:center;box-shadow:0 2px 0 var(--ptw-wood-dark)}
-.close svg{width:18px;height:18px}
-.close:active{transform:translateY(2px);box-shadow:none}
-.instr{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;margin-top:10px}
-.lab{font:13px var(--ptw-font-label);letter-spacing:.06em;color:var(--ptw-ink-soft)}
-.purse{display:flex;align-items:center;gap:6px}
-.purse svg{width:22px;height:22px}
-.purse b{font:700 22px var(--ptw-font-body)}
-.holdm{display:flex;align-items:center;gap:8px;width:280px}
-.meter{position:relative;flex:1;height:14px;border:1.5px solid var(--ptw-ink);border-radius:2px;background:rgb(42 26 12 / .08);overflow:hidden}
-.meter .f{position:absolute;inset:0 auto 0 0;background:repeating-linear-gradient(90deg,var(--ptw-burn) 0 6px,#8b5a26 6px 7px);transition:width .3s}
-.meter .pv{position:absolute;top:0;bottom:0;transition:left .2s,width .2s}
-.meter .pv.add{background:repeating-linear-gradient(135deg,var(--ptw-ink-blue) 0 3px,transparent 3px 6px)}
-.meter .pv.rem{background:repeating-linear-gradient(135deg,var(--ptw-parchment-hi) 0 3px,transparent 3px 6px);outline:1px dashed var(--ptw-ink)}
-.holdm b{font:700 17px var(--ptw-font-body);white-space:nowrap}
-.shipname{font:14px var(--ptw-font-hand);font-style:italic;color:var(--ptw-ink-soft)}
+.port{margin:0;font:400 32px/1 var(--ptw-font-display);letter-spacing:.01em}
+.sub{margin:2px 0 0;font:italic 15px/1.2 var(--ptw-font-note);color:var(--ptw-ink-soft)}
+.sub .short{display:none}
+.instr{display:flex;align-items:center;gap:18px;flex:none}
+.lab{font:14px var(--ptw-font-label);letter-spacing:.05em;color:var(--ptw-ink-soft)}
+.purse{display:flex;align-items:baseline;gap:6px}
+.purse b{font-size:22px;font-weight:700}
+.holdm{display:flex;align-items:center;gap:8px}
+.crates{display:flex;gap:1px;width:200px;height:15px;padding:2px;border:1.5px solid var(--ptw-ink);background:rgb(42 26 12 / .06)}
+.crates i{flex:1;min-width:1px;background:transparent;box-shadow:inset 0 0 0 .5px rgb(42 26 12 / .25)}
+.crates i.f{background:linear-gradient(180deg,#8b5a26,var(--ptw-burn));box-shadow:inset 0 0 0 .5px var(--ptw-ink)}
+.crates i.p{background:repeating-linear-gradient(135deg,var(--ptw-ink-blue) 0 2px,transparent 2px 4px);box-shadow:inset 0 0 0 .5px var(--ptw-ink-blue)}
+.crates i.r{background:repeating-linear-gradient(135deg,rgb(122 74 26 / .55) 0 2px,transparent 2px 4px)}
+.holdm b{font-size:17px;font-weight:700;white-space:nowrap}
 
-/* toolbar: bookmark tabs + filters */
-.tools{grid-area:tools;display:flex;gap:6px;align-items:flex-end;padding:8px 12px 0;border-bottom:1px solid var(--ptw-ledger-rule);overflow-x:auto;scrollbar-width:none}
-.tools::-webkit-scrollbar{display:none}
-.tab{flex:none;min-height:var(--ptw-tap);padding:0 16px;border:1.5px solid var(--ptw-ink);border-bottom:0;border-radius:4px 4px 0 0;background:var(--ptw-parchment-lo);font:17px var(--ptw-font-label);letter-spacing:.04em;color:var(--ptw-ink-soft);position:relative;top:1px}
-.tab[aria-selected=true]{background:var(--ptw-parchment-hi);color:var(--ptw-ink);box-shadow:inset 0 3px 0 var(--ptw-wax)}
-.tsep{flex:none;width:10px}
-.chip{flex:none;min-height:36px;margin-bottom:6px;padding:0 12px;border-radius:18px;border:1px solid rgb(42 26 12 / .45);background:transparent;font:15px var(--ptw-font-label);color:var(--ptw-ink-soft);display:flex;align-items:center;gap:6px;position:relative}
-.chip::after{content:"";position:absolute;inset:-4px 0}/* 44px hit area */
-.chip .n{font:600 13px var(--ptw-font-body);opacity:.85}
-.chip[aria-pressed=true]{background:var(--ptw-ink);color:var(--ptw-parchment-hi);border-color:var(--ptw-ink)}
+/* toolbar: bookmarks + "Show" */
+.tools{display:flex;flex-wrap:wrap;align-items:flex-end;gap:4px 16px;padding:6px 18px 0 20px;border-bottom:1px solid var(--ptw-ledger-rule)}
+.tabs{display:flex;gap:2px}
+.tab{min-height:40px;padding:0 16px;border:1.5px solid var(--ptw-ink);border-bottom:0;border-radius:2px 2px 0 0;background:var(--ptw-parchment-lo);font:17px var(--ptw-font-label);letter-spacing:.04em;color:var(--ptw-ink-soft);position:relative;top:1px}
+.tab[aria-selected=true]{background:var(--ptw-ink);color:var(--ptw-parchment-hi)}
+.tab:disabled{cursor:not-allowed}
+.show{display:flex;align-items:baseline;gap:4px 14px;flex-wrap:wrap;padding-bottom:8px;font:italic 16px var(--ptw-font-body)}
+.show .lab{font-style:normal}
+.flt{border:0;background:transparent;padding:6px 2px;min-height:32px;font:italic 16px var(--ptw-font-body);color:var(--ptw-ink-soft);text-decoration:underline dotted rgb(42 26 12 / .35);text-underline-offset:4px;position:relative}
+.flt::after{content:"";position:absolute;inset:-6px -4px}
+.flt .num{font-style:normal;font-size:14px}
+.flt[aria-pressed=true]{color:var(--ptw-ink);font-weight:700;text-decoration:underline solid var(--ptw-ink);text-decoration-thickness:2px}
+.flt:disabled{cursor:not-allowed}
+.showsel{display:none;min-height:var(--ptw-tap);border:0;border-bottom:1.5px solid var(--ptw-ink);background:transparent;font:italic 16px var(--ptw-font-body);color:var(--ptw-ink);padding:0 4px}
+.showsel option{color:#000}
+.keyslink{margin-left:auto;align-self:center;border:0;background:transparent;font:italic 15px var(--ptw-font-note);color:var(--ptw-ink-soft);min-height:32px;text-decoration:underline dotted;text-underline-offset:4px}
 
 /* ledger */
-.ledger{grid-area:ledger;overflow-y:auto;overscroll-behavior:contain;position:relative;scroll-padding:76px 0 8px;
-  background:linear-gradient(90deg,transparent 39px,var(--ptw-ledger-margin) 39px 40px,transparent 40px 43px,var(--ptw-ledger-margin) 43px 44px,transparent 44px)}
-.colhead,.row{display:grid;grid-template-columns:44px minmax(0,1fr) 150px 92px 92px;align-items:center;column-gap:10px;padding-right:14px}
-.colhead{position:sticky;top:0;z-index:3;min-height:30px;background:var(--ptw-parchment);border-bottom:1.5px solid var(--ptw-ink);font:13px var(--ptw-font-label);letter-spacing:.06em;color:var(--ptw-ink-soft)}
-.colhead > :nth-child(n+3){text-align:center}
-.grp{position:sticky;top:30px;z-index:2;display:flex;align-items:baseline;gap:10px;padding:10px 14px 4px 52px;background:linear-gradient(var(--ptw-parchment) 80%,rgb(236 220 180 / 0));font:22px var(--ptw-font-display)}
-.grp small{font:14px var(--ptw-font-hand);font-style:italic;color:var(--ptw-ink-soft)}
-.row{position:relative;min-height:58px;border-bottom:1px solid var(--ptw-ledger-rule);cursor:pointer}
+.ledger{position:relative;overflow-y:auto;overscroll-behavior:contain;min-height:0;scroll-padding:58px 0 8px;
+  background:linear-gradient(90deg,transparent 31px,var(--ptw-ledger-margin) 31px 32px,transparent 32px 35px,var(--ptw-ledger-margin) 35px 36px,transparent 36px)}
+.colhead,.row{display:grid;grid-template-columns:36px minmax(0,1fr) 104px 84px 84px;align-items:center;padding-right:16px}
+.colhead{position:sticky;top:0;z-index:4;height:26px;background:var(--ptw-parchment);border-bottom:1.5px solid var(--ptw-ink);font:13px var(--ptw-font-label);letter-spacing:.06em;color:var(--ptw-ink-soft)}
+.colhead > span{padding-left:8px;white-space:nowrap}
+.colhead .hs{display:none}
+.colhead > span:nth-child(n+3){text-align:right;padding-right:12px}
+.gsec{position:relative}
+.grp{position:sticky;top:26px;z-index:3;display:flex;align-items:baseline;gap:10px;height:30px;padding:6px 16px 0 44px;background:var(--ptw-parchment);border-bottom:1px solid var(--ptw-ledger-rule);font:17px var(--ptw-font-label);letter-spacing:.08em}
+.grp small{font:italic 14px var(--ptw-font-note);letter-spacing:0;color:var(--ptw-ink-soft)}
+.row{position:relative;z-index:1;min-height:var(--row);border-bottom:1px solid var(--ptw-ledger-rule);cursor:pointer}
 .row:hover{background:var(--ptw-hover-wash)}
-.row.is-cur{outline:2px dotted var(--ptw-ink-soft);outline-offset:-3px}
-.row.is-sel{background:var(--ptw-sel-wash);box-shadow:inset 0 2px 0 var(--ptw-ink),inset 0 -2px 0 var(--ptw-ink)}
-.row.is-sel::before{content:"";position:absolute;left:0;top:-2px;bottom:-2px;width:10px;background:linear-gradient(90deg,var(--ptw-wax-lo),var(--ptw-wax) 40%,var(--ptw-wax-hi));clip-path:polygon(0 0,100% 0,100% 100%,0 100%)}
-.row.is-sel .glyph{color:var(--ptw-ink)}
+.row.is-sel{background:var(--ptw-sel-wash)}
+.hand{width:22px;height:15px;justify-self:center;color:var(--ptw-ink);opacity:0;transform:translateX(-5px);transition:opacity .15s,transform .15s}
 .row.is-sel .hand{opacity:1;transform:none}
-.hand{position:absolute;left:12px;top:50%;margin-top:-9px;width:26px;height:18px;opacity:0;transform:translateX(-6px);transition:transform .15s,opacity .15s;color:var(--ptw-ink)}
-.glyph{justify-self:center;width:28px;height:28px;color:var(--ptw-ink-soft)}
-.row.is-sel .glyph{visibility:hidden}
-.good{min-width:0;padding:6px 0}
-.gname{font:600 19px/1.1 var(--ptw-font-body);display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
-.meta{font:14px/1.25 var(--ptw-font-body);color:var(--ptw-ink-soft);margin-top:2px}
-.meta .m-hold{display:none}
-.mark{font:12px/1 var(--ptw-font-label);letter-spacing:.06em;padding:3px 6px 2px;border-radius:2px;white-space:nowrap}
-.mark.wanted{background:var(--ptw-wax);color:var(--ptw-wax-text);transform:rotate(-2deg)}
-.mark.bargain{border:1px solid var(--ptw-good-ink);color:var(--ptw-good-ink)}
-.mark.dear{border:1px solid var(--ptw-ink-soft);color:var(--ptw-ink-soft)}
-.holdc{text-align:center;line-height:1.15}
-.holdc b{font:700 18px var(--ptw-font-body)}
-.holdc small{display:block;font:13px var(--ptw-font-body);color:var(--ptw-ink-soft)}
-.pl-up{color:var(--ptw-good-ink);font-weight:700}
-.pl-dn{color:var(--ptw-bad-ink);font-weight:700}
-.empty{color:var(--ptw-ink-off)}
+.gcell{min-width:0;padding:4px 0 4px 8px}
+.gn{display:flex;align-items:baseline;min-width:0}
+.gname{font:600 18px/1.15 var(--ptw-font-body);white-space:nowrap}
+.marks{display:inline-flex;align-items:baseline;gap:6px;margin-left:8px;white-space:nowrap}
+.lead{flex:1;min-width:12px;margin:0 6px;border-bottom:2px dotted var(--ptw-leader);transform:translateY(-4px)}
+.detail{display:none;font:14px/1.2 var(--ptw-font-body);color:var(--ptw-ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mk{font:italic 14px/1 var(--ptw-font-note)}
+.mk.cheap{color:var(--ptw-good-ink);text-decoration:underline wavy rgb(38 92 34 / .6);text-underline-offset:3px}
+.mk.dear{color:var(--ptw-ink-soft)}
+.mk.wanted{color:var(--ptw-wax);display:inline-flex;align-items:center;gap:3px}
+.mk.wanted svg{width:15px;height:15px;transform:translateY(2px)}
+.aboard{text-align:right;padding-right:12px;line-height:1.1;white-space:nowrap}
+.aboard b{font-size:17px;font-weight:700}
+.aboard small{font-size:13px;color:var(--ptw-ink-soft);margin-left:4px}
+.aboard .none{color:var(--ptw-ink-off)}
+/* ledger cells: bare figures in ruled columns; the box appears only when selected */
+.cell{align-self:stretch;position:relative;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:1px;padding:0 12px 0 4px;border:0;border-left:1px solid var(--ptw-ledger-rule);background:transparent;color:var(--ptw-ink);text-align:right}
+.cell::after{content:"";position:absolute;inset:-4px 0}
+.cell .fig{font-size:19px;font-weight:700;line-height:1;display:flex;align-items:center;gap:3px}
+.cell .note{font:italic 12px/1 var(--ptw-font-note);color:var(--ptw-ink-soft)}
+.cell:hover .fig{text-decoration:underline solid var(--ptw-ink);text-underline-offset:4px;text-decoration-thickness:1.5px}
+.cell:hover{background:var(--ptw-hover-wash)}
+.cell.idle .fig{color:var(--ptw-ink-soft);font-weight:500}
+.cell.blocked .fig{color:var(--ptw-ink-off);font-weight:500}
+.cell.blocked .note{color:var(--ptw-bad-ink)}
+.cell[aria-pressed=true]{background:var(--ptw-ink);color:var(--ptw-parchment-hi);box-shadow:0 0 0 2px var(--ptw-sel-wash),0 0 0 3.5px var(--ptw-ink);z-index:2}
+.cell[aria-pressed=true] .fig{color:var(--ptw-parchment-hi);text-decoration:none}
+.cell[aria-pressed=true] .fig::before{content:"\2713";font-size:15px}
+.cell[aria-pressed=true] .note{color:var(--ptw-parchment)}
+.cell[aria-disabled=true]{cursor:not-allowed}
+.nosale{align-self:stretch;display:flex;align-items:center;justify-content:flex-end;padding-right:12px;border-left:1px solid var(--ptw-ledger-rule);font:italic 13px/1.05 var(--ptw-font-note);color:var(--ptw-ink-soft);text-align:right}
+.ledger-end{margin:0;padding:12px 16px 20px 44px;font:italic 14px var(--ptw-font-note);color:var(--ptw-ink-soft)}
+.keynote{position:absolute;right:14px;top:62px;z-index:5;width:260px;padding:10px 12px 10px;background:var(--ptw-tex-noise),#efe0b6;color:var(--ptw-ink);font:15px/1.6 var(--ptw-font-body);box-shadow:0 2px 4px rgb(0 0 0 / .35);transform:rotate(.6deg)}
+.keynote[hidden]{display:none}
+.keynote b{font:15px var(--ptw-font-label);letter-spacing:.04em}
+.keynote .k{display:inline-block;min-width:1.6em;font-weight:700;border-bottom:1.5px solid var(--ptw-ink-soft);text-align:center;margin-right:4px}
+.keynote button{position:absolute;right:2px;top:2px;width:36px;height:36px;border:0;background:transparent;color:var(--ptw-ink-soft)}
 
-/* price tags = the row's two actions */
-.tag{justify-self:stretch;min-height:48px;display:grid;place-items:center;align-content:center;gap:2px;padding:4px 2px;border:1.5px solid var(--ptw-ink);border-radius:3px;background:rgb(247 236 210 / .55);line-height:1;position:relative}
-.tag .k{font:13px var(--ptw-font-label);letter-spacing:.08em;display:flex;gap:3px;align-items:center}
-.tag .p{font:700 20px var(--ptw-font-body);display:flex;align-items:center;gap:3px}
-.tag .p svg{width:13px;height:13px}
-.tag:hover{background:var(--ptw-parchment-hi);box-shadow:0 2px 0 var(--ptw-ink)}
-.tag:active{transform:translateY(1px);box-shadow:none}
-.tag[aria-pressed=true]{background:var(--ptw-ink);color:var(--ptw-parchment-hi);box-shadow:inset 0 2px 4px #000,0 0 0 3px var(--ptw-sel-wash),0 0 0 4.5px var(--ptw-ink)}
-.tag[aria-pressed=true] .k::before{content:"\2713";font-family:var(--ptw-font-body);font-weight:700}
-.tag.off{border-style:dashed;border-color:var(--ptw-ink-soft);background:transparent;color:var(--ptw-ink-soft)}
-.tag.off .p{font-weight:500}
-.tag.off[aria-pressed=true]{background:var(--ptw-ink-soft);color:var(--ptw-parchment-hi)}
-.nosale{justify-self:stretch;text-align:center;font:italic 14px/1.1 var(--ptw-font-hand);color:var(--ptw-ink-soft);padding:0 2px}
-.nosale::before{content:"";display:block;width:60%;margin:0 auto 4px;border-top:1.5px solid var(--ptw-ink-soft);transform:rotate(-4deg)}
-.ledger-end{padding:14px 52px 24px;font:italic 14px var(--ptw-font-hand);color:var(--ptw-ink-soft)}
+/* stamp: over the name column, rich ink with an uneven mask */
+.stamp{position:absolute;left:150px;top:50%;z-index:2;pointer-events:none;padding:3px 10px 1px;border:3px double currentColor;font:21px/1.1 var(--ptw-font-label);letter-spacing:.16em;opacity:0;
+  -webkit-mask-image:var(--ptw-ink-mask);mask-image:var(--ptw-ink-mask);animation:stamp 1.9s ease-out forwards}
+.stamp.buy{color:rgb(31 58 90 / .88)}.stamp.sell{color:rgb(142 26 20 / .88)}
+@keyframes stamp{0%{opacity:0;transform:translateY(-50%) rotate(-8deg) scale(1.8)}12%{opacity:1;transform:translateY(-50%) rotate(-8deg) scale(1)}78%{opacity:1}100%{opacity:0;transform:translateY(-50%) rotate(-8deg) scale(1)}}
 
-/* stamp feedback */
-.stamp{position:absolute;right:250px;top:50%;z-index:4;pointer-events:none;padding:2px 10px 0;border:3px double currentColor;border-radius:4px;font:22px/1.1 var(--ptw-font-label);letter-spacing:.16em;mix-blend-mode:multiply;opacity:0;animation:stamp 1.9s ease-out forwards}
-.stamp.buy{color:var(--ptw-ink-blue)}.stamp.sell{color:var(--ptw-wax)}
-@keyframes stamp{0%{opacity:0;transform:translateY(-50%) rotate(-9deg) scale(1.9)}12%{opacity:.92;transform:translateY(-50%) rotate(-9deg) scale(1)}75%{opacity:.92}100%{opacity:0;transform:translateY(-50%) rotate(-9deg) scale(1)}}
-
-/* ---------------------------------------------------------------- the slip (bill of sale), always docked */
-.slip{grid-area:slip;position:relative;padding:12px 16px 12px;border-top:2px dashed rgb(42 26 12 / .55);
-  background:var(--ptw-tex-noise),linear-gradient(180deg,#e6d2a2,var(--ptw-parchment-lo));
-  box-shadow:0 -6px 14px rgb(42 26 12 / .18)}
-.slip::before{content:"Bill of Sale";position:absolute;left:16px;top:-11px;padding:0 8px;background:var(--ptw-parchment);font:13px var(--ptw-font-label);letter-spacing:.1em;color:var(--ptw-ink-soft)}
-.shead{display:flex;align-items:center;gap:10px;min-height:var(--ptw-tap)}
-.shead .kind{font:14px var(--ptw-font-label);letter-spacing:.1em;padding:3px 8px 2px;border-radius:2px;color:var(--ptw-parchment-hi);background:var(--ptw-ink-blue)}
-.shead .kind.sell{background:var(--ptw-wax)}
-.shead h2{margin:0;font:400 28px/1 var(--ptw-font-display);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.shead .unit{font:16px var(--ptw-font-body);color:var(--ptw-ink-soft);white-space:nowrap}
-.shead .sp{flex:1}
-.xbtn{flex:none;width:var(--ptw-tap);height:var(--ptw-tap);border:0;background:transparent;border-radius:50%;display:grid;place-items:center;color:var(--ptw-ink-soft)}
+/* ---------------------------------------------------------------- the bill of sale: its own sheet laid on the counter */
+.slipwrap{min-width:0;min-height:0;position:relative;z-index:2;margin:22px 0 10px -14px;filter:drop-shadow(0 3px 4px rgb(0 0 0 / .55))}
+.slip{height:100%;display:flex;flex-direction:column;overflow-y:auto;padding:14px 18px 16px 24px;color:var(--ptw-ink);
+  background:var(--ptw-tex-noise),linear-gradient(180deg,#e3cfa0,var(--ptw-slip));
+  /* perforated left edge (torn off a book of bills) */
+  -webkit-mask:radial-gradient(circle at 0 6px,transparent 3px,#000 3.5px) left top/8px 12px repeat-y,linear-gradient(#000,#000) 8px 0/calc(100% - 8px) 100% no-repeat;
+  mask:radial-gradient(circle at 0 6px,transparent 3px,#000 3.5px) left top/8px 12px repeat-y,linear-gradient(#000,#000) 8px 0/calc(100% - 8px) 100% no-repeat}
+.slip-h{margin:0 0 2px;padding-right:30px;font:15px var(--ptw-font-label);letter-spacing:.12em;color:var(--ptw-ink-soft);border-bottom:1.5px solid var(--ptw-ink);padding-bottom:4px}
+.slip-h em{font:italic 17px var(--ptw-font-body);letter-spacing:0}
+.slip-h em.buy{color:var(--ptw-ink-blue)}.slip-h em.sell{color:var(--ptw-wax)}.slip-h em.order{color:var(--ptw-ink)}
+#slipBody{display:flex;flex-direction:column;flex:1}
+.sgood{display:flex;align-items:baseline;gap:8px;margin-top:8px;min-height:var(--ptw-tap)}
+.sgood b{font:700 24px/1.1 var(--ptw-font-body)}
+.sgood .each{font-size:16px;color:var(--ptw-ink-soft);white-space:nowrap}
+.sgood .sp{flex:1}
+.xbtn{flex:none;align-self:center;width:var(--ptw-tap);height:var(--ptw-tap);border:0;background:transparent;border-radius:50%;display:grid;place-items:center;color:var(--ptw-ink-soft)}
 .xbtn:hover{background:var(--ptw-hover-wash);color:var(--ptw-ink)}
-.xbtn svg{width:18px;height:18px}
-.qrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:6px}
-.stepper{display:flex;align-items:stretch;border:1.5px solid var(--ptw-ink);border-radius:3px;background:var(--ptw-parchment-hi)}
+.xbtn svg{width:16px;height:16px}
+.xbtn:disabled{opacity:.4;cursor:not-allowed}
+.sline{margin:2px 0 0;font:15px/1.35 var(--ptw-font-body);color:var(--ptw-ink-soft)}
+.qrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.stepper{display:flex;border:1.5px solid var(--ptw-ink);background:var(--ptw-parchment-hi)}
 .stepper button{width:var(--ptw-tap);min-height:var(--ptw-tap);border:0;background:transparent;font:700 22px var(--ptw-font-body)}
-.stepper button:hover{background:var(--ptw-hover-wash)}
+.stepper button:hover:not(:disabled){background:var(--ptw-hover-wash)}
 .stepper button:disabled{color:var(--ptw-ink-off);cursor:not-allowed}
-.stepper input{width:64px;border:0;border-left:1px solid var(--ptw-ledger-rule);border-right:1px solid var(--ptw-ledger-rule);background:transparent;text-align:center;font:700 22px var(--ptw-font-body);color:var(--ptw-ink)}
+.stepper input{width:60px;border:0;border-left:1px solid var(--ptw-ledger-rule);border-right:1px solid var(--ptw-ledger-rule);background:transparent;text-align:center;font-size:21px;font-weight:700;color:var(--ptw-ink)}
+.stepper input[aria-invalid=true]{background:repeating-linear-gradient(135deg,rgb(142 26 20 / .12) 0 4px,transparent 4px 8px);color:var(--ptw-bad-ink)}
 .qchips{display:flex;gap:6px}
-.qchip{min-width:var(--ptw-tap);min-height:var(--ptw-tap);padding:0 12px;border-radius:3px;border:1px solid var(--ptw-wood-black);
-  background:var(--ptw-tex-grain),linear-gradient(180deg,#5a381f,var(--ptw-wood));color:var(--ptw-cream);font:16px var(--ptw-font-label);letter-spacing:.03em;box-shadow:inset 0 1px 0 rgb(246 224 160 / .2),0 2px 0 var(--ptw-wood-black)}
-.qchip:hover{background:var(--ptw-tex-grain),linear-gradient(180deg,#6a4426,#4a2e19)}
-.qchip:active{transform:translateY(2px);box-shadow:none}
-.qchip[aria-pressed=true]{background:linear-gradient(180deg,var(--ptw-brass-hi),var(--ptw-brass));color:var(--ptw-ink);box-shadow:inset 0 2px 3px rgb(42 26 12 / .5);transform:translateY(1px)}
-.qchip:disabled{opacity:.45;cursor:not-allowed}
-.range{flex:1 1 160px;min-width:120px;height:var(--ptw-tap);-webkit-appearance:none;appearance:none;background:transparent;margin:0}
-.range::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--ptw-ink) var(--pct,0%),rgb(42 26 12 / .2) var(--pct,0%))}
-.range::-moz-range-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--ptw-ink) var(--pct,0%),rgb(42 26 12 / .2) var(--pct,0%))}
-.range::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;margin-top:-11px;border-radius:50%;border:2px solid var(--ptw-ink);background:radial-gradient(circle at 35% 30%,var(--ptw-brass-hi),var(--ptw-brass) 60%,var(--ptw-brass-lo))}
-.range::-moz-range-thumb{width:24px;height:24px;border-radius:50%;border:2px solid var(--ptw-ink);background:radial-gradient(circle at 35% 30%,var(--ptw-brass-hi),var(--ptw-brass) 60%,var(--ptw-brass-lo))}
+.qchip{min-width:var(--ptw-tap);min-height:var(--ptw-tap);padding:0 10px;border:1.5px solid var(--ptw-ink-soft);border-radius:2px;background:var(--ptw-parchment-hi);color:var(--ptw-ink);font-size:16px;font-weight:500;box-shadow:0 2px 0 var(--ptw-ink-soft)}
+.qchip.max{min-width:74px}
+.qchip:hover:not(:disabled){background:#fff6df}
+.qchip:active:not(:disabled){transform:translateY(2px);box-shadow:none}
+.qchip[aria-pressed=true],.qchip[aria-pressed=true]:hover:not(:disabled){background:var(--ptw-ink);color:var(--ptw-parchment-hi);border-color:var(--ptw-ink);box-shadow:none;transform:translateY(2px)}
+.qchip:disabled{color:var(--ptw-ink-off);border-style:dotted;box-shadow:none;cursor:not-allowed}
+.range{width:100%;height:var(--ptw-tap);-webkit-appearance:none;appearance:none;background:transparent;margin:2px 0 0}
+.range::-webkit-slider-runnable-track{height:4px;background:linear-gradient(90deg,var(--ptw-ink) var(--pct,0%),rgb(42 26 12 / .2) var(--pct,0%))}
+.range::-moz-range-track{height:4px;background:linear-gradient(90deg,var(--ptw-ink) var(--pct,0%),rgb(42 26 12 / .2) var(--pct,0%))}
+.range::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-9px;border-radius:50%;border:2px solid var(--ptw-ink);background:var(--ptw-parchment-hi)}
+.range::-moz-range-thumb{width:18px;height:18px;border-radius:50%;border:2px solid var(--ptw-ink);background:var(--ptw-parchment-hi)}
 .range:disabled{opacity:.4}
-.limit{margin:4px 0 0;font:15px/1.3 var(--ptw-font-body);color:var(--ptw-ink-soft)}
+.limit{margin:6px 0 0;font:15px/1.3 var(--ptw-font-body);color:var(--ptw-ink-soft)}
 .limit.block{color:var(--ptw-bad-ink);font-weight:700}
-.sum{margin:4px 0 0;font:16px/1.4 var(--ptw-font-body);display:flex;flex-wrap:wrap;gap:2px 18px}
+.limit.flash{animation:flash .6s}
+@keyframes flash{0%,40%{background:rgb(142 26 20 / .14)}100%{background:transparent}}
+.sum{margin:8px 0 0;padding-top:6px;border-top:1px solid var(--ptw-ledger-rule);font:16px/1.45 var(--ptw-font-body);display:flex;flex-wrap:wrap;gap:0 16px}
+.sum:empty{display:none}
 .sum s{color:var(--ptw-ink-soft)}
 .sum b{font-weight:700}
-.acts{display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:8px}
-.btn{min-height:52px;padding:0 20px;border-radius:4px;font:19px var(--ptw-font-label);letter-spacing:.03em;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-align:center;line-height:1.1}
+.pl-up{color:var(--ptw-good-ink);font-weight:700}
+.pl-dn{color:var(--ptw-bad-ink);font-weight:700}
+.sfoot{margin-top:auto;padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.acts{display:flex;gap:10px;align-items:center}
+.btn{min-height:52px;padding:0 16px;font:18px var(--ptw-font-label);letter-spacing:.03em;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-align:center;line-height:1.1;white-space:nowrap}
+.btn .num{font-size:19px;font-weight:700}
 .btn svg{width:18px;height:18px;flex:none}
-.btn-brass{position:relative;border:1.5px solid var(--ptw-brass-lo);color:var(--ptw-ink);
+.btn-sign{flex:1;position:relative;border:1.5px solid var(--ptw-brass-lo);border-radius:3px;color:var(--ptw-ink);
   background:radial-gradient(circle at 10px 50%,var(--ptw-brass-lo) 0 2px,transparent 2.5px),radial-gradient(circle at calc(100% - 10px) 50%,var(--ptw-brass-lo) 0 2px,transparent 2.5px),linear-gradient(180deg,var(--ptw-brass-hi),var(--ptw-brass) 55%,#a8822f);
-  box-shadow:inset 0 1px 0 #fff6d6,0 3px 0 var(--ptw-brass-lo),0 4px 8px rgb(42 26 12 / .35);min-width:220px}
-.btn-brass:hover{filter:brightness(1.06)}
-.btn-brass:active{transform:translateY(3px);box-shadow:inset 0 2px 4px rgb(42 26 12 / .5)}
-.btn-brass:disabled,.btn-brass[aria-disabled=true]{filter:none;transform:none;cursor:not-allowed;background:transparent;border:1.5px dashed var(--ptw-ink-off);color:var(--ptw-ink-off);box-shadow:none}
-.btn-brass[aria-busy=true]{cursor:progress;background:linear-gradient(180deg,#e9d6a0,#c7aa62);filter:saturate(.6)}
-.btn-wood{border:1px solid var(--ptw-wood-black);color:var(--ptw-cream);background:var(--ptw-tex-grain),linear-gradient(180deg,#5a381f,var(--ptw-wood));box-shadow:inset 0 1px 0 rgb(246 224 160 / .2),0 3px 0 var(--ptw-wood-black)}
-.btn-wood:active{transform:translateY(3px);box-shadow:none}
-.btn-wax{border:1px solid var(--ptw-wax-lo);color:var(--ptw-wax-text);background:radial-gradient(circle at 30% 25%,var(--ptw-wax-hi),var(--ptw-wax) 60%,var(--ptw-wax-lo));box-shadow:0 3px 0 var(--ptw-wax-lo)}
-.btn-wax:active{transform:translateY(3px);box-shadow:none}
-.btn-rope{border:0;background:transparent;color:var(--ptw-ink);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:5px;min-width:var(--ptw-tap);padding:0 12px}
-.btn-rope:hover{background:var(--ptw-hover-wash)}
-.hint{margin:6px 0 0;font:17px/1.35 var(--ptw-font-body)}
-.keys{margin:6px 0 0;font:14px/1.9 var(--ptw-font-body);color:var(--ptw-ink-soft)}
-kbd{display:inline-block;min-width:22px;padding:1px 5px;margin:0 1px;border:1px solid var(--ptw-ink-soft);border-bottom-width:2px;border-radius:3px;font:13px/1.2 var(--ptw-font-body);text-align:center;background:var(--ptw-parchment-hi);color:var(--ptw-ink)}
-.status{margin:8px 0 0;min-height:0;font:16px/1.35 var(--ptw-font-body)}
+  box-shadow:inset 0 1px 0 #fff6d6,0 3px 0 var(--ptw-brass-lo),0 4px 6px rgb(42 26 12 / .35)}
+.btn-sign:hover:not(:disabled){filter:brightness(1.06)}
+.btn-sign:active:not(:disabled){transform:translateY(3px);box-shadow:inset 0 2px 4px rgb(42 26 12 / .5)}
+.btn-sign:disabled{filter:none;cursor:not-allowed;background:transparent;border:1.5px dotted var(--ptw-ink-off);color:var(--ptw-ink-off);box-shadow:none}
+.btn-sign[aria-busy=true]{cursor:progress;background:linear-gradient(180deg,#e9d6a0,#c7aa62);color:var(--ptw-ink);border:1.5px solid var(--ptw-brass-lo)}
+.btn-wax{flex:1;border:1px solid var(--ptw-wax-lo);border-radius:3px;color:var(--ptw-wax-text);background:radial-gradient(circle at 30% 25%,var(--ptw-wax-hi),var(--ptw-wax) 60%,var(--ptw-wax-lo));box-shadow:0 3px 0 var(--ptw-wax-lo)}
+.btn-wax:active:not(:disabled){transform:translateY(3px);box-shadow:none}
+.btn-wax:disabled{opacity:.55;cursor:wait}
+.btn-ink{border:0;background:transparent;color:var(--ptw-ink);font:italic 17px var(--ptw-font-body);letter-spacing:0;text-decoration:underline dotted;text-underline-offset:5px;padding:0 6px;min-height:var(--ptw-tap)}
+.btn-ink:hover{background:var(--ptw-hover-wash)}
+.btn-ink:disabled{color:var(--ptw-ink-off);cursor:not-allowed}
+.hint{margin:10px 0 0;font:17px/1.4 var(--ptw-font-body)}
+.armed{margin-top:8px}
+.armed p{margin:6px 0;font:16px/1.35 var(--ptw-font-body)}
+.armed ul{margin:4px 0;padding:0;list-style:none;font-size:15px;max-height:9.5em;overflow:auto}
+.armed li{display:flex;gap:6px;padding:2px 0;border-bottom:1px dotted var(--ptw-ledger-rule)}
+.armed li .lead{transform:translateY(-4px)}
+.armed .warn{color:var(--ptw-bad-ink)}
+/* the persistent result line: ink note (ok) or the clerk's wax-ruled note (refusal) */
+.status{margin:10px 0 0;font:16px/1.35 var(--ptw-font-body)}
 .status:empty{display:none}
 .status.ok{color:var(--ptw-ink-blue);font-style:italic}
 .status.ok.sell{color:var(--ptw-wax)}
-.status.err{padding:8px 10px;border-radius:3px;background:var(--ptw-wax);color:var(--ptw-wax-text);font-style:normal;display:flex;gap:8px;align-items:flex-start;box-shadow:0 2px 0 var(--ptw-wax-lo)}
-.status.err svg{flex:none;width:18px;height:18px;margin-top:2px}
-.sbody{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 28px;align-items:end}
-.sl-r{display:flex;flex-direction:column;align-items:flex-end}
-.sl-r .sum{justify-content:flex-end}
-.btn{white-space:nowrap}
-.idle-acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px}
+.status.err{display:flex;gap:8px;align-items:flex-start;padding:6px 8px 6px 10px;border-left:3px solid var(--ptw-wax);background:rgb(142 26 20 / .07);color:var(--ptw-bad-ink)}
+.status.err svg{flex:none;width:20px;height:20px}
 
-/* shipwright tab */
-.yard{padding:14px 14px 24px 52px;display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));align-content:start}
-.order{position:relative;border:1.5px solid var(--ptw-ink);border-radius:3px;padding:12px 14px;background:rgb(247 236 210 / .5)}
-.order.is-sel{background:var(--ptw-sel-wash);box-shadow:0 0 0 3px var(--ptw-sel-wash),0 0 0 4.5px var(--ptw-ink)}
-.order h3{margin:0;font:400 24px/1.1 var(--ptw-font-display)}
+/* shipwright: work orders pinned to the page */
+.yard{padding:16px 16px 24px 46px;display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));align-content:start}
+.order{position:relative;padding:16px 14px 12px;background:var(--ptw-tex-noise),#e6d3a5;box-shadow:0 2px 3px rgb(0 0 0 / .35);transform:rotate(-.5deg)}
+.order + .order{transform:rotate(.6deg)}
+.order::before{content:"";position:absolute;left:50%;top:5px;width:9px;height:9px;margin-left:-4px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#6b6e74,var(--ptw-iron) 60%,#111)}
+.order.is-sel{background:var(--ptw-tex-noise),var(--ptw-sel-wash);outline:2px solid var(--ptw-ink);outline-offset:3px}
+.order h3{margin:4px 0 2px;font:19px var(--ptw-font-label);letter-spacing:.05em}
 .order p{margin:6px 0;font:16px/1.35 var(--ptw-font-body)}
-.order table{width:100%;border-collapse:collapse;font:15px var(--ptw-font-body);margin:6px 0}
+.order table{width:100%;border-collapse:collapse;font-size:15px;margin:6px 0}
 .order th{font:13px var(--ptw-font-label);letter-spacing:.06em;color:var(--ptw-ink-soft);text-align:left;font-weight:400}
 .order td,.order th{padding:3px 4px;border-bottom:1px solid var(--ptw-ledger-rule)}
 .order td:nth-child(n+2),.order th:nth-child(n+2){text-align:right}
-.order .meter{height:16px;margin:6px 0}
-.order .meter .f{background:repeating-linear-gradient(90deg,var(--ptw-good-ink) 0 6px,#3a7a32 6px 7px)}
-.order .row-act{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px}
-.order .cost{font:700 20px var(--ptw-font-body);display:flex;align-items:center;gap:4px}
-.order .cost svg{width:16px;height:16px}
+.planks{display:flex;gap:3px;margin:8px 0 4px}
+.planks i{flex:1;height:14px;background:linear-gradient(180deg,#8b5a26,#5e3a1a);box-shadow:inset 0 0 0 1px var(--ptw-ink)}
+.planks i.broken{background:transparent;box-shadow:inset 0 0 0 1px var(--ptw-ink-off);clip-path:polygon(0 0,100% 0,100% 40%,70% 55%,100% 70%,100% 100%,0 100%,0 60%,30% 45%,0 30%)}
+.order .oact{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px}
+.order .cost{font-size:20px;font-weight:700}
+.ochoose{min-height:var(--ptw-tap);padding:0 12px;border:1.5px solid var(--ptw-ink);border-radius:2px;background:var(--ptw-parchment-hi);font:16px var(--ptw-font-label);letter-spacing:.04em;color:var(--ptw-ink)}
+.ochoose[aria-pressed=true]{background:var(--ptw-ink);color:var(--ptw-parchment-hi)}
+.ochoose[aria-pressed=true]::before{content:"\2713  "}
+.ochoose:disabled{border-style:dotted;color:var(--ptw-ink-off);cursor:not-allowed}
 
-/* closed state */
-.closed{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);padding:10px 16px;background:rgb(18 10 5 / .85);border:1px solid rgb(201 162 77 / .6);border-radius:4px;font:16px var(--ptw-font-body);color:var(--ptw-cream);max-width:calc(100% - 32px);text-align:center}
-.closed button{margin-left:8px;min-height:var(--ptw-tap)}
+.closed{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);padding:10px 16px;background:rgb(18 10 5 / .88);border:1px solid rgb(201 162 77 / .6);font:16px var(--ptw-font-body);color:var(--ptw-cream);max-width:calc(100% - 32px);text-align:center}
+.closed button{margin-left:8px;min-height:var(--ptw-tap);padding:0 14px;border:1px solid #6b4a2a;background:var(--ptw-wood);color:var(--ptw-cream);font:16px var(--ptw-font-label)}
 
-/* ---------------------------------------------------------------- PHONE (narrow) */
+/* ---------------------------------------------------------------- PHONE portrait (narrow) */
 @container dev (max-width: 640px){
-  .bog{width:100%;height:100%;border-radius:0;padding:6px;padding-top:max(6px,env(safe-area-inset-top));padding-bottom:max(6px,env(safe-area-inset-bottom))}
-  .bog::before,.bog::after{display:none}
-  .head{padding:8px 10px 6px}
+  :root{--row:52px}
+  .bog{width:100%;height:100%;padding:8px;padding-top:max(8px,env(safe-area-inset-top));padding-bottom:max(8px,env(safe-area-inset-bottom));
+    grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  .nail{display:none}
+  .close{right:4px;top:6px}
+  .head{padding:8px 52px 6px 14px;gap:4px 12px}
   .port{font-size:26px}
-  .sub{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .flag{width:30px;height:21px}
-  .instr{margin-top:6px;gap:6px 14px}
+  .flag{width:30px;height:18px}
+  .sub .long{display:none}.sub .short{display:inline}
+  .sub{font-size:13px}
+  .instr{flex:1 1 100%;gap:12px}
   .purse b{font-size:19px}
-  .holdm{min-width:0}
-  .shipname{display:none}
-  .tools{padding:6px 8px 0;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
-  .colhead{display:none}
-  .grp{top:0}
-  .limit:not(.block){display:none}
-  .tab{padding:0 12px;font-size:16px}
-  .ledger{background:linear-gradient(90deg,transparent 31px,var(--ptw-ledger-margin) 31px 32px,transparent 32px)}
-  .colhead,.row{grid-template-columns:34px minmax(0,1fr) 68px 68px;column-gap:6px;padding-right:8px}
-  .colhead .c-hold,.row .holdc{display:none}
-  .grp{padding-left:40px;font-size:20px}
-  .meta .m-hold{display:inline}
-  .meta .m-usual{display:none}
+  .holdm{flex:1;min-width:0}
+  .crates{flex:1;width:auto;height:14px}
+  .tools{padding:4px 10px 0 14px;flex-wrap:nowrap;gap:10px}
+  .tab{min-height:var(--ptw-tap);padding:0 12px;font-size:16px}
+  .show .flt,.show .lab{display:none}
+  .show{padding-bottom:0;margin-left:auto}
+  .showsel{display:block}
+  .keyslink{display:none}
+  .ledger{background:linear-gradient(90deg,transparent 23px,var(--ptw-ledger-margin) 23px 24px,transparent 24px)}
+  .colhead,.row{grid-template-columns:26px minmax(0,1fr) 66px 66px;padding-right:6px}
+  .colhead > span.c-ab,.row .aboard{display:none}
+  .colhead{height:24px}
+  .colhead .hl{display:none}.colhead .hs{display:inline}
+  .grp{top:24px;height:28px;padding:5px 10px 0 32px;font-size:15px}
+  .grp small{display:none}
+  .gcell{padding-left:6px}
   .gname{font-size:17px}
-  .hand{left:6px;width:22px}
-  .glyph{width:24px;height:24px}
-  .tag .p{font-size:18px}
-  .stamp{right:150px;font-size:18px}
-  .slip{padding:10px 10px 10px}
-  .slip::before{left:10px}
-  .shead h2{font-size:24px}
-  .shead .unit{font-size:14px}
-  .stepper input{width:52px}
-  .qchips{flex:1;justify-content:flex-end}
-  .qchip{padding:0 8px;font-size:15px}
-  .range{flex-basis:100%}
-  .sbody{display:block}
-  .sl-r{align-items:stretch}
-  .sl-r .sum{justify-content:flex-start}
-  .acts{justify-content:stretch}
-  .acts .btn-rope{display:none}
-  .acts .btn-brass{flex:1;min-width:0}
-  .trow{gap:6px 10px}
-  .trow .titles{flex:1 1 0}
-  .trow .instr{order:5;flex:1 1 100%;flex-wrap:nowrap}
-  .holdm{width:auto;flex:1}
-  .btn{font-size:17px;padding:0 12px}
-  .keys{display:none}
-  .yard{padding-left:40px;padding-right:8px}
-}
-@container dev (max-width: 360px){
+  .marks{display:none}
+  .detail{display:block}
+  .lead{display:none}
+  .hand{width:18px}
+  .cell{padding-right:10px}
+  .cell .fig{font-size:18px}
+  .stamp{left:60px;font-size:17px}
+  .slipwrap{margin:-10px 4px 0;filter:drop-shadow(0 -2px 4px rgb(0 0 0 / .45))}
+  .slip{max-height:41cqh;padding:12px 12px 10px;
+    -webkit-mask:radial-gradient(circle at 6px 0,transparent 3px,#000 3.5px) left top/12px 8px repeat-x,linear-gradient(#000,#000) 0 8px/100% calc(100% - 8px) no-repeat;
+    mask:radial-gradient(circle at 6px 0,transparent 3px,#000 3.5px) left top/12px 8px repeat-x,linear-gradient(#000,#000) 0 8px/100% calc(100% - 8px) no-repeat}
+  .slip-h{display:none}
+  .sgood{margin-top:2px;min-height:40px;gap:6px}
+  .sgood .kind{font:italic 15px var(--ptw-font-body)}
+  .sgood b{font-size:20px}
+  .sgood .each{font-size:14px}
+  .sline{display:none}
+  .qrow{margin-top:4px;flex-wrap:nowrap;gap:6px}
+  .stepper input{width:48px}
   .stepper button{width:40px}
-  .qchip{min-width:40px}
+  .qchips{flex:1;justify-content:flex-end;gap:5px}
+  .qchip{padding:0 6px;min-width:42px}
+  .qchip.max{min-width:64px}
+  .range{display:none}
+  .limit{font-size:14px;margin-top:4px}
+  .sum{font-size:14px;margin-top:4px;padding-top:3px;gap:0 12px}
+  .sfoot{padding-top:8px}
+  .hint{margin-top:2px;font-size:15px}
+  .status{font-size:14px;margin-top:6px}
+  .yard{padding:12px 10px 20px 30px}
 }
-/* ---------------------------------------------------------------- PHONE LANDSCAPE / short screens: ledger | slip side by side */
+@container dev (max-width: 359px){
+  .qchip.ten{display:none}
+}
+/* ---------------------------------------------------------------- PHONE LANDSCAPE / short screens */
 @container dev (max-height: 520px) and (min-width: 560px){
-  .bog{width:100%;height:100%;border-radius:0;padding:4px max(6px,env(safe-area-inset-right)) 4px max(6px,env(safe-area-inset-left))}
-  .bog::before,.bog::after{display:none}
-  .page{grid-template-columns:minmax(0,1fr) 272px;grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"head head" "tools slip" "ledger slip"}
-  .head{padding:6px 10px 5px;display:flex;align-items:center;gap:14px}
-  .trow{flex:1;min-width:0}
-  .sub,.shipname{display:none}
-  .port{font-size:24px}
-  .flag{width:28px;height:20px}
-  .instr{margin:0;flex:none;flex-wrap:nowrap;gap:14px}
-  .holdm{min-width:150px}
-  .close{order:3}
-  .tools{padding:4px 8px 0}
-  .tab{min-height:38px;font-size:15px;padding:0 10px}
-  .chip{min-height:32px;margin-bottom:4px}
-  .colhead,.row{grid-template-columns:34px minmax(0,1fr) 68px 68px;column-gap:6px;padding-right:8px}
-  .colhead .c-hold,.row .holdc{display:none}
-  .meta .m-hold{display:inline}.meta .m-usual{display:none}
-  .ledger{background:linear-gradient(90deg,transparent 31px,var(--ptw-ledger-margin) 31px 32px,transparent 32px)}
-  .grp{padding-left:40px;font-size:19px;padding-top:6px}
-  .row{min-height:52px}
-  .tag{min-height:44px}
-  .stamp{right:150px;font-size:18px}
-  .slip{border-top:0;border-left:2px dashed rgb(42 26 12 / .55);overflow-y:auto;padding:16px 10px 10px;box-shadow:-6px 0 14px rgb(42 26 12 / .18)}
-  .slip::before{top:2px;left:10px}
-  .shead h2{font-size:22px}
-  .shead .unit{display:none}
-  .stepper input{width:52px}
-  .qchip{padding:0 8px}
-  .range{flex-basis:100%}
-  .sbody{display:block}
-  .sl-r{align-items:stretch}
-  .sl-r .sum{justify-content:flex-start;font-size:15px}
-  .limit:not(.block){display:none}
-  .qrow{margin-top:2px;gap:6px}
-  .range{height:36px}
-  .acts{position:sticky;bottom:-10px;margin:6px -10px -10px;padding:6px 10px 10px;background:linear-gradient(rgb(214 188 136 / 0),var(--ptw-parchment-lo) 30%)}
-  .acts .btn-rope{display:none}
-  .acts .btn-brass{flex:1;min-width:0}
-  .trow{flex-wrap:nowrap}
-  .holdm{width:150px}
-  .tab{min-height:44px}
-  .btn{font-size:16px;padding:0 10px;min-height:48px}
-  .keys{display:none}
-  .yard{padding-left:40px;grid-template-columns:1fr}
+  :root{--row:44px}
+  .bog{width:100%;height:100%;padding:5px max(6px,env(safe-area-inset-right)) 6px max(6px,env(safe-area-inset-left));grid-template-columns:minmax(0,1fr) 280px}
+  .nail{display:none}
+  .close{right:2px;top:2px}
+  .head{flex-wrap:nowrap;padding:5px 12px 4px 14px;gap:12px}
+  .sub{display:none}
+  .port{font-size:22px}
+  .flag{width:28px;height:17px}
+  .purse b{font-size:17px}
+  .crates{width:64px;height:13px}
+  .holdm b{font-size:15px}
+  .lab{font-size:13px}
+  .tools{padding:0 10px 0 14px;flex-wrap:nowrap}
+  .tab{min-height:var(--ptw-tap);font-size:15px;padding:0 10px}
+  .show .flt,.show .lab{display:none}
+  .show{padding-bottom:0;margin-left:auto}
+  .showsel{display:block}
+  .keyslink{display:none}
+  .ledger{scroll-padding-top:50px;background:linear-gradient(90deg,transparent 23px,var(--ptw-ledger-margin) 23px 24px,transparent 24px)}
+  .colhead,.row{grid-template-columns:26px minmax(0,1fr) 70px 70px;padding-right:6px}
+  .colhead > span.c-ab,.row .aboard{display:none}
+  .colhead{height:22px}
+  .colhead .hl{display:none}.colhead .hs{display:inline}
+  .instr .lab{display:none}
+  .instr{gap:10px}
+  .port{white-space:nowrap}
+  .grp{top:22px;height:26px;padding:4px 10px 0 32px;font-size:15px}
+  .grp small{display:none}
+  .gname{font-size:16px}
+  .marks{display:none}
+  .detail{display:block;font-size:13px}
+  .lead{display:none}
+  .hand{width:18px}
+  .stamp{left:60px;font-size:16px}
+  .slipwrap{margin:16px 0 4px -12px}
+  .slip{padding:8px 10px 0 18px}
+  .slip-h{font-size:13px}
+  .sgood{margin-top:2px;min-height:36px}
+  .sgood b{font-size:19px}
+  .sgood .each{font-size:14px}
+  .sline{display:none}
+  .qrow{margin-top:4px;gap:5px}
+  .stepper input{width:46px}
+  .stepper button{width:40px}
+  .qchip{padding:0 6px;min-width:42px}
+  .qchip.max{min-width:60px}
+  .range{display:none}
+  .limit{font-size:14px;margin-top:2px}
+  .sum{font-size:14px;margin-top:4px;padding-top:2px}
+  /* Sign stays visible at the foot of the slip; content reserves room for it */
+  .sfoot{position:sticky;bottom:0;margin:auto -10px 0 -18px;padding:8px 10px 8px 18px;background:linear-gradient(rgb(220 197 151 / 0),var(--ptw-slip) 10px)}
+  .btn{min-height:46px;font-size:16px}
+  .hint{font-size:15px;margin-top:4px}
+  .status{font-size:14px;margin-top:4px}
+  .yard{padding:10px 10px 16px 30px;grid-template-columns:1fr}
 }
-@media (hover:none){.keys{display:none}}
+@media (hover:none){.keyslink{display:none}}
 
 /* before panel */
-.before{position:fixed;inset:0;z-index:50;background:rgb(3 9 15 / .92);overflow-y:auto;padding:16px;font:15px/1.45 system-ui,sans-serif;color:#dbe7ee}
+.before{position:fixed;inset:0;z-index:50;background:rgb(3 9 15 / .94);overflow-y:auto;padding:16px;font:15px/1.45 system-ui,sans-serif;color:#dbe7ee}
 .before[hidden]{display:none}
 .before h2{font:400 28px var(--ptw-font-display);color:var(--ptw-gold);margin:0 0 6px}
 .before .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:14px;margin:12px 0}
@@ -370,47 +433,40 @@ kbd{display:inline-block;min-width:22px;padding:1px 5px;margin:0 1px;border:1px 
 .before img{max-width:100%;height:auto;display:block;border-radius:3px}
 .before figcaption{font-size:13px;margin-top:6px;color:#a9c2d0}
 .before ol{padding-left:20px;max-width:900px}
-.before .pb{position:sticky;top:0;float:right;background:#132a38;border:1px solid #2c4c60;color:#e7f1f6;border-radius:4px;padding:4px 14px}
+.before .pb{position:sticky;top:0;float:right;min-height:44px;padding:4px 14px}
 
 /* motion */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{transition-duration:.01ms!important}
+  .bog{animation:none}
   .stamp{animation:stamp-rm 1.9s linear forwards!important}
+  .limit.flash{animation:none}
 }
 .device[data-rm=true] *{transition-duration:.01ms!important}
+.device[data-rm=true] .bog{animation:none}
 .device[data-rm=true] .stamp{animation:stamp-rm 1.9s linear forwards!important}
-@keyframes stamp-rm{0%,80%{opacity:.92;transform:translateY(-50%) rotate(-9deg)}100%{opacity:0;transform:translateY(-50%) rotate(-9deg)}}
+@keyframes stamp-rm{0%,80%{opacity:1;transform:translateY(-50%) rotate(-8deg)}100%{opacity:0;transform:translateY(-50%) rotate(-8deg)}}
 </style>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <symbol id="g-coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#c9a24d" stroke="#2a1a0c" stroke-width="1.6"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="#7a571e" stroke-width="1.2"/><path d="M12 8v8M9.5 10.5h5" stroke="#7a571e" stroke-width="1.4" fill="none"/></symbol>
-    <symbol id="g-fish" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3 12c3-5 10-5 14 0-4 5-11 5-14 0z"/><path d="M17 12l4-4v8z"/><circle cx="7" cy="11" r=".9" fill="currentColor"/></g></symbol>
-    <symbol id="g-log" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="6" cy="9" rx="3" ry="3.5"/><path d="M6 5.5h12a3 3.5 0 010 7H6"/><ellipse cx="9" cy="17" rx="3" ry="3.2"/><path d="M9 13.8h11M9 20.2h11"/><circle cx="6" cy="9" r="1"/></g></symbol>
-    <symbol id="g-bale" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="M9 5v14M15 5v14M4 12h16" stroke-dasharray="2 1.5"/></g></symbol>
-    <symbol id="g-hide" viewBox="0 0 24 24"><path d="M6 4l3 2h6l3-2 1 4-2 2 1 5-2 2 1 3-3-1-2 2-2-2-3 1 1-3-2-2 1-5-2-2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
-    <symbol id="g-sack" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M9 3h6l-1.5 3.5c4 1.5 6 5 6 9 0 3-2 5.5-7.5 5.5S4.5 18.5 4.5 15.5c0-4 2-7.5 6-9z"/><path d="M10 6.5h4"/></g></symbol>
-    <symbol id="g-bottle" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M10 2.5h4v4c2.5 1.5 3.5 3.5 3.5 6V21h-11v-8.5c0-2.5 1-4.5 3.5-6z"/><path d="M7 14h10"/></g></symbol>
-    <symbol id="g-leaf" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21C5 17 4 9 12 3c8 6 7 14 0 18z"/><path d="M12 6v15M12 10l-3-2M12 13l3.5-2.5M12 16l-3.5-2"/></g></symbol>
-    <symbol id="g-jar" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M9 3h6v2.5c3.5 2 4.5 5 4 8.5-.5 4-3 7-7 7s-6.5-3-7-7c-.5-3.5.5-6.5 4-8.5z"/><path d="M8 12c2 1.5 6 1.5 8 0"/></g></symbol>
-    <symbol id="g-bolt" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="7" cy="12" rx="3" ry="7"/><path d="M7 5h10c1.7 0 3 3.1 3 7s-1.3 7-3 7H7"/><path d="M12 5.5c-1 4 1 8-1 13"/></g></symbol>
-    <symbol id="g-chest" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M3.5 9h17v11h-17z"/><path d="M3.5 9c0-3 2-5 4.5-5h8c2.5 0 4.5 2 4.5 5"/><path d="M11 12h2v3h-2z"/></g></symbol>
-    <symbol id="g-ingot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 10h12l3 8H3z"/><path d="M8 10l1.5-4h5L16 10"/></g></symbol>
-    <symbol id="g-barrel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 3h10c2 3 2 15 0 18H7C5 18 5 6 7 3z"/><path d="M5.6 8h12.8M5.6 16h12.8"/></g></symbol>
     <symbol id="g-hand" viewBox="0 0 26 18"><path d="M1 6h9l2-3h3l-1 3h10a1.5 1.5 0 010 3h-7v1h5a1.5 1.5 0 010 3h-5v1h4a1.4 1.4 0 010 2.8H12c-3 0-5-1.5-6-3.8H1z" fill="currentColor"/></symbol>
+    <symbol id="g-wax" viewBox="0 0 20 20"><path d="M10 1.5c2 .3 2.6 1.6 4.3 1.9 1.9.4 3.6 2 3.4 4 .1 1.6 1.2 2.5.6 4.3-.6 1.9-2.4 2.3-3 4-.6 1.7-2.6 2.6-4.6 2.4-1.7.2-2.7 1-4.4.2-1.6-.8-1.8-2.4-3.2-3.5C1.6 13.6.9 12 1.4 10.2c.4-1.5-.3-2.8.6-4.3C3 4.3 4.6 4.1 5.8 2.9 7 1.7 8.3 1.3 10 1.5z" fill="#8e1a14"/><circle cx="10" cy="10" r="5" fill="none" stroke="#540a08" stroke-width="1.2"/><path d="M7.5 8.5c1.2-1.6 3.8-1.6 5 0" stroke="#d0453a" stroke-width="1" fill="none"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/></symbol>
-    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3l10 18H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v5M12 17.5v.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-seal" viewBox="0 0 20 20"><use href="#g-wax"/></symbol>
     <symbol id="i-quill" viewBox="0 0 24 24"><path d="M20 3C12 4 7 9 5 17l-2 4 4-2c8-2 12-7 13-16zM6 18l7-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <clipPath id="pennant"><path d="M0 0H40L33 12 40 24H0Z"/></clipPath>
   </defs>
 </svg>
 
-<div class="proto">
+<div class="proto" id="proto">
   <div class="pbar" id="pbar" role="toolbar" aria-label="Prototype controls">
-    <b>Bill of Goods</b><span class="pnote">prototype</span>
+    <b>Bill of Goods</b><span class="pnote">prototype rev 2</span>
     <button class="pb" id="pToggle" aria-expanded="false" aria-controls="pbar">Prototype controls ▾</button>
     <label>Frame <select id="pFrame"><option value="fit">Fit window</option><option value="desktop">Desktop 1280×720</option><option value="phone">Phone 375×667</option><option value="land">Phone landscape 667×375</option></select></label>
     <label>Sea <select id="pSea"><option value="noon">Bright noon</option><option value="night">Dark night</option></select></label>
-    <label>Next trade <select id="pSim"><option value="ok">succeeds</option><option value="far">fails: too far from port</option><option value="price">fails: price moved</option></select></label>
+    <label>Next trade <select id="pSim"><option value="ok">succeeds</option><option value="far">refused: too far from port</option><option value="price">price moved against you</option><option value="silent">no answer (timeout)</option></select></label>
+    <button class="pb" id="pRich">Give 12,000 g</button>
     <button class="pb" id="pSound" aria-pressed="true">Sound on</button>
     <button class="pb" id="pRm" aria-pressed="false">Reduce motion</button>
     <button class="pb" id="pReset">Reset</button>
@@ -429,57 +485,71 @@ kbd{display:inline-block;min-width:22px;padding:1px 5px;margin:0 1px;border:1px 
             <circle cx="1240" cy="150" r="46" style="fill:var(--sun)" opacity=".9"/>
             <path d="M0 420 L180 380 320 395 470 350 600 372 760 340 900 400 1600 420Z" style="fill:var(--land)"/>
             <rect y="418" width="1600" height="482" fill="url(#sea)"/>
-            <g stroke="#fff" stroke-opacity=".25" fill="none" stroke-width="3"><path d="M80 520q40-12 80 0t80 0"/><path d="M900 600q40-12 80 0t80 0"/><path d="M400 720q50-14 100 0t100 0"/><path d="M1200 780q50-14 100 0t100 0"/><path d="M1300 500q30-10 60 0t60 0"/></g>
+            <g stroke="#fff" stroke-opacity=".25" fill="none" stroke-width="3"><path d="M80 520q40-12 80 0t80 0"/><path d="M900 600q40-12 80 0t80 0"/><path d="M400 720q50-14 100 0t100 0"/><path d="M1200 780q50-14 100 0t100 0"/></g>
             <g style="fill:var(--ship)"><path d="M620 700h360l-40 60H660z"/><path d="M790 430v270h8V430z"/><path d="M700 470q90 40 0 200h90V470z" opacity=".85"/><path d="M806 450q110 50 0 230h110V470z" opacity=".85"/></g>
           </svg>
-          <div class="hudfake">The Kestrel · brigantine</div>
         </div>
         <div class="scrim" aria-hidden="true"></div>
 
         <section class="bog" id="bog" role="dialog" aria-modal="true" aria-labelledby="bog-port" aria-describedby="bog-sub">
-          <div class="page">
-            <header class="head">
-              <div class="trow">
-                <svg class="flag" viewBox="0 0 40 28" aria-label="English colours" role="img"><rect width="40" height="28" fill="#f4efe2"/><path d="M17 0h6v28h-6zM0 11h40v6H0z" fill="#b5261e"/></svg>
+          <span class="nail a"></span><span class="nail b"></span><span class="nail c"></span><span class="nail d"></span>
+          <button class="close" id="closeBtn" data-fk="close" aria-label="Close the trade screen"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
+          <div class="pagewrap">
+            <div class="page">
+              <header class="head">
+                <svg class="flag" viewBox="0 0 40 24" role="img" aria-label="English colours"><g clip-path="url(#pennant)"><rect width="40" height="24" fill="#f4efe2"/><path d="M14 0h6v24h-6zM0 9h40v6H0z" fill="#b5261e"/></g><path d="M0 0H40L33 12 40 24H0Z" fill="none" stroke="#2a1a0c" stroke-width="1"/></svg>
                 <div class="titles">
                   <h1 class="port" id="bog-port">Port Royal</h1>
-                  <p class="sub" id="bog-sub">Harbourmaster's bill of goods · Jamaica · under English colours</p>
+                  <p class="sub" id="bog-sub"><span class="long">Harbourmaster's bill of goods · Jamaica · under English colours</span><span class="short">Jamaica · English colours</span></p>
                 </div>
-                <button class="close" id="closeBtn" aria-label="Leave the harbourmaster (Esc)"><svg><use href="#i-x"/></svg></button>
-                <div class="instr" aria-label="The Kestrel, brigantine">
-                  <div class="purse"><svg aria-hidden="true"><use href="#g-coin"/></svg><span class="lab">Purse</span><b class="num" id="purse">1,240</b><span class="sr"> gold</span></div>
-                  <div class="holdm"><span class="lab">Hold</span><div class="meter" id="meter" role="img" aria-label=""><span class="f" id="meterF"></span><span class="pv" id="meterPv"></span></div><b class="num" id="holdTxt">26/40</b></div>
+                <div class="instr">
+                  <div class="purse"><span class="lab">Purse</span><b class="num" id="purse">1,240</b><span class="num">g</span></div>
+                  <div class="holdm"><span class="lab">Hold</span><span class="crates" id="crates" role="img" aria-label=""></span><b class="num" id="holdTxt">26/40</b></div>
                 </div>
+              </header>
+              <div class="tools" id="tools">
+                <div class="tabs" role="tablist" aria-label="Harbour offices">
+                  <button class="tab" role="tab" id="tab-goods" data-fk="tab:goods" aria-selected="true" aria-controls="ledger" data-tab="goods">Goods</button>
+                  <button class="tab" role="tab" id="tab-yard" data-fk="tab:yard" aria-selected="false" aria-controls="ledger" data-tab="yard" tabindex="-1">Shipwright</button>
+                </div>
+                <div class="show" id="show"></div>
+                <button class="keyslink" id="keysBtn" data-fk="keys" aria-expanded="false" aria-controls="keynote">Keys</button>
               </div>
-            </header>
-            <div class="tools" id="tools">
-              <div role="tablist" aria-label="Harbour offices" style="display:flex;gap:4px">
-                <button class="tab" role="tab" id="tab-goods" aria-selected="true" aria-controls="ledger" data-tab="goods">Goods</button>
-                <button class="tab" role="tab" id="tab-yard" aria-selected="false" aria-controls="ledger" data-tab="yard">Shipwright</button>
-              </div>
-              <span class="tsep"></span>
-              <div id="filters" style="display:flex;gap:6px" role="group" aria-label="Show"></div>
+              <div class="ledger" id="ledger" role="tabpanel" aria-labelledby="tab-goods"></div>
+              <aside class="keynote" id="keynote" hidden aria-label="Keyboard">
+                <button id="keysClose" data-fk="keysclose" aria-label="Hide the keyboard note"><svg width="14" height="14" aria-hidden="true"><use href="#i-x"/></svg></button>
+                <b>At the counter</b><br>
+                <span class="k">↑↓</span>line · <span class="k">←→</span>buy / sell column<br>
+                <span class="k">B</span>buy · <span class="k">S</span>sell (this line)<br>
+                <span class="k">+</span><span class="k">−</span>amount (Shift: 10) · <span class="k">M</span>max<br>
+                <span class="k">Enter</span>sign · <span class="k">Esc</span>back · <span class="k">1</span><span class="k">2</span>offices
+              </aside>
             </div>
-            <div class="ledger" id="ledger" role="tabpanel" aria-labelledby="tab-goods" tabindex="-1"></div>
-            <div class="slip" id="slip"></div>
+          </div>
+          <div class="slipwrap">
+            <div class="slip" id="slip">
+              <h2 class="slip-h" id="slipH">Bill of Sale</h2>
+              <div id="slipBody"></div>
+              <p class="status" id="status" aria-live="polite" aria-atomic="true"></p>
+            </div>
           </div>
         </section>
-        <div class="closed" id="closed" hidden>You step out of the harbourmaster's office. <button class="btn-wood btn" id="reopen">Reopen (T)</button></div>
+        <div class="closed" id="closed" hidden>You step back from the counter. <button id="reopen">Reopen (T)</button></div>
       </div>
     </div>
   </main>
 </div>
 
 <section class="before" id="before" hidden aria-label="Before: the current trade screen">
-  <button class="pb" id="beforeClose" style="min-height:44px">Close</button>
+  <button class="pb" id="beforeClose">Close</button>
   <h2>Before: the current trade screen</h2>
   <p>Captured from the live client (dev/2026-10-23-batch) with Playwright. Full-size PNGs are in the repo at <code>docs/proposals/trade-redesign/before-*.png</code>; the critique is in <code>PROPOSAL.md</code>.</p>
   <ol>
     <li><b>Buy Max is off-screen.</b> At 1280×720 the Buy Max button sits at y = 912; at 375×667 at y = 980. The detail panel is appended under the list and the whole dialog scrolls.</li>
     <li><b>Selection leaks across tabs.</b> Select Cotton on Buy, switch to Sell: the Sale Details panel offers to sell Cotton (38 g) you do not own, while the one good you do own is shown unselected.</li>
-    <li><b>Trend colours lie.</b> On the Buy tab a cheap good (Sugar ↓47%) is red and a dear one green: backwards for a buyer.</li>
+    <li><b>Trend colours lie.</b> On the Buy tab a cheap good (Sugar ↓47%) is red and a dear one green: backwards for a buyer. (The "trend" is really the difference from the base price.)</li>
     <li><b>Generic web-app look.</b> Slate dialog, orange header, shadcn tabs, lucide icons: nothing in-world. "Select" buttons are the only thing in each row you can press.</li>
-    <li><b>Max fires immediately</b> with no preview of how many or what it costs; selection is cleared before the server answers.</li>
+    <li><b>Max fires immediately</b> with no preview; the selection is cleared before the server answers; a stale red alert lingers; unrelated socket errors appear in the trade screen.</li>
   </ol>
   <div class="grid">
     <figure><img alt="Current trade screen, desktop, a good selected; the purchase panel is below the fold" src="data:image/jpeg;base64,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"><figcaption>Desktop 1280×720: Sugar selected; the purchase panel and Buy Max are below the fold.</figcaption></figure>
@@ -493,8 +563,8 @@ kbd{display:inline-block;min-width:22px;padding:1px 5px;margin:0 1px;border:1px 
 (() => {
 'use strict';
 /* ------------------------------------------------------------------ mock data (Port Royal, English Jamaica) */
-// buyPrice = what the PLAYER pays (port sells); null = not sold here.  sellPrice = what the port pays the player.
-// usual = the good's base price across the world.  hold / paid = player's cargo and average price paid.
+// buyPrice = what the PLAYER pays (port sells); null = not sold here.  sellPrice = what the port pays the player
+// (about 10% below buyPrice: the spread).  usual = the good's base price.  hold / paid = cargo and average paid.
 const GROUPS = [
   ['staples',  'Staples',  'bulk, cheap, everywhere'],
   ['colonial', 'Colonial', 'grown in the Caribbean'],
@@ -502,64 +572,74 @@ const GROUPS = [
   ['northern', 'Northern', 'from the cold seas'],
 ];
 const START = () => ([
-  { id: 1,  name: 'Fish',         group: 'staples',  g: 'fish',   usual: 10,  buyPrice: 8,    sellPrice: 7,   stock: 120 },
-  { id: 2,  name: 'Wood',         group: 'staples',  g: 'log',    usual: 15,  buyPrice: 13,   sellPrice: 11,  stock: 90,  hold: 5,  paid: 14 },
-  { id: 4,  name: 'Cotton',       group: 'staples',  g: 'bale',   usual: 40,  buyPrice: 44,   sellPrice: 40,  stock: 35 },
-  { id: 12, name: 'Hides',        group: 'staples',  g: 'hide',   usual: 35,  buyPrice: 28,   sellPrice: 25,  stock: 0 },
-  { id: 3,  name: 'Sugar',        group: 'colonial', g: 'sack',   usual: 30,  buyPrice: 18,   sellPrice: 16,  stock: 140 },
-  { id: 5,  name: 'Rum',          group: 'colonial', g: 'bottle', usual: 50,  buyPrice: 34,   sellPrice: 30,  stock: 80 },
-  { id: 6,  name: 'Tobacco',      group: 'colonial', g: 'leaf',   usual: 60,  buyPrice: 52,   sellPrice: 47,  stock: 44,  hold: 10, paid: 48 },
-  { id: 11, name: 'Cacao',        group: 'colonial', g: 'sack',   usual: 45,  buyPrice: 38,   sellPrice: 34,  stock: 60 },
-  { id: 18, name: 'Coffee',       group: 'colonial', g: 'sack',   usual: 55,  buyPrice: 44,   sellPrice: 40,  stock: 50 },
-  { id: 7,  name: 'Spices',       group: 'luxuries', g: 'jar',    usual: 80,  buyPrice: null, sellPrice: 104 },
-  { id: 8,  name: 'Silk',         group: 'luxuries', g: 'bolt',   usual: 150, buyPrice: null, sellPrice: 172, hold: 5,  paid: 150 },
-  { id: 19, name: 'Tea',          group: 'luxuries', g: 'chest',  usual: 90,  buyPrice: null, sellPrice: 96 },
-  { id: 20, name: 'Porcelain',    group: 'luxuries', g: 'jar',    usual: 140, buyPrice: null, sellPrice: 160 },
-  { id: 14, name: 'Wine',         group: 'luxuries', g: 'bottle', usual: 65,  buyPrice: null, sellPrice: 98,  wanted: true },
-  { id: 9,  name: 'Silver',       group: 'luxuries', g: 'ingot',  usual: 200, buyPrice: 214,  sellPrice: 196, stock: 6 },
-  { id: 10, name: 'Gold',         group: 'luxuries', g: 'ingot',  usual: 400, buyPrice: 430,  sellPrice: 395, stock: 2 },
-  { id: 15, name: 'Furs',         group: 'northern', g: 'hide',   usual: 90,  buyPrice: null, sellPrice: 128, wanted: true, hold: 6, paid: 70 },
-  { id: 16, name: 'Whale Oil',    group: 'northern', g: 'barrel', usual: 55,  buyPrice: null, sellPrice: 61 },
-  { id: 17, name: 'Naval Stores', group: 'northern', g: 'barrel', usual: 35,  buyPrice: null, sellPrice: 52,  wanted: true },
+  { id: 1,  name: 'Fish',         group: 'staples',  usual: 10,  buyPrice: 8,    sellPrice: 7,   stock: 120 },
+  { id: 2,  name: 'Wood',         group: 'staples',  usual: 15,  buyPrice: 13,   sellPrice: 11,  stock: 90,  hold: 5,  paid: 14 },
+  { id: 4,  name: 'Cotton',       group: 'staples',  usual: 40,  buyPrice: 44,   sellPrice: 40,  stock: 35 },
+  { id: 12, name: 'Hides',        group: 'staples',  usual: 35,  buyPrice: 28,   sellPrice: 25,  stock: 0 },
+  { id: 3,  name: 'Sugar',        group: 'colonial', usual: 30,  buyPrice: 18,   sellPrice: 16,  stock: 140 },
+  { id: 5,  name: 'Rum',          group: 'colonial', usual: 50,  buyPrice: 34,   sellPrice: 30,  stock: 80 },
+  { id: 6,  name: 'Tobacco',      group: 'colonial', usual: 60,  buyPrice: 52,   sellPrice: 47,  stock: 44,  hold: 10, paid: 48 },
+  { id: 11, name: 'Cacao',        group: 'colonial', usual: 45,  buyPrice: 38,   sellPrice: 34,  stock: 60 },
+  { id: 18, name: 'Coffee',       group: 'colonial', usual: 55,  buyPrice: 44,   sellPrice: 40,  stock: 50 },
+  { id: 7,  name: 'Spices',       group: 'luxuries', usual: 80,  buyPrice: null, sellPrice: 104 },
+  { id: 8,  name: 'Silk',         group: 'luxuries', usual: 150, buyPrice: null, sellPrice: 172, hold: 5,  paid: 150 },
+  { id: 19, name: 'Tea',          group: 'luxuries', usual: 90,  buyPrice: null, sellPrice: 96 },
+  { id: 20, name: 'Porcelain',    group: 'luxuries', usual: 140, buyPrice: null, sellPrice: 160 },
+  { id: 14, name: 'Wine',         group: 'luxuries', usual: 65,  buyPrice: null, sellPrice: 98,  wanted: true },
+  { id: 9,  name: 'Silver',       group: 'luxuries', usual: 200, buyPrice: 214,  sellPrice: 196, stock: 6 },
+  { id: 10, name: 'Gold',         group: 'luxuries', usual: 400, buyPrice: 430,  sellPrice: 395, stock: 2 },
+  { id: 15, name: 'Furs',         group: 'northern', usual: 90,  buyPrice: null, sellPrice: 128, wanted: true, hold: 6, paid: 70 },
+  { id: 16, name: 'Whale Oil',    group: 'northern', usual: 55,  buyPrice: null, sellPrice: 61 },
+  { id: 17, name: 'Naval Stores', group: 'northern', usual: 35,  buyPrice: null, sellPrice: 52,  wanted: true },
 ]);
 const SHIP = { name: 'The Kestrel', type: 'Brigantine', cap: 40, hullMax: 150, repairCost: 300,
   next: { type: 'Galleon', cost: 9000, stats: [['Hold', 40, 60], ['Hull', 150, 300], ['Guns a side', 2, 3], ['Speed (kn)', 7.5, 8.3], ['Repair cost', 300, 600]] } };
+const GUARD_MS = 400;     // a freshly armed confirm ignores taps for this long (no double-tap through)
+const TIMEOUT_MS = 5000;  // no answer from the server
 
 let GOODS = START();
-const S = { tab: 'goods', filter: 'all', sel: null, qty: 1, pending: false, cursor: -1, gold: 1240, hull: 118,
-  order: null, sellAllArmed: false, status: null, closed: false, sound: true, rm: false, sim: 'ok', frame: 'fit' };
+const S = {
+  tab: 'goods', filter: 'all', sel: null, qty: 1, qtyRaw: null, order: null,
+  pending: null, arm: null, armAt: 0, status: null, closed: false,
+  cur: { row: 0, col: 'buy' }, keysOpen: false,
+  lastChip: { buy: '1' },          // remembered per session (never Max)
+  gold: 1240, hull: 118, sound: true, rm: false, sim: 'ok', frame: 'fit', ref: 0,
+};
 
 /* ------------------------------------------------------------------ helpers */
 const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const fmt = (n) => Number(n).toLocaleString('en-US');
-const coin = '<svg aria-hidden="true"><use href="#g-coin"/></svg>';
+const N = (n) => `<span class="num">${fmt(n)}</span>`;
 const held = (g) => g.hold || 0;
 const used = () => GOODS.reduce((a, g) => a + held(g), 0);
 const byId = (id) => GOODS.find((g) => g.id === id);
 const reduced = () => S.rm || matchMedia('(prefers-reduced-motion: reduce)').matches;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const locked = () => !!S.pending;
 
-/** How many can be traded, and the plain-words reason for the cap or the block. */
+/** How many can be traded, why, and a two-word reason for the ledger cell. */
 function limit(g, side) {
   if (side === 'sell') {
     const h = held(g);
-    return h ? { max: h, why: `You carry ${h}.` } : { max: 0, block: `You carry no ${g.name}. Buy some first, or pick another line.` };
+    return h ? { max: h, why: `All ${h} aboard.`, short: 'all aboard' }
+             : { max: 0, idle: true, block: `You carry no ${g.name}. Buy some first, or pick another line.` };
   }
-  if (g.buyPrice == null) return { max: 0, block: `${g.name} is not sold here. The port will still buy it from you.` };
-  if (!g.stock) return { max: 0, block: `Sold out. The warehouse has no ${g.name} today.` };
+  if (g.buyPrice == null) return { max: 0, block: `${g.name} is not sold here. The port will still buy it from you.`, short: 'not sold' };
+  if (!g.stock) return { max: 0, block: `Sold out. The warehouse has no ${g.name} today.`, short: 'sold out' };
   const free = SHIP.cap - used(), byGold = Math.floor(S.gold / g.buyPrice);
   const max = Math.min(g.stock, byGold, free);
   if (max <= 0) {
-    if (free <= 0) return { max: 0, block: `Your hold is full (${SHIP.cap}/${SHIP.cap}). Sell something first.` };
-    return { max: 0, block: `Your purse is short: one costs ${fmt(g.buyPrice)} g and you have ${fmt(S.gold)} g.` };
+    if (free <= 0) return { max: 0, block: `Your hold is full (${SHIP.cap}/${SHIP.cap}). Sell something first.`, short: 'hold full' };
+    return { max: 0, block: `Your purse is short: one costs ${fmt(g.buyPrice)} g and you have ${fmt(S.gold)} g.`, short: 'too dear' };
   }
-  const why = max === free ? `the room left in your hold (${free})` : max === byGold ? `your purse (${fmt(S.gold)} g)` : `the port's stock (${g.stock})`;
-  return { max, why: `Max ${max}: limited by ${why}.` };
+  const by = max === free ? ['hold', `the room in your hold (${free})`] : max === byGold ? ['purse', `your purse (${fmt(S.gold)} g)`] : ['stock', `the port's stock (${g.stock})`];
+  return { max, why: `Max ${max}: limited by ${by[1]}.`, short: by[0] };
 }
-const isBargain = (g) => g.buyPrice != null && g.stock > 0 && g.buyPrice <= g.usual * 0.8;
+const isCheap = (g) => g.buyPrice != null && g.stock > 0 && g.buyPrice <= g.usual * 0.8;
 const paysWell = (g) => !g.wanted && g.sellPrice >= g.usual * 1.2;
 
-/* ------------------------------------------------------------------ sound (synthesised; no assets) */
+/* ------------------------------------------------------------------ sound (prototype: synthesised; production: CC0 samples) */
 let AC = null;
 function sfx(kind) {
   if (!S.sound) return;
@@ -569,14 +649,10 @@ function sfx(kind) {
     const notes = kind === 'sell' ? [2093, 2637, 3136] : kind === 'buy' ? [2637, 1976] : kind === 'tick' ? [1400] : [150, 110];
     notes.forEach((f, i) => {
       const o = AC.createOscillator(), gn = AC.createGain();
-      o.type = kind === 'err' ? 'sine' : 'triangle';
-      o.frequency.value = f;
+      o.type = kind === 'err' ? 'sine' : 'triangle'; o.frequency.value = f;
       const t = t0 + i * (kind === 'err' ? 0.09 : 0.075), vol = kind === 'tick' ? 0.05 : 0.16, dur = kind === 'err' ? 0.18 : 0.22;
-      gn.gain.setValueAtTime(0.0001, t);
-      gn.gain.exponentialRampToValueAtTime(vol, t + 0.006);
-      gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(gn).connect(AC.destination);
-      o.start(t); o.stop(t + dur + 0.02);
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(vol, t + 0.006); gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(gn).connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
     });
   } catch (e) { /* audio is optional */ }
 }
@@ -590,200 +666,276 @@ function rollPurse(to) {
   const step = (t) => { const k = Math.min(1, (t - t0) / d); el.textContent = fmt(Math.round(from + (to - from) * (1 - (1 - k) ** 3))); if (k < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
-function renderMeter() {
+function renderCrates() {
   const u = used(), cap = SHIP.cap;
-  $('#meterF').style.width = (u / cap * 100) + '%';
-  const pv = $('#meterPv'); pv.className = 'pv'; pv.style.width = '0';
   let after = u;
-  if (S.tab === 'goods' && S.sel && S.qty > 0) {
-    const d = S.sel.side === 'buy' ? S.qty : -S.qty; after = u + d;
-    if (d > 0) { pv.classList.add('add'); pv.style.left = (u / cap * 100) + '%'; pv.style.width = (d / cap * 100) + '%'; }
-    else { pv.classList.add('rem'); pv.style.left = (after / cap * 100) + '%'; pv.style.width = (-d / cap * 100) + '%'; }
-  }
+  if (S.tab === 'goods' && S.sel && S.qty) after = S.sel.side === 'buy' ? u + S.qty : u - S.qty;
+  const cells = [];
+  for (let i = 0; i < cap; i++) cells.push(`<i class="${i < Math.min(u, after) ? 'f' : i < u ? 'r' : i < after ? 'p' : ''}"></i>`);
+  $('#crates').innerHTML = cells.join('');
   $('#holdTxt').textContent = after !== u ? `${u}→${after}/${cap}` : `${u}/${cap}`;
-  $('#meter').setAttribute('aria-label', `Hold ${u} of ${cap} used` + (after !== u ? `, ${after} after this trade` : ''));
+  $('#crates').setAttribute('aria-label', `Hold ${u} of ${cap} used` + (after !== u ? `, ${after} after this trade` : ''));
 }
 
-/* ------------------------------------------------------------------ filters */
+/* ------------------------------------------------------------------ "Show" filter: ink links on desktop, a native menu when narrow */
 const FILTERS = [
   ['all', 'All', () => true],
   ['hold', 'In my hold', (g) => held(g) > 0],
   ['wanted', 'Wanted', (g) => g.wanted],
   ['here', 'Sold here', (g) => g.buyPrice != null],
 ];
-function renderFilters() {
-  const box = $('#filters');
+function renderShow() {
+  const box = $('#show');
   if (S.tab !== 'goods') { box.innerHTML = ''; return; }
-  box.innerHTML = FILTERS.map(([k, label, fn]) =>
-    `<button class="chip" data-filter="${k}" aria-pressed="${S.filter === k}">${label}<span class="n num">${GOODS.filter(fn).length}</span></button>`).join('');
+  const dis = locked() ? 'disabled' : '';
+  box.innerHTML = `<span class="lab">Show</span>` + FILTERS.map(([k, label, fn]) =>
+    `<button class="flt" data-filter="${k}" data-fk="flt:${k}" aria-pressed="${S.filter === k}" ${dis}>${label} ${N(GOODS.filter(fn).length)}</button>`).join('') +
+    `<select class="showsel" id="showsel" data-fk="showsel" aria-label="Show" ${dis}>${FILTERS.map(([k, label, fn]) => `<option value="${k}" ${S.filter === k ? 'selected' : ''}>Show: ${label} (${GOODS.filter(fn).length})</option>`).join('')}</select>`;
 }
 const visible = () => GOODS.filter(FILTERS.find((f) => f[0] === S.filter)[2]);
 
-/* ------------------------------------------------------------------ the ledger */
+/* ------------------------------------------------------------------ the ledger (roving tabindex: one Tab stop) */
+function cellHtml(g, side, i) {
+  const pressed = S.sel && S.sel.id === g.id && S.sel.side === side;
+  const isCur = S.cur.row === i && S.cur.col === side;
+  if (side === 'buy' && g.buyPrice == null) return `<span class="nosale">not sold<br>here</span>`;
+  const L = limit(g, side), price = side === 'buy' ? g.buyPrice : g.sellPrice;
+  let cls = '', note = '';
+  if (side === 'buy' && !L.max) { cls = 'blocked'; note = L.short; }
+  else if (side === 'buy' && g.stock < 10) note = `${g.stock} left`;
+  if (side === 'sell' && L.idle) cls = 'idle';
+  const nid = `n-${side}-${g.id}`;
+  const label = `${side === 'buy' ? 'Buy' : 'Sell'} ${g.name} at ${price} gold` + (side === 'sell' ? (held(g) ? `, ${held(g)} aboard` : ', none aboard') : '');
+  return `<button class="cell ${cls}" data-act="${side}" data-id="${g.id}" data-fk="c:${side}:${g.id}" tabindex="${isCur ? 0 : -1}" aria-pressed="${pressed}" aria-label="${esc(label)}" ${note ? `aria-describedby="${nid}"` : ''} ${locked() ? 'aria-disabled="true"' : ''}>
+      <span class="fig num">${fmt(price)}</span>${note ? `<span class="note" id="${nid}">${note}</span>` : ''}</button>`;
+}
 function rowHtml(g, i) {
-  const h = held(g), sel = S.sel && S.sel.id === g.id ? S.sel.side : null;
-  const marks = [g.wanted ? '<span class="mark wanted">Wanted</span>' : '', isBargain(g) ? '<span class="mark bargain">Cheap here</span>' : '', paysWell(g) ? '<span class="mark dear">Pays well</span>' : ''].join('');
-  const pl = h && g.paid != null ? g.sellPrice - g.paid : null;
-  const plTxt = pl == null ? '' : pl >= 0 ? `<span class="pl-up">+${pl} ea</span>` : `<span class="pl-dn">−${-pl} ea</span>`;
-  const stockTxt = g.buyPrice == null ? 'not sold here' : g.stock ? `${g.stock} in warehouse` : 'sold out';
-  const holdMeta = h ? `<span class="m-hold"><b>${h} aboard</b>${g.paid != null ? ` · paid ${g.paid} ` : ''}${plTxt} · </span>` : '';
-  const buyCell = g.buyPrice == null
-    ? `<span class="nosale" aria-label="${esc(g.name)}: not sold here">not sold here</span>`
-    : `<button class="tag${limit(g, 'buy').max ? '' : ' off'}" data-act="buy" data-id="${g.id}" aria-pressed="${sel === 'buy'}" aria-label="Buy ${esc(g.name)} at ${g.buyPrice} gold${limit(g, 'buy').max ? '' : ' (unavailable)'}"><span class="k">Buy</span><span class="p num">${coin}${fmt(g.buyPrice)}</span></button>`;
-  const sellCell = `<button class="tag${h ? '' : ' off'}" data-act="sell" data-id="${g.id}" aria-pressed="${sel === 'sell'}" aria-label="Sell ${esc(g.name)} at ${g.sellPrice} gold${h ? `, you carry ${h}` : ', you carry none'}"><span class="k">Sell</span><span class="p num">${coin}${fmt(g.sellPrice)}</span></button>`;
-  return `<div class="row${sel ? ' is-sel' : ''}${S.cursor === i ? ' is-cur' : ''}" role="listitem" data-row="${g.id}" data-i="${i}" ${sel ? 'aria-current="true"' : ''}>
+  const h = held(g), sel = S.sel && S.sel.id === g.id;
+  const marks = [g.wanted ? `<span class="mk wanted"><svg aria-hidden="true"><use href="#g-wax"/></svg>wanted</span>` : '', isCheap(g) ? '<span class="mk cheap">cheap here</span>' : '', paysWell(g) ? '<span class="mk dear">pays well</span>' : ''].join('');
+  const detail = [h ? `${h} aboard · paid ${g.paid}` : '', g.wanted ? 'wanted' : '', !h && isCheap(g) ? 'cheap here' : '', !h && paysWell(g) ? 'pays well' : ''].filter(Boolean).join(' · ');
+  return `<div class="row${sel ? ' is-sel' : ''}" data-row="${g.id}" data-i="${i}">
     <svg class="hand" aria-hidden="true"><use href="#g-hand"/></svg>
-    <svg class="glyph" aria-hidden="true"><use href="#g-${g.g}"/></svg>
-    <div class="good"><div class="gname">${esc(g.name)}${marks}</div>
-      <div class="meta">${holdMeta}<span class="m-usual">usual ${g.usual} · </span>${stockTxt}</div></div>
-    <div class="holdc">${h ? `<b class="num">${h}</b><small>paid ${g.paid ?? '?'} · ${plTxt}</small>` : '<span class="empty">—</span>'}</div>
-    ${buyCell}${sellCell}
+    <div class="gcell"><div class="gn"><span class="gname">${esc(g.name)}</span><span class="marks">${marks}</span><span class="lead" aria-hidden="true"></span></div>${detail ? `<div class="detail">${detail}</div>` : ''}</div>
+    <div class="aboard">${h ? `<b class="num">${h}</b><small>paid ${N(g.paid)}</small>` : '<span class="none">—</span>'}</div>
+    ${cellHtml(g, 'buy', i)}${cellHtml(g, 'sell', i)}
   </div>`;
 }
 function renderLedger() {
   const L = $('#ledger');
-  const focusKey = document.activeElement && document.activeElement.closest('#ledger') ? document.activeElement.dataset.act + ':' + document.activeElement.dataset.id : null;
-  if (S.tab === 'yard') { L.setAttribute('aria-labelledby', 'tab-yard'); L.innerHTML = yardHtml(); L.removeAttribute('role'); return; }
-  L.setAttribute('aria-labelledby', 'tab-goods'); L.setAttribute('role', 'tabpanel');
+  if (S.tab === 'yard') { L.setAttribute('aria-labelledby', 'tab-yard'); L.innerHTML = yardHtml(); return; }
+  L.setAttribute('aria-labelledby', 'tab-goods');
   const list = visible();
-  let html = `<div class="colhead" aria-hidden="true"><span></span><span>Goods</span><span class="c-hold">In your hold</span><span>You buy</span><span>You sell</span></div>`;
+  S.cur.row = Math.max(0, Math.min(S.cur.row, list.length - 1));
+  if (list[S.cur.row] && S.cur.col === 'buy' && list[S.cur.row].buyPrice == null) S.cur.col = 'sell';
+  let html = `<div class="colhead" aria-hidden="true"><span></span><span>Goods</span><span class="c-ab">Aboard</span><span><span class="hl">You buy</span><span class="hs">Buy</span></span><span><span class="hl">You sell</span><span class="hs">Sell</span></span></div>`;
   let i = 0;
   for (const [k, label, note] of GROUPS) {
     const gs = list.filter((g) => g.group === k);
     if (!gs.length) continue;
-    html += `<section class="gsec"><div class="grp" role="heading" aria-level="3">${label}<small>${note}</small></div><div role="list" aria-label="${label}">`;
+    html += `<section class="gsec" aria-label="${label}"><div class="grp" aria-hidden="true">${label}<small>${note}</small></div>`;
     for (const g of gs) html += rowHtml(g, i++);
-    html += '</div></section>';
+    html += '</section>';
   }
-  if (!list.length) html += `<p class="ledger-end">Nothing in this column of the ledger.</p>`;
-  else html += `<p class="ledger-end">The port buys every good listed. Prices are per unit; one unit fills one space in the hold.</p>`;
+  html += list.length ? `<p class="ledger-end">The port buys every good listed. Prices are per unit; one unit fills one space in the hold.</p>` : `<p class="ledger-end">Nothing on this page of the ledger.</p>`;
   L.innerHTML = html;
-  if (focusKey) { const [a, id] = focusKey.split(':'); const el = L.querySelector(`[data-act="${a}"][data-id="${id}"]`); if (el) el.focus({ preventScroll: true }); }
 }
 
 /* ------------------------------------------------------------------ shipwright */
 function yardHtml() {
-  const n = SHIP.next, dmg = SHIP.hullMax - S.hull;
-  const repSel = S.order === 'repair', upSel = S.order === 'upgrade';
+  const n = SHIP.next, dmg = SHIP.hullMax - S.hull, planks = 10, per = SHIP.hullMax / planks;
+  const dis = locked() ? 'disabled' : '';
   return `<div class="yard">
-    <article class="order${repSel ? ' is-sel' : ''}"><h3>Caulk &amp; patch the hull</h3>
-      <p>${SHIP.name} has taken ${dmg ? `<b>${dmg}</b> damage` : 'no damage'}.</p>
-      <div class="meter" role="img" aria-label="Hull ${S.hull} of ${SHIP.hullMax}"><span class="f" style="width:${S.hull / SHIP.hullMax * 100}%"></span></div>
-      <p class="num">Hull <b>${S.hull}</b> / ${SHIP.hullMax}</p>
-      <div class="row-act"><span class="cost num">${coin}${fmt(SHIP.repairCost)}</span>
-        <button class="tag" style="min-width:120px" data-order="repair" aria-pressed="${repSel}" ${dmg ? '' : 'disabled'}><span class="k">${dmg ? 'Order repair' : 'Sound hull'}</span></button></div>
+    <article class="order${S.order === 'repair' ? ' is-sel' : ''}"><h3>Caulk &amp; patch the hull</h3>
+      <div class="planks" role="img" aria-label="Hull ${S.hull} of ${SHIP.hullMax}">${Array.from({ length: planks }, (_, k) => `<i class="${(k + 1) * per <= S.hull + 0.01 ? '' : 'broken'}"></i>`).join('')}</div>
+      <p>Hull ${N(S.hull)} of ${N(SHIP.hullMax)}${dmg ? `: ${N(dmg)} to make good.` : '. Sound.'}</p>
+      <div class="oact"><span class="cost num">${fmt(SHIP.repairCost)} g</span>
+        <button class="ochoose" data-order="repair" data-fk="o:repair" aria-pressed="${S.order === 'repair'}" ${dmg && !locked() ? '' : 'disabled'}>${dmg ? 'Order repair' : 'Nothing to mend'}</button></div>
     </article>
-    <article class="order${upSel ? ' is-sel' : ''}"><h3>Refit as a ${n.type}</h3>
+    <article class="order${S.order === 'upgrade' ? ' is-sel' : ''}"><h3>Refit as a ${n.type}</h3>
       <table><thead><tr><th></th><th>${SHIP.type}</th><th>${n.type}</th></tr></thead><tbody>
       ${n.stats.map(([k, a, b]) => `<tr><td>${k}</td><td class="num">${a}</td><td class="num"><b>${b}</b></td></tr>`).join('')}</tbody></table>
-      <div class="row-act"><span class="cost num">${coin}${fmt(n.cost)}</span>
-        <button class="tag" style="min-width:120px" data-order="upgrade" aria-pressed="${upSel}"><span class="k">Order refit</span></button></div>
+      <p>Your cargo stays aboard.</p>
+      <div class="oact"><span class="cost num">${fmt(n.cost)} g</span>
+        <button class="ochoose" data-order="upgrade" data-fk="o:upgrade" aria-pressed="${S.order === 'upgrade'}" ${dis}>Order refit</button></div>
     </article></div>`;
 }
 
 /* ------------------------------------------------------------------ the slip */
-const KEYS = `<p class="keys"><kbd>↑</kbd><kbd>↓</kbd> line · <kbd>B</kbd> buy · <kbd>S</kbd> sell · <kbd>←</kbd><kbd>→</kbd> amount (<kbd>Shift</kbd> ×10) · <kbd>M</kbd> max · <kbd>Enter</kbd> sign · <kbd>Esc</kbd> back</p>`;
-function statusHtml() {
-  if (!S.status) return '<p class="status" id="status" role="status" aria-live="polite"></p>';
-  const { kind, text, side } = S.status;
-  if (kind === 'err') return `<p class="status err" id="status" role="alert"><svg><use href="#i-warn"/></svg><span>${text}</span></p>`;
-  return `<p class="status ok ${side || ''}" id="status" role="status" aria-live="polite">${text}</p>`;
+function setStatus(kind, text, side) {
+  S.status = kind ? { kind, text, side } : null;
+  const el = $('#status');
+  el.className = 'status' + (kind ? ` ${kind} ${side || ''}` : '');
+  el.innerHTML = kind === 'err' ? `<svg aria-hidden="true"><use href="#g-wax"/></svg><span>${text}</span>` : (text || '');
 }
 function renderSlip() {
-  const slip = $('#slip');
-  if (S.tab === 'yard') return renderYardSlip(slip);
+  const body = $('#slipBody');
+  if (S.tab === 'yard') return renderYardSlip(body);
+  if (S.arm === 'sellall') return renderSellAllArmed(body);
+  $('#slipH').innerHTML = S.sel ? `Bill of Sale <em class="${S.sel.side}">— ${S.sel.side === 'buy' ? 'Purchase' : 'Sale'}</em>` : 'Bill of Sale';
   if (!S.sel) {
-    const h = used(), total = GOODS.reduce((a, g) => a + held(g) * g.sellPrice, 0);
-    slip.innerHTML = `<p class="hint">Choose a line: press <b>Buy</b> or <b>Sell</b> beside any good.</p>${KEYS}
-      <div class="idle-acts">${h ? (S.sellAllArmed
-        ? `<button class="btn btn-wax" data-do="sellall-confirm">Sign: sell all ${h} for ${fmt(total)} g</button><button class="btn btn-rope" data-do="sellall-cancel">Keep my cargo</button>`
-        : `<button class="btn btn-wood" data-do="sellall-arm">Sell entire hold · ${h} for ${fmt(total)} g</button>`) : ''}</div>${statusHtml()}`;
-    renderMeter(); return;
+    const h = used(), full = h >= SHIP.cap, total = GOODS.reduce((a, g) => a + held(g) * g.sellPrice, 0);
+    body.innerHTML = `<p class="hint">Choose a line: tap a price to buy at it or sell at it.</p>
+      ${full ? `<p class="hint">Your hold is full (${N(h)}/${N(SHIP.cap)}): sell before you buy. <button class="btn-ink" data-do="showhold" data-fk="showhold">Show what's aboard</button></p>` : ''}
+      <div class="sfoot">${h ? `<div class="acts"><button class="btn-ink" data-do="sellall-arm" data-fk="sellall-arm" ${locked() ? 'disabled' : ''}>Sell the whole hold…</button></div>` : ''}</div>`;
+    renderCrates(); return;
   }
   const g = byId(S.sel.id), side = S.sel.side, L = limit(g, side), price = side === 'buy' ? g.buyPrice : g.sellPrice;
-  const max = L.max, q = S.qty;
-  const allLabel = side === 'buy' ? (max && max === SHIP.cap - used() ? `Fill hold ${max}` : `Max ${max}`) : `All ${max}`;
-  slip.innerHTML = `
-    <div class="shead"><span class="kind ${side}">${side === 'buy' ? 'Purchase' : 'Sale'}</span><h2>${esc(g.name)}</h2>
-      <span class="unit num">${price == null ? '' : `at ${fmt(price)} g each`}</span><span class="sp"></span>
-      <button class="xbtn" data-do="clear" aria-label="Put the pen down (Esc)"><svg><use href="#i-x"/></svg></button></div>
-    <div class="sbody"><div class="sl-l"><div class="qrow">
-      <div class="stepper" role="group" aria-label="Quantity">
-        <button data-do="dec" aria-label="One less" ${max && q > 1 ? '' : 'disabled'}>−</button>
-        <input id="qty" class="num" inputmode="numeric" pattern="[0-9]*" aria-label="Quantity" value="${q}" ${max ? '' : 'disabled'}>
-        <button data-do="inc" aria-label="One more" ${max && q < max ? '' : 'disabled'}>+</button>
-      </div>
-      <div class="qchips">
-        <button class="qchip" data-q="1" aria-pressed="${q === 1 && max > 1}" ${max ? '' : 'disabled'}>1</button>
-        <button class="qchip" data-q="10" aria-pressed="${q === 10 && max > 10}" ${max >= 10 ? '' : 'disabled'}>10</button>
-        <button class="qchip num" data-q="max" aria-pressed="${!!max && q === max}" ${max ? '' : 'disabled'}>${allLabel}</button>
-      </div>
-      <input class="range" id="qtyR" type="range" min="${max ? 1 : 0}" max="${Math.max(max, 1)}" value="${q}" aria-label="Quantity slider" ${max > 1 ? '' : 'disabled'}>
-    </div>
-    <p class="limit${L.block ? ' block' : ''}" id="limit">${L.block || L.why}</p></div>
-    <div class="sl-r"><p class="sum num" id="sum"></p>
-    <div class="acts"><button class="btn btn-rope" data-do="clear">Cancel</button><button class="btn btn-brass" id="confirm" data-do="confirm"></button></div></div></div>
-    ${statusHtml()}`;
-  updateQty();
-  revealSel();
-}
-/** The chosen line must never hide behind the slip (the slip can grow, e.g. when an error is shown). */
-function revealSel() {
-  requestAnimationFrame(() => { const r = S.sel && $(`[data-row="${S.sel.id}"]`); if (r) r.scrollIntoView({ block: 'nearest' }); });
-}
-/** Partial update while the amount changes (keeps the caret in the input). */
-function updateQty() {
-  if (!S.sel) return;
-  const g = byId(S.sel.id), side = S.sel.side, max = limit(g, side).max, q = S.qty;
-  const price = side === 'buy' ? g.buyPrice : g.sellPrice, total = (price || 0) * q;
-  const inp = $('#qty'); if (inp && document.activeElement !== inp) inp.value = q;
-  const r = $('#qtyR'); if (r) { r.value = q; r.style.setProperty('--pct', max > 1 ? ((q - 1) / (max - 1) * 100) + '%' : (q ? '100%' : '0%')); }
-  document.querySelectorAll('.qchip').forEach((c) => { const v = c.dataset.q === 'max' ? max : +c.dataset.q; c.setAttribute('aria-pressed', String(!!max && q === v && (c.dataset.q === 'max' || v < max))); });
-  const dec = $('[data-do="dec"]'), inc = $('[data-do="inc"]'); if (dec) dec.disabled = !max || q <= 1; if (inc) inc.disabled = !max || q >= max;
-  const u = used(), after = side === 'buy' ? u + q : u - q, goldAfter = side === 'buy' ? S.gold - total : S.gold + total;
-  $('#sum').innerHTML = max
-    ? `<span>Purse <s>${fmt(S.gold)}</s> → <b>${fmt(goldAfter)}</b> g</span><span>Hold <s>${u}</s> → <b>${after}</b>/${SHIP.cap}</span>${side === 'sell' && g.paid != null ? `<span>Profit <b class="${price - g.paid >= 0 ? 'pl-up' : 'pl-dn'}">${price - g.paid >= 0 ? '+' : '−'}${fmt(Math.abs((price - g.paid) * q))} g</b></span>` : ''}`
-    : '';
-  const b = $('#confirm');
-  if (S.pending) { b.setAttribute('aria-busy', 'true'); b.disabled = true; b.innerHTML = `<svg><use href="#i-quill"/></svg>Signing the ledger…`; }
-  else if (!max) { b.removeAttribute('aria-busy'); b.disabled = true; b.textContent = side === 'buy' ? (g.buyPrice == null ? 'Not sold here' : 'Cannot buy') : 'Nothing to sell'; }
-  else { b.removeAttribute('aria-busy'); b.disabled = false; b.innerHTML = `${side === 'buy' ? 'Buy' : 'Sell'} ${q} ${esc(g.name)} · <span class="num">${fmt(total)} g</span>`; }
-  renderMeter();
-}
-function renderYardSlip(slip) {
-  if (!S.order) {
-    slip.innerHTML = `<p class="hint">Choose a work order. Repairs restore the hull in full; a refit replaces your ship.</p>${statusHtml()}`;
-    renderMeter(); return;
+  const max = L.max, dis = locked() ? 'disabled' : '';
+  const head = `<div class="sgood"><span class="kind sr">${side === 'buy' ? 'Purchase' : 'Sale'}:</span><b>${esc(g.name)}</b><span class="each">${price == null ? '' : `at ${N(price)} g each`}</span><span class="sp"></span>
+      <button class="xbtn" data-do="clear" data-fk="clear" aria-label="Clear selection" ${dis}><svg aria-hidden="true"><use href="#i-x"/></svg></button></div>`;
+  if (!max) {   // blocked line: no amount controls, only the reason
+    body.innerHTML = head + `<p class="limit block" id="limit">${L.block}</p>
+      <div class="sfoot"><button class="btn btn-sign" id="sign" data-fk="sign" disabled aria-describedby="limit">${side === 'buy' ? (g.buyPrice == null ? 'Not sold here' : 'Cannot buy') : 'Nothing to sell'}</button></div>`;
+    renderCrates(); return;
   }
+  const chips = side === 'buy'
+    ? `<button class="qchip" data-q="1" data-fk="q:1" ${dis}>${N(1)}</button><button class="qchip ten" data-q="10" data-fk="q:10" ${max >= 10 && !locked() ? '' : 'disabled'}>${N(10)}</button><button class="qchip max" data-q="max" data-fk="q:max" ${dis}>Max ${N(max)}</button>`
+    : `<button class="qchip" data-q="1" data-fk="q:1" ${dis}>${N(1)}</button><button class="qchip ten" data-q="10" data-fk="q:10" ${max >= 10 && !locked() ? '' : 'disabled'}>${N(10)}</button><button class="qchip max" data-q="max" data-fk="q:max" ${dis}>All ${N(max)}</button>`;
+  body.innerHTML = head + `
+    <p class="sline">${side === 'buy' ? `${N(g.stock)} in the warehouse` : `${N(held(g))} aboard, paid ${N(g.paid)} each`}</p>
+    <div class="qrow">
+      <div class="stepper" role="group" aria-label="Amount">
+        <button data-do="dec" data-fk="dec" aria-label="One fewer" ${dis}>−</button>
+        <input id="qty" class="num" data-fk="qty" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Amount" aria-describedby="limit" ${dis}>
+        <button data-do="inc" data-fk="inc" aria-label="One more" ${dis}>+</button>
+      </div>
+      <div class="qchips" role="group" aria-label="Quick amounts">${chips}</div>
+      <input class="range" id="qtyR" data-fk="range" type="range" min="1" max="${Math.max(max, 1)}" aria-label="Amount slider" ${max > 1 && !locked() ? '' : 'disabled'}>
+    </div>
+    <p class="limit" id="limit"></p>
+    <p class="sum" id="sum"></p>
+    <div class="sfoot"><button class="btn btn-sign" id="sign" data-do="confirm" data-fk="sign" aria-describedby="limit sum"></button></div>`;
+  updateQty(true);
+}
+/** Partial update while the amount changes. `sync` rewrites the box (always, except while the player is mid-typing a valid number). */
+function updateQty(sync) {
+  if (!S.sel || !$('#qty')) return;
+  const g = byId(S.sel.id), side = S.sel.side, L = limit(g, side), max = L.max, q = S.qty;
+  const price = side === 'buy' ? g.buyPrice : g.sellPrice;
+  const inp = $('#qty');
+  if (sync || q !== null && String(q) !== inp.value) inp.value = q === null ? (S.qtyRaw ?? '') : q;
+  inp.setAttribute('aria-invalid', String(q === null));
+  const r = $('#qtyR'); if (r && q) { r.value = q; r.style.setProperty('--pct', max > 1 ? ((q - 1) / (max - 1) * 100) + '%' : '100%'); }
+  $$('.qchip').forEach((c) => { const v = c.dataset.q === 'max' ? max : +c.dataset.q; c.setAttribute('aria-pressed', String(q !== null && q === v && (c.dataset.q === 'max' || v < max))); });
+  const dec = $('[data-do="dec"]'), inc = $('[data-do="inc"]');
+  if (!locked()) { dec.disabled = q === null || q <= 1; inc.disabled = q !== null && q >= max; }
+  const lim = $('#limit');
+  if (q === null) { lim.className = 'limit block'; lim.textContent = S.qtyRaw === '' || S.qtyRaw == null ? 'Enter an amount.' : 'The amount must be at least 1.'; }
+  else { lim.className = 'limit'; lim.textContent = side === 'buy' ? `Max ${max}: limited by ${L.short === 'hold' ? 'the room in your hold' : L.short === 'purse' ? 'your purse' : "the port's stock"}.` : `${max} aboard.`; }
+  const sum = $('#sum');
+  if (q === null) sum.innerHTML = '';
+  else {
+    const total = price * q, u = used(), after = side === 'buy' ? u + q : u - q, goldAfter = side === 'buy' ? S.gold - total : S.gold + total;
+    let profit = '';
+    if (side === 'sell' && g.paid != null) {
+      const p = (price - g.paid) * q;
+      profit = `<span>${p >= 0 ? 'Profit' : 'Loss'} <b class="${p >= 0 ? 'pl-up' : 'pl-dn'}">${p >= 0 ? '+' : '−'}${N(Math.abs(p))} g</b> on what you paid</span>`;
+    }
+    sum.innerHTML = `<span>Purse <s class="num">${fmt(S.gold)}</s> → <b class="num">${fmt(goldAfter)}</b> g</span><span>Hold <s class="num">${u}</s> → <b class="num">${after}</b>/${N(SHIP.cap)}</span>${profit}`;
+  }
+  const b = $('#sign');
+  if (S.pending) { b.setAttribute('aria-busy', 'true'); b.disabled = true; b.innerHTML = `<svg aria-hidden="true"><use href="#i-quill"/></svg>Signing the ledger…`; }
+  else if (q === null) { b.removeAttribute('aria-busy'); b.disabled = true; b.textContent = 'Enter an amount'; }
+  else { b.removeAttribute('aria-busy'); b.disabled = false; b.innerHTML = `${side === 'buy' ? 'Buy' : 'Sell'} ${N(q)} ${esc(g.name)} · ${N(price * q)} g`; }
+  renderCrates();
+}
+function renderSellAllArmed(body) {
+  $('#slipH').innerHTML = 'Bill of Sale <em class="sell">— the whole hold</em>';
+  const lines = GOODS.filter(held), total = lines.reduce((a, g) => a + held(g) * g.sellPrice, 0), n = lines.reduce((a, g) => a + held(g), 0);
+  const below = lines.filter((g) => g.paid != null && g.sellPrice < g.paid);
+  const ready = Date.now() - S.armAt >= GUARD_MS;
+  body.innerHTML = `<div class="armed"><p>Sell everything aboard at today's prices?</p>
+    <ul>${lines.map((g) => `<li class="${g.paid != null && g.sellPrice < g.paid ? 'warn' : ''}"><span>${esc(g.name)}</span><span class="lead"></span><span class="num">${held(g)} × ${g.sellPrice} = ${fmt(held(g) * g.sellPrice)}</span></li>`).join('')}</ul>
+    ${below.length ? `<p class="warn" style="color:var(--ptw-bad-ink)">Below what you paid: ${below.map((g) => `${esc(g.name)} (paid ${g.paid}, sells at ${g.sellPrice})`).join(', ')}.</p>` : ''}</div>
+    <div class="sfoot"><div class="acts">
+      <button class="btn-ink" data-do="disarm" data-fk="disarm" ${locked() ? 'disabled' : ''}>Keep my cargo</button>
+      <button class="btn btn-wax" data-do="sellall-confirm" data-fk="sellall-confirm" ${ready && !locked() ? '' : 'disabled'}>${S.pending ? 'Signing…' : `Sign: sell ${N(n)} for ${N(total)} g`}</button>
+    </div></div>`;
+  renderCrates();
+}
+function renderYardSlip(body) {
+  if (!S.order) {
+    $('#slipH').innerHTML = 'Work Order';
+    body.innerHTML = `<p class="hint">Choose a work order. Repairs restore the hull in full; a refit replaces your ship and keeps your cargo.</p>`;
+    renderCrates(); return;
+  }
+  $('#slipH').innerHTML = `Work Order <em class="order">— ${S.order === 'repair' ? 'repair' : 'refit'}</em>`;
   const isRep = S.order === 'repair', cost = isRep ? SHIP.repairCost : SHIP.next.cost, short = cost - S.gold;
-  slip.innerHTML = `<div class="shead"><span class="kind">Work order</span><h2>${isRep ? 'Repair the hull' : 'Refit as ' + SHIP.next.type}</h2><span class="sp"></span>
-    <button class="xbtn" data-do="clear" aria-label="Cancel the order (Esc)"><svg><use href="#i-x"/></svg></button></div>
-    <p class="sum num"><span>Purse <s>${fmt(S.gold)}</s> → <b>${short > 0 ? '—' : fmt(S.gold - cost)}</b> g</span>${isRep ? `<span>Hull <s>${S.hull}</s> → <b>${SHIP.hullMax}</b></span>` : `<span>Hold ${SHIP.cap} → <b>${SHIP.next.stats[0][2]}</b>, cargo stays aboard</span>`}</p>
-    ${short > 0 ? `<p class="limit block">Your purse is ${fmt(short)} g short.</p>` : ''}
-    <div class="acts"><button class="btn btn-rope" data-do="clear">Cancel</button>
-      <button class="btn btn-brass" id="confirm" data-do="confirm-order" ${short > 0 || S.pending ? 'disabled' : ''} ${S.pending ? 'aria-busy="true"' : ''}>${S.pending ? 'Signing…' : short > 0 ? `Need ${fmt(short)} g more` : `Pay ${fmt(cost)} g · ${isRep ? 'repair' : 'refit'}`}</button></div>
-    ${statusHtml()}`;
-  renderMeter();
+  const what = isRep ? 'Repair the hull' : `Refit as a ${SHIP.next.type}`;
+  const head = `<div class="sgood"><b>${what}</b><span class="sp"></span><button class="xbtn" data-do="clear" data-fk="clear" aria-label="Cancel the order" ${locked() ? 'disabled' : ''}><svg aria-hidden="true"><use href="#i-x"/></svg></button></div>`;
+  const sum = `<p class="sum" id="sum"><span>Purse <s class="num">${fmt(S.gold)}</s> → <b class="num">${short > 0 ? '—' : fmt(S.gold - cost)}</b> g</span>${isRep ? `<span>Hull <s class="num">${S.hull}</s> → <b class="num">${SHIP.hullMax}</b></span>` : `<span>Hold ${N(SHIP.cap)} → <b class="num">${SHIP.next.stats[0][2]}</b></span>`}</p>`;
+  const limitP = short > 0 ? `<p class="limit block" id="limit">Your purse is ${fmt(short)} g short.</p>` : '<p class="limit" id="limit"></p>';
+  if (!isRep && S.arm === 'refit') {   // armed: the real confirm is in a different place from the button just pressed
+    const ready = Date.now() - S.armAt >= GUARD_MS;
+    body.innerHTML = head + `<div class="armed"><p>This replaces <b>${SHIP.name}</b> (${SHIP.type.toLowerCase()}) with a ${SHIP.next.type.toLowerCase()} for ${N(cost)} g. It can't be undone. Your cargo stays aboard.</p></div>${sum}
+      <div class="sfoot"><div class="acts">
+        <button class="btn btn-wax" data-do="refit-confirm" data-fk="refit-confirm" ${ready && !locked() ? '' : 'disabled'}>${S.pending ? 'Signing…' : `Sign: pay ${N(cost)} g`}</button>
+        <button class="btn-ink" data-do="disarm" data-fk="disarm" ${locked() ? 'disabled' : ''}>Keep my ship</button>
+      </div></div>`;
+    renderCrates(); return;
+  }
+  const label = S.pending ? 'Signing…' : short > 0 ? `Need ${N(short)} g more` : isRep ? `Pay ${N(cost)} g · repair` : `Review the refit · ${N(cost)} g`;
+  body.innerHTML = head + limitP + sum + `<div class="sfoot"><button class="btn btn-sign" id="sign" data-do="${isRep ? 'repair-confirm' : 'refit-arm'}" data-fk="sign" aria-describedby="limit sum" ${short > 0 || S.pending ? 'disabled' : ''} ${S.pending ? 'aria-busy="true"' : ''}>${label}</button></div>`;
+  renderCrates();
+}
+
+/* ------------------------------------------------------------------ render with focus restore */
+function render(parts = 'all') {
+  const a = document.activeElement, fk = a && a.closest && a.closest('#bog') ? a.dataset.fk : null;
+  if (parts === 'all' || parts.includes('show')) renderShow();
+  if (parts === 'all' || parts.includes('ledger')) renderLedger();
+  if (parts === 'all' || parts.includes('slip')) renderSlip();
+  $$('.tab').forEach((b) => { b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)); b.tabIndex = b.dataset.tab === S.tab ? 0 : -1; b.disabled = locked(); });
+  $('#closeBtn').disabled = locked();
+  if (fk) restoreFocus(fk);
+}
+function restoreFocus(fk) {
+  let el = $(`#bog [data-fk="${CSS.escape(fk)}"]`);
+  if (!el || el.disabled || el.offsetParent === null) {
+    el = (fk.startsWith('c:') || fk === 'sign' || fk.startsWith('q:') ? (S.sel && $(`[data-fk="c:${S.sel.side}:${S.sel.id}"]`)) : null)
+      || ($('#sign') && !$('#sign').disabled && $('#sign')) || $('#ledger [tabindex="0"]') || $('#ledger');
+  }
+  if (el && document.activeElement !== el) el.focus({ preventScroll: true });
 }
 
 /* ------------------------------------------------------------------ actions */
-function defaultQty(g, side) { const m = limit(g, side).max; return side === 'sell' ? m : Math.min(1, m); }
-function select(id, side) {
-  if (S.pending) return;
-  if (S.sel && S.sel.id === id && S.sel.side === side) { clearSel(); return; }   // pressing the inked tag again lifts the pen
-  const g = byId(id);
-  S.sel = { id, side }; S.qty = defaultQty(g, side); S.status = null; S.sellAllArmed = false;
-  S.cursor = visible().indexOf(g);
-  sfx('tick');
-  renderLedger(); renderSlip();
-  const row = $(`[data-row="${id}"]`); if (row) row.scrollIntoView({ block: 'nearest', behavior: reduced() ? 'auto' : 'smooth' });
+function defaultQty(g, side) {
+  const m = limit(g, side).max; if (!m) return 0;
+  if (side === 'sell') return m;
+  return Math.min(+S.lastChip.buy, m);
 }
-function clearSel() { S.sel = null; S.order = null; S.status = null; renderLedger(); renderSlip(); }
+/** Choose a line and side. `toggle` (pointer only): pressing the inked cell again lifts the selection. */
+function select(id, side, { toggle = false, focus = false } = {}) {
+  if (locked()) return;
+  if (toggle && S.sel && S.sel.id === id && S.sel.side === side) { clearSel(); return; }
+  const g = byId(id);
+  if (S.sel && S.sel.id === id && S.sel.side === side) return;      // keyboard B/S on the chosen side: no change
+  S.sel = { id, side }; S.qty = defaultQty(g, side); S.qtyRaw = null; S.arm = null; setStatus(null);
+  const i = visible().indexOf(g); if (i >= 0) S.cur = { row: i, col: side === 'buy' && g.buyPrice == null ? 'sell' : side };
+  sfx('tick');
+  render(['ledger', 'slip']);
+  if (focus) { const c = $(`[data-fk="c:${S.cur.col}:${id}"]`); if (c) c.focus({ preventScroll: true }); }
+  revealSel();
+}
+function clearSel() { if (locked()) return; S.sel = null; S.order = null; S.arm = null; setStatus(null); render(['ledger', 'slip']); }
+function revealSel() {
+  requestAnimationFrame(() => { const r = S.sel && $(`[data-row="${S.sel.id}"]`); if (r) r.scrollIntoView({ block: 'nearest' }); });
+}
 function setQty(v) {
-  if (!S.sel) return;
+  if (!S.sel || locked()) return;
   const max = limit(byId(S.sel.id), S.sel.side).max;
-  S.qty = Math.max(max ? 1 : 0, Math.min(max, Math.round(Number.isFinite(v) ? v : 1)));
-  updateQty();
+  S.qty = Math.max(1, Math.min(max, Math.round(v))); S.qtyRaw = null;
+  updateQty(true);
+}
+/** Typed entry: the box and the Sign button always agree. Over max is rewritten to max at once (and the reason flashes);
+ *  empty or 0 marks the box invalid and disables Sign. */
+function typed(raw) {
+  const max = limit(byId(S.sel.id), S.sel.side).max;
+  const digits = raw.replace(/\D/g, '');
+  if (digits === '' || +digits < 1) { S.qty = null; S.qtyRaw = digits; updateQty(true); return; }
+  const n = +digits;
+  if (n > max) { S.qty = max; S.qtyRaw = null; updateQty(true); const l = $('#limit'); l.classList.remove('flash'); void l.offsetWidth; l.classList.add('flash'); return; }
+  S.qty = n; S.qtyRaw = null; updateQty(true);
 }
 function stamp(id, side) {
   const row = $(`[data-row="${id}"]`); if (!row) return;
@@ -791,115 +943,181 @@ function stamp(id, side) {
   s.className = `stamp ${side}`; s.textContent = side === 'buy' ? 'Bought' : 'Sold'; s.setAttribute('aria-hidden', 'true');
   row.appendChild(s); setTimeout(() => s.remove(), 2000);
 }
-function fail(text) { S.pending = false; S.status = { kind: 'err', text }; sfx('err'); renderSlip(); }
+/** Stand-in for the server: one request at a time, answered by `ref`. */
+function send(kind, payload, onOk) {
+  const ref = ++S.ref;
+  S.pending = { ref, kind, ...payload };
+  setStatus(null); render(['show', 'ledger', 'slip']);
+  const t = setTimeout(() => {                       // no answer
+    if (!S.pending || S.pending.ref !== ref) return;
+    S.pending = null; sfx('err');
+    setStatus('err', 'No word from the harbourmaster. Check your purse and hold before you try again.');
+    render(['show', 'ledger', 'slip']);
+  }, TIMEOUT_MS);
+  if (S.sim === 'silent') { S.sim = 'ok'; $('#pSim').value = 'ok'; return; }
+  setTimeout(() => {
+    if (!S.pending || S.pending.ref !== ref) return;   // stale answer: ignore
+    clearTimeout(t);
+    const res = serverAnswer(kind, payload);
+    S.pending = null;
+    if (res.err) { sfx('err'); setStatus('err', res.err); render(['show', 'ledger', 'slip']); return; }
+    onOk(res);
+  }, 450);
+}
+function serverAnswer(kind, p) {
+  if (S.sim === 'far') return { err: kind === 'order' ? 'The shipwright refuses: you are outside the harbour. Sail back inside the ring at the pier.' : 'The harbourmaster refuses: you have drifted out of the harbour. Sail back inside the ring at the pier to trade.' };
+  if (S.sim === 'price' && kind === 'trade') {
+    const g = byId(p.goodId); S.sim = 'ok'; $('#pSim').value = 'ok';
+    if (p.side === 'buy') g.buyPrice += 2; else g.sellPrice -= 2;
+    return { err: `The price of ${g.name} moved from ${p.expectedPrice} to ${p.side === 'buy' ? g.buyPrice : g.sellPrice} g against you. Nothing was traded; check the new total and sign again.` };
+  }
+  return { ok: true };
+}
 function confirmTrade() {
-  if (!S.sel || S.pending) return;
-  const g = byId(S.sel.id), side = S.sel.side, q = S.qty;
-  if (!q || q > limit(g, side).max) return;
-  S.pending = true; S.status = null; updateQty();
-  const priceSeen = side === 'buy' ? g.buyPrice : g.sellPrice;
-  setTimeout(() => {                                   // stand-in for the server round trip
-    if (S.sim === 'far') return fail(`The harbourmaster refuses: you have drifted out of the harbour. Sail back inside the ring at the pier to trade.`);
-    if (S.sim === 'price') {
-      if (side === 'buy') g.buyPrice += 2; else g.sellPrice -= 2;
-      S.sim = 'ok'; $('#pSim').value = 'ok';
-      renderLedger();
-      return fail(`The price of ${g.name} moved from ${priceSeen} to ${side === 'buy' ? g.buyPrice : g.sellPrice} g while you haggled. Nothing was traded; check the new total and sign again.`);
-    }
-    const total = priceSeen * q;
+  if (!S.sel || locked()) return;
+  const g = byId(S.sel.id), side = S.sel.side, q = S.qty, box = $('#qty');
+  if (!q || !box || +box.value !== q || q > limit(g, side).max) return;   // never trade a number other than the one shown
+  const price = side === 'buy' ? g.buyPrice : g.sellPrice;
+  send('trade', { goodId: g.id, side, qty: q, expectedPrice: price }, () => {
+    const total = price * q;
     if (side === 'buy') { g.paid = Math.round(((g.paid || 0) * held(g) + total) / (held(g) + q)); g.hold = held(g) + q; g.stock -= q; S.gold -= total; }
     else { g.hold = held(g) - q; if (!g.hold) g.paid = undefined; S.gold += total; }
-    S.pending = false;
-    S.status = { kind: 'ok', side, text: `Entered in the ledger: ${side === 'buy' ? 'bought' : 'sold'} ${q} ${g.name} for ${fmt(total)} g.` };
     sfx(side); rollPurse(S.gold);
-    const left = limit(g, side).max;
-    if (!left) S.sel = null; else S.qty = defaultQty(g, side);   // keep the line chosen while more can be traded
-    renderFilters(); renderLedger(); renderSlip(); stamp(g.id, side);
-  }, 450);
+    setStatus('ok', `Entered in the ledger: ${side === 'buy' ? 'bought' : 'sold'} ${q} ${g.name} for ${fmt(total)} g.`, side);
+    if (!limit(g, side).max) S.sel = null; else { S.qty = defaultQty(g, side); S.qtyRaw = null; }   // keep the line while more can be traded
+    render(['show', 'ledger', 'slip']); stamp(g.id, side);
+  });
+}
+function arm(kind) {
+  S.arm = kind; S.armAt = Date.now(); render(['slip']);
+  setTimeout(() => { if (S.arm === kind) render(['slip']); }, GUARD_MS + 10);   // enable the confirm after the guard
 }
 function sellAll() {
-  S.pending = true; renderSlip();
-  setTimeout(() => {
+  if (Date.now() - S.armAt < GUARD_MS || locked()) return;
+  const lines = GOODS.filter(held).map((g) => ({ goodId: g.id, qty: held(g), expectedPrice: g.sellPrice }));
+  send('sellAll', { lines }, () => {
     let total = 0, n = 0; const ids = [];
     for (const g of GOODS) if (held(g)) { total += held(g) * g.sellPrice; n += held(g); ids.push(g.id); g.hold = 0; g.paid = undefined; }
-    S.gold += total; S.pending = false; S.sellAllArmed = false;
-    S.status = { kind: 'ok', side: 'sell', text: `Entered in the ledger: sold the whole hold, ${n} units, for ${fmt(total)} g.` };
-    sfx('sell'); rollPurse(S.gold); renderFilters(); renderLedger(); renderSlip(); ids.forEach((id) => stamp(id, 'sell'));
-  }, 450);
+    S.gold += total; S.arm = null; sfx('sell'); rollPurse(S.gold);
+    setStatus('ok', `Entered in the ledger: sold the whole hold, ${n} units, for ${fmt(total)} g.`, 'sell');
+    render(['show', 'ledger', 'slip']); ids.forEach((id) => stamp(id, 'sell'));
+  });
 }
-function confirmOrder() {
-  const isRep = S.order === 'repair', cost = isRep ? SHIP.repairCost : SHIP.next.cost;
-  if (S.gold < cost || S.pending) return;
-  S.pending = true; renderSlip();
-  setTimeout(() => {
-    if (S.sim === 'far') return fail('The shipwright will not row out to you: you are outside the harbour.');
-    S.gold -= cost; S.pending = false;
-    if (isRep) S.hull = SHIP.hullMax;
-    S.status = { kind: 'ok', text: isRep ? `Hull repaired for ${fmt(cost)} g.` : 'Refit ordered.' };
-    S.order = null; sfx('sell'); rollPurse(S.gold); renderLedger(); renderSlip();
-  }, 450);
+function order(kind) {
+  const isRep = kind === 'repair', cost = isRep ? SHIP.repairCost : SHIP.next.cost;
+  if (S.gold < cost || locked()) return;
+  if (!isRep && Date.now() - S.armAt < GUARD_MS) return;
+  send('order', { kind }, () => {
+    S.gold -= cost; if (isRep) S.hull = SHIP.hullMax;
+    S.order = null; S.arm = null; sfx('sell'); rollPurse(S.gold);
+    setStatus('ok', isRep ? `Hull repaired for ${fmt(cost)} g.` : `Refit signed: the yard will have your ${SHIP.next.type.toLowerCase()} ready.`);
+    render(['ledger', 'slip']);
+  });
 }
 function setTab(t) {
-  if (S.pending) return;
-  S.tab = t; S.sel = null; S.order = null; S.status = null; S.sellAllArmed = false; S.cursor = -1;   // nothing carries across offices
-  document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
-  renderFilters(); renderLedger(); renderSlip(); $('#ledger').scrollTop = 0;
+  if (locked() || S.tab === t) return;
+  S.tab = t; S.sel = null; S.order = null; S.arm = null; S.cur = { row: 0, col: 'buy' }; setStatus(null);   // nothing carries across offices
+  render(); $('#ledger').scrollTop = 0;
 }
-function moveCursor(d) {
+function setFilter(f) { if (locked()) return; S.filter = f; S.cur = { row: 0, col: 'buy' }; render(['show', 'ledger']); }
+/** Roving focus inside the ledger. With a line chosen, the choice follows the focus. */
+function moveCur(dRow, col) {
   const list = visible(); if (!list.length) return;
-  let i = S.cursor < 0 ? (d > 0 ? 0 : list.length - 1) : Math.max(0, Math.min(list.length - 1, S.cursor + d));
-  S.cursor = i;
-  if (S.sel) { const g = list[i]; S.sel = { id: g.id, side: S.sel.side }; S.qty = defaultQty(g, S.sel.side); S.status = null; renderSlip(); }
-  renderLedger();
-  const row = $(`[data-i="${i}"]`); if (row) row.scrollIntoView({ block: 'nearest' });
+  let row = Math.max(0, Math.min(list.length - 1, S.cur.row + dRow));
+  let c = col || S.cur.col; if (c === 'buy' && list[row].buyPrice == null) c = col === 'buy' && dRow === 0 ? 'buy' : 'sell';
+  if (c === 'buy' && list[row].buyPrice == null) return;   // ← onto "not sold here": stay
+  S.cur = { row, col: c };
+  if (S.sel && !locked()) { const g = list[row]; S.sel = { id: g.id, side: c }; S.qty = defaultQty(g, c); S.qtyRaw = null; setStatus(null); render(['ledger', 'slip']); }
+  else renderLedger();
+  const el = $(`[data-fk="c:${c}:${list[row].id}"]`); if (el) { el.focus({ preventScroll: true }); el.closest('.row').scrollIntoView({ block: 'nearest' }); }
 }
-function close() { S.closed = true; $('#bog').hidden = true; $('#closed').hidden = false; $('#reopen').focus(); }
-function reopen() { S.closed = false; $('#bog').hidden = false; $('#closed').hidden = true; $('#ledger').focus({ preventScroll: true }); }
+function close() { if (locked()) return; S.closed = true; $('#bog').hidden = true; $('#closed').hidden = false; $('#reopen').focus(); }
+function reopen() { S.closed = false; $('#bog').hidden = false; $('#closed').hidden = true; focusLedger(); }
+function focusLedger() { const c = $('#ledger [tabindex="0"]') || $('#ledger .cell'); if (c) c.focus({ preventScroll: true }); }
 
 /* ------------------------------------------------------------------ events */
 $('#ledger').addEventListener('click', (e) => {
   const t = e.target.closest('[data-act]');
-  if (t) return select(+t.dataset.id, t.dataset.act);
+  if (t) return select(+t.dataset.id, t.dataset.act, { toggle: true });
   const o = e.target.closest('[data-order]');
-  if (o) { if (S.pending) return; S.order = S.order === o.dataset.order ? null : o.dataset.order; S.status = null; renderLedger(); renderSlip(); return; }
+  if (o) { if (locked()) return; S.order = S.order === o.dataset.order ? null : o.dataset.order; S.arm = null; setStatus(null); render(['ledger', 'slip']); return; }
   const r = e.target.closest('[data-row]');
-  if (r) { const g = byId(+r.dataset.row); select(g.id, held(g) ? 'sell' : 'buy'); }   // tapping the line itself: sell if aboard, else buy
+  if (r) {   // tapping the line itself: sell if aboard; else buy if it can be bought; else the side that has a price
+    const g = byId(+r.dataset.row);
+    const side = held(g) ? 'sell' : g.buyPrice != null ? 'buy' : 'sell';
+    select(g.id, side, { focus: true });
+  }
 });
-$('#filters').addEventListener('click', (e) => { const c = e.target.closest('[data-filter]'); if (!c) return; S.filter = c.dataset.filter; S.cursor = -1; renderFilters(); renderLedger(); });
-document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$('#show').addEventListener('click', (e) => { const c = e.target.closest('[data-filter]'); if (c) setFilter(c.dataset.filter); });
+$('#show').addEventListener('change', (e) => { if (e.target.id === 'showsel') setFilter(e.target.value); });
+$$('.tab').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+$('.tabs').addEventListener('keydown', (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); setTab(S.tab === 'goods' ? 'yard' : 'goods'); $(`#tab-${S.tab}`).focus(); } });
 $('#slip').addEventListener('click', (e) => {
   const q = e.target.closest('[data-q]');
-  if (q) { const max = limit(byId(S.sel.id), S.sel.side).max; setQty(q.dataset.q === 'max' ? max : +q.dataset.q); return; }
-  const d = e.target.closest('[data-do]'); if (!d) return;
-  ({ clear: clearSel, dec: () => setQty(S.qty - 1), inc: () => setQty(S.qty + 1), confirm: confirmTrade, 'confirm-order': confirmOrder,
-    'sellall-arm': () => { S.sellAllArmed = true; renderSlip(); $('[data-do="sellall-confirm"]').focus(); clearTimeout(S.armT); S.armT = setTimeout(() => { if (S.sellAllArmed) { S.sellAllArmed = false; renderSlip(); } }, 6000); },
-    'sellall-cancel': () => { S.sellAllArmed = false; renderSlip(); }, 'sellall-confirm': sellAll })[d.dataset.do]?.();
+  if (q) { if (locked()) return; const max = limit(byId(S.sel.id), S.sel.side).max; if (S.sel.side === 'buy' && q.dataset.q !== 'max') S.lastChip.buy = q.dataset.q; setQty(q.dataset.q === 'max' ? max : +q.dataset.q); return; }
+  const d = e.target.closest('[data-do]'); if (!d || d.disabled) return;
+  ({ clear: clearSel, dec: () => setQty((S.qty || 1) - 1), inc: () => setQty((S.qty || 0) + 1), confirm: confirmTrade,
+    'sellall-arm': () => arm('sellall'), disarm: () => { S.arm = null; render(['slip']); },
+    'sellall-confirm': sellAll, 'repair-confirm': () => order('repair'), 'refit-arm': () => arm('refit'), 'refit-confirm': () => order('upgrade'),
+    showhold: () => setFilter('hold') })[d.dataset.do]?.();
 });
 $('#slip').addEventListener('input', (e) => {
   if (e.target.id === 'qtyR') setQty(+e.target.value);
-  if (e.target.id === 'qty') { const v = parseInt(e.target.value.replace(/\D/g, ''), 10); if (!Number.isNaN(v)) setQty(v); }
+  if (e.target.id === 'qty') typed(e.target.value);
 });
-$('#slip').addEventListener('change', (e) => { if (e.target.id === 'qty') { e.target.value = S.qty; } });
 $('#closeBtn').addEventListener('click', close);
 $('#reopen').addEventListener('click', reopen);
+$('#keysBtn').addEventListener('click', () => { S.keysOpen = !S.keysOpen; $('#keynote').hidden = !S.keysOpen; $('#keysBtn').setAttribute('aria-expanded', String(S.keysOpen)); if (S.keysOpen) $('#keysClose').focus(); });
+$('#keysClose').addEventListener('click', () => { S.keysOpen = false; $('#keynote').hidden = true; $('#keysBtn').setAttribute('aria-expanded', 'false'); $('#keysBtn').focus(); });
+
+/** Focus trap: Tab cycles inside the open screen. */
+function trap(e) {
+  const els = $$('#bog button, #bog input, #bog select, #bog [tabindex="0"]').filter((el) => !el.disabled && el.offsetParent !== null && el.tabIndex >= 0);
+  if (!els.length) return;
+  const first = els[0], last = els[els.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  else if (!$('#bog').contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+}
 document.addEventListener('keydown', (e) => {
   if (!$('#before').hidden) { if (e.key === 'Escape') $('#before').hidden = true; return; }
-  if (e.target.closest('.pbar')) return;
+  if (e.target.closest && e.target.closest('.pbar')) return;
   if (S.closed) { if (e.key === 't' || e.key === 'T') reopen(); return; }
-  const inQty = e.target.id === 'qty', inRange = e.target.id === 'qtyR', k = e.key;
+  if (e.key === 'Tab') return trap(e);
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  if (k === 'Escape') { e.preventDefault(); if (S.sel || S.order) clearSel(); else close(); return; }
-  // Enter signs the bill from anywhere except the slip's own buttons and the close button (those keep their native Enter).
-  if (k === 'Enter') { if (e.target.closest('#slip button, .close')) return; if (S.sel) { e.preventDefault(); confirmTrade(); } else if (S.order) { e.preventDefault(); confirmOrder(); } return; }
-  if (S.tab !== 'goods') { if (k === '1') setTab('goods'); return; }
-  if (k === 'ArrowDown' || k === 'ArrowUp') { if (inRange) return; e.preventDefault(); moveCursor(k === 'ArrowDown' ? 1 : -1); return; }
-  if ((k === 'ArrowLeft' || k === 'ArrowRight') && S.sel && !inRange && !inQty) { e.preventDefault(); setQty(S.qty + (k === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 1)); return; }
+  const k = e.key, lk = k.toLowerCase(), t = e.target, inQty = t.id === 'qty', inRange = t.id === 'qtyR', inSel = t.tagName === 'SELECT';
+  if (k === 'Escape') {
+    e.preventDefault();
+    if (locked()) { setStatus(null); $('#status').textContent = 'The clerk is still writing. One moment.'; return; }
+    if (S.keysOpen) { $('#keysClose').click(); return; }
+    if (S.arm) { S.arm = null; render(['slip']); return; }
+    if (S.sel || S.order) { clearSel(); focusLedger(); return; }
+    close(); return;
+  }
+  if (locked()) { if (k === 'Enter' || k === ' ') e.preventDefault(); return; }
+  if (k === 'Enter') {
+    if (t.closest('#slip button, .close, .keynote, .tools')) return;            // those keep their own Enter
+    e.preventDefault();
+    if (S.tab === 'goods' && S.sel) return confirmTrade();
+    if (t.matches('.cell')) return select(+t.dataset.id, t.dataset.act);
+    return;
+  }
+  if (inSel || inRange) return;
+  if (k === ' ' && t.matches('.cell')) { e.preventDefault(); return select(+t.dataset.id, t.dataset.act); }
+  if (lk === 't' && !inQty) return close();
+  if (k === '1' && !inQty) return setTab('goods');
+  if (k === '2' && !inQty) return setTab('yard');
+  if (S.tab !== 'goods') return;
+  const inLedger = !!t.closest('#ledger');
+  if (k === 'ArrowDown' || k === 'ArrowUp') { if (inQty) return; e.preventDefault(); return moveCur(k === 'ArrowDown' ? 1 : -1); }
+  if ((k === 'ArrowLeft' || k === 'ArrowRight') && inLedger) { e.preventDefault(); return moveCur(0, k === 'ArrowLeft' ? 'buy' : 'sell'); }
   if (inQty) return;
-  const lk = k.toLowerCase(), list = visible();
-  if ((lk === 'b' || lk === 's') && list.length) { const i = S.cursor < 0 ? 0 : S.cursor; const g = S.sel ? byId(S.sel.id) : list[i]; if (g.buyPrice == null && lk === 'b') { select(g.id, 'buy'); return; } select(g.id, lk === 'b' ? 'buy' : 'sell'); return; }
-  if (lk === 'm' && S.sel) { setQty(limit(byId(S.sel.id), S.sel.side).max); return; }
-  if (k === '2') setTab('yard');
-  if (lk === 't') close();
+  if ((k === '+' || k === '=' || k === '-' || k === '_') && S.sel) { e.preventDefault(); const d = (k === '+' || k === '=') ? 1 : -1; return setQty((S.qty || 0) + d * (e.shiftKey ? 10 : 1)); }
+  if ((lk === 'b' || lk === 's') && !inQty) {   // B / S only ever CHOOSE a side; they never clear
+    const list = visible(); const g = S.sel ? byId(S.sel.id) : list[S.cur.row]; if (!g) return;
+    return select(g.id, lk === 'b' ? 'buy' : 'sell', { focus: true });
+  }
+  if (lk === 'm' && S.sel) return setQty(limit(byId(S.sel.id), S.sel.side).max);
 });
 
 /* ------------------------------------------------------------------ prototype controls */
@@ -913,17 +1131,20 @@ function layoutFrame() {
   wrap.style.width = f[0] * sc + 'px'; wrap.style.height = f[1] * sc + 'px';
 }
 addEventListener('resize', layoutFrame);
+if (/bare/.test(location.hash)) $('#proto').classList.add('bare');
 $('#pToggle').addEventListener('click', (e) => { const o = $('#pbar').classList.toggle('open'); e.target.setAttribute('aria-expanded', String(o)); layoutFrame(); });
 $('#pFrame').addEventListener('change', (e) => { S.frame = e.target.value; layoutFrame(); });
 $('#pSea').addEventListener('change', (e) => { $('#device').dataset.sea = e.target.value; });
 $('#pSim').addEventListener('change', (e) => { S.sim = e.target.value; });
+$('#pRich').addEventListener('click', () => { S.gold += 12000; rollPurse(S.gold); render(['ledger', 'slip']); });
 $('#pSound').addEventListener('click', (e) => { S.sound = !S.sound; e.target.setAttribute('aria-pressed', S.sound); e.target.textContent = S.sound ? 'Sound on' : 'Sound off'; });
 $('#pRm').addEventListener('click', (e) => { S.rm = !S.rm; e.target.setAttribute('aria-pressed', S.rm); $('#device').dataset.rm = S.rm; });
-$('#pReset').addEventListener('click', () => { GOODS = START(); Object.assign(S, { tab: 'goods', filter: 'all', sel: null, qty: 1, pending: false, cursor: -1, gold: 1240, hull: 118, order: null, sellAllArmed: false, status: null }); shownGold = S.gold; $('#purse').textContent = fmt(S.gold); reopen(); setTab('goods'); });
+$('#pReset').addEventListener('click', () => { GOODS = START(); Object.assign(S, { tab: 'goods', filter: 'all', sel: null, qty: 1, qtyRaw: null, pending: null, arm: null, cur: { row: 0, col: 'buy' }, gold: 1240, hull: 118, order: null }); shownGold = S.gold; $('#purse').textContent = fmt(S.gold); setStatus(null); reopen(); render(); });
 $('#pBefore').addEventListener('click', () => { $('#before').hidden = false; $('#beforeClose').focus(); });
 $('#beforeClose').addEventListener('click', () => { $('#before').hidden = true; });
 
-renderFilters(); renderLedger(); renderSlip(); layoutFrame();
-$('#ledger').focus({ preventScroll: true });   // arrows / B / S work at once, as they would when the screen opens in game
+render(); layoutFrame(); focusLedger();
+// test hook (prototype only)
+window.__bog = { S, limit, byId, visible };
 })();
 </script>

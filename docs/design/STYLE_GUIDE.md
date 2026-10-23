@@ -1,285 +1,257 @@
 # Pirate Trade Wars: UI style guide
 
-Status: proposal (2026-10-23). It was worked backwards from the trade screen redesign
-(`docs/proposals/trade-redesign/`). The prototype `docs/proposals/trade-redesign/prototype.html` is the reference
-implementation of every rule below.
+Status: adopted 2026-10-23 (revision 2, after the art and UX reviews in
+`docs/proposals/trade-redesign/REVIEWS.md`). It was worked backwards from the trade screen; the reference
+implementations are `docs/proposals/trade-redesign/prototype.html` and the in-game `client/src/components/ui/trade/`.
 
-**How it relates to the theme layer.** A parallel effort, "pirate theme layer", adds `client/src/styles/pirate.css`
-(tokens `--ptw-*`, classes `ptw-*`) and `client/src/components/ui/pirate/*` (`PirateButton`, `ParchmentPanel`, ...).
-This guide **adopts** its palette, fonts, materials and focus ring unchanged. It **extends** them with ledger,
-selection and trade tokens, and it **overrides** them in three places, marked "Override" below. Each extension and
-override is listed in the section "Changes to the theme layer" at the end. Where this guide is silent, the
-theme-layer README rules.
+**Relation to the theme layer** (`client/src/styles/pirate.css`, tokens `--ptw-*`, classes `ptw-*`;
+`client/src/components/ui/pirate/*`): this guide **adopts** its palette, fonts, materials and focus ring, **extends** it
+with ledger, selection and trade tokens/classes, and **overrides** it in the places marked *Override*. §15 lists every
+change. Where this guide is silent, the theme-layer README rules.
 
 ---
 
 ## 1. Principles
 
-1. **Grounded in the world.** Every surface is an object a ship's captain would really hold or look at. The trade
-   screen is the harbourmaster's bill of goods on a wooden counter, not a "dialog". Name each surface after its object
-   (see Materials) and draw it as that object: ruled paper, ink, brass, wax, wood. Words are in-world too ("Sign",
-   "Purse", "Hold", "not sold here", "the harbourmaster refuses"), with plain English for the facts (numbers, limits,
-   reasons).
-2. **Obvious state.** At any moment the player can answer three questions without hunting:
-   *What have I chosen? What will happen if I press the big button? Why can't I?*
-   - The thing that's selected is drawn **inked in** (solid dark fill), not just tinted.
-   - The primary button's label states the whole action: "Buy 14 Sugar · 252 g".
-   - Every blocked action says why, in words, next to where you'd press it.
-3. **Nothing hides.** Headers and the action area are fixed. Only the list scrolls. A primary action never sits below
-   the fold, on any screen size.
-4. **Nothing carries over by surprise.** Changing a tab, a row or a side resets what depended on it. There is no
-   hidden "mode".
-5. **Numbers are instruments.** Gold, cargo and prices use tabular figures. They sit where the eye expects them
-   (purse top-left, hold meter next to it), and they preview the result of the action before you commit.
-6. **The 3D world stays the hero.** Overlays leave the ocean visible around them on desktop. On phones they go full
-   bleed but keep the wooden frame, so the screen still reads as an object set down over the sea.
+1. **Grounded in the world.** Every surface is an object a captain would really hold: the harbourmaster's bill of
+   goods on a plank counter, a bill of sale torn from a book, work orders pinned up, a sea chart, a ship's log. Draw it
+   as that object (ruled paper, ink, wax, wood, brass) and name it after the object. Use in-world voice for headings,
+   stamps and refusals ("the harbourmaster refuses"); use plain words for numbers, buttons and screen-reader labels.
+2. **Obvious state, one grammar.** *Inked = selected*, everywhere: a solid ink fill or a solid ink rule marks the
+   chosen cell, tab, filter, chip or work order. *Brass = the one commit button* (Sign) per screen; nothing else is
+   brass. *Dotted = can't* (plus the reason in words).
+3. **Nothing hides.** Fixed header, one scrolling list, a docked bill of sale whose Sign button is always on screen.
+4. **Nothing carries over by surprise.** One selection value; changing tab, line or side replaces it.
+5. **What you see is what is sent.** The amount box, the Sign label and the request always carry the same number.
+6. **The sea stays the hero.** On desktop the counter sits on the scene with the ocean visible around it.
 
-## 2. Materials vocabulary
+## 2. Banned (AI/web tells)
 
-Pick the object first, then the material.
+These are not allowed on in-world surfaces (anything parchment, wood or wax):
 
-| Surface in the game | In-world object | Material (class / component) | Notes |
+- `rounded-full` / pills, or any border-radius > 3px on paper or wood (round *objects* like a knob or a seal are fine).
+- Filled rectangular badges ("CHEAP HERE" in a box, "PURCHASE" in a blue rectangle). Use ink annotations or a wax seal.
+- `<kbd>` keycaps in-world (put keyboard help in a dismissible margin note).
+- Unsegmented progress bars or barber-pole stripes (use a bar of crates, a plank tally).
+- lucide icons or emoji on parchment or wood. Draw the few marks needed as ink SVG.
+- Dashed borders as paper edges or "drop zones" (use torn edges, perforations, dotted *ink* for "can't").
+- Blur shadows > 12px; glows; glassmorphism; `backdrop-filter`.
+- More than one coin glyph per row; a coin glyph inside every price cell.
+- Digits in IM Fell English SC (its "1" reads as "I"). All digits are Alegreya `.ptw-num`.
+- Pirata One anywhere but the port / screen name.
+- Bootstrap-style red alert boxes. Refusals are the clerk's note: wax rule + small seal.
+- Brass on anything except the one Sign button.
+
+### Lint rules (to add with the trade screen)
+
+| Rule | Tool | Scope |
+|---|---|---|
+| no `lucide-react` import | eslint `no-restricted-imports` | `client/src/components/ui/trade/**`, `ui/pirate/**`, and every in-world screen as it is restyled |
+| no raw hex colours | stylelint `color-no-hex` (or a grep in `npm run check:ui`) | everything except `client/src/styles/pirate.css` |
+| no `rounded-full`, `rounded-(md\|lg\|xl\|2xl)` | grep in `npm run check:ui` | the same in-world folders |
+| no `font-label` / `ptw-font-label` on an element whose text contains a digit | review checklist (not mechanical) | |
+
+## 3. Materials vocabulary and recipes
+
+| Surface | Object | Class / component | Recipe |
 |---|---|---|---|
-| Trade screen | Harbourmaster's **bill of goods** on the counter | wood frame `.ptw-wood` + ruled parchment `.ptw-ledger-page` | red double margin rule, ink column rules |
-| Trade quantity + confirm | **Bill of sale** chit, perforated top | `.ptw-slip` (parchment-lo, dashed top edge) | always docked; "Bill of Sale" label on the perforation |
-| Shipwright (repair, refit) | **Work orders** pinned on the same counter | `.ptw-order` cards on the ledger page | same slip confirms them |
-| Price or action on a row | **Price tag** / ruled ledger box | `.ptw-tag` | outline = can press; inked = chosen; dashed = cannot |
-| Purse (gold) | Coin purse + doubloon | coin glyph + `.ptw-num` | top-left of every port screen |
-| Hold (cargo) | Hold gauge, a brass-cased **bar of crates** | `.ptw-meter--hold` | shows a hatched preview of the pending trade |
-| "Wanted" | Red **wax notice** pasted on the line | `.ptw-mark--wanted` | always paired with the word |
-| Success feedback | **Ink stamp** "Bought" / "Sold" on the line | `.ptw-stamp` | plus coin sound, purse roll |
-| Errors | **Wax-red slip** from the harbourmaster | `.ptw-alert` (theme layer) | `role="alert"` |
-| HUD over the sea | Brass and dark-wood **instrument plates** | `HudPanel` (theme layer) | never parchment over the sea |
-| World map | **Sea chart** | `SeaChartBackdrop` | |
-| Chat | **Ship's log** | `HudPanel` + `.ptw-ledger` rows | |
-| Leaderboard | **Wanted board** / guild roll | parchment + `.ptw-medal` | |
-| Game over, purchases | **Sealed letter** | `ParchmentPanel torn` + `WaxSeal` | |
-| Close / round icon buttons | **Brass porthole** knob | `.ptw-btn--porthole` | 44 px minimum |
+| Trade overlay | plank **counter** | `.ptw-counter` | wood grain (`--ptw-tex-grain`) over a 3-stop wood gradient, plank seams every 120px, iron nails at the corners; padding 18px desktop / 8px phone / 5px landscape; shadow `0 10px 12px rgb(0 0 0/.55)` |
+| The list | **bill of goods** page | `.ptw-ledger-page` | parchment gradient + noise; torn edge on all four sides (CSS mask of the theme layer's torn tiles); contact shadow via `filter: drop-shadow(0 3px 3px rgb(0 0 0/.55))` on a wrapper (the mask clips box-shadow); red double margin rule at 31–36px |
+| The action area | **bill of sale**, torn from a book | `.ptw-slip` | its own sheet, darker (`--ptw-slip` #dcc597), overlapping the page by 14px; perforated edge (left on desktop and landscape, top on phone) via a radial-gradient mask; drop shadow ≤ 4px blur |
+| Shipwright | **work orders** pinned up | `.ptw-order` | parchment-lo chit, square corners, ±0.6° rotation, iron pin, shadow `0 2px 3px` |
+| Hold gauge | **bar of crates** | `HoldCrates` | one cell per unit (cap ≤ 50; above that one cell per 2 units); full cells burnt-wood, the pending purchase hatched ink-blue, the pending sale hatched burn |
+| Hull | **plank tally** | `HullPlanks` | 10 planks; damaged planks drawn broken (ink-off outline, cracked clip-path) |
+| Refusal | **clerk's note** | `.ptw-note--refusal` | 3px wax-red rule on the left, faint wax wash, small wax-seal glyph, text in bad-ink |
+| Success | **ink stamp** | `.ptw-stamp--buy/--sell` | double-ruled box, Fell SC, −8° tilt, 88% ink, uneven-ink mask (noise SVG); placed over the *name* column |
+| Wanted | **wax blob seal** + italic "wanted" | `.ptw-mark--wanted` | 15px irregular wax blob SVG beside the word |
+| Cheap here / pays well | **ink annotation** | `.ptw-mark--cheap/--dear` | italic note face; "cheap here" green ink with a wavy underline |
+| Close | turned **wooden knob** | `.ptw-knob` | 44px round, wood gradient, cream ×; *not* brass |
+| Sign | **brass plate** | `.ptw-btn--brass` (theme layer) | the only brass on the screen |
+| HUD | instrument plates | `HudPanel` (theme layer) | never parchment over the sea |
 
-Don't: generic rounded cards, glassmorphism, gradients that aren't a material, lucide icons in body text, emoji.
+## 4. Colour tokens
 
-## 3. Colour tokens
-
-All tokens are on `:root` in `client/src/styles/pirate.css`. The first block exists in the theme layer; **new** marks
-an addition proposed here.
+Existing theme-layer tokens plus **new** ones:
 
 | Token | Value | Role |
 |---|---|---|
-| `--ptw-ink` | #2a1a0c | text, rules, the **selected** fill |
-| `--ptw-ink-soft` | #5c3e1e | secondary text, labels, the dashed "cannot" outline |
-| `--ptw-ink-blue` **new** | #1f3a5a | purchase marks: "Purchase" tag, "Bought" stamp, hold-preview hatching |
-| `--ptw-ink-off` **new** | #7d6748 | disabled text on parchment (4.0:1, see below) |
+| `--ptw-ink` | #2a1a0c | text, rules, **the selected fill** |
+| `--ptw-ink-soft` | #5c3e1e | secondary text, labels, idle figures |
+| `--ptw-ink-blue` **new** | #1f3a5a | purchase: "— Purchase", "Bought" stamp, hold-preview hatch |
+| `--ptw-ink-off` **new** | #7d6748 | "can't" figures and disabled text (4.0:1) |
 | `--ptw-parchment` / `-hi` / `-lo` | #ecdcb4 / #f7ecd2 / #d6bc88 | paper |
-| `--ptw-sel-wash` **new** | #e3c98a | background of a selected row or order |
-| `--ptw-hover-wash` **new** | rgb(122 74 26 / .09) | hover on rows and plain buttons |
-| `--ptw-ledger-rule` **new** | rgb(42 26 12 / .2) | row rules |
-| `--ptw-ledger-margin` **new** | rgb(142 26 20 / .45) | the red double margin line |
-| `--ptw-wood` / `-dark` / `-black` | #3b2414 / #20130a / #120a05 | frame, secondary buttons |
-| `--ptw-brass-hi` / `brass` / `-lo` | #f6e0a0 / #c9a24d / #7a571e | primary button, porthole, slider thumb |
-| `--ptw-wax` / `-hi` / `-lo` | #8e1a14 / #d0453a / #540a08 | sale marks, "Wanted", errors, destructive |
-| `--ptw-wax-text` **new** | #fbe9d6 | text on wax |
-| `--ptw-good-ink` / `--ptw-bad-ink` | #265c22 / #8e1a14 | profit / loss, "Cheap here" |
-| `--ptw-cream`, `--ptw-gold` | #f5e9cc / #f2c35b | text and figures on wood and on the HUD |
-| `--ptw-focus` | #ffe08a | focus ring (always with a dark halo) |
+| `--ptw-slip` **new** | #dcc597 | bill of sale sheet (darker than the page, for depth) |
+| `--ptw-sel-wash` **new** | #e8d29c | background of the selected row |
+| `--ptw-hover-wash` **new** | rgb(122 74 26 / .08) | hover |
+| `--ptw-ledger-rule` **new** | rgb(42 26 12 / .2) | row and column rules |
+| `--ptw-ledger-margin` **new** | rgb(142 26 20 / .45) | red margin rule |
+| `--ptw-leader` **new** | rgb(42 26 12 / .4) | dotted leaders |
+| `--ptw-wood*`, `--ptw-iron` | theme | counter, knob, nails |
+| `--ptw-brass*` | theme | Sign only |
+| `--ptw-wax*`, `--ptw-wax-text` **new** #fbe9d6 | | sale, wanted, refusal, destructive confirm |
+| `--ptw-good-ink` / `--ptw-bad-ink` | #265c22 / #8e1a14 | profit / loss (with a sign), "cheap here" |
+| `--ptw-focus` | #ffe08a | focus ring, always inside an ink halo |
 
-**Meaning is never colour alone.** Buy vs sell is said in words ("Buy", "Sell", "Purchase", "Sale") and by position
-(Buy is always the left tag). Profit carries a sign ("+58 ea"). Wanted is a word on a seal.
-
-**Colour semantics for prices.** Colour judges the deal from the player's side, never the raw direction of the
-price: a low *buy* price is good (green "Cheap here"), a high *sell* price is good ("Pays well"). The current screen
-gets this backwards (it paints a 47% drop red on the Buy tab).
+Colour judges the deal from the player's side: a low buy price is "cheap here", a high sell price "pays well".
+Red appears for a sale only when it is **below what you paid**. Meaning is never colour alone.
 
 ### Contrast (WCAG 2.x, measured)
 
-Over parchment (all body text at least 4.5:1, AA):
-
 | Foreground | Background | Ratio |
 |---|---|---|
-| ink #2a1a0c | parchment #ecdcb4 | 12.4 |
-| ink | parchment-lo #d6bc88 (slip) | 9.1 |
-| ink | sel-wash #e3c98a | 10.4 |
-| ink-soft #5c3e1e | parchment / sel-wash / parchment-lo | 7.1 / 6.0 / 5.3 |
-| ink-blue #1f3a5a | parchment / sel-wash | 8.5 / 7.2 |
-| good-ink #265c22 | parchment / sel-wash | 5.9 / 4.9 |
-| bad-ink / wax #8e1a14 | parchment / sel-wash | 6.7 / 5.6 |
-| burn #7a4a1a | parchment | 5.5 |
-| ink-off #7d6748 (disabled) | parchment | 4.0 (disabled text is exempt; we still keep it above 3:1) |
-| parchment-hi #f7ecd2 | ink (selected tag) | 14.3 |
-| ink | brass #c9a24d / brass-hi | 7.0 / 12.9 |
-| wax-text #fbe9d6 | wax | 7.7 |
-| cream #f5e9cc | wood #3b2414 | 12.0 |
-| gold #f2c35b | wood / wood-dark | 8.8 / 11.0 |
+| ink | parchment / slip #dcc597 / sel-wash #e8d29c | 12.4 / 10.0 / 11.3 |
+| ink-soft | parchment / slip / sel-wash | 7.1 / 5.8 / 6.5 |
+| ink-blue | parchment / slip | 8.5 / 6.9 |
+| good-ink / bad-ink | parchment / slip | 5.9, 6.7 / 4.7, 5.4 |
+| ink-off (can't, disabled) | parchment / slip | 4.0 / 3.2 (disabled text: exempt, kept ≥ 3) |
+| parchment-hi | ink (selected cell) | 14.3 |
+| ink | brass / brass-hi | 7.0 / 12.9 |
+| wax-text | wax | 7.7 |
+| cream | wood | 12.0 |
+| wood-dark counter vs noon sky / bright sea | | 16.1 / 9.3 |
+| parchment vs noon sky / bright sea | | **1.2 / 1.4**: never put parchment directly on the scene |
+| focus #ffe08a vs parchment | | 1.1: the ring always sits inside a 2px ink halo |
 
-Over the 3D ocean (the overlay's edge has to separate from the scene):
+Scrim behind any modal: `radial-gradient(ellipse at center, rgb(7 18 27/.35), rgb(7 18 27/.72))`.
 
-| Pair | Ratio | Rule |
-|---|---|---|
-| parchment vs bright noon sky #e8f3f8 | **1.2** | Parchment must **never** touch the sea directly. |
-| parchment vs bright sea #7cc4dc | **1.4** | Same. |
-| wood-dark frame vs noon sky / sea | 16.1 / 9.3 | So every parchment overlay sits in a wood frame of at least 6 px... |
-| parchment vs night sea #07121b | 13.9 | ...and the scrim (below) darkens the scene behind it. |
-| cream HUD text vs noon sky / sea | 1.1 / 1.6 | HUD text is never bare on the scene; it sits on `HudPanel` (10:1). |
-| focus #ffe08a vs parchment | 1.1 | So the ring always has a 2 px ink halo inside it (`0 0 0 2px ink, 0 0 0 5px focus, 0 0 0 7px ink`). |
+## 5. Typography
 
-**Scrim:** a modal overlay dims the world with `radial-gradient(ellipse at center, rgb(7 18 27 / .35), rgb(7 18 27 / .7))`.
-That's darker at the edges, so the sea stays visible but the frame always separates. No `backdrop-filter`: it
-costs a full-screen blur every frame on a WebGL page.
-
-## 4. Typography
-
-| Role | Family | Size desktop / phone | Use |
+| Role | Family | Use | Size desktop / phone |
 |---|---|---|---|
-| Display | Pirata One (`--ptw-font-display`) | 34 / 26 px port name; 28 / 24 slip title; 22 / 20 group heads | names of places, goods in the slip, section heads. Never for numbers or sentences. |
-| Label | IM Fell English SC (`--ptw-font-label`) | 13 to 19 px, letter-spacing .03 to .1em | buttons, tags, tabs, column heads, marks |
-| Hand **new** | IM Fell English italic (`--ptw-font-hand`) | 14 to 15 px | the clerk's notes: subtitles, "not sold here", group notes. Short phrases only. |
-| Body | Alegreya (`--ptw-font-body`) | 16 to 17 px (minimum 14 for meta lines) | sentences, reasons, good names in rows (600 weight, 19 / 17 px) |
-| Numerals | Alegreya with `.ptw-num` (lining + tabular) | prices 20 / 18 px bold, purse 22 / 19 px bold | every figure that updates or sits in a column |
+| Display | Pirata One | **the port name only** (and equivalent screen titles) | 32 / 26 / 22 landscape |
+| Label | IM Fell English SC | column heads, group heads, tabs, button *words*, stamp | 13–18 |
+| Note **(renamed `--ptw-font-note`)** | IM Fell English italic | the clerk's annotations: subtitle, "not sold here", "cheap here", margin notes | 12–15 |
+| Body | Alegreya | goods names (600), sentences, filter links (italic), reasons | 15–18 |
+| Numerals | Alegreya `.ptw-num` (lining, tabular) | **every digit**, including inside Fell SC buttons (wrap the number in `.ptw-num`) | figures 19 / 18 bold; purse 22 / 19 |
 
-Rules: one display line per surface region; no all-caps body text (small caps come from the label face); never set
-the display face below 18 px; reasons and errors are full sentences in body type.
+## 6. Ledger cells (the price current)
 
-## 5. Iconography
+The list reads like an 18th-century *price current*: `Sugar ........... 18 | 16`.
 
-- **Ink glyphs** for goods: 24 px, `stroke: currentColor`, 1.6 px stroke, no fill, drawn like a woodcut, in
-  `ink-soft`. There is one glyph per kind of container: fish, log, bale, hide, sack, bottle, leaf, jar, bolt, chest,
-  ingot, barrel. Goods that ship the same way share a glyph (sugar, cacao and coffee use the sack). Keep them as an
-  inline SVG sprite (`client/src/components/ui/pirate/goodGlyphs.tsx`, new).
-- **The manicule** (☞, `#g-hand`) in the margin points at the selected line. It's period-correct and unmistakable.
-- **The doubloon** marks gold. It always sits next to a number, never alone.
-- Interface icons (×, warning, quill) use 2 to 2.6 px strokes. Lucide is fine for plumbing, but keep it out of
-  in-world surfaces.
-- Icons never replace words on a primary or destructive action.
+- Row: name (Alegreya 600) + marks + a dotted **leader** filling to the figures; then (desktop) "Aboard" (`5 paid 14`),
+  then the **You buy** and **You sell** columns, separated by thin column rules. No border, no word, no coin per cell.
+- **Cell** (`.ptw-cell`, a `<button>`; *renamed from my rev-1 `.ptw-tag`, which already exists in pirate.css as the ship
+  card price label*): bare right-aligned figure. Hover: ink underline + faint wash. **Selected: inked box (ink fill,
+  parchment text, ✓)**, the only boxed thing in the ledger. Hit area ≥ 44px (row height or a pseudo-element).
+- States: *available* (ink, bold) · *idle* (ink-soft, regular: e.g. Sell when none aboard; pressing explains) ·
+  *blocked* (ink-off figure + a two-word italic note in bad-ink: "hold full", "too dear", "sold out") · *not sold here*
+  (italic note instead of a figure, not a button) · *low stock* note ("6 left").
+- Phone: the leader and inline marks give way to a one-line detail under the name ("5 aboard · paid 14 · wanted").
+- Row height: **40px desktop, 52px phone portrait, 44px landscape**.
+- Group headings (Staples / Colonial / Luxuries / Northern; data-driven from the goods catalogue) are opaque, sticky
+  only within their own section (so exactly one is stuck at a time), Fell SC 15–17px; the subtitle is dropped on phones.
 
-## 6. Buttons and controls
+## 7. Selection grammar and buttons
 
-Every state is distinct by **shape or fill**, not by colour alone.
+| Thing | Default | Hover | Selected / pressed (= **inked**) | Can't |
+|---|---|---|---|---|
+| Ledger cell | bare figure | underline + wash | ink fill, ✓, double ring | dotted-off figure + reason note |
+| Tab (bookmark) | parchment-lo | — | ink fill | — |
+| Filter ("Show") | italic link, dotted underline | — | ink, bold, solid 2px underline | — |
+| Quantity chip | paper face, ink-soft rule, 2px bottom edge | lighter | ink fill (also while hovered) | dotted, ink-off |
+| Work order | pinned chit | — | sel-wash + 2px ink outline; its "Order" button inked with ✓ | dotted button |
+| **Sign** | **brass plate**, label states the deal ("Buy 14 Sugar · 252 g") | brighter | moves down 3px | dotted outline on bare paper + the reason in text |
+| Sign while waiting | desaturated brass, quill, "Signing the ledger…" (`aria-busy`) | | | |
+| Destructive confirm | wax ("Sign: sell 26 for 2,133 g") | | moves down | disabled for 400ms after arming |
+| Tertiary | italic ink link ("Sell the whole hold…", "Keep my cargo") | wash | | ink-off |
+| Close | wooden knob | | moves down | disabled while a trade is pending |
 
-| Kind | Material | Class | Default | Hover | Pressed | Selected | Disabled |
-|---|---|---|---|---|---|---|---|
-| **Primary** (one per region) | brass plate with rivets, ink text | `.ptw-btn--brass` | raised: 3 px brass-lo bottom edge | brightness 1.06 | moves down 3 px, inset shadow | n/a | **dashed ink-off outline on bare paper**, no rivets; the reason is shown in text next to it |
-| **Busy** | brass, desaturated | `aria-busy="true"` | quill icon + "Signing the ledger…" | none | none | n/a | not clickable |
-| **Secondary** | carved wood plank, cream text | `.ptw-btn--wood`, `.ptw-qchip` | raised 2 to 3 px | lighter grain | moves down | **turns to brass, ink text, pressed in** (e.g. the "Max" chip when the amount is max) | opacity .45 |
-| **Tertiary** | ink link (dotted underline) | `.ptw-btn--rope` | text | hover wash | none | n/a | ink-off |
-| **Destructive** | red wax | `.ptw-btn--wax` | raised | none | moves down | n/a | n/a. Two-step: the first press arms it and changes the label to "Sign: …", which disarms after 6 s |
-| **Row action** | ledger price tag | `.ptw-tag` | 1.5 px ink outline, translucent paper | paper-hi with a 2 px ink bottom edge | moves down 1 px | **inked in: solid ink fill, paper-hi text, a ✓ before the label, and a double ring (sel-wash + ink)** | **dashed ink-soft outline**, price still readable; pressing it explains why in the slip |
-| **Tab** | bookmark | `.ptw-tab` | parchment-lo, ink-soft | none | none | paper-hi, ink, red wax lip on top | n/a |
-| **Filter chip** | ink-ruled pill | `.ptw-chip` | outline | none | none | solid ink, paper text | n/a |
-| **Icon / close** | brass porthole knob | `.ptw-btn--porthole` | 44 px round | none | moves down 2 px | n/a | n/a |
+**Focus** (all): `0 0 0 2px ink, 0 0 0 5px focus, 0 0 0 7px ink`, `:focus-visible` only.
 
-**Focus** (all of the above): `box-shadow: 0 0 0 2px var(--ptw-ink), 0 0 0 5px var(--ptw-focus), 0 0 0 7px var(--ptw-ink)`,
-on `:focus-visible` only. It is visible on parchment, wood, brass and the sea.
+**Two-step confirms** (sell the whole hold, refit): the first press *arms*; the armed panel lists what will happen
+(every line, and any sold below what was paid); the real confirm is a wax button **in a different place** from the
+button just pressed (the spot under the finger becomes the harmless "Keep …"), and it ignores taps for **400ms**.
 
-**Quantity control** (one component, `QuantityControl`): stepper `[−][ n ][+]` (44 px cells, typed entry with
-`inputmode="numeric"`), quick chips `1 · 10 · Max N` (on Sell: `All N`; when the hold is the limit: `Fill hold N`),
-and a range slider with a brass coin thumb. All three edit the same number and always stay in step. The value
-is clamped to `[1, max]` as you type; you can't request more than you can trade.
+## 8. Quantity entry
 
-## 7. Selection and hover
+`QuantityControl` = stepper `[−][box][+]` (44px), chips `1 · 10 · Max N` (Sell: `All N`), and on desktop only a
+slider. Rules:
+- The box is rewritten with the clamped value on every input: typing 999 with max 14 shows **14** at once and flashes
+  the limit line. Empty or 0 marks the box invalid ("Enter an amount") and disables Sign. Enter never trades a number
+  other than the one shown.
+- Defaults: **Sell = all aboard. Buy = 1**, or 10 if the player last chose the 10 chip this session. Never Max by
+  default.
+- The limit line names the cap: "Max 14: limited by the room in your hold / your purse / the port's stock".
+- A blocked line shows no amount controls at all, only the reason and a disabled Sign.
 
-- **Row selected** = sel-wash background, 2 px ink rules above and below, a red wax ribbon down the left margin, a
-  manicule in the margin (it replaces the goods glyph), and the chosen tag inked in. That's five cues; no player
-  will miss it.
-- **Keyboard cursor** (moving with ↑/↓ before anything is chosen) = a 2 px dotted ink-soft outline. It is
-  deliberately weaker than selection.
-- **Hover** = hover-wash only. Hover never looks like selection.
-- **One selection per screen**: `{ goodId, side }` as one value. Selecting anything replaces it; changing tab clears
-  it; pressing the inked tag again clears it; Esc clears it.
-- The selected row is kept in view: it is scrolled to the nearest edge whenever the slip changes height.
+## 9. Motion and sound
 
-## 8. Motion and sound
-
-| Event | Motion (≤ 450 ms, transform and opacity only) | Sound (synthesised or a small sample, SFX volume) |
+| Event | Motion (≤ 450ms; transform/opacity only) | Sound (CC0 samples, SFX volume) |
 |---|---|---|
-| Choose a line | manicule slides in 6 px (150 ms) | soft quill tick |
-| Trade signed (buy) | "Bought" ink stamp: scale 1.9 → 1 with a −9° tilt (230 ms), holds, fades (1.9 s total); purse rolls to the new value (450 ms, ease-out cubic); hold bar grows | two coins, falling pitch (coins leave the purse) |
-| Trade signed (sell) | "Sold" wax-red stamp, the same motion | three coins, rising pitch (coins arrive) |
-| Refused / error | none; the wax slip appears in place | one low thud |
-| Hold preview | hatched segment slides (200 ms) | none |
+| Open | counter slides up 12px + fades in (200ms) | paper rustle |
+| Close | reverse (150ms) | — |
+| Choose a line | manicule slides in (150ms) | quill tick |
+| Signed: buy / sell | stamp 1.8→1 (230ms), hold, fade (1.9s total); purse rolls (450ms); crates fill | coins out / coins in |
+| Refused | none | low thud |
 
-**Reduced motion** (`prefers-reduced-motion: reduce`): no scale, no slide, no number roll. The stamp appears at full
-size, holds, then fades. Every transition becomes ~0 ms. Sound is unaffected and follows the game's SFX mute.
+Reduced motion: no slide, scale or roll; the stamp appears and fades. Prefer short CC0 samples
+(`client/public/sounds/trade/*.mp3`, ≤ 20 KB each) over synthesised beeps.
 
-Remove today's misuse: `tradeSuccess` currently plays `playPlayerHit()` (the cannon-hit sound).
+## 10. Layout rules for overlays
 
-## 9. Layout rules for overlays
+- **Desktop and landscape: split.** Page (header, toolbar, list) on the left; the bill of sale as a separate sheet on
+  the right (340px desktop, 280px landscape) with the Sign button at its foot (sticky in landscape, with content
+  padded so the preview line is never under it).
+- **Portrait phone:** page on top, the slip below it overlapping by 10px, `max-height: 41%` of the screen; stepper and
+  chips on one row; no slider; the purse/hold preview on one line.
+- **Density targets (verified with Playwright):** ≥ 8 rows visible at 1280×720 with the slip open; ≥ 4 at 667×375;
+  ≥ 3 at 375×667 with the slip open.
+- Only the list scrolls (`minmax(0,1fr)` grid row, `overscroll-behavior: contain`, `scroll-padding-top` = sticky heads).
+- Safe areas via `env(safe-area-inset-*)`. Breakpoints are container queries on the overlay container.
+- Z-order: world < HUD < scrim < overlay < toasts. While an overlay is open, unrelated HUD hotkeys are suspended.
 
-- **Structure:** a fixed header (place, purse, hold, close), a fixed toolbar (tabs, filters), a single scroll region
-  (`overflow-y: auto; overscroll-behavior: contain; min-height: 0` inside a grid row of `minmax(0, 1fr)`), and a
-  fixed docked action area. Nothing below the action area. The page never scrolls; only the list does.
-- **Size:** desktop `width: min(960px, 100% - 32px); height: min(800px, 100% - 32px)`, centred, so the sea shows
-  around it. Under 640 px wide (phones): full bleed with a 6 px wood frame.
-- **Short screens** (height ≤ 520 px and width ≥ 560 px, i.e. phone landscape): two columns. The list is on the left,
-  the slip on the right (272 px) with its own scroll, and its primary button is `position: sticky; bottom: 0`.
-  The header collapses to one line.
-- **Safe areas:** pad the frame with `env(safe-area-inset-*)` (top and bottom in portrait, left and right in
-  landscape for the notch).
-- **Sticky headings** inside the list: the column head sticks at `top: 0`, and each group heading sticks inside its
-  own `<section>`, so headings never pile up. Set `scroll-padding-top` to their combined height so keyboard scrolling
-  doesn't hide rows under them.
-- **Breakpoints follow the overlay, not the window:** use container queries on the overlay's container
-  (`container-type: size`). This works for the game's full-screen overlay and for embedded previews.
-- **Z-order:** world < HUD < scrim < overlay < toasts. While an overlay is open, HUD hotkeys other than its own are
-  suspended.
+## 11. Mobile rules
 
-## 10. Mobile rules
+- Tap targets ≥ 44 × 44 (cells: row height; chips, stepper, tabs, knob 44; Sign 52, 46 landscape).
+- The money-committing button is the bottom-most, full-width element in portrait.
+- Filters become one native `<select>` ("Show: All (19)") on narrow screens: no sideways-scrolling toolbars.
+- No hover-only information; keyboard help is hidden on `(hover: none)`.
+- Text ≥ 13px; figures 18px.
 
-- Tap targets ≥ 44 × 44 px (tags 68 × 48, chips 44, stepper cells 44, primary button 52 tall). Filter chips are 36 px
-  visually, with a 44 px hit area from a pseudo-element.
-- **Thumb reach:** the action that commits money is the bottom-most, full-width element in portrait. "Cancel" folds
-  into the × at the top of the slip, out of the thumb's path.
-- Row actions sit at the **right** edge (right-thumb reach). The row's name area is also tappable (it sells if you
-  hold some, otherwise it buys).
-- Show no hover-only information. Hide keyboard hints on `(hover: none)`.
-- Long lists: group headings stick; filters scroll sideways in one row with a fade at the right edge (never a page
-  scroll).
-- Text never below 14 px on phones; numbers in tags 18 px.
-- No horizontal page scroll at 320 to 375 px; the prototype is checked at 375 × 667 and 667 × 375.
+## 12. Accessibility
 
-## 11. Accessibility
+- `role="dialog" aria-modal="true"`, labelled by the port name. **Focus trap**; focus goes to the list on open and
+  back to the opener on close.
+- **Roving tabindex:** the ledger is one Tab stop; ↑/↓ move between lines, ←/→ between the buy and sell columns.
+- Focus is **restored** after every re-render (to the same control, or to the chosen cell / Sign).
+- **One persistent live region** (`aria-live="polite"`) for results and refusals; it is never re-created.
+- Blocked reasons are linked with `aria-describedby` (cell → its note; Sign → the limit and preview lines).
+- Plain screen-reader labels ("Clear selection", "Close the trade screen", "Buy Sugar at 18 gold").
+- Keys: ↑↓ ←→, **B / S only choose a side (never clear)**, + / − (Shift ×10), M max, Enter sign, Esc back
+  (selection → screen), 1 / 2 offices, T close. Pointer re-press on the inked cell clears.
+- **Pending lock:** while a request is out, cells, chips, tabs, filters, × and Esc are inert; the Sign button says why.
 
-- The overlay is `role="dialog" aria-modal="true"`, labelled by the port name and described by the subtitle. Focus
-  moves into the list on open and returns to the trigger on close. Esc steps back (clears the selection, then closes).
-- Tags are `<button aria-pressed>` with a full label ("Buy Sugar at 18 gold"; "Sell Furs at 128 gold, you carry 6").
-- "Not sold here" is text, not a disabled button. Unavailable-but-explainable actions use the dashed style, stay
-  focusable, and explain the reason on activation.
-- The slip's result line is `role="status" aria-live="polite"`; errors are `role="alert"`.
-- The hold meter has an `aria-label` that includes the preview ("Hold 26 of 40 used, 40 after this trade").
-- Keyboard map (trade screen): ↑/↓ line, B buy, S sell, ←/→ amount (Shift ×10), M max or all, Enter sign, Esc back,
-  1/2 tabs, T close. The game's ship controls are already neutral while trading (`Player.tsx` checks `isTrading`).
-- Respect `prefers-reduced-motion`, and the SFX mute.
-
-## 12. Do / don't
+## 13. Do / don't
 
 | Do | Don't |
 |---|---|
-| Write the action and its price on the primary button: "Sell 6 Furs · 768 g". | "Confirm", "Submit", "OK". |
-| Show both prices on every line (what you'd pay, what they'd pay). | Split buying and selling into tabs that hide each other. |
-| Clamp the amount and say what limits it ("Max 14: limited by the room left in your hold"). | Let the player type 50, then reject it with an error. |
-| Keep the result on screen (stamp, status line, the purse) and keep the line chosen if more can be traded. | Clear the selection the instant the request is sent, before the server answers. |
-| Say "not sold here" in the clerk's hand where the price would be. | Show a greyed-out "Buy" button with no reason. |
-| Put each overlay on a material with a wood frame over the sea. | Put a bare parchment or translucent dark box over the ocean. |
-| Use the doubloon and "g" with every figure that is money. | Mix "gold", "coins", "$" and bare numbers. |
-| Keep primary actions in a docked area. | Append them below a list. |
+| `Sugar ......... 18 \| 16` bare figures with leaders | boxes, coins and "Buy"/"Sell" words in every cell |
+| "Buy 14 Sugar · 252 g" on the one brass button | "Confirm", brass chips, brass close buttons |
+| Clamp and name the limit | accept 999 and fail later |
+| Keep the result on the page (stamp, note, purse) | clear the selection before the server answers |
+| "paid 14" in the row; profit only in the slip on a sale | a red "−2 ea" next to something you just bought |
+| Wax seal + "wanted" | a red filled badge |
+| A bar of crates | a progress bar |
 
-## 13. Changes to the theme layer
+## 14. Follow-ups (required, other screens)
 
-These are proposed additions to `client/src/styles/pirate.css` and `components/ui/pirate/`, to be made when the trade
-screen is built.
+- **Leaderboard** (`ui/Leaderboard.tsx`): lucide icons and bare parchment over the sea. Make it a guild roll /
+  wanted board in a wood frame; medals from `.ptw-medal`; digits in `.ptw-num`.
+- **Game over** (`ui/GameOver.tsx`): a sealed letter in a wood frame, no lucide, no bare parchment over the scene.
+- **Port prompt** ("press T to trade", GameUI): a small `HudPanel` plaque; no `animate-pulse`.
+- **Reference board** for future screens: an 18th-c. price current, a merchant's daybook, a bill of lading. Right:
+  `after-*-buy.jpg`; wrong: `before-*.png`.
 
-- **Extend tokens:** `--ptw-ink-blue`, `--ptw-ink-off`, `--ptw-sel-wash`, `--ptw-hover-wash`, `--ptw-ledger-rule`,
-  `--ptw-ledger-margin`, `--ptw-wax-text`, `--ptw-font-hand` (and add IM Fell English italic to the Google Fonts
-  link in `client/index.html`).
-- **Extend classes:** `.ptw-ledger-page` (ruled paper with the red margin), `.ptw-tag` (row price-tag button with
-  pressed, off and inked states), `.ptw-slip` (docked bill of sale), `.ptw-stamp` (+ `--buy` / `--sell`),
-  `.ptw-mark--wanted|--cheap|--dear`, `.ptw-meter--hold` with a `__preview` child, `.ptw-chip` (filter pill),
-  `.ptw-qchip`, `.ptw-order`.
-- **Override 1, selected state:** the theme layer's `.ptw-ledger__row.is-selected` is a tint. In a ledger, use the
-  full selection treatment from section 7 (inked tag, ribbon, manicule, ink rules). A tint alone isn't "obvious".
-- **Override 2, disabled buttons:** the theme layer dims disabled buttons. Here a disabled primary loses its
-  material: dashed outline on bare paper, no rivets, and the reason in text. Faded brass reads as "pressable but
-  dull".
-- **Override 3, parchment overlays:** the theme layer allows a bare `ParchmentPanel` as a dialog. Any parchment
-  surface over the 3D scene sits inside a wood frame of at least 6 px, plus the scrim (parchment against the noon sea
-  is 1.2:1).
-- **Agree:** fonts, palette, `.ptw-num`, focus ring, the wax `ptw-alert`, `HudPanel` for anything over the sea,
-  "no backdrop-filter", and the reduced-motion policy.
+## 15. Changes to the theme layer
+
+- **Tokens added:** `--ptw-ink-blue`, `--ptw-ink-off`, `--ptw-slip`, `--ptw-sel-wash`, `--ptw-hover-wash`,
+  `--ptw-ledger-rule`, `--ptw-ledger-margin`, `--ptw-leader`, `--ptw-wax-text`, `--ptw-font-note` (+ IM Fell English
+  italic in the font link).
+- **Classes added:** `.ptw-counter`, `.ptw-ledger-page`, `.ptw-cell`, `.ptw-slip`, `.ptw-stamp`, `.ptw-mark--*`,
+  `.ptw-order`, `.ptw-knob`, `.ptw-qchip`, `.ptw-note--refusal`.
+- *Override:* `.ptw-ledger__row.is-selected` (a tint) is not enough in the trade ledger; use the inked cell.
+- *Override:* disabled buttons lose their material (dotted outline on bare paper + reason) instead of fading.
+- *Override:* parchment over the 3D scene always sits on a wood counter/frame and the scrim.
+- *Override:* brass is reserved for the single commit button per screen (the theme layer's brass porthole and
+  brass chips are not used on in-world screens).
+- *Agree:* palette, fonts, `.ptw-num`, focus ring, `HudPanel` over the sea, no backdrop-filter, reduced motion.
