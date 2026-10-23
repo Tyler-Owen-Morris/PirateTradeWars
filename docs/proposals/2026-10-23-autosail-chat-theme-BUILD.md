@@ -13,7 +13,7 @@ build. NOT released until the user approves (a push to `main` without `[skip ci]
 | D. Merge + local dev build | main session | `dev/2026-10-23-batch`, dev server :5000 running | A,B,C,F,G merged | merge, `npm test`, `npm run check`, `npm run dev` |
 | E. Theme ChatPanel, AutoSailIndicator, ReloadGauges + Enter=chat help | subagent `overlays` (sonnet) | `worktree-agent-ac1bc1b909bd7fc56` @3694d63 | DONE, merged | - |
 | H. World expansion (cities + goods) | main session | pitch: https://claude.ai/artifact/UxuDRnMyjZBURp46ydXm5u | APPROVED (all recommendations), BLOCKED on card I | build Phase 1 after trade screen redesign |
-| I. Trade screen redesign + style guide ("grounded in the world") | subagent `trade-design` | agent worktree | proposal in progress | then 2 UI-specialist reviews, revise, show user |
+| I. Trade screen redesign + style guide ("grounded in the world") | subagent `trade-design` | `worktree-agent-a493ec90cfbfb8a69` @11c8c4a | proposal done; 2 reviews (UX, art direction) running | designer revises with reviews, then publish prototype for user |
 | J. Port city 3D models (style kit + per-city tweaks) | subagent `cities` | agent worktree | in progress | merge, screenshots |
 
 Each agent writes progress notes to `docs/proposals/2026-10-23-<card>-NOTES.md` in its worktree as it goes.
