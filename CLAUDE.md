@@ -39,4 +39,7 @@ Real-time model: authoritative 20 Hz server, client prediction (own ship) + inte
 - Never test against the Upstash Redis in `.env` (a real DB). Use Docker: `docker run -d --name ptw-redis -p 6379:6379 redis:7`
   with `REDIS_CONN_STRING=redis://localhost:6379`. `test:bots` refuses `upstash` URLs.
 - No `await` inside `World.step()` / the tick; side effects go through `world.effects`.
+- Keyboard game input (drei KeyboardControls listens on `window`) must check `isTextEntryActive()`
+  (`client/src/lib/stores/useInputFocus.ts`) so typing in chat or any text field never steers or fires.
+- Global chat is in-memory only (`server/game/chat.ts`, PROTOCOL.md "Global chat"); a deploy clears it.
 - Agent worktrees may start at a stale commit: `git reset --hard main` first.

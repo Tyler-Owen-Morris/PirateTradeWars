@@ -14,7 +14,8 @@
  *  - `land`       optional ClientLandTiles: its LandField is the predictor's land (coast collision
  *                 predicted like the server) and `frame` keeps the tiles around the ship loading
  *
- * Netcode messages (`s`, `ent`, `gone`, `fire`, `hit`, `sunk`, `splash`, `goldCollected`, `pong`) are handled
+ * Netcode messages (`s`, `ent`, `gone`, `fire`, `hit`, `sunk`, `splash`, `goldCollected`, `standing`,
+ * `chat`, `chatHistory`, `pong`) are handled
  * here; everything else (legacy `type` messages: connected, tradeSuccess, gameEnd, ...) is forwarded
  * to `onLegacyMessage` listeners. Times are local `now()` ms (performance.now by default).
  */
@@ -31,7 +32,9 @@ import {
   type SplashMessage,
   type GoldCollectedMessage,
   type StandingState,
+  type ChatMessage,
   parseStanding,
+  parseChatLine,
 } from "@shared/protocol";
 import type { ClientLandTiles } from "../world/landTiles";
 import { ServerClock } from "./clock";
@@ -61,6 +64,10 @@ export interface NetEvents {
   /** A cannonball hit land at (m.x, m.z) and was removed (render dust there). */
   splash: (m: SplashMessage) => void;
   goldCollected: (m: GoldCollectedMessage) => void;
+  /** Global chat: one validated line (broadcast, or a private system notice with id 0). */
+  chat: (m: ChatMessage) => void;
+  /** Global chat: the recent history (oldest first), sent after connected/reconnected. */
+  chatHistory: (lines: ChatMessage[]) => void;
   /** Gold rows changed (snapshot `g`). */
   gold: (rows: GoldRow[]) => void;
 }
@@ -106,6 +113,8 @@ export class NetClient {
     standing: new Set(),
     splash: new Set(),
     goldCollected: new Set(),
+    chat: new Set(),
+    chatHistory: new Set(),
     gold: new Set(),
   };
   private readonly sendInputFn = (m: InputMessage) => {
@@ -303,6 +312,22 @@ export class NetClient {
           this.standing = st;
           this.emit("standing", st);
         }
+        return;
+      }
+      case "chat": {
+        // Global chat: re-validated here; text is plain text (never render as HTML).
+        const line = parseChatLine(msg);
+        if (line) this.emit("chat", line);
+        return;
+      }
+      case "chatHistory": {
+        if (!Array.isArray(msg.lines)) return;
+        const lines: ChatMessage[] = [];
+        for (const raw of msg.lines.slice(-100)) {
+          const line = parseChatLine(raw);
+          if (line) lines.push(line);
+        }
+        this.emit("chatHistory", lines);
         return;
       }
       case "pong":

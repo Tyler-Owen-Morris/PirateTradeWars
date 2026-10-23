@@ -49,6 +49,7 @@ implementer must deviate, they write the deviation into their progress file AND 
 | `connect` / `reconnect` | unchanged | existing name/ship flow |
 | `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0|1}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). Server clamps values, ignores out-of-order seq, caps queue at 10 (drop oldest). |
 | `ping` | `{t:"ping", c:clientTimeMs}` | every 2 s |
+| `chat` | `{t:"chat", text}` | global chat line, ≤ 200 chars after sanitizing; see "Global chat" below |
 | `trade`, `upgradeShip`, `repairShip`, `scuttle` | unchanged shape | W4: trade, upgrade and repair are rejected with `error "Too far from port"` unless the ship is within 300 (metric) of the port's dock. `portId` is the numeric id from `GET /api/ports` (1-based index in ports.json). |
 
 The client never sends position, speed, direction or rotation. The server is authoritative.
@@ -189,6 +190,34 @@ The client never sends position, speed, direction or rotation. The server is aut
   (or the ice) at (x, z) and was removed. Sent to clients within `INTEREST_RADIUS` (metric) of (x, z),
   after the view diff and before the snapshot, like other events. `ball` is the id from the `fire`
   row (an addition to the spec's `{x, z, land:1}`), so clients remove the ball exactly as on `hit`.
+
+**Global chat (2026-10-23; shapes in `shared/protocol.ts`, server policy in `server/game/chat.ts`):**
+- **Client → server** `{t:"chat", text}`. `parseClientMessage` accepts it (also under `type`), rejects
+  non-string text or raw text longer than 4 × `MAX_CHAT_LENGTH`, and normalizes with `sanitizeChatText`:
+  tabs/newlines → spaces, C0/DEL/C1 control chars, zero-width / invisible chars (U+200B–U+200F, U+FEFF)
+  and bidi overrides/isolates (U+202A–U+202E, U+2060–U+2069) removed, whitespace runs collapsed, trimmed,
+  cut to `MAX_CHAT_LENGTH` (200) code points without splitting a surrogate pair. Empty after that → dropped.
+  Every other field (e.g. `from`, `sys`) is dropped: the client can never choose the sender name.
+- **Who may chat:** a socket that has joined (`connected`/`reconnected`), is still the player's attached
+  socket, and whose ship is a live player ship (not sunk, not dead). Anything else is dropped silently.
+- **Server → client** `{t:"chat", id, from, text, ts, sys?}` (`ChatMessage`):
+  - `id` increasing server sequence number (> 0) for broadcast lines; `0` for private system notices.
+  - `from` is the sender's ship name from the server's player record (`""` for system lines).
+  - `text` is sanitized, runs of > 3 identical characters are cut to 3, and a small built-in word list
+    (profanity and slurs, leet-tolerant) is masked with asterisks of the same length.
+  - `ts` server `Date.now()` when accepted; `sys: 1` marks a system line.
+  - Player lines are broadcast at once to every attached socket (all players, not interest-filtered), from
+    the socket message path. Chat never runs inside `World.step()` and never waits on the tick.
+- **Rate limit:** a token bucket per player id: burst 5, refill 1 per second (a reconnect does not refill
+  it). A throttled line is dropped and the sender alone gets a private notice
+  `{t:"chat", id:0, from:"", sys:1, text:"Easy there, matey! ..."}`, at most once per 3 s.
+- **History:** the server keeps the last `CHAT_HISTORY_SIZE` (30) broadcast lines in memory and sends
+  `{t:"chatHistory", lines:[ChatMessage...]}` (oldest first) right after every `connected`/`reconnected`.
+  Nothing is stored in Redis: a server restart (deploy) clears the chat. Private notices are not kept.
+- **Clients** must render chat as plain text (never HTML), re-validate each line (`parseChatLine`) and
+  de-duplicate by `id` (history is replayed on every reconnect).
+- **Backward compatibility:** older clients pass unknown `t` values to their legacy handler, which logs
+  "Unknown message type" and ignores them, so `chat`/`chatHistory` are harmless to them.
 
 ## 8. Wave 2 (deferred): Colyseus
 Wave 1 fixes the transport-independent causes (split worlds, physics mismatch, snapping, tick stalls,

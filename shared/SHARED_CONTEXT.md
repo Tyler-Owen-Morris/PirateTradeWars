@@ -43,6 +43,11 @@ The shared directory contains code and types that are used by both the client an
   - `protocol.ts` - WebSocket message types (`ClientMessage`, `ServerMessage`), snapshot entity rows
     (`packEntityRow`/`unpackEntityRow`), flag bits, netcode constants (interest radius, grid cell,
     interpolation delay, input queue cap) and `parseClientMessage` (validates/clamps untrusted frames).
+    Global chat: `ChatSendMessage` (c→s `{t:"chat", text}`), `ChatMessage` (s→c `{t:"chat", id, from, text,
+    ts, sys?}`), `ChatHistoryMessage` (`{t:"chatHistory", lines}`), `MAX_CHAT_LENGTH` (200),
+    `CHAT_HISTORY_SIZE` (30), `sanitizeChatText` (strip control/zero-width/bidi chars, collapse whitespace,
+    trim, cut by code points; used by both sides) and `parseChatLine` (client-side validation). The
+    server's profanity/rate-limit policy is in `server/game/chat.ts`, not here. Tests: `__tests__/chat.test.ts`.
   - `__tests__/` - vitest unit tests (`npm test`).
   - `world/` - generated world data (do not hand-edit; regenerate with `npm run world:build`, see
     `docs/world/DATA_PIPELINE.md`): `ports.json` (27 real ports with town/dock/spawn, spec §5),

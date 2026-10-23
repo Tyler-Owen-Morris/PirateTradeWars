@@ -4,7 +4,7 @@
  * - Transport, prediction, interpolation and cannonballs live in `net` (see lib/net/netClient.ts).
  *   3D components read from `net` inside useFrame; nothing here runs per frame.
  * - This store exposes connection status / player id / errors and the UI actions (register, trade,
- *   upgrade, repair, scuttle).
+ *   upgrade, repair, scuttle, sendChat). Global chat lines (`chat`/`chatHistory` net events) go to useChat.
  * - It bridges net events into useGameState for the HUD/Minimap/TradeMenu/GameOver UI:
  *   `me` → gameState.player at ~5 Hz (immediately when hp/gold/sunk/shipType/cargo change), other
  *   ships → gameState.otherPlayers at ~5 Hz, gold rows → gameState.goldObjects when they change.
@@ -13,10 +13,11 @@
 import { create } from "zustand";
 import { useGameState } from "./useGameState";
 import { useAudio } from "./useAudio";
+import { useChat } from "./useChat";
 import type { PlayerState, RemoteShipSummary, GoldObject } from "@/types";
 import { net } from "@/lib/net";
 import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
-import { FLAG_SUNK, type GoldRow, type SelfState } from "@shared/protocol";
+import { FLAG_SUNK, sanitizeChatText, type GoldRow, type SelfState } from "@shared/protocol";
 
 /** UI mirror refresh period (ms) for position-ish fields of the own ship and the minimap. */
 export const UI_SYNC_INTERVAL_MS = 200;
@@ -36,6 +37,8 @@ interface SocketState {
   sendUpgradeShip: (portId: number) => void;
   sendRepairShip: (portId: number) => void;
   scuttleShip: () => void;
+  /** Global chat: send one line. Returns false if nothing was sent (empty after sanitizing, or offline). */
+  sendChat: (text: string) => boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -180,6 +183,10 @@ function wireNet(): void {
     const current = useGameState.getState().gameState.goldObjects ?? [];
     if (!sameGold(current, rows)) useGameState.getState().updateGoldObjects(goldRowsToObjects(rows));
   });
+
+  // Global chat → useChat (ChatPanel renders it).
+  net.on("chat", (line) => useChat.getState().addLine(line));
+  net.on("chatHistory", (lines) => useChat.getState().mergeHistory(lines));
 
   net.on("legacy", (message) => handleLegacyMessage(message));
 }
@@ -339,5 +346,11 @@ export const useSocket = create<SocketState>((set, get) => ({
 
   scuttleShip: () => {
     if (!net.send({ type: "scuttle" })) notConnectedError();
+  },
+
+  sendChat: (text: string) => {
+    const clean = sanitizeChatText(text);
+    if (!clean) return false;
+    return net.send({ t: "chat", text: clean });
   },
 }));

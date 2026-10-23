@@ -3,7 +3,8 @@
  *
  * Every frame is validated with `parseClientMessage`; invalid frames are dropped silently (no
  * per-frame error replies). Hot-path messages are synchronous: `input` goes straight into the
- * world's per-player input queue (consumed by the 20 Hz tick) and `ping` is answered with `pong`.
+ * world's per-player input queue (consumed by the 20 Hz tick), `ping` is answered with `pong`, and
+ * `chat` is rate-limited/cleaned by `gameState.chat` (server/game/chat.ts) and broadcast at once.
  * The legacy flows (connect / reconnect / trade / upgradeShip / repairShip / scuttle) stay async
  * (Redis) but run outside the tick and operate on the live world player objects.
  */
@@ -35,6 +36,8 @@ export function handleSocketConnection(ws: WebSocket) {
         if (playerId) gameState.world.queueInput(playerId, data);
       } else if (data.t === "ping") {
         send(ws, { t: "pong", c: data.c, st: Date.now() });
+      } else if (data.t === "chat") {
+        handleChat(data.text);
       }
       return;
     }
@@ -53,6 +56,25 @@ export function handleSocketConnection(ws: WebSocket) {
   });
 
   send(ws, { type: "welcome", message: "Welcome to Pirate Trade Wars!", timestamp: Date.now() });
+
+  /**
+   * Global chat (synchronous, message path only; never touches the tick). Only a joined player whose
+   * socket is the one attached, and whose ship is afloat, may chat. The name comes from the world's
+   * player record. `text` was already sanitized by parseClientMessage.
+   */
+  function handleChat(text: string) {
+    if (!playerId || !gameState.isRegisteredSocket(playerId, ws)) return;
+    const player = gameState.getPlayer(playerId);
+    if (!player || player.controller !== "player" || player.dead || player.sunk) return;
+    const res = gameState.chat.submit({ id: playerId, name: player.name }, text);
+    if (res.ok) gameState.broadcast(JSON.stringify(res.line));
+    else if (res.notice) send(ws, res.notice);
+  }
+
+  /** Global chat: replay the recent history to this socket (after `connected`/`reconnected`). */
+  function sendChatHistory() {
+    send(ws, { t: "chatHistory", lines: gameState.chat.history() });
+  }
 
   async function handleLegacy(data: Exclude<ClientMessage, { t: string }>) {
     switch (data.type) {
@@ -115,6 +137,7 @@ export function handleSocketConnection(ws: WebSocket) {
       timestamp: Date.now(),
     });
     gameState.registerClient(addedPlayer.id, ws);
+    sendChatHistory();
     console.log(`Player ${addedPlayer.name} connected with ID ${addedPlayer.id} (players in world: ${gameState.playerCount})`);
   }
 
@@ -154,6 +177,7 @@ export function handleSocketConnection(ws: WebSocket) {
       timestamp: Date.now(),
     });
     gameState.registerClient(playerId, ws);
+    sendChatHistory();
     console.log(`Player ${existingPlayer.name} reconnected with ID ${playerId}`);
   }
 

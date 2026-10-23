@@ -13,6 +13,7 @@ import { portPoint } from "@/lib/nav";
 import { WorldMap } from "./WorldMap";
 import { CompassHUD } from "./CompassHUD";
 import { ToastContainer } from "./TradingToast";
+import ChatPanel from "./ChatPanel";
 import {
   Dialog,
   DialogContent,
@@ -170,6 +171,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
       <HUD controlsRef={controlsRef} onShowLeaderboard={() => setShowLeaderboard(true)} />
       {showLeaderboard && <div onClick={() => setShowLeaderboard(false)}><Leaderboard /></div>}
       <ToastContainer />
+      <ChatPanel />
 
       <div className="absolute top-4 right-4 z-50 flex gap-2">
         <Button

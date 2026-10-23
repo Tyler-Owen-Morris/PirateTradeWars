@@ -4,7 +4,9 @@
  *   npx tsx scripts/bots.ts --bots 20 --duration 30 --url ws://localhost:5055/game-ws [--assert] [--json out.json]
  *
  * Each bot connects, registers, then sends `input` at 20 Hz (wandering pattern) and `ping` every 2 s,
- * while recording what the server sends back. Written strictly against docs/netcode/PROTOCOL.md and
+ * while recording what the server sends back. Global chat check: every bot must get a `chatHistory`
+ * after joining; half-way through, one bot says a unique line that every bot must receive with that
+ * bot's name, and another sends a burst of 8 lines that the server must rate-limit (one private notice). Written strictly against docs/netcode/PROTOCOL.md and
  * shared/protocol.ts. Only uses `ws`, `shared/*` and node built-ins.
  * Exit codes: 0 ok, 1 assertion failure, 2 usage / could not reach server.
  */
@@ -74,6 +76,12 @@ interface BotStats {
   events: Record<string, number>;
   errors: string[];
   violations: string[];
+  /** Global chat: got the `chatHistory` replay after joining. */
+  chatHistory: boolean;
+  /** Global chat lines received (player lines and system notices). */
+  chat: Array<{ id: number; from: string; text: string; sys: boolean }>;
+  /** Own ship sunk (snapshot me.sunk): a sunk ship may not chat. */
+  sunk: boolean;
 }
 
 class Bot {
@@ -93,7 +101,7 @@ class Bot {
       name, playerId: null, eid: null, connected: false, closedEarly: false, snapshots: 0, bytes: 0,
       firstSnapAt: 0, lastSnapAt: 0, maxGapMs: 0, gapSumMs: 0, gapCount: 0, maxEntRows: 0,
       entSeen: new Set(), known: new Map(), rtts: [], firstAck: null, lastAck: null,
-      events: {}, errors: [], violations: [],
+      events: {}, errors: [], violations: [], chatHistory: false, chat: [], sunk: false,
     };
   }
 
@@ -159,6 +167,17 @@ class Bot {
       case "pong":
         if (typeof m.c === "number") this.s.rtts.push(Date.now() - m.c);
         break;
+      case "chatHistory":
+        if (!Array.isArray(m.lines)) this.s.violations.push("chatHistory.lines not an array");
+        this.s.chatHistory = true;
+        break;
+      case "chat":
+        if (typeof m.id !== "number" || typeof m.from !== "string" || typeof m.text !== "string" || typeof m.ts !== "number") {
+          this.s.violations.push("malformed chat line");
+        } else {
+          this.s.chat.push({ id: m.id, from: m.from, text: m.text, sys: m.sys === 1 });
+        }
+        break;
       case "error":
       case "nameError":
         { const msg = `server ${kind}: ${m.message}`; if (this.s.errors.length < 5 && !this.s.errors.includes(msg)) this.s.errors.push(msg); }
@@ -187,7 +206,10 @@ class Bot {
     }
     // `me` is the receiver's own private state: must be an object. Own eid helps symmetry checks.
     if (!m.me || typeof m.me !== "object" || Array.isArray(m.me)) s.violations.push("snapshot.me missing / not an object");
-    else if (typeof m.me.eid === "number") s.eid = m.me.eid;
+    else {
+      if (typeof m.me.eid === "number") s.eid = m.me.eid;
+      s.sunk = m.me.sunk === true;
+    }
     // `e` rows must be plain arrays of 7 numbers: [eid,x,z,r,v,hp,flags]. Objects would carry private fields.
     if (!Array.isArray(m.e)) { s.violations.push("snapshot.e not an array"); return; }
     s.maxEntRows = Math.max(s.maxEntRows, m.e.length);
@@ -226,6 +248,11 @@ class Bot {
       ru: this.rudder,
       f: Math.random() < 0.03 ? 1 : 0,
     });
+  }
+
+  /** Global chat: say one line. */
+  say(text: string): void {
+    this.send({ t: "chat", text });
   }
 
   private send(obj: unknown): void {
@@ -303,7 +330,17 @@ async function main(): Promise<void> {
     bots.forEach((b) => b.stop());
     process.exit(2);
   }
-  await sleep(Math.max(0, opts.duration * 1000 - 2000));
+  // Global chat round trip, half-way through the run.
+  const half = Math.max(0, opts.duration * 500 - 2000);
+  await sleep(half);
+  const chatToken = `chat check ${runId} ${Date.now().toString(36)}`;
+  // Only afloat ships may chat (NPCs can sink a bot at any time).
+  const chatSender = bots.find((b) => b.s.connected && !b.s.sunk) ?? null;
+  const spammer = bots.find((b) => b.s.connected && !b.s.sunk && b !== chatSender) ?? null;
+  const chatAudience = bots.filter((b) => b.s.connected && !b.s.sunk);
+  chatSender?.say(chatToken);
+  for (let i = 0; i < 8; i++) spammer?.say(`spam ${runId} ${i}`);
+  await sleep(Math.max(1500, opts.duration * 1000 - 2000 - half));
 
   // Visibility symmetry, measured before closing sockets (closing triggers `gone`).
   const byPid = new Map<string, Bot>();
@@ -362,6 +399,28 @@ async function main(): Promise<void> {
   for (const b of bots) if (b.s.closedEarly) failures.push(`${b.s.name}: socket closed unexpectedly`);
   // Symmetric-ish visibility: allow transient mismatch (interest edge, join/leave in flight).
   if (pairs >= 10 && asym / pairs > 0.15) failures.push(`visibility asymmetry ${summary.asymmetryPct}% of ${pairs} pairs (tolerance 15%)`);
+  // Global chat.
+  for (const b of bots) if (b.s.connected && !b.s.chatHistory) failures.push(`${b.s.name}: no chatHistory after joining`);
+  let chatHeard = 0;
+  if (chatSender) {
+    for (const b of chatAudience) {
+      const got = b.s.chat.find((l) => l.text === chatToken);
+      if (!got) failures.push(`${b.s.name}: did not receive the chat round-trip line`);
+      else {
+        chatHeard++;
+        if (got.from !== chatSender.s.name) failures.push(`${b.s.name}: chat line from "${got.from}", expected "${chatSender.s.name}"`);
+      }
+    }
+  }
+  let spamDelivered = 0, spamNotices = 0;
+  if (spammer) {
+    spamDelivered = (chatSender ?? spammer).s.chat.filter((l) => !l.sys && l.text.startsWith(`spam ${runId}`)).length;
+    spamNotices = spammer.s.chat.filter((l) => l.sys).length;
+    if (spamDelivered > 5) failures.push(`chat rate limit: ${spamDelivered} of 8 burst lines delivered (max 5)`);
+    if (spamNotices !== 1) failures.push(`chat rate limit: spammer got ${spamNotices} throttle notices (expected 1)`);
+    for (const b of bots) if (b !== spammer && b.s.chat.some((l) => l.sys)) failures.push(`${b.s.name}: saw another player's throttle notice`);
+  }
+  console.log(`CHAT ${JSON.stringify({ heard: chatHeard, audience: chatAudience.length, spamDelivered, spamNotices })}`);
 
   if (opts.json) {
     writeFileSync(opts.json, JSON.stringify({ summary, bots: reports, failures }, null, 2));

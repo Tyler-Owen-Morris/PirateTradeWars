@@ -28,6 +28,7 @@ vi.mock("../gameState", () => ({
     removeClient: vi.fn(),
     playerCount: 1,
     world: { setShipType: vi.fn(), queueInput: vi.fn() },
+    chat: { history: () => [] },
   },
 }));
 
