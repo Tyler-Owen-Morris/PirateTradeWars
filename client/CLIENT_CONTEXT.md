@@ -108,6 +108,11 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   >1 s jumps reset); RTT EMA from `pong`. `serverNow(local)` = local + offset.
 - `controls.ts` — keyboard/touch booleans → `{th,ru,f}`: W/Up th 1 (ahead), S/Down th −1 (reverse),
   A/Left ru 1, D/Right ru −1, Space/F f 1; opposing keys cancel.
+- `autoSail.ts` — keyboard auto-sail latch (framework-free `AutoSail` class). Double-tap forward (<=300 ms between
+  presses) latches full-ahead with no key held; a fresh forward press or backward cancels (the cancel press does
+  not count as a first tap). `Player.tsx` feeds it keyboard-only forward/backward each frame, ORs the result into
+  `forward`, and resets it on sunk / trade menu / focused text input / unmount. State is mirrored to
+  `stores/useAutoSail.ts` for `ui/AutoSailIndicator.tsx`. Wire input is still `th: 1`; touch is unaffected.
 - **Wrapping Earth (card W1, docs/world/WORLD_SPEC.md).** x wraps at `WORLD_C` (400 000); z is
   0 (north pole) … 200 000 and does NOT wrap. Only x uses `lerpWrapped`/`wrappedDelta`; z is a plain
   lerp. Motion is metric (east-west speed divided by `metricX(z)` = cos lat). Geometry helpers live

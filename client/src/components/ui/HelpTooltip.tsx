@@ -42,6 +42,9 @@ export function HelpTooltip() {
               <div className="text-sm">Move Backward (Reverse)</div>
               <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">S / ↓</div>
               
+              <div className="text-sm">Auto-sail (W or S to stop)</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">W W (double-tap)</div>
+
               <div className="text-sm">Turn Left</div>
               <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">A / ←</div>
               

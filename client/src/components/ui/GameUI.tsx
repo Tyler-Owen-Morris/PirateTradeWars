@@ -12,6 +12,7 @@ import { Minimap } from "./Minimap";
 import { portPoint } from "@/lib/nav";
 import { WorldMap } from "./WorldMap";
 import { CompassHUD } from "./CompassHUD";
+import { AutoSailIndicator } from "./AutoSailIndicator";
 import { ToastContainer } from "./TradingToast";
 import {
   Dialog,
@@ -166,6 +167,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
 
   return (
     <>
+      <AutoSailIndicator />
       <CompassHUD onOpenMap={() => setShowWorldMap(true)} />
       <HUD controlsRef={controlsRef} onShowLeaderboard={() => setShowLeaderboard(true)} />
       {showLeaderboard && <div onClick={() => setShowLeaderboard(false)}><Leaderboard /></div>}
