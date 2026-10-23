@@ -32,8 +32,8 @@ Natural Earth vector data, **public domain** (https://www.naturalearthdata.com/a
 | `client/public/world/land/<version>/t_<tx>_<ty>.bin.gz` | 317 Int8 SDF tiles, 256², gzipped | 1.47 MiB (raw would be 19.8 MiB) |
 | `client/public/world/map_4096x2048.png` | equirectangular chart texture for the world map | 0.85 MiB |
 | `client/public/world/map_1024x512.png` | the same at minimap size | 0.10 MiB |
-| `shared/world/ports.json` | 27 ports (spec §5) | 12 KB |
-| `shared/world/lanes.json` | 75 lanes (spec §6), 1029 points | 36 KB |
+| `shared/world/ports.json` | 43 ports (spec §5; 27 + 16 from New Horizons phase 1) | 19 KB |
+| `shared/world/lanes.json` | 117 lanes (spec §6) | 60 KB |
 | `shared/world/versions.json` | `{ land, ports, lanes }` short content hashes | — |
 
 - Of the 512 tiles: 143 are all water, 52 are all land, and 317 are stored.
@@ -78,6 +78,7 @@ The raw tiles would total 19.8 MiB, which is over the 15 MB budget. So they are 
   - **dock:** the nearest ocean-mask pixel with 100 ≤ sdf ≤ 400.
   - **town:** the real site if its bilinear sdf is in [−300, −10] and it is ≤ 700 from the dock. Otherwise, the nearest land pixel with sdf in [−200, −20] that is ≤ 500 from the dock.
     - Seville (moved 444 units to the Guadalquivir mouth), London (284, the Thames estuary) and Bristol (362, the Severn) moved. Their rivers are narrower than a 4.9 km pixel.
+    - Guayaquil (New Horizons, 2026-10-23) moved 362 units to the Guayas mouth for the same reason.
     - Every other port moved less than 60 units.
   - **spawn:** the nearest ocean-mask pixel to the dock with sdf ≥ 160.
 - **Lanes:**
@@ -97,13 +98,25 @@ The raw tiles would total 19.8 MiB, which is over the 15 MB budget. So they are 
     - cadiz–cape_town, cape_town–goa, goa–batavia, batavia–macau (the Cape route)
     - cartagena–havana and havana–seville (the treasure fleet)
     - acapulco–manila (the Manila galleon, a bonus)
+    - New Horizons phase 1: lisbon–rio_de_janeiro (the Brazil fleet), cadiz–portobelo (the galeones),
+      callao–panama (the Armada del Mar del Sur), buenos_aires–valparaiso (round Cape Horn; it also ties the
+      Pacific coast to the Atlantic, since there is no canal), rio_de_janeiro–cape_town
 - **Validation**, in the script and repeated by the vitest test:
   - Known samples: mid-Atlantic, Madrid, Gibraltar, Jamaica, Panama, the English Channel, Cuba and the Pacific.
   - Port distances.
   - Every port is reachable from Port Royal on the lane graph.
-  - Lane clearance: the minimum observed is 72. The test asserts ≥ 60.
+  - Lane clearance: the minimum observed is 70 (72 before the expansion). The test asserts ≥ 60.
   - The test also checks that the manifest and tile set agree, that every tile is 65536 bytes, that the Panama isthmus is closed on every meridian from −80 to −77.6, and that values are continuous across the antimeridian.
 
 ## Known limits
 - **Resolution:** at 4.9 km per pixel, straits narrower than about 10 km close. Gibraltar stays open, but its sdf at the narrows is only about 38, so lanes don't use it. No lane needs the Mediterranean today.
 - **Near the poles:** beyond about |lat| 85° the row padding caps at W/2 columns. Values there are approximate, but they are inside the impassable ice anyway.
+
+## Adding ports (New Horizons phase 1, 2026-10-23)
+- Append to `PORT_DEFS`; never insert or reorder. Numeric port ids are 1-based indices into ports.json and are
+  stored in Redis (`port:<id>:goods`) and sent on the wire.
+- A new region must also go into `PortRegion` (`shared/world/ports.ts`), `GOOD_MARKETS` selectors where relevant
+  (`shared/world/goodMarkets.ts`), the NPC lane zones (`server/game/npc/population.ts` `laneZone`) and the trade
+  screen's region label (`client/src/components/ui/trade/BillOfGoods.tsx` `REGION`).
+- The land tiles did not change for the 16 new ports (only ports/lanes/versions were rewritten).
+- The new ports' versions hash changes `PORTS_VERSION`, so the server re-seeds ports and markets at boot.
