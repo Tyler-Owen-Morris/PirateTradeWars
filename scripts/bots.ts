@@ -279,7 +279,11 @@ class Bot {
       this.throttle = Math.random() < 0.9 ? 1 : 0;
       this.throttleUntil = now + 300 + Math.random() * 2000;
     }
-    return { th: this.throttle, ru: this.rudder, f: Math.random() < 0.01 ? 1 : 0 };
+    return {
+      th: this.throttle, ru: this.rudder,
+      // Fire flags (PROTOCOL §4 broadsides): mostly legacy f:1 (fire all loaded), some port-only (2) / starboard-only (4).
+      f: Math.random() < 0.03 ? [1, 1, 2, 4][Math.floor(Math.random() * 4)] : 0,
+    };
   }
 
   /** Global chat: say one line. */

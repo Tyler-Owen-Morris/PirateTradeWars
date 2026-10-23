@@ -40,8 +40,11 @@ export interface PlayerState {
   cargoUsed: number;
   cargoCapacity: number;
   canFire: boolean;
-  /** ms until cannons are reloaded (0 = ready) */
+  /** ms until the first battery is reloaded (0 = at least one side ready) */
   reloadMs: number;
+  /** Broadsides: ms until the port (left) / starboard (right) battery is reloaded (0 = ready). */
+  reloadPortMs?: number;
+  reloadStarboardMs?: number;
   /** full reload duration in ms for this ship type */
   reloadTime: number;
   sunk: boolean;

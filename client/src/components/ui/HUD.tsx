@@ -16,6 +16,7 @@ import {
 } from './dialog';
 import { useSocket } from '@/lib/stores/useSocket';
 import { speedToKnots } from '@/lib/nav';
+import { ReloadGauges } from './ReloadGauges';
 
 interface ControlState {
   forward: boolean;
@@ -262,22 +263,12 @@ export default function HUD({ controlsRef, onShowLeaderboard }: HUDProps) {
               d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
             />
           </svg>
-          <div>
-            <div className="text-[0.6rem] sm:text-xs opacity-70">Cannons</div>
-            <div className="flex items-center">
-              <span className="font-bold text-sm sm:text-base">{player.canFire ? "Ready" : "Reloading"}</span>
-              {!player.canFire && (
-                <div className="ml-1 sm:ml-2 w-12 sm:w-16 h-1 sm:h-2 bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-red-500"
-                    style={{
-                      width: `${player.reloadTime > 0 ? Math.min(100, (player.reloadMs / player.reloadTime) * 100) : 0}%`,
-                    }}
-                  ></div>
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Broadsides: port (L) and starboard (R) reload separately */}
+          <ReloadGauges
+            reloadPortMs={player.reloadPortMs ?? player.reloadMs}
+            reloadStarboardMs={player.reloadStarboardMs ?? player.reloadMs}
+            reloadTime={player.reloadTime}
+          />
         </div>
       </div>
       {/* CSS for gold animation */}

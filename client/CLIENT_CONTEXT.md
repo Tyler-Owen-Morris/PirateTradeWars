@@ -107,7 +107,11 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
 - `clock.ts` — `ServerClock`: offset = EMA of `snapshot.st − receiveTime` (early samples weigh more,
   >1 s jumps reset); RTT EMA from `pong`. `serverNow(local)` = local + offset.
 - `controls.ts` — keyboard/touch booleans → `{th,ru,f}`: W/Up th 1 (ahead), S/Down th −1 (reverse),
-  A/Left ru 1, D/Right ru −1, Space/F f 1; opposing keys cancel.
+  A/Left ru 1, D/Right ru −1; opposing keys cancel. Fire is a bit set (broadsides, 2026-10-23):
+  Space/F/HUD+touch fire button `fire` → 1 (every loaded side), Q `firePort` → 2 (left), E
+  `fireStarboard` → 4 (right); keys combine. `firePort`/`fireStarboard` are optional in `ControlState`
+  (only the keyboard map in `App.tsx` sets them). `FireLatch` keeps a short tap until a 20 Hz step has
+  sent it (`NetClient.frame`; reset while hidden / sunk / before the first snapshot).
 - `autoSail.ts` — keyboard auto-sail latch (framework-free `AutoSail` class). Double-tap forward (<=300 ms between
   presses) latches full-ahead with no key held; a fresh forward press or backward cancels (the cancel press does
   not count as a first tap). `Player.tsx` feeds it keyboard-only forward/backward each frame, ORs the result into
@@ -185,9 +189,10 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   smoothing state carries over the moving origin (no jump at the seam).
 - `useSocket.tsx` — zustand façade: connection status/errors, register/trade/upgrade/repair/scuttle,
   and the bridge into `useGameState`: `me` → `gameState.player` at ~5 Hz (immediately on
-  hp/gold/sunk/shipType/cargo/canFire change; x/z/rotationY/speed come from the predicted ship),
+  hp/gold/sunk/shipType/cargo/canFire or a side's ready state change; x/z/rotationY/speed come from the
+  predicted ship). `player.reloadPortMs`/`reloadStarboardMs` feed `ui/ReloadGauges.tsx` (L/R gauges in HUD),
   other ships → `gameState.otherPlayers` (Minimap) at ~5 Hz, gold rows → `gameState.goldObjects`.
-  Sounds: fire (once per event), hit on me, goldCollected. `gameEnd` freezes the mirror for GameOver.
+  Sounds: fire (once per eid+tick: a double broadside is two `fire` events), hit on me, goldCollected. `gameEnd` freezes the mirror for GameOver.
 - No client file may import from `server/`.
 
 ## Rendering: floating origin (WORLD_SPEC §7)

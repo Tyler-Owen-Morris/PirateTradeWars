@@ -8,6 +8,7 @@
  * Units: positions in world units, rotation in radians, velocity in units per 1/60 s
  * (negative = forward), times in milliseconds unless the name says otherwise.
  */
+import { FIRE_ALL, FIRE_MASK, type BroadsideSide, type FireFlags } from "./physics";
 
 // ---------------------------------------------------------------------------------------------
 // Constants
@@ -93,13 +94,15 @@ export interface ReconnectMessage {
   tempPlayerId?: string;
 }
 /** One client sim step of intent (20/s). `s` = monotonically increasing sequence number.
- *  th: 1 = W ahead, −1 = S reverse; ru: 1 = left, −1 = right; f: 1 = fire. */
+ *  th: 1 = W ahead, −1 = S reverse; ru: 1 = left, −1 = right.
+ *  f: fire bit flags (shared/physics.ts): 1 = FIRE_ALL (fire every loaded side; the legacy `f:1`
+ *  of old clients), 2 = FIRE_PORT (left, Q), 4 = FIRE_STARBOARD (right, E); 0 = not firing. */
 export interface InputMessage {
   t: "input";
   s: number;
   th: -1 | 0 | 1;
   ru: -1 | 0 | 1;
-  f: 0 | 1;
+  f: FireFlags;
 }
 /** RTT / clock probe; `c` = client time in ms (echoed back in `pong`). */
 export interface PingMessage {
@@ -168,9 +171,15 @@ export interface SelfState {
   cargoUsed: number;
   cargoCapacity: number;
   sunk: boolean;
+  /** At least one battery (port or starboard) is loaded. */
   canFire: boolean;
-  /** ms until the cannons are reloaded (0 = ready) */
+  /** ms until the FIRST battery is reloaded (0 = at least one ready) = min of the two below. */
   reloadMs: number;
+  /** Broadsides (2026-10-23): ms until the port (left) battery is reloaded (0 = ready). Optional so
+   *  old servers / test fixtures without it still parse; old clients ignore it. */
+  reloadPortMs?: number;
+  /** ms until the starboard (right) battery is reloaded (0 = ready). */
+  reloadStarboardMs?: number;
   shipType: string;
 }
 
@@ -246,6 +255,9 @@ export interface FireMessage {
   t: "fire";
   eid: number;
   k: number;
+  /** Broadsides (2026-10-23): which battery fired. One `fire` event per side volley. Old servers
+   *  (always starboard) omit it; old clients ignore it (the ball rows already carry the geometry). */
+  side?: BroadsideSide;
   balls: BallRow[];
   spd: number;
   life: number;
@@ -477,6 +489,16 @@ function unit(v: unknown): -1 | 0 | 1 {
   const n = typeof v === "number" ? v : typeof v === "boolean" ? (v ? 1 : 0) : 0;
   return n > 0 ? 1 : n < 0 ? -1 : 0;
 }
+/** Input fire flags: booleans → 1 (legacy), numbers floored and masked to FIRE_MASK, anything
+ *  else / negative / non-finite → 0. Old clients send `f: 0 | 1`, which maps to itself. */
+export function fireFlags(v: unknown): FireFlags {
+  if (typeof v === "boolean") return v ? 1 : 0;
+  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) return 0;
+  // Any positive value used to mean "fire" (unit() clamp). Keep that: a positive value with no
+  // known bit (0.5, 8, ...) is FIRE_ALL; otherwise keep the known bits.
+  const bits = Math.floor(v) & FIRE_MASK;
+  return bits === 0 ? FIRE_ALL : bits;
+}
 function shortString(v: unknown, max: number): string | null {
   return typeof v === "string" && v.length > 0 && v.length <= max ? v : null;
 }
@@ -537,14 +559,14 @@ export function isInputMessage(m: unknown): m is InputMessage {
     posInt(m.s) === m.s &&
     (m.th === -1 || m.th === 0 || m.th === 1) &&
     (m.ru === -1 || m.ru === 0 || m.ru === 1) &&
-    (m.f === 0 || m.f === 1)
+    typeof m.f === "number" && Number.isInteger(m.f) && m.f >= 0 && m.f <= FIRE_MASK
   );
 }
 
 /**
  * Validate and normalize an untrusted client frame (a raw JSON string, Buffer-decoded string, or
  * an already-parsed value). Returns a well-formed ClientMessage or `null` if it must be ignored.
- * Clamps rather than rejects where safe: input th/ru are clamped to {-1,0,1}, f to {0,1} and
+ * Clamps rather than rejects where safe: input th/ru are clamped to {-1,0,1}, f to fire bits 0..7 and
  * the seq is floored to an integer. Names are trimmed and limited to MAX_NAME_LENGTH. Accepts the
  * discriminator under either `t` or `type`. Unknown fields are dropped.
  */
@@ -565,7 +587,7 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case "input": {
       const s = posInt(data.s);
       if (s === null) return null;
-      return { t: "input", s, th: unit(data.th), ru: unit(data.ru), f: unit(data.f) === 1 ? 1 : 0 };
+      return { t: "input", s, th: unit(data.th), ru: unit(data.ru), f: fireFlags(data.f) };
     }
     case "ping": {
       if (!isFiniteNum(data.c)) return null;

@@ -48,16 +48,21 @@ physics in `shared/physics.ts`. Both are shared with the client.
        reintroduce "repeat the last input" here: it was the 2026-10-23 own-ship jump bug
        (docs/netcode/BUILD_STATE.md). `world.inputStats` (held / overflow / catchUp) is in the
        `[tick]` log line, with the max tick ms.
+       The fire flags of the consumed input(s) are OR-ed (broadsides: `FIRE_ALL`/`FIRE_PORT`/`FIRE_STARBOARD`).
      - A disconnected ship gets neutral input, so it coasts to 0.
   3. Rebuild the grid.
   4. Cannonballs: `stepBall` (metric straight line), a metric `segmentHitsCircle` hit test against
      ships near the ball, and armor `round(dmg * (1 - armor/100))`. A ship that reaches 0 hp is sunk,
      drops its gold, and emits a `playerSunk` effect. A ball whose half-tick or full-tick position is
      on land (`ballHitsLand`, incl. ice) is removed and emits a `splash` event `{ball, x, z}`.
-  5. Spawn new broadsides with `spawnBroadside`, gated by `reloadTime` from SHIP_STATS. A ball fired
+  5. Spawn new broadsides with `spawnBroadside(p, n, side)`. Broadsides (2026-10-23): each ship has a
+     port and a starboard battery, each gated by `reloadTime` on its own (`lastFiredPort` /
+     `lastFiredStarboard`, `sideReady`, `reloadLeftMs`); `fireSides` picks which fire, and each side
+     volley is its own `fire` event with `side`. A ball fired
      at tick k is still at its spawn point at tick k.
   6. Gold: it expires after 60 s. Any ship within 50 units picks it up.
-  7. Derived flags: `firing` (for 6 ticks after a broadside) and `canFire`.
+  7. Derived flags: `firing` (for 6 ticks after a broadside) and `canFire` (either side loaded).
+     The snapshot `me` carries `reloadPortMs` / `reloadStarboardMs` (+ legacy `reloadMs` = min).
 - **Events and effects.**
   - `world.events` holds this tick's `fire`/`hit`/`sunk`/`splash`/`goldCollected`. `splash` goes to
     clients within `INTEREST_RADIUS` (metric) of the splash point as `{t:"splash",x,z,land:1,ball}`.
@@ -153,6 +158,10 @@ Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
   at hp ≤ (1 − courage) × 0.7 on a committed escape course; an NPC a player hit may fight back past the
   attacker-slot cap (self-defence, 60 s); ally friendly fire is ignored; a hit cancels dock idling. See
   `game/npc/README.md` "Combat fixes after Q1".
+- **Broadsides (2026-10-23).** NPCs have both batteries. They fight with the side facing the target
+  (`tactics.chooseSide`, `SIDE_SWITCH_MARGIN` 25° hysteresis, kept in `ActiveNpc.gunSide`), use that
+  side's reload, and fire only it (`FIRE_PORT`/`FIRE_STARBOARD`). Sustained damage is about unchanged;
+  the first hit comes sooner (see `docs/proposals/2026-10-23-broadsides-NOTES.md`).
 - **Tiers.** Only *active* NPCs (a player within 2500) are World ships. Rail and docked NPCs are
   director records, so they cost nothing per tick.
 - **Navigation on real coasts (NPC2):** lane following with a line-of-sight check, coast feelers with

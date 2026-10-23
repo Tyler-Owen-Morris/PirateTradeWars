@@ -10,6 +10,7 @@ import { LANES, PORTS, laneZone, liveFleets } from "../population";
 import { mulberry32 } from "../util";
 import { metricDistSq } from "@shared/world/geo";
 import { SHIP_STATS } from "@shared/gameConstants";
+import { FIRE_STARBOARD } from "@shared/physics";
 
 let land: LoadedLand;
 beforeAll(() => {
@@ -91,8 +92,9 @@ describe("load: 200 players + the live NPC fleets on the real map", () => {
     let worst = 0;
     let npcTotal = 0;
     let bytes = 0;
+    let npcSunk = 0;
     for (let t = 0; t < TICKS; t++) {
-      for (const id of ids) w.queueInput(id, { t: "input", s: seq, th: 1, ru: (t + seq) % 90 < 25 ? 1 : 0, f: t % 40 === 0 ? 1 : 0 });
+      for (const id of ids) w.queueInput(id, { t: "input", s: seq, th: 1, ru: (t + seq) % 90 < 25 ? 1 : 0, f: t % 40 === 0 ? FIRE_STARBOARD : 0 }); // one battery: same ball load as before broadsides
       seq++;
       const t0 = performance.now();
       w.step();
@@ -104,7 +106,7 @@ describe("load: 200 players + the live NPC fleets on the real map", () => {
       total += dt;
       if (t > 20 && dt > worst) worst = dt;
       npcTotal += sys.stats.lastTickMs;
-      w.drainEffects();
+      for (const e of w.drainEffects()) if (e.type === "npcSunk") npcSunk++;
     }
     const avg = total / TICKS;
     console.log(
@@ -112,7 +114,10 @@ describe("load: 200 players + the live NPC fleets on the real map", () => {
         `(step + frames), worst ${worst.toFixed(2)} ms; npc system avg ${(npcTotal / TICKS).toFixed(3)} ms, max ${sys.stats.maxTickMs.toFixed(2)} ms; ` +
         `path plans ${sys.stats.navPlans} (max ${sys.stats.navMaxMs.toFixed(2)} ms), lod max ${sys.stats.lodMaxMs.toFixed(2)} ms, unsticks ${sys.stats.unsticks}; ~${(bytes / 6 / 200 / 1024).toFixed(1)} KB/tick/client`,
     );
-    expect(sys.stats.records).toBe(153);
+    // A record sunk in the melee (e.g. pirate friendly fire, more likely since NPCs have two
+    // batteries) is gone until the director respawns it 2–5 min later.
+    expect(sys.stats.records + npcSunk).toBe(153);
+    expect(npcSunk).toBeLessThanOrEqual(3);
     expect(sys.stats.active).toBeLessThanOrEqual(80);
     expect(sys.stats.active).toBeGreaterThan(20);
     expect(avg).toBeLessThan(25);
