@@ -15,6 +15,9 @@ import {
   nationColor,
   portPoint,
   stepMinimapRadius,
+  placeLabels,
+  portLabelPriority,
+  type LabelCandidate,
 } from '@/lib/nav';
 import { clientLand } from '@/lib/world/landTiles';
 import { MinimapLandLayer } from '@/lib/world/minimapLand';
@@ -88,6 +91,7 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
     // Ports
     ctx.font = '10px Arial';
     ctx.textAlign = 'center';
+    const labels: LabelCandidate[] = [];
     for (const port of gameState.ports) {
       const pt = portPoint(port);
       const { x, y } = minimapProject(player.x, player.z, pt.x, pt.z, radius, S);
@@ -100,9 +104,12 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
       ctx.strokeStyle = isTarget ? '#ffffff' : 'rgba(0,0,0,0.7)';
       ctx.lineWidth = isTarget ? 2 : 1;
       ctx.stroke();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(port.name, x, y - MINIMAP_PORT_DOT_SIZE);
+      labels.push({ id: port.id, x, y: y - MINIMAP_PORT_DOT_SIZE, text: port.name, priority: portLabelPriority(port as { key?: string; id: number }, isTarget) });
     }
+    // Labels that fit (zoomed out, Buenos Aires/Montevideo or Panamá/Portobelo would overprint).
+    const shown = placeLabels(labels, (t) => ctx.measureText(t).width, 11);
+    ctx.fillStyle = '#ffffff';
+    for (const l of labels) if (shown.has(l.id)) ctx.fillText(l.text, l.x, l.y);
 
     // Other ships / NPCs
     ctx.fillStyle = '#ff6347';

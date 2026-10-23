@@ -13,6 +13,9 @@ import {
   portPoint,
   zoomAt,
   formatLatLon,
+  placeLabels,
+  portLabelPriority,
+  type LabelCandidate,
 } from '@/lib/nav';
 
 const MAP_SRC = '/world/map_4096x2048.png';
@@ -133,9 +136,11 @@ export function WorldMap({ onClose }: { onClose: () => void }) {
       ctx.fillText(`${Math.abs(lon)}°${lon > 0 ? 'E' : lon < 0 ? 'W' : ''}`, x + 3, h - 6);
     }
 
-    // Ports
+    // Ports: every dot, then the labels that fit (lib/nav placeLabels: target, major ports, then by id),
+    // so the crowded Caribbean and River Plate thin out when zoomed out.
     ctx.textAlign = 'center';
     ctx.font = 'bold 12px Arial';
+    const labels: LabelCandidate[] = [];
     for (const p of ports) {
       const pt = portPoint(p);
       const s = mapWorldToScreen(v, w, h, pt.x, pt.z);
@@ -148,11 +153,16 @@ export function WorldMap({ onClose }: { onClose: () => void }) {
       ctx.arc(s.x, s.y, sel ? 7 : 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      ctx.lineWidth = 3;
+      labels.push({ id: p.id, x: s.x, y: s.y - 10, text: p.name, priority: portLabelPriority(p as { key?: string; id: number }, sel) });
+    }
+    const shown = placeLabels(labels, (t) => ctx.measureText(t).width, 13);
+    ctx.lineWidth = 3;
+    for (const l of labels) {
+      if (!shown.has(l.id)) continue;
       ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.strokeText(p.name, s.x, s.y - 10);
+      ctx.strokeText(l.text, l.x, l.y);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(p.name, s.x, s.y - 10);
+      ctx.fillText(l.text, l.x, l.y);
     }
 
     // Player
