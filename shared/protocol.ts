@@ -46,6 +46,8 @@ export const MAX_NAME_LENGTH = 32;
 export const MAX_ID_LENGTH = 128;
 /** Max quantity accepted in one trade message. */
 export const MAX_TRADE_QUANTITY = 100000;
+/** Max `lines` in one `sellAll` message. */
+export const MAX_SELL_ALL_LINES = 64;
 /** Input sequence numbers are integers in [0, MAX_SEQ]. */
 export const MAX_SEQ = 0x7fffffff;
 /** Global chat: max characters (code points) of one chat line after sanitizing (longer text is cut). */
@@ -115,7 +117,35 @@ export interface TradeMessage {
   action: "buy" | "sell";
   goodId: number;
   quantity: number;
+  /** Optional client nonce (1..2^31). When present the server answers with `tradeResult` (same `ref`)
+   *  INSTEAD of the legacy `tradeSuccess` / `error`. */
+  ref?: number;
+  /** Optional unit price the player saw. The trade is refused (`price_changed`) only if the price moved
+   *  AGAINST the player (buy price up, sell price down); otherwise it runs at the current, better price. */
+  expectedPrice?: number;
 }
+/** Sell everything aboard at this port, all or nothing (one atomic server step). Always answered with
+ *  `tradeResult` (`action: "sellAll"`). `lines`, if given, must match the hold exactly (else `hold_changed`)
+ *  and carry the per-good `expectedPrice` guard. */
+export interface SellAllMessage {
+  type: "sellAll";
+  portId: number;
+  ref?: number;
+  lines?: { goodId: number; quantity: number; expectedPrice?: number }[];
+}
+/** One inventory row as stored and sent (`tradeSuccess.inventory`, `tradeResult.inventory`,
+ *  `GET /api/players/:id/inventory`). `avgPaid` = weighted average unit price paid (absent for cargo
+ *  bought before 2026-10-23). */
+export interface InventoryRow {
+  playerId?: string;
+  goodId: number;
+  quantity: number;
+  avgPaid?: number;
+}
+/** Refusal reasons in `tradeResult.code`. */
+export type TradeCode =
+  | "too_far" | "no_port" | "not_traded" | "not_sold" | "no_stock" | "no_gold" | "no_space"
+  | "not_owned" | "price_changed" | "hold_changed" | "empty_hold" | "dead" | "no_upgrade" | "server";
 export interface UpgradeShipMessage {
   type: "upgradeShip";
   portId: number;
@@ -139,6 +169,7 @@ export type ClientMessage =
   | InputMessage
   | PingMessage
   | TradeMessage
+  | SellAllMessage
   | UpgradeShipMessage
   | RepairShipMessage
   | ScuttleMessage
@@ -146,7 +177,7 @@ export type ClientMessage =
 
 /** The discriminator of a ClientMessage, whichever key (`t` or `type`) it uses. */
 export type ClientMessageKind =
-  | "connect" | "reconnect" | "input" | "ping" | "trade" | "upgradeShip" | "repairShip" | "scuttle" | "chat";
+  | "connect" | "reconnect" | "input" | "ping" | "trade" | "sellAll" | "upgradeShip" | "repairShip" | "scuttle" | "chat";
 export function clientMessageKind(m: ClientMessage): ClientMessageKind {
   return "t" in m ? m.t : m.type;
 }
@@ -401,6 +432,30 @@ export interface TradeSuccessMessage {
   inventory: unknown[];
   timestamp: number;
 }
+/** Answer to a `trade` that carried a `ref`, and to every `sellAll`. On success `gold`, `cargoUsed` and
+ *  `inventory` are the authoritative new values; on refusal they are the unchanged current values. */
+export interface TradeResultMessage {
+  type: "tradeResult";
+  ref?: number;
+  ok: boolean;
+  action: "buy" | "sell" | "sellAll";
+  /** Refusal reason (ok = false). */
+  code?: TradeCode;
+  /** Plain-English reason (ok = false). */
+  message?: string;
+  good?: number;
+  quantity?: number;
+  /** Unit price actually used (single trade). */
+  price?: number;
+  /** Gold paid (buy) or received (sell / sellAll). */
+  total?: number;
+  /** sellAll: the lines sold. */
+  lines?: { goodId: number; quantity: number; price: number }[];
+  gold: number;
+  cargoUsed: number;
+  inventory: InventoryRow[];
+  timestamp: number;
+}
 export interface UpgradeSuccessMessage {
   type: "upgradeSuccess";
   newShipType: string;
@@ -444,6 +499,7 @@ export type ServerMessage =
   | ConnectedMessage
   | ReconnectedMessage
   | TradeSuccessMessage
+  | TradeResultMessage
   | UpgradeSuccessMessage
   | RepairSuccessMessage
   | GameEndMessage
@@ -510,6 +566,18 @@ function posInt(v: unknown): number | null {
   if (!isFiniteNum(v)) return null;
   const n = Math.floor(v);
   return n >= 0 && n <= MAX_SEQ ? n : null;
+}
+/** Optional `ref`: undefined if absent, null if malformed, else an integer 1..MAX_SEQ. */
+function optRef(v: unknown): number | undefined | null {
+  if (v === undefined || v === null) return undefined;
+  const n = posInt(v);
+  return n === null || n < 1 ? null : n;
+}
+/** Optional unit price: undefined if absent, null if malformed, else a positive integer. */
+function optPrice(v: unknown): number | undefined | null {
+  if (v === undefined || v === null) return undefined;
+  const n = posInt(v);
+  return n === null || n < 1 ? null : n;
 }
 
 // Control chars (C0, DEL, C1), zero-width chars and bidi overrides/isolates (which can reorder or
@@ -618,7 +686,31 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       if (portId === null || goodId === null || quantity === null) return null;
       if (data.action !== "buy" && data.action !== "sell") return null;
       if (quantity < 1 || quantity > MAX_TRADE_QUANTITY) return null;
-      return { type: "trade", portId, action: data.action, goodId, quantity };
+      const m: TradeMessage = { type: "trade", portId, action: data.action, goodId, quantity };
+      const ref = optRef(data.ref), expectedPrice = optPrice(data.expectedPrice);
+      if (ref === null || expectedPrice === null) return null;
+      if (ref !== undefined) m.ref = ref;
+      if (expectedPrice !== undefined) m.expectedPrice = expectedPrice;
+      return m;
+    }
+    case "sellAll": {
+      const portId = posInt(data.portId);
+      const ref = optRef(data.ref);
+      if (portId === null || ref === null) return null;
+      const m: SellAllMessage = { type: "sellAll", portId };
+      if (ref !== undefined) m.ref = ref;
+      if (data.lines !== undefined) {
+        if (!Array.isArray(data.lines) || data.lines.length > MAX_SELL_ALL_LINES) return null;
+        const lines: NonNullable<SellAllMessage["lines"]> = [];
+        for (const l of data.lines) {
+          if (!isObj(l)) return null;
+          const goodId = posInt(l.goodId), quantity = posInt(l.quantity), expectedPrice = optPrice(l.expectedPrice);
+          if (goodId === null || quantity === null || quantity < 1 || quantity > MAX_TRADE_QUANTITY || expectedPrice === null) return null;
+          lines.push(expectedPrice === undefined ? { goodId, quantity } : { goodId, quantity, expectedPrice });
+        }
+        m.lines = lines;
+      }
+      return m;
     }
     case "upgradeShip":
     case "repairShip": {

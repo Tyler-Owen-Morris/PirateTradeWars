@@ -1,6 +1,7 @@
 import { portPoint } from "@/lib/nav";
 import { useState, useEffect } from 'react';
 import { useGameState } from '@/lib/stores/useGameState';
+import { isTextEntryActive } from '@/lib/stores/useInputFocus';
 
 interface TradingToastProps {
   message: string;
@@ -64,9 +65,12 @@ export function ToastContainer() {
     // This is just for demonstration, in a real app you would use a pub/sub system or context
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 't' || e.key === 'T') {
-        // Add toast messages for trading interactions
+        // 2026-10-23: no "Trading at ..." toast any more (it duplicated the screen opening); only the
+        // too-far / no-port explanations remain. Ignored while trading or typing (chat).
+        const gs = useGameState.getState();
+        if (gs.isTrading || isTextEntryActive()) return;
         if (gameState.nearestPort && gameState.isNearPort) {
-          addToast(`Trading at ${gameState.nearestPort.name}`, 'success');
+          return;
         } else {
           const nearestPort = useGameState.getState().getNearestPort();
           if (nearestPort) {

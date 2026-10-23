@@ -51,7 +51,7 @@ The game uses Zustand for state management with several stores:
 - `Port.tsx` / `Ports.tsx` - real-world ports (card W4), see "Ports (W4)" below; `PortCity.tsx` - the town (procedural city kit, see "Port cities" below)
 
 ### UI Components
-- `TradeMenu.tsx` - Trading interface for ports
+- `trade/BillOfGoods.tsx` - the trade screen (see "Trading: the bill of goods")
 - Ship selection screens
 - Game status indicators and HUD
 - Damage indicators and ship status
@@ -338,12 +338,29 @@ Contract: `docs/netcode/PROTOCOL.md` "Global chat".
 - Mouse interaction for UI elements
 - Uses @react-three/drei for keyboard control helpers
 
-## Trading System (Client-Side)
+## Trading: the bill of goods (2026-10-23)
 
-- `TradeMenu.tsx` displays goods available at a port
-- Local inventory state synchronized with global game state
-- Sends trade requests via WebSocket
-- Updates UI on successful trades
+Design: `docs/design/STYLE_GUIDE.md` (rules, tokens, banned list) and `docs/proposals/trade-redesign/`
+(PROPOSAL.md, prototype.html). Protocol: docs/netcode/PROTOCOL.md "Trading clarifications".
+- `components/ui/trade/BillOfGoods.tsx` (mounted by App.tsx while `isTrading`; replaced `TradeMenu.tsx`):
+  the ledger (every good of `GOODS`, grouped by `GOOD_GROUPS`, with "You buy" / "You sell" figures as
+  `.ptw-cell` buttons), the bill of sale (amount, limit, preview, the brass Sign button), and the
+  Shipwright tab (repair; refit with a two-step, 400 ms-guarded confirm). Styles: `styles/trade.css`
+  (imported by index.css after pirate.css; layout by container queries on `.ptw-trade`).
+- Pure rules in `lib/trade/logic.ts` (tested in `lib/trade/__tests__/logic.test.ts`): `buildLedger`,
+  `groupLedger`, `limitFor` (max + reason), `parseTyped` (the box, the Sign label and the request always
+  agree), `selReducer` (ONE selection `{goodId, side}`; pointer re-press clears, keyboard only chooses).
+  Sounds: `lib/trade/sounds.ts` (synthesised cues; follows the SFX mute/volume).
+- Data: `GET /api/ports/:id/goods` on open, after every result and every 30 s; inventory from
+  `GET /api/players/:id/inventory` on open, then from `tradeResult`.
+- Requests: `useSocket.sendTrade(portId, side, goodId, qty, {ref, expectedPrice})`, `sendSellAll`,
+  `sendRepairShip`, `sendUpgradeShip`. `useSocket` applies `tradeResult` (gold, cargoUsed, inventory) to
+  useGameState and re-emits it (and upgrade/repair replies, errors) via `onTradeEvent(fn)`. The screen locks
+  while a request is pending and accepts only the reply with its `ref` (5 s timeout).
+- While trading: GameUI hotkeys and the touch joystick are suspended; ChatPanel ignores Enter;
+  `Player.tsx` sends neutral input. Keys: ↑↓ lines, ←→ buy/sell column, B/S choose a side, +/− (Shift 10),
+  M max, Enter sign, Esc back, 1/2 tabs, T close; Tab is trapped in the screen.
+- `useGameState.updatePlayerInventory` no longer PUTs the inventory to the server.
 
 ## Animation and Effects
 

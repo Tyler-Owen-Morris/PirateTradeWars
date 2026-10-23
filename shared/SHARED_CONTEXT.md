@@ -26,6 +26,12 @@ The shared directory contains code and types that are used by both the client an
     `dockDistance`, `nearestDockPort`, metric, radius 300) and market profiles (`REGION_MARKETS`,
     `portGoodPrice`, `portGoodStock`). Used by the server (seed, gate, spawns) and the client (towns, docking).
   - `world/ports.json`, `world/lanes.json`, `world/versions.json` - generated world data (card W2).
+  - `market.ts` - Trading rules shared by server and client (2026-10-23): `SELL_SPREAD` (0.9),
+    `sellPriceOf(buyPrice)` (what a port pays), `MarketRow` (stored port good, optional `notSold`) and
+    `portGoodView` (the goods-API row: `buyPrice`/`sellPrice`/`wanted`). `gameConstants.ts` `GOODS` carry a
+    `group` and `GOOD_GROUPS` orders the trade screen's sections (new goods slot in by data).
+  - `protocol.ts` trading messages: `trade` (+ optional `ref`, `expectedPrice`), `sellAll`, `tradeResult`,
+    `InventoryRow` (+ `avgPaid`), `TradeCode`; see docs/netcode/PROTOCOL.md "Trading clarifications".
   - `physics.ts` - Deterministic ship/cannonball simulation used by BOTH server (authoritative 20 Hz
     tick) and client (prediction). `stepShip(state, input, stats, land?)` = metric motion
     (z += cos·v; x += sin·v / metricX(z); x wraps, z clamped) plus no-damage coast collision when a

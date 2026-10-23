@@ -18,7 +18,7 @@ export interface ShipStats {
   playerTTL: number;
 }
 
-// Own player state as seen by React UI (HUD, Minimap, TradeMenu, ...).
+// Own player state as seen by React UI (HUD, Minimap, BillOfGoods, ...).
 // Populated by useSocket from the netcode layer at ~5 Hz (immediately when hp/gold/sunk change):
 // stats come from the snapshot `me`, x/z/rotationY/speed from the client's predicted ship.
 // Rendering of the ship itself never reads this — Player.tsx reads `net` inside useFrame.
@@ -128,6 +128,8 @@ export interface InventoryItem {
   playerId: string;
   goodId: number;
   quantity: number;
+  /** Average unit price paid (server-tracked since 2026-10-23; absent for older cargo). */
+  avgPaid?: number;
   good?: Good;
 }
 

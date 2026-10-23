@@ -109,7 +109,7 @@ physics in `shared/physics.ts`. Both are shared with the client.
     in-memory ring buffer. Accepted lines go out with `gameState.broadcast(json)` to every attached socket.
     After `connected`/`reconnected` the socket gets `{t:"chatHistory", lines}`. Nothing is in Redis; a
     restart clears chat. Tests: `game/__tests__/chat.test.ts` (policy), `chatSocket.test.ts` (handler).
-  - connect, reconnect, trade, upgradeShip, repairShip and scuttle work as before (they are async
+  - connect, reconnect, trade, sellAll, upgradeShip, repairShip and scuttle (trading: see "Trade Processing") are async
     with Redis, outside the tick), but on the world's live player objects.
   - `connected`/`reconnected` no longer carry the `players`/`cannonBalls`/`goldObjects` dumps. The
     socket is attached after that message, so the next tick's snapshot delivers the world.
@@ -294,11 +294,20 @@ The trading system spans multiple components:
    - Dynamic goods with regional prices and fluctuation
    - Stock management (supply/demand)
 
-2. **Trade Processing**:
-   - Buy/sell validation
-   - Inventory updates
-   - Gold transfers
-   - Stock adjustments
+2. **Trade Processing** (2026-10-23; contract: docs/netcode/PROTOCOL.md "Trading clarifications"):
+   - `game/trade.ts`: pure `applyTrade` / `applySellAll` (validation, spread via `shared/market.ts`
+     `sellPriceOf`, stock taken on buy / returned on sell, `avgPaid` per inventory row, `expectedPrice`
+     guard) and `KeyedQueue`. `playerQueue` serializes every port action of a player (trade, sellAll,
+     upgrade, repair); `portQueue` serializes each port's goods writes (redisStorage's
+     `updatePortGoodPrice/Stock` and `createPortGood` run through it too). Tests: `__tests__/trade.test.ts`
+     (rules), `__tests__/tradeSocket.test.ts` (the race, ref/legacy replies, sellAll, with a slow fake Redis).
+   - `socketHandler.tsx` `doTrade` / `doSellAll`: load port goods + inventory, re-check the dock radius,
+     decide and apply to the live player (gold, cargoUsed) in one synchronous block, then persist with
+     `redisStorage.saveTrade` (inventory + cargoUsed + gold in one MULTI) and `setPortGoods`.
+     Requests with `ref` get `tradeResult`; legacy requests get `tradeSuccess` / `error` as before.
+   - `GET /api/ports/:id/goods` adds `buyPrice` / `sellPrice` / `wanted` (`portGoodView`).
+     `PUT /api/players/:id/inventory` was removed (unauthenticated cargo writes).
+   - The bot test runs a trade round trip (`scripts/tradeCheck.ts`).
 
 3. **Price Fluctuation**:
    - Automated price changes

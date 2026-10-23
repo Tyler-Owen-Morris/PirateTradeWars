@@ -40,7 +40,7 @@ implementer must deviate, they write the deviation into their progress file AND 
 - Heartbeat: server pings every 15 s via ws ping; a socket missing 2 pongs is terminated.
   Server also sends `{t:"pong"}` in reply to client `{t:"ping",c:<clientTime>}` (used for RTT/clock offset).
 - Every server→client message has `t` (type). Existing messages that the UI relies on keep their names
-  (`connected`, `reconnected`, `tradeSuccess`, `upgradeSuccess`, `repairSuccess`, `gameEnd`, `error`,
+  (`connected`, `reconnected`, `tradeSuccess`, `tradeResult` (2026-10-23), `upgradeSuccess`, `repairSuccess`, `gameEnd`, `error`,
   `nameError`, `welcome`) and payload shapes, EXCEPT that `players`/`cannonBalls`/`goldObjects` full dumps
   are removed from them (the first snapshot delivers world state). They may keep `type` instead of `t`
   for backward-compat; new messages use `t`.
@@ -52,7 +52,7 @@ implementer must deviate, they write the deviation into their progress file AND 
 | `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0..7}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). `f` = fire bit flags: 1 fire every loaded side (legacy `f:1`), 2 port (left), 4 starboard (right); see "Broadsides clarifications". Server clamps values, ignores out-of-order seq, caps queue at 40 (= 2 s, drop oldest; was 10 before 2026-10-23). |
 | `ping` | `{t:"ping", c:clientTimeMs}` | every 2 s |
 | `chat` | `{t:"chat", text}` | global chat line, ≤ 200 chars after sanitizing; see "Global chat" below |
-| `trade`, `upgradeShip`, `repairShip`, `scuttle` | unchanged shape | W4: trade, upgrade and repair are rejected with `error "Too far from port"` unless the ship is within 300 (metric) of the port's dock. `portId` is the numeric id from `GET /api/ports` (1-based index in ports.json). |
+| `trade`, `sellAll`, `upgradeShip`, `repairShip`, `scuttle` | `trade` gains optional `ref`/`expectedPrice`; `sellAll` is new (2026-10-23, see "Trading clarifications") | W4: trade, upgrade and repair are rejected with `error "Too far from port"` unless the ship is within 300 (metric) of the port's dock. `portId` is the numeric id from `GET /api/ports` (1-based index in ports.json). |
 
 The client never sends position, speed, direction or rotation. The server is authoritative.
 
@@ -259,6 +259,36 @@ The client never sends position, speed, direction or rotation. The server is aut
   `canFire` = at least one side loaded; `reloadMs` = min of the two (legacy single gauge).
 - **NPCs** fire one side at a time: the side facing their target (`tactics.chooseSide`, 25° hysteresis),
   with that side's reload, sending `FIRE_PORT` or `FIRE_STARBOARD` (never `FIRE_ALL`).
+
+**Trading clarifications (2026-10-23; `shared/protocol.ts`, `shared/market.ts`, `server/game/trade.ts`):**
+- **Serialized.** Every `trade`, `sellAll`, `upgradeShip` and `repairShip` of one player runs one at a time
+  on the server, in arrival order (`playerQueue`), and each port's stock write runs one at a time
+  (`portQueue`, also used by the price updater). Before this, two trades in flight read the same inventory
+  and both wrote: two sells paid twice. Nothing of this touches the tick.
+- **Prices.** A port good's `currentPrice` is what the port CHARGES. It PAYS `sellPriceOf(currentPrice)` =
+  `max(1, round(currentPrice × 0.9))` (the ~10% spread). Buying takes the units from the port's `stock`;
+  selling adds them. `GET /api/ports/:id/goods` rows keep their stored fields and add `buyPrice` (null = the
+  port doesn't sell it; it still buys it), `sellPrice` and `wanted` (regional demand).
+- **`trade`** gains two optional fields: `ref` (client nonce, integer ≥ 1) and `expectedPrice` (the unit
+  price the player saw). With `ref`, the reply is `tradeResult` (below) and NOT the legacy
+  `tradeSuccess`/`error`; without `ref` (cached old clients) the legacy replies are unchanged, with the old
+  error texts. `expectedPrice` refuses the trade with `price_changed` only if the price moved AGAINST the
+  player (buy price up, sell price down); otherwise it runs at the current, better price.
+- **`sellAll`** `{type:"sellAll", portId, ref?, lines?:[{goodId, quantity, expectedPrice?}]}`: sell
+  everything aboard, all or nothing. `lines`, if sent, must match the hold exactly (`hold_changed`
+  otherwise) and carry the per-line price guard. Always answered with `tradeResult` (`action:"sellAll"`,
+  `lines:[{goodId, quantity, price}]`).
+- **`tradeResult`** `{type:"tradeResult", ref?, ok, action:"buy"|"sell"|"sellAll", code?, message?, good?,
+  quantity?, price?, total?, lines?, gold, cargoUsed, inventory, timestamp}`. `gold`, `cargoUsed` and
+  `inventory` are authoritative (the new values on success, the unchanged ones on refusal). Codes:
+  `too_far, no_port, not_traded, not_sold, no_stock, no_gold, no_space, not_owned, price_changed,
+  hold_changed, empty_hold, dead, server`. Old clients log it as an unknown message type and ignore it.
+- **Inventory rows** (`tradeResult.inventory`, `tradeSuccess.inventory`, `GET /api/players/:id/inventory`)
+  may carry `avgPaid` = the weighted average unit price paid (absent for cargo bought before 2026-10-23;
+  on the next purchase those old units are counted at the new price).
+- **Removed:** `PUT /api/players/:id/inventory` (it let anyone write any cargo; old clients called it after
+  every trade and overwrote the server's inventory). Old clients' PUT now 404s, harmlessly.
+- `upgradeShip` / `repairShip` keep their shapes and replies (`upgradeSuccess`, `repairSuccess`, `error`).
 
 ## 8. Wave 2 (deferred): Colyseus
 Wave 1 fixes the transport-independent causes (split worlds, physics mismatch, snapping, tick stalls,

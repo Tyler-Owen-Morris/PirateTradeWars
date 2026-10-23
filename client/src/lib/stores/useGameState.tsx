@@ -181,15 +181,8 @@ export const useGameState = create<GameStateStore>()(
       set((state) => ({
         gameState: { ...state.gameState, inventory },
       }));
-      console.log("inventory to update player with", inventory)
-      console.log("player id", get().gameState.player?.id)
-      // Also update the server with the new inventory
-      const playerId = get().gameState.player?.id;
-      if (playerId) {
-        apiRequest("PUT", `/api/players/${playerId}/inventory`, inventory).catch((error) => {
-          console.error("Failed to update inventory on server:", error);
-        });
-      }
+      // The server is the only writer of inventories (trades over the socket; 2026-10-23). This used to
+      // PUT the inventory back to the server after every trade, overwriting concurrent trades.
     },
 
     /** Load ports from `GET /api/ports` (card W4 shape: town x/z, dock, spawn, nation, region).

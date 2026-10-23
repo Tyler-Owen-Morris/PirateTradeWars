@@ -1,6 +1,7 @@
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { type User, type Player as SharedPlayer, type ShipType, type Good, type PortGood, type PlayerInventory, type Leaderboard } from '@shared/schema';
+import { portQueue } from './game/trade'; // port goods writes share the trade path's per-port queue
 import { PlayerState } from '@/types';
 import { SHIP_STATS } from '@shared/gameConstants';
 import { parseStanding, type StandingState } from '@shared/protocol';
@@ -339,6 +340,9 @@ export class RedisStorage {
     }
 
     async updatePortGoodPrice(portId: number, goodId: number, price: number): Promise<void> {
+        return portQueue.run(`port:${portId}`, () => this.updatePortGoodPriceNow(portId, goodId, price));
+    }
+    private async updatePortGoodPriceNow(portId: number, goodId: number, price: number): Promise<void> {
         const portGoods = await this.getPortGoods(portId);
         const portGood = portGoods.find(pg => pg.goodId === goodId);
         if (portGood) {
@@ -349,6 +353,9 @@ export class RedisStorage {
     }
 
     async updatePortGoodStock(portId: number, goodId: number, stock: number): Promise<void> {
+        return portQueue.run(`port:${portId}`, () => this.updatePortGoodStockNow(portId, goodId, stock));
+    }
+    private async updatePortGoodStockNow(portId: number, goodId: number, stock: number): Promise<void> {
         const portGoods = await this.getPortGoods(portId);
         const portGood = portGoods.find(pg => pg.goodId === goodId);
         if (portGood) {
@@ -359,6 +366,9 @@ export class RedisStorage {
     }
 
     async createPortGood(portGood: Omit<PortGood, 'id'>): Promise<PortGood> {
+        return portQueue.run(`port:${portGood.portId}`, () => this.createPortGoodNow(portGood));
+    }
+    private async createPortGoodNow(portGood: Omit<PortGood, 'id'>): Promise<PortGood> {
         const id = await this.redis.incr('port_good:next_id');
         const newPortGood = { ...portGood, id };
 
@@ -418,6 +428,35 @@ export class RedisStorage {
         multi.hset(`player:${playerId}`, 'cargoUsed', totalCargoUnits.toString());
         this.setPlayerActive(playerId, true);
         await multi.exec();
+    }
+
+    /**
+     * Trading (2026-10-23): write a player's whole inventory (rows keep `avgPaid`), cargoUsed and gold in
+     * one transaction. Only called from the serialized trade path (server/game/trade.ts).
+     */
+    async saveTrade(playerId: string, inventory: { goodId: number; quantity: number; avgPaid?: number }[], gold: number): Promise<void> {
+        const currentPlayer = await this.getPlayer(playerId);
+        if (!currentPlayer) throw new Error(`Player ${playerId} not found`);
+        const rows = inventory.filter((r) => r.quantity > 0).map((r) => (r.avgPaid === undefined
+            ? { playerId, goodId: r.goodId, quantity: r.quantity }
+            : { playerId, goodId: r.goodId, quantity: r.quantity, avgPaid: r.avgPaid }));
+        const cargo = rows.reduce((a, r) => a + r.quantity, 0);
+        const ttl = currentPlayer.playerTTL;
+        const multi = this.redis.multi();
+        multi.set(`player_inventory:${playerId}`, JSON.stringify(rows));
+        multi.expire(`player_inventory:${playerId}`, ttl);
+        multi.hset(`player:${playerId}`, 'cargoUsed', cargo.toString());
+        multi.hset(`player:${playerId}`, 'gold', gold.toString());
+        multi.expire(`player:${playerId}`, ttl);
+        multi.hset(`player_score:${playerId}`, 'gold', gold.toString());
+        multi.expire(`player_score:${playerId}`, ttl + 24 * 60 * 60);
+        this.setPlayerActive(playerId, true);
+        await multi.exec();
+    }
+
+    /** Trading: replace a port's goods (after a trade changed stock). Callers hold the port's queue. */
+    async setPortGoods(portId: number, goods: PortGood[]): Promise<void> {
+        await this.redis.set(`port:${portId}:goods`, JSON.stringify(goods));
     }
 
     async isNameActive(name: string): Promise<boolean> {

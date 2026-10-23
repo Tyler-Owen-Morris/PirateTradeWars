@@ -129,16 +129,25 @@ export const SHIP_PRICES = {
     //[SHIP_TYPES.DREADNAUGHT]: 400 // not actually purchasable, just a placeholder to prevent possible errors
 };
 
-// Game goods
-export const GOODS = [
-    { id: 1, name: "Fish", basePrice: 10, fluctuation: 20 },
-    { id: 2, name: "Wood", basePrice: 15, fluctuation: 10 },
-    { id: 3, name: "Sugar", basePrice: 30, fluctuation: 25 },
-    { id: 4, name: "Cotton", basePrice: 40, fluctuation: 20 },
-    { id: 5, name: "Rum", basePrice: 50, fluctuation: 30 },
-    { id: 6, name: "Tobacco", basePrice: 60, fluctuation: 35 },
-    { id: 7, name: "Spices", basePrice: 80, fluctuation: 40 },
-    { id: 8, name: "Silk", basePrice: 100, fluctuation: 50 }
+// Game goods. `group` drives the trade screen's sections (in GOOD_GROUPS order); a good with a missing or
+// unknown group lands in the last section, so the world-expansion goods slot in by data alone.
+export type GoodGroup = "staples" | "colonial" | "luxuries" | "northern";
+export const GOOD_GROUPS: readonly { id: GoodGroup; label: string; note: string }[] = [
+    { id: "staples", label: "Staples", note: "bulk, cheap, everywhere" },
+    { id: "colonial", label: "Colonial", note: "grown in the colonies" },
+    { id: "luxuries", label: "Luxuries", note: "dear, light, from afar" },
+    { id: "northern", label: "Northern", note: "from the cold seas" },
+];
+export interface GoodDef { id: number; name: string; basePrice: number; fluctuation: number; group?: GoodGroup }
+export const GOODS: GoodDef[] = [
+    { id: 1, name: "Fish", basePrice: 10, fluctuation: 20, group: "staples" },
+    { id: 2, name: "Wood", basePrice: 15, fluctuation: 10, group: "staples" },
+    { id: 3, name: "Sugar", basePrice: 30, fluctuation: 25, group: "colonial" },
+    { id: 4, name: "Cotton", basePrice: 40, fluctuation: 20, group: "staples" },
+    { id: 5, name: "Rum", basePrice: 50, fluctuation: 30, group: "colonial" },
+    { id: 6, name: "Tobacco", basePrice: 60, fluctuation: 35, group: "colonial" },
+    { id: 7, name: "Spices", basePrice: 80, fluctuation: 40, group: "luxuries" },
+    { id: 8, name: "Silk", basePrice: 100, fluctuation: 50, group: "luxuries" }
 ];
 
 // Ports live in shared/world/ports.ts (PORTS, generated ports.json; card W4). The old DEFAULT_PORTS
