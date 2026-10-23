@@ -81,6 +81,9 @@ export function HelpTooltip() {
               <div className="text-sm">View Leaderboard</div>
               <div className="text-sm text-center"><kbd className="ptw-kbd">Tab</kbd></div>
 
+              <div className="text-sm">Chat</div>
+              <div className="text-sm text-center"><kbd className="ptw-kbd">Enter</kbd></div>
+
               <div className="text-sm">Toggle Controls Panel</div>
               <div className="text-sm text-center"><kbd className="ptw-kbd">H</kbd></div>
             </div>
