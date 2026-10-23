@@ -85,7 +85,7 @@ describe("buildCity", () => {
       const c = buildCity(input, makeCitySite(land.field, p.x, p.z));
       const tris = c.main.triangles + c.detail.triangles + c.flags.triangles;
       total += tris;
-      rows.push(`${p.key.padEnd(13)} ${c.styleId.padEnd(17)} h${String(c.stats.houses).padStart(3)} w${c.stats.warehouses} piers${c.stats.piers} x${c.stats.extras} t${String(c.stats.trees).padStart(3)} tris ${c.main.triangles}+${c.detail.triangles}+${c.flags.triangles} ${c.stats.ms}ms`);
+      rows.push(`${p.key.padEnd(13)} ${c.styleId.padEnd(17)} h${String(c.stats.houses).padStart(3)} w${c.stats.warehouses} piers${c.stats.piers} x${c.stats.extras} t${String(c.stats.trees).padStart(3)} tris ${c.main.triangles}+${c.detail.triangles}+${c.flags.triangles} ${c.stats.ms}ms ${c.stats.placed.join(",")}${c.stats.missed.length ? " MISSED " + c.stats.missed.join(",") : ""}`);
       checks.push(() => {
         expect(c.stats.houses, p.key).toBeGreaterThan(8);
         expect(tris, p.key).toBeLessThan(40000);

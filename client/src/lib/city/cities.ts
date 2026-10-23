@@ -6,6 +6,7 @@
  *  - `tweak`: shallow overrides of style fields (colours, landmark, fort kind, extras…);
  *  - `fortSide`: which way along the coast the harbour fort goes (+1 / −1; default = the more
  *    seaward side); `fortWhere: "highpoint"` puts it on the highest ground instead; `fortScale`;
+ *  - `landmarkScale`: size of the main landmark;
  *  - `extras`: extra pieces (pieces.ts EXTRA_PIECES) added to the style's extras;
  *  - `note`: what the tweak represents (keep it honest and short).
  * A port without an entry gets its style's generic town.
@@ -19,6 +20,8 @@ export interface CityCustom {
   fortSide?: 1 | -1;
   fortWhere?: "mouth" | "highpoint";
   fortScale?: number;
+  /** Size multiplier for the main landmark. */
+  landmarkScale?: number;
   extras?: ExtraRef[];
   note: string;
 }
@@ -103,8 +106,9 @@ export const CITY_CUSTOM: Record<string, CityCustom> = {
   // --- Europe ----------------------------------------------------------------------------------
   lisbon: {
     size: 1.25,
-    extras: [{ piece: "belem_tower", where: "mouth" }, { piece: "church_dome", where: "highpoint", scale: 0.6 }],
-    note: "Whitewash and terracotta on the hills; Belém Tower at the river mouth; São Jorge castle on the height.",
+    tweak: { fort: "none" },
+    extras: [{ piece: "belem_tower", where: "mouth" }, { piece: "fort_castle", where: "highpoint", scale: 0.8 }],
+    note: "Whitewash and terracotta on the hills; Belém Tower guards the river mouth; São Jorge castle on the height.",
   },
   cadiz: {
     tweak: { roofKinds: { flat: 0.75, hip: 0.25 }, landmark: "dome", landmarkRoof: "#c9a640", walls: ["#f6f3ea", "#f2ecdc", "#efe6d2"] },
@@ -113,7 +117,8 @@ export const CITY_CUSTOM: Record<string, CityCustom> = {
   seville: {
     size: 1.1,
     tweak: { fort: "none", roofKinds: { hip: 0.5, flat: 0.5 } },
-    extras: [{ piece: "round_tower", where: "coast" }, { piece: "church_bell_tower", where: "plaza", scale: 1.5 }],
+    landmarkScale: 1.5,
+    extras: [{ piece: "round_tower", where: "coast" }],
     note: "Torre del Oro on the Guadalquivir; the Giralda bell tower over the cathedral (no sea fort, it's a river port).",
   },
   london: {
@@ -166,13 +171,18 @@ export const CITY_CUSTOM: Record<string, CityCustom> = {
   },
   goa: {
     tweak: { trees: "palm" },
-    extras: [{ piece: "basilica_facade", where: "plaza", scale: 0.9 }],
+    extras: [{ piece: "basilica_facade", where: "plaza", scale: 0.9 }, { piece: "lighthouse", where: "mouth" }],
     note: "Whitewashed churches in the palms; the laterite Bom Jesus basilica front; Aguada fort with its light.",
   },
   batavia: {
-    tweak: { trees: "palm", extras: [{ piece: "windmill", where: "outskirts", count: 1 }] },
+    tweak: {
+      trees: "palm",
+      walls: ["#efe8d8", "#e6dcc6", "#d8ccb0", "#b0653f", "#c9a27a", "#f4efe2"],
+      roofs: ["#a8482a", "#8a4430", "#7a3a26"],
+      extras: [{ piece: "windmill", where: "outskirts", count: 1 }],
+    },
     fortScale: 1.2,
-    note: "Dutch canal town in the tropics; the Kasteel (star fort) on the waterfront.",
+    note: "Dutch canal town in the tropics (plastered fronts, tile roofs); the Kasteel (star fort) on the waterfront.",
   },
   macau: {
     tweak: { roofKinds: { hip: 0.6, tiered: 0.4 }, walls: ["#f0d58a", "#f6f3ea", "#e8c27a", "#f2a88a", "#efe4cc"] },

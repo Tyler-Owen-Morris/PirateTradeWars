@@ -61,7 +61,7 @@ export interface CityBuild {
   radius: number;
   /** Suggested y for the name label. */
   labelY: number;
-  stats: { houses: number; warehouses: number; trees: number; extras: number; piers: number; ms: number };
+  stats: { houses: number; warehouses: number; trees: number; extras: number; piers: number; ms: number; placed: string[]; missed: string[] };
 }
 
 /** Effective style for a port: style table + per-city tweaks. */
@@ -121,7 +121,7 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
   };
   const occ = new Occupancy();
   const R = st.radius * Math.sqrt(size);
-  const stats = { houses: 0, warehouses: 0, trees: 0, extras: 0, piers: 0, ms: 0 };
+  const stats = { houses: 0, warehouses: 0, trees: 0, extras: 0, piers: 0, ms: 0, placed: [] as string[], missed: [] as string[] };
   let labelY = 40;
 
   // --- 1. coast frame ---------------------------------------------------------------------------
@@ -197,6 +197,7 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
     if (!a || !b) continue;
     const dx = b.x - a.x, dz = b.z - a.z;
     const l = Math.hypot(dx, dz) || 1;
+    if (l > 16 || a.nx * b.nx + a.nz * b.nz < 0.7) continue; // the coast jumps (spit, corner): leave a gap
     const ex = (dx / l) * 1.2, ez = (dz / l) * 1.2;
     const ax = a.x - a.nx * 3.5 - ex, az = a.z - a.nz * 3.5 - ez;
     const bx = b.x - b.nx * 3.5 + ex, bz = b.z - b.nz * 3.5 + ez;
@@ -291,10 +292,11 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
     occ.mark(P.x, P.z, 26, 22, yawSea);
   }
   if (st.landmark !== "none") {
-    const lm = { x: P.x - n.x * 27, z: P.z - n.z * 27 };
+    const lm = { x: P.x - n.x * (27 * (custom?.landmarkScale ?? 1)), z: P.z - n.z * (27 * (custom?.landmarkScale ?? 1)) };
     const big = st.landmark === "dome" ? 1.25 : 1;
-    const top = landmark(ctx, st.landmark, lm.x, lm.z, yawSea, big * (size > 1.15 ? 1.15 : 1));
-    occ.mark(lm.x, lm.z, 36 * big, 40 * big, yawSea);
+    const ls = custom?.landmarkScale ?? (size > 1.15 ? 1.15 : 1);
+    const top = landmark(ctx, st.landmark, lm.x, lm.z, yawSea, big * ls);
+    occ.mark(lm.x, lm.z, 36 * big * ls, 40 * big * ls, yawSea);
     labelY = Math.max(labelY, top);
   }
 
@@ -355,6 +357,8 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
       const h = highSpots(Rf);
       if (h) spot = { x: h.x, z: h.z, yaw: yawSea };
     }
+    if (!spot) stats.missed.push(`fort_${st.fort}`);
+    else stats.placed.push(`fort_${st.fort}`);
     if (spot) {
       const top = fort(ctx, st.fort, spot.x, spot.z, spot.yaw, fs);
       occ.mark(spot.x, spot.z, Rf * 2.4, Rf * 2.4, spot.yaw);
@@ -387,11 +391,15 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
         break;
       }
       case "plaza": {
-        for (const side of [1, -1]) {
-          const x = P.x + tx * side * (r + 16) - n.x * 10, z = P.z + tz * side * (r + 16) - n.z * 10;
-          if (isLand(x, z, r * 0.5) && occ.free(x, z, r * 2, r * 2, yawSea)) {
-            spot = { x, z, yaw: yawSea };
-            break;
+        outer: for (const off of [16, 30, 46, 64]) {
+          for (const inl of [10, 30, -6]) {
+            for (const side of [1, -1]) {
+              const x = P.x + tx * side * (r + off) - n.x * inl, z = P.z + tz * side * (r + off) - n.z * inl;
+              if (isLand(x, z, r * 0.5) && occ.free(x, z, r * 2, r * 2, yawSea)) {
+                spot = { x, z, yaw: yawSea };
+                break outer;
+              }
+            }
           }
         }
         break;
@@ -414,7 +422,19 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
         }
       }
     }
-    if (!spot) return;
+    if (!spot && ref.where !== "water" && ref.where !== "outskirts" && ref.where !== "highpoint") {
+      // fallback: anywhere on the edge of town
+      for (let i = 0; i < 80 && !spot; i++) {
+        const a = rng() * Math.PI * 2, dist = R * range(rng, 0.5, 1.2);
+        const x = P.x + Math.cos(a) * dist, z = P.z + Math.sin(a) * dist;
+        if (isLand(x, z, r * 0.5) && occ.free(x, z, r * 2, r * 2, 0)) spot = { x, z, yaw: yawSea };
+      }
+    }
+    if (!spot) {
+      stats.missed.push(ref.piece);
+      return;
+    }
+    stats.placed.push(ref.piece);
     const top = fn(ctx, spot.x, spot.z, spot.yaw, sc);
     occ.mark(spot.x, spot.z, r * 2, r * 2, spot.yaw);
     if (typeof top === "number" && ref.where !== "water") labelY = Math.max(labelY, top * 0.85);
@@ -426,12 +446,12 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
   anchorYaw = 0;
 
   // --- 5. ramparts -------------------------------------------------------------------------------
-  const Rw = R * 0.92;
+  const Rw = R * 0.95;
   if (st.cityWalls) {
     const N = 20;
     const pts = Array.from({ length: N }, (_, i) => {
       const a = (i / N) * Math.PI * 2;
-      return { x: P.x + Math.cos(a) * Rw, z: P.z + Math.sin(a) * Rw * 0.85 };
+      return { x: P.x + Math.cos(a) * Rw, z: P.z + Math.sin(a) * Rw };
     });
     const ok = pts.map((p) => isLand(p.x, p.z, 3));
     for (let i = 0; i < N; i++) {
@@ -460,7 +480,7 @@ export function buildCity(input: CityInput, site: CitySite): CityBuild {
       const p = at(s, qq);
       const dist = Math.hypot(p.x - P.x, p.z - P.z);
       if (dist > R * 1.15) continue;
-      if (st.cityWalls && dist > Rw - 8 && dist < Rw + 8) continue;
+      if (st.cityWalls && dist > Rw - 9) continue; // walled towns stay inside their ramparts
       const core = 1 - smooth(R * 0.45, R * 1.15, dist);
       const w = Math.min(range(rng, st.houseW[0], st.houseW[1]), st.lot - gap);
       const d = range(rng, st.houseD[0], st.houseD[1]);

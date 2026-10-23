@@ -591,19 +591,22 @@ export function fort(ctx: CityCtx, kind: FortKind, x: number, z: number, yaw: nu
   return peak;
 }
 
-/** Two-bastion battery outline (bastions on the seaward corners), ordered round the ring. */
+/** Two-bastion battery outline: a rectangle with arrowhead bastions on the seaward (+z) corners. */
 function bastionTwo(R: number): [number, number][] {
+  const a = R * 0.9, b = R * 0.6, f = a * 0.32, s = a * 0.22, t = a * 0.3;
   return [
-    [-0.9 * R, -0.7 * R],
-    [0.9 * R, -0.7 * R],
-    [0.9 * R, 0.1 * R],
-    [1.2 * R, 0.35 * R],
-    [0.85 * R, 0.95 * R],
-    [0.5 * R, 0.55 * R],
-    [-0.5 * R, 0.55 * R],
-    [-0.85 * R, 0.95 * R],
-    [-1.2 * R, 0.35 * R],
-    [-0.9 * R, 0.1 * R],
+    [-a, -b],
+    [a, -b],
+    [a, b - f],
+    [a + s, b - f],
+    [a + t, b + t],
+    [a - f, b + s],
+    [a - f, b],
+    [-a + f, b],
+    [-a + f, b + s],
+    [-a - t, b + t],
+    [-a - s, b - f],
+    [-a, b - f],
   ];
 }
 /** City rampart segment with a parapet between two local points. */
