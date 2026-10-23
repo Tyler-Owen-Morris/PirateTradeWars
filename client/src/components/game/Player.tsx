@@ -9,7 +9,7 @@
  * Server snapshots reconcile the prediction inside the net layer; there is no snapping here and the
  * zustand player object is never mutated. Props only carry slow-changing display data.
  */
-import { forwardRef, useMemo, useRef } from 'react';
+import { forwardRef, useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useKeyboardControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -19,6 +19,14 @@ import { ShipType } from '@/lib/constants';
 import { net, combineControls, type ControlState } from '@/lib/net';
 import type { ShipKinematics } from '@shared/physics';
 import { setRenderFocus } from '@/lib/world/renderSpace';
+import { AutoSail } from '@/lib/net/autoSail';
+import { useAutoSail } from '@/lib/stores/useAutoSail';
+import { useGameState } from '@/lib/stores/useGameState';
+
+function textInputFocused(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+}
 
 type ControlName = keyof ControlState;
 
@@ -35,9 +43,23 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player({ pla
   const initialPosition = useMemo<[number, number, number]>(() => [0, 0, 0], []);
   const playerRef = useRef(player);
   playerRef.current = player;
+  // Keyboard auto-sail (double-tap forward). Client-side only; see lib/net/autoSail.ts.
+  const autoSail = useRef(new AutoSail());
+  useEffect(() => () => {
+    autoSail.current.reset();
+    useAutoSail.getState().setActive(false);
+  }, []);
 
   useFrame(() => {
-    const controls = combineControls(getKeys() as Partial<ControlState>, controlsRef?.current);
+    const keys = getKeys() as Partial<ControlState>;
+    const sail = autoSail.current;
+    if (playerRef.current.sunk || useGameState.getState().isTrading || textInputFocused()) {
+      sail.reset(!!keys.forward);
+    } else {
+      sail.update(!!keys.forward, !!keys.backward, performance.now());
+    }
+    if (sail.active !== useAutoSail.getState().active) useAutoSail.getState().setActive(sail.active);
+    const controls = combineControls(keys, controlsRef?.current, { forward: sail.active });
     // Own wall-clock delta, not R3F's `delta` (other code can shorten that via the shared clock).
     net.frameNow(controls);
 
