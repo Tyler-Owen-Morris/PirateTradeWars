@@ -1,7 +1,7 @@
 # Build state: auto-sail, global chat, pirate theme (started 2026-10-23)
 
 Goal: three player-requested features, built in parallel, merged into local integration branch `dev/2026-10-23-batch` (not main), tested in a local dev
-build. NOT released until the user approves (a push to `main` without `[skip ci]` deploys to production).
+build. RELEASED to production 2026-10-23 (main fc9c918, deploy run 40029362322) on the owner's go-ahead.
 
 | Card | Owner | Branch (worktree) | Status | Next step |
 |---|---|---|---|---|
