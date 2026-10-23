@@ -47,7 +47,7 @@ implementer must deviate, they write the deviation into their progress file AND 
 | msg | fields | notes |
 |-----|--------|-------|
 | `connect` / `reconnect` | unchanged | existing name/ship flow |
-| `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0|1}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). Server clamps values, ignores out-of-order seq, caps queue at 10 (drop oldest). |
+| `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0|1}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). Server clamps values, ignores out-of-order seq, caps queue at 40 (= 2 s, drop oldest; was 10 before 2026-10-23). |
 | `ping` | `{t:"ping", c:clientTimeMs}` | every 2 s |
 | `trade`, `upgradeShip`, `repairShip`, `scuttle` | unchanged shape | W4: trade, upgrade and repair are rejected with `error "Too far from port"` unless the ship is within 300 (metric) of the port's dock. `portId` is the numeric id from `GET /api/ports` (1-based index in ports.json). |
 
@@ -57,8 +57,20 @@ The client never sends position, speed, direction or rotation. The server is aut
 - Drift-free loop: `performance.now()` accumulator + `setTimeout`, runs `while (acc >= TICK_DT)` steps,
   max 5 catch-up steps then drop. **No `await` inside the tick.** Redis/Segment writes go into a
   fire-and-forget queue drained outside the tick; errors are logged, never thrown into the loop.
-- Per player per tick: consume ONE queued input (if the queue is empty, reuse the last input but with
-  `f:0`); `stepShip`; record `lastSeq` processed. If the queue holds > 3 inputs, consume 2 (catch-up).
+- Per player per tick: consume ONE queued input; `stepShip`; record `lastSeq` processed. If the queue
+  holds > 3 inputs, consume 2 (catch-up).
+- **Empty queue = HOLD (changed 2026-10-23).** If a connected player's queue is empty (its next input is
+  late), the ship does NOT step that tick: position, rotation and velocity stay as they are, and `a`
+  does not advance. Invariant: a connected ship's server state is exactly `stepShip` over inputs
+  1..`a` in order, which is what the client predicts, so reconciliation never corrects it (open water).
+  The late input is simulated when it arrives (catch-up repays the pause). Until 2026-10-23 the server
+  instead stepped with the last input (a "phantom" tick) and then ALSO simulated the late input, so
+  every starved tick warped the client forward one tick of travel and the post-stall burst overflowed
+  the 10-input queue and jumped it back (BUILD_STATE.md, bug 2026-10-23).
+  - Consequence: a hidden tab (one neutral input, then silence) leaves the ship held in place, not
+    coasting; client prediction resumes from the same state when the tab returns.
+  - Inputs dropped by the queue cap (uplink outage > ~2 s) were never simulated: the client gets a
+    backward correction for them. That is the only remaining starvation-related correction.
 - Disconnected player (grace period): input forced to `th:0, ru:0, f:0` — ship coasts to a stop.
   Visible to others with a `disconnected` flag. Removed after GRACE_PERIOD as today.
 - Spatial hash grid (cell 500) rebuilt each tick; used for interest, cannonball hits and gold pickup.

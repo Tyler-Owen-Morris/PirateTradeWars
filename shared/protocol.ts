@@ -25,8 +25,12 @@ export const GRID_CELL = 500;
 export const INTERP_DELAY_MS = 100;
 /** Max remote extrapolation (ms) on interpolation-buffer underrun, then hold. */
 export const MAX_EXTRAPOLATION_MS = 200;
-/** Server keeps at most this many queued inputs per player (drops oldest). */
-export const MAX_INPUT_QUEUE = 10;
+/**
+ * Server keeps at most this many queued inputs per player (drops oldest). 40 = 2 s of input: a
+ * late burst after an uplink stall of up to ~2 s is simulated in full (catch-up), so the own ship
+ * gets no correction. Was 10 (500 ms), which turned every longer stall into a backward jump.
+ */
+export const MAX_INPUT_QUEUE = 40;
 /** If more than this many inputs are queued, the server consumes 2 per tick (catch-up). */
 export const INPUT_CATCHUP_THRESHOLD = 3;
 /** Client sends `ping` this often (ms). */

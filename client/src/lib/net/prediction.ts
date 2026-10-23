@@ -36,11 +36,10 @@ import { MAX_SEQ, SNAP_ERROR_DISTANCE, type InputMessage } from "@shared/protoco
 export const ERROR_DECAY_TAU_SEC = 0.12;
 /**
  * Never run more than this many fixed steps in one frame; a longer hitch drops the excess time
- * instead of replaying it. Deliberate: while the client is stalled the server's input queue runs
- * dry and it re-uses our last input every tick (PROTOCOL §5), i.e. the server already simulated the
- * gap. Replaying a backlog afterwards would step the ship a second time for the same wall time
- * (overshoot + correction). Dropping it means the next snapshot reconciles us onto the server's
- * extrapolated position (a small decaying error offset, or a snap if > SNAP_ERROR_DISTANCE).
+ * instead of replaying it. Consistent with the server: when our inputs stop arriving its queue runs
+ * dry and the ship HOLDS (no step, PROTOCOL §5 since 2026-10-23), so dropped client time is dropped
+ * on both sides and there is nothing to correct. (Before 2026-10-23 the server stepped a starved
+ * ship with the last input; that "phantom" step was the own-ship jump bug, see BUILD_STATE.md.)
  */
 export const MAX_STEPS_PER_FRAME = 5;
 /** Largest frame delta (s) worth feeding to `advance`: exactly MAX_STEPS_PER_FRAME ticks. */
@@ -82,6 +81,13 @@ export class Predictor {
   initialized = false;
   /** Count of hard snaps (diagnostics / tests). */
   snaps = 0;
+  /**
+   * Reconciliation diagnostics (netDebug.ts overlay, tests). `corrections` counts reconciles that
+   * moved the prediction by more than 1 unit (~100 m); with matching land data it should stay ~0.
+   */
+  readonly diag = { reconciles: 0, corrections: 0, maxCorrection: 0, lastCorrection: 0 };
+  /** Optional hook called for every reconcile after the first (dist in metric units). */
+  onCorrection: ((dist: number, ack: number, pending: number) => void) | null = null;
 
   /**
    * @param land land/ice used for prediction; must sample like the server's field. Default: open
@@ -179,6 +185,11 @@ export class Predictor {
     const dz = s.z - this.cur.z;
     const dr = normalizeAngle(s.rotationY - this.cur.rotationY);
     const dist = Math.hypot(dx * metricX((s.z + this.cur.z) / 2), dz);
+    this.diag.reconciles++;
+    this.diag.lastCorrection = dist;
+    if (dist > 1) this.diag.corrections++;
+    if (dist > this.diag.maxCorrection) this.diag.maxCorrection = dist;
+    if (this.onCorrection) this.onCorrection(dist, ack, this.pending.length);
 
     if (dist > SNAP_ERROR_DISTANCE) {
       this.cur = s;

@@ -378,6 +378,13 @@ export class World {
   events: WorldEvent[] = [];
   /** Side effects not yet drained by the wiring layer. */
   effects: WorldEffect[] = [];
+  /**
+   * Input-queue diagnostics since start (logged every 60 s by gameState): `held` = ticks a connected
+   * player's ship held still because its queue was empty (late input; no phantom step, see step()),
+   * `overflow` = inputs dropped by the MAX_INPUT_QUEUE cap (each one shows up as a backward
+   * correction on that client), `catchUp` = ticks that consumed 2 inputs.
+   */
+  readonly inputStats = { held: 0, overflow: 0, catchUp: 0 };
   readonly views = new Map<string, ClientView>();
 
   /** NPC1: set by NpcSystem (server/game/npc/index.ts); null = no AI (NPCs coast). */
@@ -658,14 +665,18 @@ export class World {
   // ---- inputs ---------------------------------------------------------------------------
 
   /** Queue one validated input. Ignores out-of-order/duplicate seqs and inputs from disconnected,
-   *  sunk or dead players. Caps the queue at MAX_INPUT_QUEUE by dropping the oldest. */
+   *  sunk or dead players. Caps the queue at MAX_INPUT_QUEUE by dropping the oldest (only after a
+   *  ~2 s uplink outage; the client then gets one backward correction). */
   queueInput(id: string, input: InputMessage): boolean {
     const p = this.players.get(id);
     if (!p || !p.connected || p.dead || p.controller === "npc") return false; // NPC1
     if (input.s <= p.highestSeq) return false;
     p.highestSeq = input.s;
     p.inputQueue.push(input);
-    while (p.inputQueue.length > MAX_INPUT_QUEUE) p.inputQueue.shift();
+    while (p.inputQueue.length > MAX_INPUT_QUEUE) {
+      p.inputQueue.shift();
+      this.inputStats.overflow++;
+    }
     return true;
   }
 
@@ -734,10 +745,19 @@ export class World {
       if (!p.connected) {
         this.applyStep(p, NEUTRAL_INPUT);
       } else if (p.inputQueue.length === 0) {
-        // Starved: repeat the last input without firing.
-        this.applyStep(p, { th: p.lastInput.th, ru: p.lastInput.ru, f: 0 });
+        // Starved (the next input is late: uplink jitter, a TCP stall, a client frame hitch, or a
+        // hidden tab): HOLD, do not step. The ship's server position must stay exactly
+        // stepShip(inputs 1..a), because the client predicts sim(inputs 1..n) and reconciles to
+        // `me` + replay(seq > a). The old behaviour (step with the last input = a "phantom" tick)
+        // was never paid back when the late input arrived and got simulated too, so every starved
+        // tick warped the client one tick of travel FORWARD (1.2 km for a sloop, 2.7 km for a
+        // dreadnaught), and the burst after a stall overflowed the queue cap and jumped it BACK
+        // (bug 2026-10-23, docs/netcode/BUILD_STATE.md). Holding costs observers a one-tick pause
+        // that the catch-up below repays; the own ship never sees a correction.
+        this.inputStats.held++;
       } else {
         const n = p.inputQueue.length > INPUT_CATCHUP_THRESHOLD ? 2 : 1;
+        if (n === 2) this.inputStats.catchUp++;
         for (let i = 0; i < n; i++) {
           const inp = p.inputQueue.shift()!;
           p.lastSeq = inp.s;
