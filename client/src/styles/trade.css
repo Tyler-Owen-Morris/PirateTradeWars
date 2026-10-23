@@ -158,7 +158,10 @@
 .ptw-cell.idle .fig { color: var(--ptw-ink-soft); font-weight: 500; }
 .ptw-cell.blocked .fig { color: var(--ptw-ink-off); font-weight: 500; }
 .ptw-cell.blocked .note { color: var(--ptw-bad-ink); }
-.ptw-cell[aria-pressed="true"] { background: var(--ptw-ink); color: var(--ptw-parchment-hi); box-shadow: 0 0 0 2px var(--ptw-sel-wash), 0 0 0 3.5px var(--ptw-ink); z-index: 2; }
+/* The double frame is drawn INSIDE the cell (inset): an outer ring would stick out into the
+   neighbouring rows and get covered by the opaque sticky group headings above/below. */
+.ptw-cell[aria-pressed="true"] { background: var(--ptw-ink); color: var(--ptw-parchment-hi); box-shadow: inset 0 0 0 1.5px var(--ptw-ink), inset 0 0 0 3.5px var(--ptw-sel-wash); z-index: 2; }
+.ptw-trade .ptw-cell:focus-visible { box-shadow: inset 0 0 0 2px var(--ptw-ink), inset 0 0 0 5px var(--ptw-focus) !important; }
 .ptw-cell[aria-pressed="true"] .fig { color: var(--ptw-parchment-hi); text-decoration: none; }
 .ptw-cell[aria-pressed="true"] .fig::before { content: "\2713"; font-size: 15px; }
 .ptw-cell[aria-pressed="true"] .note { color: var(--ptw-parchment); }
