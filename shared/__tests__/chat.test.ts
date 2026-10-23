@@ -13,6 +13,11 @@ describe("sanitizeChatText", () => {
     expect(sanitizeChatText("x⁦y⁩")).toBe("xy");
   });
 
+  it("strips invisible chars before collapsing whitespace (U+FEFF counts as \\s)", () => {
+    expect(sanitizeChatText("n﻿i­g͏gㅤe᠎r")).toBe("nigger");
+    expect(sanitizeChatText("a ﻿ b")).toBe("a b");
+  });
+
   it("rejects empty / whitespace-only / control-only / non-strings", () => {
     expect(sanitizeChatText("")).toBeNull();
     expect(sanitizeChatText("    ")).toBeNull();

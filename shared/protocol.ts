@@ -581,9 +581,11 @@ function optPrice(v: unknown): number | undefined | null {
 }
 
 // Control chars (C0, DEL, C1), zero-width chars and bidi overrides/isolates (which can reorder or
-// hide text) are removed from chat text. Tabs/newlines become spaces first.
+// hide text) are removed from chat text, with other invisible fillers (soft hyphen, combining grapheme
+// joiner, Hangul fillers, Mongolian vowel separator...). Tabs/newlines become spaces first; the strip
+// runs BEFORE whitespace is collapsed, because U+FEFF counts as \s and "n<U+FEFF>igger" must stay one word.
 // eslint-disable-next-line no-control-regex
-const CHAT_STRIP_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+const CHAT_STRIP_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2069\u3164\uFEFF\uFFA0]/g;
 // eslint-disable-next-line no-control-regex
 const CHAT_SPACE_RE = /\s+/g;
 
@@ -595,7 +597,7 @@ const CHAT_SPACE_RE = /\s+/g;
  */
 export function sanitizeChatText(v: unknown, max: number = MAX_CHAT_LENGTH): string | null {
   if (typeof v !== "string") return null;
-  const cleaned = v.replace(CHAT_SPACE_RE, " ").replace(CHAT_STRIP_RE, "").replace(/ {2,}/g, " ").trim();
+  const cleaned = v.replace(/[\t\n\r\v\f]/g, " ").replace(CHAT_STRIP_RE, "").replace(CHAT_SPACE_RE, " ").trim();
   if (!cleaned) return null;
   const cps = Array.from(cleaned);
   const out = cps.length > max ? cps.slice(0, max).join("").trimEnd() : cleaned;

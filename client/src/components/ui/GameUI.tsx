@@ -6,7 +6,7 @@ import { useSocket } from "@/lib/stores/useSocket";
 import HUD from "./HUD";
 import Leaderboard from "./Leaderboard";
 import { HudPanel, Kbd, PirateButton, WoodPanel, ptwDialogTorn } from "./pirate";
-import { Volume2, VolumeX, HelpCircle, Map, Skull, Sliders, QrCode } from "lucide-react";
+import { Volume2, VolumeX, HelpCircle, Map, Skull, Sliders, QrCode, X } from "lucide-react";
 import { HelpTooltip } from "./HelpTooltip";
 import { Minimap } from "./Minimap";
 import { portPoint } from "@/lib/nav";
@@ -68,6 +68,28 @@ export default function GameUI({ controlsRef }: GameUIProps) {
     setSfxVolume,
   } = useAudio();
   const [isDeviceTouch, setIsDeviceTouch] = useState(false)
+
+  // Trade prompt plaque: shows on arrival, fades after PROMPT_SHOW_MS, or hides at once on the X.
+  // Stays hidden for that port until the player leaves its range or reaches another port.
+  const PROMPT_SHOW_MS = 8000;
+  const promptPortId = gameState.isNearPort && gameState.nearestPort ? gameState.nearestPort.id : null;
+  const [dismissedPortId, setDismissedPortId] = useState<number | null>(null);
+  const [promptFading, setPromptFading] = useState(false);
+  useEffect(() => {
+    // Leaving range (or switching port) re-arms the prompt.
+    setDismissedPortId(null);
+    setPromptFading(false);
+    if (!promptPortId) return;
+    const id = promptPortId;
+    const fadeTimer = window.setTimeout(() => setPromptFading(true), PROMPT_SHOW_MS);
+    const hideTimer = window.setTimeout(() => setDismissedPortId(id), PROMPT_SHOW_MS + 600);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(hideTimer);
+    };
+  }, [promptPortId]);
+  const showTradePrompt = !!promptPortId && dismissedPortId !== promptPortId;
+  const showTradeChip = !!promptPortId && !showTradePrompt;
   const [displayTouchControls, setDisplayTouchControls] = useState(false)
 
   useEffect(() => {
@@ -280,16 +302,31 @@ export default function GameUI({ controlsRef }: GameUIProps) {
       {showMinimap && gameState.player && <Minimap toggleMinimap={toggleMinimap} />}
 
       {/* Request to Trade */}
-      {gameState.nearestPort && gameState.isNearPort && !isSunk && (
+      {showTradePrompt && gameState.nearestPort && !isSunk && (
         <WoodPanel
           role="button"
           tabIndex={0}
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 px-6 py-3 cursor-pointer motion-safe:animate-pulse hover:brightness-110 text-center max-w-[90vw]"
+          className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pl-6 pr-12 py-3 cursor-pointer hover:brightness-110 text-center max-w-[90vw] transition-opacity duration-500 motion-reduce:transition-none ${promptFading ? "opacity-0 pointer-events-none" : "opacity-100"}`}
           onClick={startTrade}
           onKeyDown={(e: React.KeyboardEvent) => {
             if (e.key === "Enter") startTrade();
           }}
         >
+          <button
+            type="button"
+            aria-label="Dismiss trade prompt"
+            title="Dismiss"
+            className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center text-ptw-brass-hi hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-ptw-brass-hi"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDismissedPortId(promptPortId);
+            }}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <span className="w-7 h-7 rounded-full flex items-center justify-center bg-ptw-wood-dark border-2 border-ptw-brass shadow-[0_1px_3px_#000]">
+              <X className="w-4 h-4" strokeWidth={3} />
+            </span>
+          </button>
           <p className="ptw-font-display text-2xl sm:text-3xl leading-none text-ptw-brass-hi">
             {gameState.nearestPort.name}
           </p>
@@ -297,6 +334,17 @@ export default function GameUI({ controlsRef }: GameUIProps) {
             Click here or press <Kbd>T</Kbd> to trade
           </p>
         </WoodPanel>
+      )}
+
+      {showTradeChip && !isSunk && !tradingOpen && (
+        <button
+          type="button"
+          onClick={startTrade}
+          aria-label="Open trade"
+          className="absolute bottom-12 left-1/2 -translate-x-1/2 z-40 min-h-[44px] px-4 flex items-center gap-1.5 rounded-full bg-ptw-wood-dark/90 border border-ptw-brass text-ptw-cream text-sm [text-shadow:0_1px_2px_#000]"
+        >
+          <Kbd>T</Kbd> Trade
+        </button>
       )}
 
       {!isSunk && (

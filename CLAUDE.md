@@ -41,7 +41,10 @@ Real-time model: authoritative 20 Hz server, client prediction (own ship) + inte
 - No `await` inside `World.step()` / the tick; side effects go through `world.effects`.
 - Keyboard game input (drei KeyboardControls listens on `window`) must check `isTextEntryActive()`
   (`client/src/lib/stores/useInputFocus.ts`) so typing in chat or any text field never steers or fires.
-- Global chat is in-memory only (`server/game/chat.ts`, PROTOCOL.md "Global chat"); a deploy clears it.
+- Global chat is in-memory only (`server/game/chat.ts`, PROTOCOL.md "Global chat"); a deploy clears it,
+  including strikes and mutes. Players include kids: moderation is server-side in `server/game/chatFilter.ts`
+  (`obscenity` + own lists; mild = masked, severe/personal-info = dropped, 3 drops = mute) and also gates new
+  ship names. Add a false-positive test whenever you add a word.
 - Local testing gold: `NODE_ENV=development DEV_START_GOLD=10000000 npm run dev` gives every new captain that much gold
   (`server/game/socketHandler.tsx`; ignored unless NODE_ENV=development).
 - Agent worktrees may start at a stale commit: `git reset --hard main` first.
