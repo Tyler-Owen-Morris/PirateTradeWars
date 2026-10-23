@@ -2,8 +2,8 @@
  * NPC2: the live NPC population on the real map. Pure data + builders, no World access.
  *
  * Inputs are the generated world data (WORLD_SPEC §5, §6):
- *   - shared/world/ports.json: 27 ports with `nation`, `region`, `dock`, `safeRadius`
- *   - shared/world/lanes.json: 75 lanes `{from, to, points}` (`from` is the smaller id; x unwrapped
+ *   - shared/world/ports.json: 43 ports with `nation`, `region`, `dock`, `safeRadius`
+ *   - shared/world/lanes.json: 117 lanes `{from, to, points}` (`from` is the smaller id; x unwrapped
  *     along the route, consumers wrap — NpcMetric.offset does)
  *
  * Every lane gets a *zone* from its two ports' regions (`laneZone`):
@@ -14,9 +14,15 @@
  * | atlantic | one end in the Americas, the other in Europe/Africa (the crossings)       |
  * | europe   | both ends in Europe                                                       |
  * | africa   | touches West/South Africa, nothing further east                           |
- * | east     | touches the Indian Ocean, East Asia or the Pacific (Acapulco)             |
+ * | east     | touches the Indian Ocean or East Asia (incl. the Manila galleon lane)     |
+ * | pacific  | touches the Pacific coast of the Americas (Acapulco to Juan Fernández,    |
+ * |          | incl. Cape Horn), not the east                                            |
+ * | south    | touches the South Atlantic (Brazil, the River Plate), not the Pacific     |
  *
- * `LIVE_FLEETS` turns that into ~300 persistent NPCs, heavy in the Caribbean/Gulf and on the
+ * The zones are checked in that order of precedence: east, pacific, south, then americas/atlantic/
+ * africa/europe. `pacific` and `south` were added by New Horizons phase 1 (2026-10-23).
+ *
+ * `liveFleets()` turns that into 185 persistent NPCs, heavy in the Caribbean/Gulf and on the
  * Europe–Caribbean crossings (see the population table in server/game/npc/README.md).
  */
 import portsJson from "@shared/world/ports.json";
@@ -54,24 +60,26 @@ export function portFaction(id: string): FactionId | undefined {
   return n === "pirates" ? "merchants_guild" : (n as FactionId);
 }
 
-export type LaneZone = "americas" | "atlantic" | "europe" | "africa" | "east";
+export type LaneZone = "americas" | "atlantic" | "europe" | "africa" | "east" | "pacific" | "south";
 
 const AMERICAS = new Set(["caribbean", "north_atlantic"]);
 const EUROPE_AFRICA = new Set(["europe", "africa"]);
-const EAST = new Set(["indian_ocean", "east_asia", "americas_pacific"]);
+const EAST = new Set(["indian_ocean", "east_asia"]);
 
 /** Zone of a lane from its two ports' regions (table in the file header). */
 export function laneZone(lane: Lane): LaneZone {
   const a = PORT_BY_ID.get(lane.from)?.region ?? "";
   const b = PORT_BY_ID.get(lane.to)?.region ?? "";
   if (EAST.has(a) || EAST.has(b)) return "east";
+  if (a === "americas_pacific" || b === "americas_pacific") return "pacific";
+  if (a === "south_atlantic" || b === "south_atlantic") return "south";
   if (AMERICAS.has(a) && AMERICAS.has(b)) return "americas";
   if ((AMERICAS.has(a) && EUROPE_AFRICA.has(b)) || (AMERICAS.has(b) && EUROPE_AFRICA.has(a))) return "atlantic";
   if (a === "africa" || b === "africa") return "africa";
   return "europe";
 }
 
-/** Pirate havens (WORLD_SPEC §5 nation "pirates"). */
+/** Pirate havens (WORLD_SPEC §5 nation "pirates"): Nassau, Tortuga, Île Sainte-Marie, Juan Fernández. */
 export const PIRATE_PORTS: readonly string[] = PORTS.filter((p) => p.nation === "pirates").map((p) => p.id);
 
 const touches = (lane: Lane, ids: readonly string[]) => ids.includes(lane.from) || ids.includes(lane.to);
@@ -88,20 +96,26 @@ function homeWaters(nation: FactionId, zones: readonly LaneZone[], regions?: rea
 const inZones = (...zones: LaneZone[]) => (lane: Lane) => zones.includes(laneZone(lane));
 
 /**
- * The live fleets: ~150 persistent NPCs (halved from 300 on 2026-10-16). Region labels are unique per target (the director counts
- * per label + archetype). Tune counts here; the README has the same table.
+ * The live fleets: 185 persistent NPCs (halved from 300 on 2026-10-16 to 153; +32 for the South Atlantic and
+ * the Pacific coast on 2026-10-23, leaving every Caribbean/Atlantic/Europe/east fleet as it was). Region labels
+ * are unique per target (the director counts per label + archetype). Tune counts here; the README has the same table.
  */
 export function liveFleets(): RegionTarget[] {
   const CARIB = ["caribbean", "north_atlantic"];
   const EU = ["europe"];
+  const SOUTH = ["south_atlantic"];
+  const PACIFIC = ["americas_pacific"];
   return [
-    // Merchants (80): nation of the origin port; convoys of 1–3.
+    // Merchants (80 + 18): nation of the origin port; convoys of 1–3.
     { region: "americas/merchant", archetype: "merchant", count: 30, lanes: inZones("americas"), originFaction: true },
     { region: "atlantic/merchant", archetype: "merchant", count: 15, lanes: inZones("atlantic"), originFaction: true },
     { region: "europe/merchant", archetype: "merchant", count: 15, lanes: inZones("europe"), originFaction: true },
     { region: "africa/merchant", archetype: "merchant", count: 6, lanes: inZones("africa"), originFaction: true },
     { region: "east/merchant", archetype: "merchant", count: 14, lanes: inZones("east"), originFaction: true },
-    // Navy patrols (30): near their own nation's ports.
+    // New Horizons (18): the Brazil and River Plate trade, the South Sea (Pacific coast).
+    { region: "south/merchant", archetype: "merchant", count: 10, lanes: inZones("south"), originFaction: true },
+    { region: "pacific/merchant", archetype: "merchant", count: 8, lanes: inZones("pacific"), originFaction: true },
+    // Navy patrols (30 + 7): near their own nation's ports.
     { region: "americas/navy/spain", archetype: "navy", count: 5, factions: ["spain"], lanes: homeWaters("spain", ["americas"], CARIB) },
     { region: "americas/navy/england", archetype: "navy", count: 4, factions: ["england"], lanes: homeWaters("england", ["americas"], CARIB) },
     { region: "americas/navy/france", archetype: "navy", count: 2, factions: ["france"], lanes: homeWaters("france", ["americas"], CARIB) },
@@ -114,11 +128,18 @@ export function liveFleets(): RegionTarget[] {
     { region: "east/navy/portugal", archetype: "navy", count: 2, factions: ["portugal"], lanes: homeWaters("portugal", ["east"]) },
     { region: "east/navy/netherlands", archetype: "navy", count: 2, factions: ["netherlands"], lanes: homeWaters("netherlands", ["east", "africa"]) },
     { region: "east/navy/spain", archetype: "navy", count: 2, factions: ["spain"], lanes: homeWaters("spain", ["east"]) },
-    // Pirates (33): around the havens and on the busy crossings.
+    // New Horizons (7): the Portuguese off Brazil, the Spanish on the River Plate and the Armada del Mar del Sur.
+    { region: "south/navy/portugal", archetype: "navy", count: 3, factions: ["portugal"], lanes: homeWaters("portugal", ["south"], SOUTH) },
+    { region: "south/navy/spain", archetype: "navy", count: 1, factions: ["spain"], lanes: homeWaters("spain", ["south"], SOUTH) },
+    { region: "pacific/navy/spain", archetype: "navy", count: 3, factions: ["spain"], lanes: homeWaters("spain", ["pacific"], PACIFIC) },
+    // Pirates (33 + 7): around the havens and on the busy crossings.
     { region: "americas/pirate/havens", archetype: "pirate", count: 18, lanes: (l) => laneZone(l) === "americas" && touches(l, PIRATE_PORTS) },
     { region: "americas/pirate/lanes", archetype: "pirate", count: 3, lanes: inZones("americas") },
     { region: "atlantic/pirate", archetype: "pirate", count: 6, lanes: inZones("atlantic") },
     { region: "east/pirate/sainte_marie", archetype: "pirate", count: 6, lanes: (l) => touches(l, ["sainte_marie"]) },
+    // New Horizons (7): buccaneers in the South Sea out of Juan Fernández; raiders off Brazil.
+    { region: "pacific/pirate/juan_fernandez", archetype: "pirate", count: 4, lanes: (l) => touches(l, ["juan_fernandez"]) },
+    { region: "south/pirate", archetype: "pirate", count: 3, lanes: inZones("south") },
     // Privateers (10): letters of marque in the Caribbean, the Spanish guarda costa on the crossings.
     { region: "americas/privateer", archetype: "privateer", count: 8, factions: ["england", "france", "netherlands"], lanes: inZones("americas") },
     { region: "atlantic/privateer", archetype: "privateer", count: 2, factions: ["spain"], lanes: inZones("atlantic") },

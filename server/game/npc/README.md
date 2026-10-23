@@ -115,11 +115,14 @@ Measured in the browser (real server, F1): a pirate sloop vs a still player sloo
 
 ## Live behaviour on the real map (NPC2)
 
-### Population (`population.ts` `liveFleets()`, 153 persistent, ≤ 80 active)
+### Population (`population.ts` `liveFleets()`, 185 persistent, ≤ 80 active)
 
-Halved on 2026-10-16 (from 300: every fleet halved, rounded up). Perf numbers below were measured with 300.
+Halved on 2026-10-16 (from 300: every fleet halved, rounded up, to 153). Perf numbers below were measured with 300.
+New Horizons phase 1 (2026-10-23) added 32 ships in two new zones for the 16 new ports and left every older fleet
+as it was, so the Caribbean keeps its 72. Measured with 185 (live-world load test, 200 players, real map): avg
+2.1 ms/tick spread over all ports, 1.9 ms packed at the starter ports (worst 7.1 ms; budget 25 ms).
 
-Lanes get a zone from their two ports' regions (`laneZone`): **americas** (both ends Caribbean/Gulf or the American Atlantic coast), **atlantic** (Americas ↔ Europe/Africa crossings), **europe**, **africa**, **east** (Indian Ocean, East Asia, Acapulco).
+Lanes get a zone from their two ports' regions (`laneZone`), in this order of precedence: **east** (touches the Indian Ocean or East Asia, incl. the Manila galleon), **pacific** (touches the Pacific coast of the Americas: Acapulco, Panamá, Guayaquil, Callao, Valparaíso, Juan Fernández, incl. the Cape Horn lane), **south** (touches the South Atlantic: Brazil and the River Plate), then **americas** (both ends Caribbean/Gulf or the American Atlantic coast), **atlantic** (Americas ↔ Europe/Africa crossings), **africa**, **europe**.
 
 | Fleet (region label) | Archetype | Count | Lanes | Faction |
 |---|---|---|---|---|
@@ -128,17 +131,23 @@ Lanes get a zone from their two ports' regions (`laneZone`): **americas** (both 
 | europe/merchant | merchant | 15 | europe | origin port |
 | africa/merchant | merchant | 6 | africa | origin port |
 | east/merchant | merchant | 14 | east | origin port |
+| south/merchant | merchant | 10 | south | origin port |
+| pacific/merchant | merchant | 8 | pacific | origin port |
 | americas/navy/{spain 5, england 4, france 2, netherlands 2} | navy | 13 | americas lanes touching that nation's ports | the nation |
 | europe/navy/{england 3, spain 2, france 2, netherlands 2, portugal 2} | navy | 11 | europe lanes touching its ports | the nation |
 | east/navy/{portugal 2, netherlands 2 (+africa), spain 2} | navy | 6 | east lanes touching its ports | the nation |
+| south/navy/{portugal 3, spain 1} | navy | 4 | south lanes touching its South Atlantic ports | the nation |
+| pacific/navy/spain | navy | 3 | pacific lanes touching Spain's Pacific ports (the Armada del Mar del Sur) | spain |
 | americas/pirate/havens | pirate | 18 | americas lanes touching Nassau or Tortuga | pirates |
 | americas/pirate/lanes | pirate | 3 | americas | pirates |
 | atlantic/pirate | pirate | 6 | atlantic | pirates |
 | east/pirate/sainte_marie | pirate | 6 | lanes touching Île Sainte-Marie | pirates |
+| pacific/pirate/juan_fernandez | pirate | 4 | lanes touching Juan Fernández | pirates |
+| south/pirate | pirate | 3 | south | pirates |
 | americas/privateer | privateer | 8 | americas | england / france / netherlands |
 | atlantic/privateer | privateer | 2 | atlantic | spain |
 
-About 62 % of the fleet is in the Caribbean/Gulf and on the crossings. A fleet's ships keep to its lanes forever: at every lane end the next lane is drawn from the fleet's lane filter (a navy that reaches a foreign port with no home lane turns around). Groups spawn from the archetype's `group` (merchant convoys 1–3, navy and pirate pairs) on one lane, `GROUP_SPACING` (160) apart, with the same ship type and faction; members leave port right after their leader and take the lane it took (`NpcRecord.leader`).
+About 51 % of the fleet is in the Caribbean/Gulf and on the crossings (62 % before the South Atlantic and Pacific fleets). A fleet's ships keep to its lanes forever: at every lane end the next lane is drawn from the fleet's lane filter (a navy that reaches a foreign port with no home lane turns around). Groups spawn from the archetype's `group` (merchant convoys 1–3, navy and pirate pairs) on one lane, `GROUP_SPACING` (160) apart, with the same ship type and faction; members leave port right after their leader and take the lane it took (`NpcRecord.leader`).
 
 ### Navigation on real coastlines (`index.ts` `followLaneOrWander` / `unstick`, `nav.ts`, `steering.ts`)
 

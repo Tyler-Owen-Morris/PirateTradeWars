@@ -18,23 +18,37 @@ beforeAll(() => {
 });
 
 describe("live population", () => {
-  it("fleet targets total ~150 and every fleet has lanes", () => {
+  it("fleet targets total 185 and every fleet has lanes", () => {
     const fleets = liveFleets();
     const total = fleets.reduce((n, t) => n + t.count, 0);
-    expect(total).toBe(153);
+    expect(total).toBe(185);
     for (const t of fleets) expect(LANES.some((l) => t.lanes!(l)), t.region).toBe(true);
     // Heavy in the Caribbean/Gulf + the Europe–Caribbean crossings.
-    const west = fleets.filter((t) => t.region.startsWith("americas") || t.region.startsWith("atlantic")).reduce((n, t) => n + t.count, 0);
-    expect(west / total).toBeGreaterThan(0.55);
+    const sum = (pre: string) => fleets.filter((t) => t.region.startsWith(pre)).reduce((n, t) => n + t.count, 0);
+    expect((sum("americas") + sum("atlantic")) / total).toBeGreaterThan(0.45);
+    // New Horizons phase 1 added the south/pacific fleets without emptying the Caribbean.
+    expect(sum("americas")).toBe(72);
+    expect(sum("south")).toBe(17);
+    expect(sum("pacific")).toBe(15);
   });
 
-  it("director fills the world: 153 records, merchants under their origin port's nation, convoys", () => {
+  it("new lanes get zones: Brazil and the River Plate are 'south', the Pacific coast 'pacific', the galleon 'east'", () => {
+    const zone = (a: string, b: string) => laneZone(LANES.find((l) => (l.from === a && l.to === b) || (l.from === b && l.to === a))!);
+    expect(zone("lisbon", "rio_de_janeiro")).toBe("south");
+    expect(zone("buenos_aires", "montevideo")).toBe("south");
+    expect(zone("callao", "panama")).toBe("pacific");
+    expect(zone("buenos_aires", "valparaiso")).toBe("pacific"); // round the Horn
+    expect(zone("acapulco", "manila")).toBe("east");
+    expect(zone("cartagena", "portobelo")).toBe("americas");
+  });
+
+  it("director fills the world: 185 records, merchants under their origin port's nation, convoys", () => {
     expect(land.version).not.toBeNull();
     const w = new World({ land: land.field, rng: mulberry32(1) });
     const sys = createLiveNpcSystem(w).attach();
     w.step();
     const recs = [...sys.director.records.values()];
-    expect(recs.length).toBe(153);
+    expect(recs.length).toBe(185);
     const nations = new Set(PORTS.map((p) => p.nation));
     const byArch: Record<string, number> = {};
     let convoyMembers = 0;
@@ -51,7 +65,7 @@ describe("live population", () => {
       expect(land.field.distance(p.x, p.z), `${r.region} spawn`).toBeGreaterThan(20);
     }
     console.log(`[npc live] population ${JSON.stringify(byArch)}, convoy/group members ${convoyMembers}`);
-    expect(byArch).toMatchObject({ merchant: 80, navy: 30, pirate: 33, privateer: 10 });
+    expect(byArch).toMatchObject({ merchant: 98, navy: 37, pirate: 40, privateer: 10 });
     expect(convoyMembers).toBeGreaterThan(20);
     // navies patrol home waters: every navy lane touches a port of its nation
     for (const r of recs) {
@@ -66,7 +80,7 @@ describe("live population", () => {
 
 describe("load: 200 players + the live NPC fleets on the real map", () => {
   it.each([
-    ["spread over all 27 ports", false],
+    ["spread over all ports", false],
     ["packed at the 5 starter ports (the real spawn)", true],
   ])("average tick (step + frames for 200 clients) stays under 25 ms: %s", (label, packed) => {
     const w = new World({ land: land.field, rng: mulberry32(11) });
@@ -116,7 +130,7 @@ describe("load: 200 players + the live NPC fleets on the real map", () => {
     );
     // A record sunk in the melee (e.g. pirate friendly fire, more likely since NPCs have two
     // batteries) is gone until the director respawns it 2–5 min later.
-    expect(sys.stats.records + npcSunk).toBe(153);
+    expect(sys.stats.records + npcSunk).toBe(185);
     expect(npcSunk).toBeLessThanOrEqual(3);
     expect(sys.stats.active).toBeLessThanOrEqual(80);
     expect(sys.stats.active).toBeGreaterThan(20);
