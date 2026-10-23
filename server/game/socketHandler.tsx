@@ -122,6 +122,11 @@ export function handleSocketConnection(ws: WebSocket) {
     if (!addedPlayer) {
       return sendError(ws, "Failed to add player due to name conflict");
     }
+    // Local testing only: DEV_START_GOLD=<n> gives every new captain n gold. Ignored unless NODE_ENV=development.
+    const devStartGold = Number(process.env.DEV_START_GOLD);
+    if (process.env.NODE_ENV === "development" && Number.isFinite(devStartGold) && devStartGold > 0) {
+      addedPlayer.gold = Math.floor(devStartGold);
+    }
     await redisStorage.createPlayer(addedPlayer);
     await redisStorage.addActiveName(addedPlayer.name, addedPlayer.id);
 

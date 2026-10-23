@@ -42,4 +42,6 @@ Real-time model: authoritative 20 Hz server, client prediction (own ship) + inte
 - Keyboard game input (drei KeyboardControls listens on `window`) must check `isTextEntryActive()`
   (`client/src/lib/stores/useInputFocus.ts`) so typing in chat or any text field never steers or fires.
 - Global chat is in-memory only (`server/game/chat.ts`, PROTOCOL.md "Global chat"); a deploy clears it.
+- Local testing gold: `NODE_ENV=development DEV_START_GOLD=10000000 npm run dev` gives every new captain that much gold
+  (`server/game/socketHandler.tsx`; ignored unless NODE_ENV=development).
 - Agent worktrees may start at a stale commit: `git reset --hard main` first.
