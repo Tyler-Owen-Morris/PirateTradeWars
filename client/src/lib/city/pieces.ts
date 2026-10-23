@@ -714,6 +714,26 @@ export function gallows(ctx: CityCtx, x: number, z: number, yaw: number, scale =
   m.pop();
 }
 
+/** Timber lookout platform on four posts with a rail and a ladder (Juan Fernández: Selkirk's lookout
+ *  over Cumberland Bay). About 60 triangles. Returns the platform's top. */
+export function lookout(ctx: CityCtx, x: number, z: number, yaw: number, scale = 1): number {
+  const S = scale;
+  const g = groundSpan(ctx.site, x, z, 5 * S, 5 * S, yaw);
+  const base = g.min - 0.8;
+  const deck = g.max + 9 * S;
+  const m = ctx.main;
+  m.push(x, 0, z, yaw);
+  for (const [px, pz] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) m.box(px * S, base, pz * S, 0.5, deck - base + 1.4, 0.5, WOOD_DARK);
+  m.box(0, deck, 0, 5.4 * S, 0.5, 5.4 * S, PLANK);
+  m.box(0, deck + 1.2, -2.6 * S, 5.4 * S, 0.3, 0.3, WOOD_DARK);
+  m.box(0, deck + 1.2, 2.6 * S, 5.4 * S, 0.3, 0.3, WOOD_DARK);
+  m.box(-2.6 * S, deck + 1.2, 0, 0.3, 0.3, 5.4 * S, WOOD_DARK);
+  m.box(2.6 * S, deck + 1.2, 0, 0.3, 0.3, 5.4 * S, WOOD_DARK);
+  m.box(0, base, 3.4 * S, 1.2 * S, deck - base, 0.2, hex("#6a5034")); // ladder
+  m.pop();
+  return deck + 1.5;
+}
+
 /** Lighthouse tower with lantern. */
 export function lighthouse(ctx: CityCtx, x: number, z: number, _yaw: number, scale = 1): number {
   const S = scale;
@@ -921,6 +941,7 @@ const fortPiece = (k: FortKind): ExtraPiece => (ctx, x, z, yaw, s) => fort(ctx, 
 export const EXTRA_PIECES: Record<string, ExtraPiece> = {
   windmill,
   gallows,
+  lookout,
   careened_ship: careenedShip,
   lighthouse,
   round_tower: roundTower,

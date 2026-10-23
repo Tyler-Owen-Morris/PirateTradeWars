@@ -23,13 +23,23 @@ The shared directory contains code and types that are used by both the client an
     which rasterizes real tiles. Loaders: `server/game/landLoader.ts`, `client/src/lib/world/landTiles.ts`.
   - `world/ports.ts` - Game ports (card W4): `PORTS` (typed `GamePort` view of ports.json, numeric `id` =
     1-based index, `key` = string id), `PORTS_VERSION`, `STARTER_PORTS`, dock checks (`withinDock`,
-    `dockDistance`, `nearestDockPort`, metric, radius 300) and market profiles (`REGION_MARKETS`,
-    `portGoodPrice`, `portGoodStock`). Used by the server (seed, gate, spawns) and the client (towns, docking).
+    `dockDistance`, `nearestDockPort`, metric, radius 300). Used by the server (seed, gate, spawns) and the client
+    (towns, docking). Regions include `south_atlantic` (New Horizons phase 1, 2026-10-23); 43 ports.
+  - `world/goodMarkets.ts` - The market model (New Horizons phase 1, replaced the flat `REGION_MARKETS` 0.7×/1.35×):
+    `GOOD_MARKETS[goodName] = { sources, wanted, exotic? }` (selectors: port key, region id or `nation:<id>`);
+    price = base × `distanceFactor(lane distance to the nearest source)` (0.6 at a source → 2.0 at 200k units,
+    curve exponent 0.6) × 1.3 if wanted × fluctuation. Exotics (Spices, Silk, Silver, Gold, Cacao, Hides, Wine) are
+    only on sale within 3000 lane units of a source (`isSoldAt` false → the row is `notSold`); staples are sold
+    everywhere; pirate havens are Rum sources. `goodMarketAt`, `goodPriceFactor`, `isWanted`, `isSoldAt`,
+    `portGoodPrice`, `portGoodStock`, `laneDistance`, `sourceDistance`. Lane graph built lazily from lanes.json (the
+    client bundle tree-shakes it). Tune with `npm run market:sim` (scripts/market/priceSim.ts).
   - `world/ports.json`, `world/lanes.json`, `world/versions.json` - generated world data (card W2).
   - `market.ts` - Trading rules shared by server and client (2026-10-23): `SELL_SPREAD` (0.9),
     `sellPriceOf(buyPrice)` (what a port pays), `MarketRow` (stored port good, optional `notSold`) and
-    `portGoodView` (the goods-API row: `buyPrice`/`sellPrice`/`wanted`). `gameConstants.ts` `GOODS` carry a
-    `group` and `GOOD_GROUPS` orders the trade screen's sections (new goods slot in by data).
+    `portGoodView` (the goods-API row: `buyPrice`/`sellPrice`/`wanted` from `isWanted`). `gameConstants.ts` `GOODS`
+    carry a `group` and `GOOD_GROUPS` orders the trade screen's sections (staples, colonial, luxuries, specie,
+    northern). GOODS ids are APPEND ONLY (inventories are keyed by goodId): 9 Silver, 10 Gold (specie), 11 Cacao,
+    12 Hides, 13 Wine (colonial) were added 2026-10-23.
   - `protocol.ts` trading messages: `trade` (+ optional `ref`, `expectedPrice`), `sellAll`, `tradeResult`,
     `InventoryRow` (+ `avgPaid`), `TradeCode`; see docs/netcode/PROTOCOL.md "Trading clarifications".
   - `physics.ts` - Deterministic ship/cannonball simulation used by BOTH server (authoritative 20 Hz
@@ -60,8 +70,8 @@ The shared directory contains code and types that are used by both the client an
     server's profanity/rate-limit policy is in `server/game/chat.ts`, not here. Tests: `__tests__/chat.test.ts`.
   - `__tests__/` - vitest unit tests (`npm test`).
   - `world/` - generated world data (do not hand-edit; regenerate with `npm run world:build`, see
-    `docs/world/DATA_PIPELINE.md`): `ports.json` (27 real ports with town/dock/spawn, spec §5),
-    `lanes.json` (sea lanes, spec §6), `versions.json` (content hashes: land/ports/lanes). The land
+    `docs/world/DATA_PIPELINE.md`): `ports.json` (43 real ports with town/dock/spawn, spec §5),
+    `lanes.json` (117 sea lanes, spec §6), `versions.json` (content hashes: land/ports/lanes). The land
     SDF tiles + manifest live in `client/public/world/land/` (gzipped, `encoding: "gzip"`), the map
     textures in `client/public/world/map_*.png`. `world/__tests__/data.test.ts` validates them.
 

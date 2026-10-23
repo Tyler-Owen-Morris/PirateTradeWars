@@ -26,7 +26,8 @@ export type PortRegion =
   | "africa"
   | "indian_ocean"
   | "east_asia"
-  | "americas_pacific";
+  | "americas_pacific"
+  | "south_atlantic";
 
 export interface GamePort {
   /** Numeric id used on the wire and in Redis (1-based index in ports.json). */
@@ -128,61 +129,5 @@ export function nearestDockPort<P extends DockedPortLike>(x: number, z: number, 
   return best ? { port: best, distance: Math.sqrt(bestSq) } : null;
 }
 
-// ---------------------------------------------------------------------------------------------
-// Market profiles: regional specialities (cheap, plentiful) and demand (dear, scarce).
-// ---------------------------------------------------------------------------------------------
-
-export interface MarketProfile {
-  /** Good names produced locally: lower price, more stock. */
-  cheap: readonly string[];
-  /** Good names in demand locally: higher price, less stock. */
-  dear: readonly string[];
-}
-
-export const REGION_MARKETS: Readonly<Record<PortRegion, MarketProfile>> = Object.freeze({
-  caribbean: { cheap: ["Sugar", "Rum", "Tobacco"], dear: ["Wood", "Silk"] },
-  north_atlantic: { cheap: ["Fish", "Wood"], dear: ["Sugar", "Rum"] },
-  europe: { cheap: ["Wood", "Cotton"], dear: ["Sugar", "Spices", "Tobacco"] },
-  africa: { cheap: ["Cotton", "Fish"], dear: ["Rum", "Wood"] },
-  indian_ocean: { cheap: ["Spices", "Cotton"], dear: ["Wood", "Rum"] },
-  east_asia: { cheap: ["Silk", "Spices"], dear: ["Sugar", "Tobacco"] },
-  americas_pacific: { cheap: ["Silk", "Fish"], dear: ["Wood", "Rum"] },
-});
-
-export const CHEAP_PRICE_FACTOR = 0.7;
-export const DEAR_PRICE_FACTOR = 1.35;
-
-/** The market profile of a port: its region's, plus cheap Rum at pirate havens. */
-export function marketProfile(port: { region?: string; nation?: string }): MarketProfile {
-  const base = REGION_MARKETS[port.region as PortRegion] ?? { cheap: [], dear: [] };
-  if (port.nation !== "pirates" || base.cheap.includes("Rum")) return base;
-  return { cheap: [...base.cheap, "Rum"], dear: base.dear.filter((g) => g !== "Rum") };
-}
-
-/** Price factor for `goodName` at this port: CHEAP_PRICE_FACTOR, DEAR_PRICE_FACTOR or 1. */
-export function goodPriceFactor(port: { region?: string; nation?: string }, goodName: string): number {
-  const m = marketProfile(port);
-  if (m.cheap.includes(goodName)) return CHEAP_PRICE_FACTOR;
-  if (m.dear.includes(goodName)) return DEAR_PRICE_FACTOR;
-  return 1;
-}
-
-/** A fresh price: base × regional factor × random fluctuation (±fluctuation%). At least 1. */
-export function portGoodPrice(
-  port: { region?: string; nation?: string },
-  good: { name: string; basePrice: number; fluctuation: number },
-  rng: () => number = Math.random,
-): number {
-  const fluct = ((rng() * 2 - 1) * good.fluctuation) / 100;
-  return Math.max(1, Math.round(good.basePrice * goodPriceFactor(port, good.name) * (1 + fluct)));
-}
-
-/** A fresh stock level: 50–99 normally, more for local specialities, less for goods in demand.
- *  `restock` gives the smaller replenish amount used when stock runs low (20–49 normally). */
-export function portGoodStock(port: { region?: string; nation?: string }, goodName: string, rng: () => number = Math.random, restock = false): number {
-  const base = restock ? Math.floor(rng() * 30) + 20 : Math.floor(rng() * 50) + 50;
-  const f = goodPriceFactor(port, goodName);
-  if (f < 1) return base + (restock ? 30 : 60);
-  if (f > 1) return Math.max(5, Math.floor(base / 2));
-  return base;
-}
+// Markets (prices, stock, "not sold here", "wanted") moved to ./goodMarkets.ts (New Horizons phase 1):
+// the per-good GOOD_MARKETS model replaced the flat regional REGION_MARKETS factors.

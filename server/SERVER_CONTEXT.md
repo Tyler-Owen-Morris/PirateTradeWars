@@ -184,19 +184,27 @@ Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
 - **Seeding, `game/ports.ts`:** `initializeGameState` calls `seedPorts(redisStorage)`: when the Redis key
   `portsVersion` differs from `PORTS_VERSION` (or is missing), `redisStorage.replacePorts` rewrites the
   `ports` hash (id -> JSON GamePort), deletes `port:<id>:goods` for every old and new id, and stores the new
-  version, in one MULTI. Then `ensurePortGoods` creates goods for ports that have none and restocks low goods.
-  The GOODS catalogue is unchanged, so player inventories (by goodId) stay valid.
-- **Markets:** prices = base x regional factor x fluctuation (`portGoodPrice`), stock by `portGoodStock`.
-  `REGION_MARKETS` lists each region's cheap specialities (x0.7, more stock) and goods in demand (x1.35, less
-  stock); pirate havens also sell cheap Rum. The 5-minute `updatePrices` runs `ensurePortGoods` +
-  `updatePortMarkets`, so the regional factors persist.
+  version, in one MULTI. Then `seedGoods` writes every GOODS id missing from the `goods` hash (by id, via
+  `redisStorage.putGood`; it used to seed only an empty hash, so new goods never reached a live server), and
+  `ensurePortGoods` gives every port a row for every good (whole markets for new ports, the missing rows for new
+  goods) and restocks low goods the port sells. GOODS ids are append-only, so player inventories stay valid.
+- **Markets (New Horizons phase 1, 2026-10-23):** prices, stock and `notSold` come from the market model
+  `shared/world/goodMarkets.ts` (`GOOD_MARKETS`: per good, its sources and where it is wanted; price rises with
+  sea-lane distance from the nearest source, 0.6x to 2.0x, x1.3 where wanted; exotic goods are `notSold` away from
+  their sources, stock 0, but every port still buys them). The 5-minute `updatePrices` runs `ensurePortGoods` +
+  `updatePortMarkets`, which also re-syncs each row's `notSold` with the model (`redisStorage.updatePortGoodNotSold`).
+  `npm run market:sim` prints the best routes. To check a re-seed against an old world:
+  `REDIS_CONN_STRING=redis://localhost:6379/7 npx tsx scripts/market/seed-old-world.ts <old ports.json> <old version>`,
+  then boot the server on that DB (docs/world/expansion-phase1/NOTES.md).
 - **Interaction gate:** trade, upgradeShip and repairShip (`socketHandler.withinPort`) need the metric distance
   from the ship to the port's **dock** <= `PORT_INTERACTION_RADIUS` (300); otherwise `error "Too far from port"`.
   Trade had no distance check before W4.
 - **Safe zone:** `safeRadius` (600, around the dock) is stored and served but has no gameplay effect; before W4
   it was only (mis)used as the interaction radius, and there was never a no-damage zone. Kept as data for later.
 - **API:** `GET /api/ports` returns the GamePort list sorted by id (the client also bundles `PORTS` as a fallback).
-- Tests: `game/__tests__/ports.test.ts` (seeding with a fake store, spawns on the real land, migration),
+- Tests: `game/__tests__/ports.test.ts` (seeding with a fake store, goods seeding by id, missing goods rows, notSold
+  sync, spawns on the real land, migration), `game/__tests__/goodsCompat.test.ts` (protocol + inventory back-compat
+  with goods 9-13),
   `game/__tests__/portActions.test.ts` (dock gate through the real socket handler, Redis mocked),
   `shared/world/__tests__/ports.test.ts`.
 

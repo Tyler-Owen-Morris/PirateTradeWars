@@ -7,6 +7,11 @@
 // - Ile Sainte-Marie (Madagascar): pirate base of the 1690s-1720s (Avery, Kidd, Misson) -> pirates.
 // - Cape Town and Elmina: Dutch (VOC since 1652; WIC since 1637). Willemstad: Dutch.
 // - Goa and Macau: Portuguese. Batavia: Dutch (VOC). Manila and Acapulco: Spanish (Manila galleon).
+// New Horizons phase 1 (2026-10-23), era window 1650-1800:
+// - Brazil (Salvador, Rio, Recife): Portuguese (Recife retaken from the Dutch in 1654).
+// - Buenos Aires and Montevideo (founded 1724-26): Spanish, the River Plate.
+// - Paramaribo: Dutch Suriname (ceded by England in 1667). New York: English since 1664.
+// - Juan Fernández: the uninhabited Pacific island where pirates watered (Selkirk, 1704-09) -> pirates.
 export type Nation = "england" | "spain" | "france" | "portugal" | "netherlands" | "pirates";
 export type Region =
   | "caribbean"
@@ -15,7 +20,8 @@ export type Region =
   | "africa"
   | "indian_ocean"
   | "east_asia"
-  | "americas_pacific";
+  | "americas_pacific"
+  | "south_atlantic";
 
 export interface PortDef {
   id: string;
@@ -61,6 +67,28 @@ export const PORT_DEFS: PortDef[] = [
   { id: "manila", name: "Manila", lat: 14.59, lon: 120.97, nation: "spain", region: "east_asia" },
   // Pacific coast of the Americas
   { id: "acapulco", name: "Acapulco", lat: 16.85, lon: -99.89, nation: "spain", region: "americas_pacific" },
+  // --- New Horizons phase 1 (2026-10-23): the Americas, both coasts. APPEND ONLY: numeric port ids
+  // are 1-based indices into ports.json, so new ports go at the end. ---
+  // South Atlantic (Brazil and the River Plate)
+  { id: "salvador", name: "Salvador da Bahia", lat: -12.97, lon: -38.51, nation: "portugal", region: "south_atlantic" },
+  { id: "rio_de_janeiro", name: "Rio de Janeiro", lat: -22.91, lon: -43.17, nation: "portugal", region: "south_atlantic" },
+  { id: "recife", name: "Recife", lat: -8.05, lon: -34.88, nation: "portugal", region: "south_atlantic" },
+  { id: "buenos_aires", name: "Buenos Aires", lat: -34.6, lon: -58.37, nation: "spain", region: "south_atlantic" },
+  { id: "montevideo", name: "Montevideo", lat: -34.9, lon: -56.19, nation: "spain", region: "south_atlantic" },
+  // Caribbean (the Main and the Guianas)
+  { id: "paramaribo", name: "Paramaribo", lat: 5.85, lon: -55.2, nation: "netherlands", region: "caribbean" },
+  { id: "la_guaira", name: "La Guaira", lat: 10.6, lon: -66.93, nation: "spain", region: "caribbean" },
+  { id: "portobelo", name: "Portobelo", lat: 9.55, lon: -79.65, nation: "spain", region: "caribbean" },
+  // Pacific coast of the Americas (the South Sea)
+  { id: "panama", name: "Panamá", lat: 8.95, lon: -79.53, nation: "spain", region: "americas_pacific" },
+  { id: "guayaquil", name: "Guayaquil", lat: -2.19, lon: -79.88, nation: "spain", region: "americas_pacific" },
+  { id: "callao", name: "Callao", lat: -12.06, lon: -77.15, nation: "spain", region: "americas_pacific" },
+  { id: "valparaiso", name: "Valparaíso", lat: -33.05, lon: -71.62, nation: "spain", region: "americas_pacific" },
+  { id: "juan_fernandez", name: "Juan Fernández", lat: -33.64, lon: -78.85, nation: "pirates", region: "americas_pacific" },
+  // North Atlantic and Europe
+  { id: "new_york", name: "New York", lat: 40.7, lon: -74.01, nation: "england", region: "north_atlantic" },
+  { id: "porto", name: "Porto", lat: 41.15, lon: -8.61, nation: "portugal", region: "europe" },
+  { id: "funchal", name: "Funchal", lat: 32.65, lon: -16.91, nation: "portugal", region: "europe" },
 ];
 
 /** Named long-haul lanes (spec §6), in addition to each port's 4 nearest by sea. */
@@ -75,4 +103,10 @@ export const NAMED_LANES: [string, string][] = [
   ["cartagena", "havana"], // the treasure fleet
   ["havana", "seville"],
   ["acapulco", "manila"], // Manila galleon (bonus)
+  // New Horizons phase 1
+  ["lisbon", "rio_de_janeiro"], // the Brazil fleet (frota do Brasil)
+  ["cadiz", "portobelo"], // the galeones to Tierra Firme (the Portobelo fair)
+  ["callao", "panama"], // the Armada del Mar del Sur carrying Potosí silver north
+  ["buenos_aires", "valparaiso"], // round Cape Horn
+  ["rio_de_janeiro", "cape_town"], // across the South Atlantic to the Cape route
 ];

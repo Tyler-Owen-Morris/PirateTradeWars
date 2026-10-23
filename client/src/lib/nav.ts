@@ -334,3 +334,56 @@ export function pickPort<T extends NavPort>(
   }
   return best;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Label decluttering (New Horizons phase 1: 43 ports crowd the Caribbean and the River Plate when
+// zoomed out). Dots are always drawn; a label is drawn only if its box does not overlap a label
+// already placed, in priority order: the navigation target, then major ports, then the rest by id.
+// ---------------------------------------------------------------------------------------------
+
+/** Ports whose names win a crowded map (the great harbours of the age). */
+export const MAJOR_PORT_KEYS: ReadonlySet<string> = new Set([
+  "port_royal", "havana", "cartagena", "veracruz", "nassau", "tortuga", "boston", "new_york",
+  "london", "amsterdam", "lisbon", "cadiz", "cape_town", "goa", "batavia", "macau", "manila",
+  "acapulco", "callao", "panama", "portobelo", "rio_de_janeiro", "buenos_aires", "salvador",
+]);
+
+export interface LabelCandidate {
+  /** Anything unique (the port id). */
+  id: number | string;
+  /** Anchor in screen px: the label's centre bottom. */
+  x: number;
+  y: number;
+  text: string;
+  /** Higher wins. */
+  priority: number;
+}
+
+/** Label priority for a port: target 1000, major 10, else 0 (ties: lower id first, i.e. older ports). */
+export function portLabelPriority(p: { key?: string; id: number | string }, isTarget: boolean): number {
+  return (isTarget ? 1000 : 0) + (p.key && MAJOR_PORT_KEYS.has(p.key) ? 10 : 0);
+}
+
+/**
+ * Greedy label placement: returns the ids whose labels fit without overlapping (boxes `measure(text)`
+ * wide plus `pad`, `height` tall, centred on x and ending at y). Pure; `measure` is ctx.measureText
+ * in the canvas, a stub in tests.
+ */
+export function placeLabels(
+  cands: readonly LabelCandidate[],
+  measure: (text: string) => number,
+  height: number,
+  pad = 4,
+): Set<number | string> {
+  const order = [...cands].sort((a, b) => b.priority - a.priority || (Number(a.id) || 0) - (Number(b.id) || 0));
+  const boxes: { x0: number; y0: number; x1: number; y1: number }[] = [];
+  const shown = new Set<number | string>();
+  for (const c of order) {
+    const w = measure(c.text) + pad;
+    const b = { x0: c.x - w / 2, y0: c.y - height, x1: c.x + w / 2, y1: c.y + 2 };
+    if (boxes.some((o) => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0)) continue;
+    boxes.push(b);
+    shown.add(c.id);
+  }
+  return shown;
+}
