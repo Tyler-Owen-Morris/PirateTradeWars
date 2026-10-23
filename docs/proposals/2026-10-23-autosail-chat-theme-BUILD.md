@@ -8,7 +8,7 @@ build. NOT released until the user approves (a push to `main` without `[skip ci]
 | A. Auto-sail (double-tap W) | subagent `autosail` | `worktree-agent-a739973aad9ca638a` @67565ac | DONE, merged into `dev/2026-10-23-batch` | feel-test in dev build |
 | B. Global chat | subagent `chat` | `worktree-agent-a2a99e68d114d733d` @cedd0af | DONE, merged (Player.tsx conflict resolved: autosail uses isTextEntryActive) | try in dev build; add "Enter = chat" to help |
 | C. Pirate visual theme (landing + in-game UI) | subagent `theme` | agent worktree | in progress | theme tokens, fonts, restyle |
-| F. Live own-ship km-scale snapping (netcode) | subagent `netcode` | agent worktree | investigating | root cause, repro test, fix |
+| F. Live own-ship km-scale snapping (netcode) | subagent `netcode` | `worktree-agent-ad19e3e3e2b2b5b20` @0044501 | DONE, merged (bots.ts conflict resolved); bots 30x30s: 0 corrections | verify live with `?netdebug=1` after release |
 | G. Port/starboard broadsides (Q/E/Space, per-side reload) | subagent `broadsides` | agent worktree (based on dev branch) | in progress | protocol flags, server cooldowns, HUD |
 | D. Merge + local dev build | main session | `main` | waiting on A-C | merge, `npm test`, `npm run check`, `npm run dev` |
 | E. Apply theme to chat panel | after merge | `main` | not started | restyle `ChatPanel` with card C's classes |
