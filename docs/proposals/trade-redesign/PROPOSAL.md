@@ -1,6 +1,6 @@
 # Proposal: the trade screen as the port's bill of goods
 
-Status: revision 2 (2026-10-23), after the art and UX reviews (`REVIEWS.md`). The owner adopted the reviewers'
+Status: BUILT on the worktree branch (2026-10-23): `client/src/components/ui/trade/BillOfGoods.tsx`, `server/game/trade.ts`; in-game screenshots `ingame-*.jpg`. Revision 2 of the design, after the art and UX reviews (`REVIEWS.md`). The owner adopted the reviewers’
 answers to the open questions and asked for it to be built; implementation notes live in `NOTES.md`.
 
 - Prototype: `prototype.html` (self-contained; `#bare` in the URL hides the prototype bar). The bar switches frames

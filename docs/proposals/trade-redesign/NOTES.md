@@ -1,49 +1,57 @@
 # Trade redesign: progress notes
 
-Resume here if the agent drops. This is a proposal task only: no game code changes.
+Resume here if the agent drops.
 
 ## Status (2026-10-23)
-- [x] Reset the worktree to `dev/2026-10-23-batch` (776e3b1). `node_modules` is a junction to the main checkout
-      (gitignored).
-- [x] Read the code: TradeMenu.tsx, TradingToast.tsx, the GameUI trade wiring, useSocket trade handling,
-      shared/protocol.ts trade/upgrade/repair, server/game/socketHandler.tsx handleTrade/Upgrade/Repair,
-      server/game/ports.ts.
-- [x] Found the parallel theme layer: worktree `agent-a9c1ee7e030ab19ea` (uncommitted).
-      - Files: `client/src/styles/pirate.css` (tokens `--ptw-*`, classes `ptw-*`) and
-        `client/src/components/ui/pirate/*` (README.md documents them).
-      - Fonts: Pirata One / IM Fell English SC / Alegreya.
-      - It explicitly leaves TradeMenu to this effort.
-- [x] "Before" screenshots of the live client: `before-*.png`.
-- [x] `prototype.html`, tested with Playwright at 1280×720, 375×667 and 667×375: no horizontal scroll, the primary
-      button stays in the viewport, keyboard flow works, the error simulations work, no console errors.
-- [x] `docs/design/STYLE_GUIDE.md`
-- [x] `PROPOSAL.md`
-- [x] Committed `[skip ci]`. Not pushed.
-- [ ] NEXT: two UI reviewers will critique the prototype; revise `prototype.html`, STYLE_GUIDE and PROPOSAL.
+1. **Proposal rev 1** (11c8c4a): audit, `prototype.html`, STYLE_GUIDE, PROPOSAL.
+2. **Rev 2 after reviews** (23d2b5d). `REVIEWS.md` holds the art and UX reviews. PROPOSAL §6 answers every
+   finding.
+3. **Merged** `dev/2026-10-23-batch` (d5aa8c0). That merge brings in the pirate theme layer
+   (`styles/pirate.css`, `components/ui/pirate/`).
+4. **Build: server** (ce8a025):
+   - `server/game/trade.ts`: pure rules + KeyedQueue.
+   - Per-player and per-port queues.
+   - ~10% spread (`shared/market.ts`).
+   - Stock taken and returned.
+   - avgPaid.
+   - `ref` / `expectedPrice`, `sellAll`, `tradeResult`.
+   - Goods API view.
+   - Removed the inventory PUT.
+   - `GOOD_GROUPS`.
+5. **Build: client** (3eba997):
+   - `components/ui/trade/BillOfGoods.tsx` + `styles/trade.css` + `lib/trade/{logic,sounds}.ts`.
+   - useSocket / useGameState / GameUI / TradingToast changes.
+   - Bot test trade round trip (`scripts/tradeCheck.ts`).
+6. **Docs + in-game screenshots**: the commit after 3eba997.
+   - Docs: PROTOCOL "Trading clarifications", SERVER_CONTEXT, SHARED_CONTEXT, CLIENT_CONTEXT.
+   - Screenshots: `ingame-*.jpg`.
 
-## How to work on the prototype
-- `prototype.html` is the only source. The "before" screenshots are inlined as JPEG data URIs inside the
-  `<section class="before">` `<img>` tags (long lines; don't touch them).
-- It has no doctype or html/head/body tags (the Artifact host adds them). To test locally, wrap it:
-  `<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"></head><body>…</body></html>`.
-- Layout uses container queries on `.device` (`container-name: dev`):
-  - phone: `max-width: 640px`
-  - landscape split: `max-height: 520px and min-width: 560px`
-- Test scripts (scratchpad, not committed): Playwright 1.64.1 in `<scratchpad>/pw/`.
-  - `proto.mjs`: 3 viewports, buy max, sell, shipwright.
-  - `keys.mjs`: keyboard flow, error sims, sell-all.
-  - `shrink.mjs`: PNG to JPG.
+## Verification (last run)
+- `npm test`: 47 files, 457 tests pass. New: `server/game/__tests__/trade.test.ts`, `tradeSocket.test.ts`,
+  `client/src/lib/trade/__tests__/logic.test.ts`, and the protocol cases.
+- `npm run test:bots -- --port 5091` (Redis `ptw-redis`): 30 bots, all assertions pass, including "trade round trip ok".
+- `npm run check`: 56 error lines. The baseline was 59; the drop is TradeMenu's errors, now gone. None are in the new files.
+- `npm run build`: ok.
+- Playwright in the real game (own server on :5083, never :5000) at 1280×720, 375×667 and 667×375:
+  - buy max and sell work, with no console errors;
+  - typing 999 is rewritten to the max;
+  - Sign stays inside the viewport;
+  - Esc closes the screen.
+  - Visible rows with the slip open: desktop shows all 8 goods (room for ~11), phone 4, landscape 4.
 
-## Facts found in code (used in the critique)
-- One `selectedGoodId` is shared by the Buy and Sell tabs, and a tab switch never clears it. So the Sell panel opens
-  on a good you don't own (complaint 2).
-- `DialogContent` has `max-h-screen overflow-y-auto`, and the detail panel is rendered BELOW the list. Measured Buy
-  Max top: y=912 @1280×720, y=980 @375×667 (complaint 3).
-- "Buy Max" and "Sell Max" fire immediately. The selection is cleared before the server answers.
-- The trend colour is inverted for buyers.
-- `tradeSuccess` plays `playPlayerHit()`.
-- `ToastContainer` duplicates the T toast.
-- Server `handleTrade` buy: checks stock but never decrements it. One price serves both buy and sell. No avg-paid is
-  stored.
-- `World.setShipType` keeps `cargoUsed`, so cargo stays aboard on an upgrade.
-- `Player.tsx` is already neutral while `isTrading`, but the GameUI hotkeys (M/H/Tab) still fire.
+## How to test again
+- Scripts are in the scratchpad `pw/` folder (Playwright 1.64.1): `ingame.mjs` (needs a server on :5083), `proto2.mjs`
+  (the prototype), `shrink.mjs` (PNG → JPG).
+- Server: `PORT=5083 REDIS_CONN_STRING=redis://localhost:6379 STRIPE_SECRET_KEY=sk_test_dummy NODE_ENV=development npx tsx server/index.ts`.
+
+## Deferred / follow-ups
+- Sounds are synthesised cues; pick CC0 samples (coins, quill, stamp, paper).
+- Anchor the ship server-side while the screen is open. Today `Player.tsx` sends neutral input and the
+  screen closes if you drift out of the harbour.
+- Lint rules from STYLE_GUIDE §2 (eslint `no-restricted-imports` for lucide, the stylelint / grep checks) are
+  not wired up yet.
+- Leaderboard and Game Over restyle (STYLE_GUIDE §14).
+- `POST /api/update-prices` is unauthenticated: anyone can force a market move. Out of scope here; worth a card.
+- The ~11 expansion goods only need `GOODS` entries with a `group`. A port that doesn't sell a good needs
+  `notSold: true` on its market row (`shared/market.ts`). Redis `goods` are seeded only when empty, so the
+  expansion card must seed the new goods.
