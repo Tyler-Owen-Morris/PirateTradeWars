@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { useGameState } from '@/lib/stores/useGameState';
 import { useSocket } from '@/lib/stores/useSocket';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ParchmentPanel, PirateButton, SeaChartBackdrop, SectionTitle, TitleLockup } from '@/components/ui/pirate';
 import { AlertCircle } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -13,15 +10,15 @@ export default function NameRegistration() {
   const [isChecking, setIsChecking] = useState(false);
   const [isNameValid, setIsNameValid] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  
+
   const { registerPlayer } = useGameState();
   const socket = useSocket();
-  
+
   // Connect to WebSocket when component mounts
   useState(() => {
     socket.connect();
   });
-  
+
   // Check if name is available
   const checkName = async () => {
     if (name.trim().length < 3) {
@@ -29,14 +26,14 @@ export default function NameRegistration() {
       setIsNameValid(false);
       return;
     }
-    
+
     setIsChecking(true);
     setErrorMessage('');
-    
+
     try {
       const response = await apiRequest('GET', `/api/check-player-name?name=${encodeURIComponent(name)}`, undefined);
       const data = await response.json();
-      
+
       if (data.available) {
         setIsNameValid(true);
       } else {
@@ -51,69 +48,68 @@ export default function NameRegistration() {
       setIsChecking(false);
     }
   };
-  
+
   // Handle name submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!isNameValid) {
       checkName();
       return;
     }
-    
+
     // Register player name
     registerPlayer(name);
   };
-  
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-900 to-blue-700 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">Pirate Trade Wars</CardTitle>
-        </CardHeader>
-        
-        <CardContent>
-          <h2 className="text-xl font-semibold mb-4">Enter Your Pirate Name</h2>
-          
+    <div className="fixed inset-0">
+      <SeaChartBackdrop />
+      <div className="absolute inset-0 overflow-y-auto flex flex-col items-center justify-center p-4 gap-6">
+        <TitleLockup />
+        <ParchmentPanel torn className="w-full max-w-md px-6 py-7">
+          <SectionTitle className="text-3xl mb-4">Enter Your Pirate Name</SectionTitle>
+
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
-              <Input
+              <input
                 placeholder="Captain..."
+                aria-label="Pirate name"
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
                   setIsNameValid(false);
                 }}
-                className="w-full"
+                className="ptw-input"
                 required
                 minLength={3}
                 maxLength={20}
                 autoFocus
               />
-              
+
               {errorMessage && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{errorMessage}</AlertDescription>
-                </Alert>
+                <div role="alert" className="ptw-alert">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
+                  <span>{errorMessage}</span>
+                </div>
               )}
-              
-              <Button 
-                type="submit" 
-                className="w-full" 
+
+              <PirateButton
+                type="submit"
+                block
                 disabled={isChecking}
               >
                 {isChecking ? 'Checking...' : (isNameValid ? 'Start Adventure' : 'Check Name')}
-              </Button>
+              </PirateButton>
             </div>
           </form>
-          
-          <div className="mt-6 text-sm text-center text-gray-500">
+
+          <div className="mt-6 text-center italic text-ptw-ink-soft">
             <p>Sail the high seas, trade at ports, and battle other pirates!</p>
             <p className="mt-2">Your goal: Collect the most gold before your ship sinks.</p>
           </div>
-        </CardContent>
-      </Card>
+        </ParchmentPanel>
+      </div>
     </div>
   );
 }

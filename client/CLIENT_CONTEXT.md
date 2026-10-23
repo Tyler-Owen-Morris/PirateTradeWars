@@ -56,6 +56,37 @@ The game uses Zustand for state management with several stores:
 - Game status indicators and HUD
 - Damage indicators and ship status
 
+## Pirate UI theme (2026-10-23)
+All 2D UI uses one theme layer. Read `components/ui/pirate/README.md` before styling anything.
+- **Tokens and classes:** `src/styles/pirate.css`, imported at the top of `index.css`.
+  - Palette vars: `--ptw-*`, plus `-rgb` triplets for alpha.
+  - Fonts: `--ptw-font-display` Pirata One, `--ptw-font-label` IM Fell English SC, `--ptw-font-body`
+    Alegreya. They load from Google Fonts in `client/index.html` with `display=swap`.
+  - Inline SVG data-URI textures: noise, wood grain, torn edges. No raster assets.
+  - The shadcn HSL tokens (`--background`, `--primary`, …) are now defined (they were missing).
+  - `ptw-*` component classes sit in `@layer components`, so Tailwind utilities still win for layout.
+    All `ptw-*` classes are safelisted in `tailwind.config.ts`, which also adds `font-display/label/body`
+    and `ptw-*` colours.
+- **Primitives:** `components/ui/pirate/`: `PirateButton` (brass/wood/rope/wax/iron/porthole),
+  `ParchmentPanel` (`torn`), `WoodPanel`, `HudPanel`, `SectionTitle`, `PirateMeter`, `Kbd`, `WaxSeal`,
+  `CompassRose`, `TitleLockup`, `SeaChartBackdrop`, and `ptwDialog`/`ptwDialogTorn` for shadcn
+  DialogContent.
+- **Principle:** surfaces are physical objects a captain would handle (charts, ledgers, brass, wax),
+  and selected/active states and primary actions must be unmistakable.
+- **HUD overlays** use `HudPanel` only: readable over any sky, with no backdrop-filter, filter or
+  animation.
+- **Compass layout:** below the `lg` breakpoint, `CompassHUD` stacks under the top-right buttons and the
+  speed plate moves below it, so nothing overlaps on phones. At `lg` and up the compass is
+  top-centre. It also has `z-40`: the HUD's full-screen root used to sit over it and swallow clicks on
+  its Map button.
+- **Restyled:** ShipSelection (landing, instructions modal, loading), NameRegistration, HUD, GameUI,
+  CompassHUD, Minimap frame, WorldMap chrome, GameOver, Leaderboard, PaymentModal (+ Stripe
+  `appearance`), TradingToast, HelpTooltip, TouchControls ring.
+- **Not restyled:** `TradeMenu.tsx`. It is being redesigned separately as a manifest / "bill of
+  goods", with its own style guide.
+- Screenshots are in `docs/proposals/2026-10-23-theme-screens/`. Notes are in
+  `docs/proposals/2026-10-23-theme-NOTES.md`.
+
 ## Navigation UI (card W5)
 All maths is pure and tested in `client/src/lib/nav.ts` (`lib/__tests__/nav.test.ts`); components only draw. It uses `shared/world/geo.ts` (`metricDelta`, `metricDist`, `bearingDeg`, `compassHeading`, `lonOf`/`latOf`) - never raw x deltas.
 - `ui/Minimap.tsx`: north-up, centred on the player. Radius (world units centre-to-edge) defaults to 6000 (1 unit = 100 m, so 600 km), +/- halve/double (1500..24000). The caption is the full span, `minimapSpanLabel(radius)` = "1200 km across" at the default (F1/Q1 B4: it used to print the radius as "Edge = 600 km"). Land is drawn from the SDF tiles already loaded around the ship (`clientLand`) by `lib/world/minimapLand.ts` (2026-10-16 fix: the 1024 texture is ~390 units/px, so zoomed in it showed as big blurred blocks): chart colours like the world map texture, coast anti-aliased over one device px, and below one SDF px per output px it blurs the SDF under the view (~1 SDF px) so coasts read as curves, not 49-unit stair-steps. `MinimapLandLayer` keeps a 1.5x offscreen buffer and only re-renders (~5-10 ms at dpr 2) when the ship has moved far, the zoom changes or a tile arrives (`clientLand.version`). Pixels on unloaded tiles stay transparent over the old texture backdrop, drawn row by row from `/world/map_1024x512.png` (no graticule since F1) via `minimapRow` (each row spans +-radius/metricX(z) x-units, split in two across the x seam). The canvas is backed at devicePixelRatio (capped at 3). Ports (nation-coloured, at their dock), ships/NPCs (`otherPlayers`), heading arrow, highlighted target port.

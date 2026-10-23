@@ -272,23 +272,23 @@ export function WorldMap({ onClose }: { onClose: () => void }) {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       />
-      <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-black/70 text-amber-200 rounded-md px-3 py-2 text-xs sm:text-sm pointer-events-none">
-        <div className="font-bold text-amber-400">World Map</div>
+      <div className="ptw-parchment absolute top-2 left-2 sm:top-4 sm:left-4 max-w-[calc(100%-4.5rem)] sm:max-w-sm px-3.5 py-2.5 text-xs sm:text-sm pointer-events-none shadow-[0_4px_14px_rgba(0,0,0,0.5)]">
+        <div className="ptw-font-display text-xl sm:text-2xl leading-none mb-1">World Map</div>
         <div>Drag to pan, wheel/pinch to zoom, click a port to navigate to it.</div>
-        <div className="opacity-70">Centre {formatLatLon(centreLat, centreLon)}{hover ? ` · ${hover}` : ''}</div>
-        <div className="opacity-70">Dashed lines: polar pack ice (70°)</div>
+        <div className="ptw-num text-ptw-ink-soft">Centre {formatLatLon(centreLat, centreLon)}{hover ? ` · ${hover}` : ''}</div>
+        <div className="text-ptw-ink-soft italic">Dashed lines: polar pack ice (70°)</div>
       </div>
       <div className="absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-col gap-2">
-        <button className="h-10 w-10 rounded bg-black/70 text-white text-xl" onClick={onClose} title="Close (Esc / M)" aria-label="Close map">
+        <button className="ptw-btn ptw-btn--porthole text-xl" onClick={onClose} title="Close (Esc / M)" aria-label="Close map">
           ×
         </button>
-        <button className="h-10 w-10 rounded bg-black/70 text-white text-xl" onClick={() => zoomBtn(1.5)} aria-label="Zoom in">
+        <button className="ptw-btn ptw-btn--porthole text-xl" onClick={() => zoomBtn(1.5)} aria-label="Zoom in">
           +
         </button>
-        <button className="h-10 w-10 rounded bg-black/70 text-white text-xl" onClick={() => zoomBtn(1 / 1.5)} aria-label="Zoom out">
+        <button className="ptw-btn ptw-btn--porthole text-xl" onClick={() => zoomBtn(1 / 1.5)} aria-label="Zoom out">
           −
         </button>
-        <button className="h-10 w-10 rounded bg-black/70 text-white text-xs" onClick={centerOnPlayer} aria-label="Centre on ship" title="Centre on ship">
+        <button className="ptw-btn ptw-btn--porthole ptw-font-label text-xs" onClick={centerOnPlayer} aria-label="Centre on ship" title="Centre on ship">
           Me
         </button>
       </div>
