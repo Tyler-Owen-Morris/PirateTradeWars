@@ -382,9 +382,13 @@ async function main(): Promise<void> {
   // Only afloat ships may chat (NPCs can sink a bot at any time).
   const chatSender = bots.find((b) => b.s.connected && !b.s.sunk) ?? null;
   const spammer = bots.find((b) => b.s.connected && !b.s.sunk && b !== chatSender) ?? null;
+  // Moderation: a child-safety line (an off-site link) must reach nobody; its sender gets one private notice.
+  const blocker = bots.find((b) => b.s.connected && !b.s.sunk && b !== chatSender && b !== spammer) ?? null;
+  const blockedToken = `blocked${runId}`.replace(/[^a-z0-9]/gi, "");
   const chatAudience = bots.filter((b) => b.s.connected && !b.s.sunk);
   chatSender?.say(chatToken);
   for (let i = 0; i < 8; i++) spammer?.say(`spam ${runId} ${i}`);
+  blocker?.say(`visit ${blockedToken}.com`);
   await sleep(Math.max(1500, opts.duration * 1000 - 2000 - half));
 
   // Visibility symmetry, measured before closing sockets (closing triggers `gone`).
@@ -469,9 +473,15 @@ async function main(): Promise<void> {
     spamNotices = spammer.s.chat.filter((l) => l.sys).length;
     if (spamDelivered > 5) failures.push(`chat rate limit: ${spamDelivered} of 8 burst lines delivered (max 5)`);
     if (spamNotices !== 1) failures.push(`chat rate limit: spammer got ${spamNotices} throttle notices (expected 1)`);
-    for (const b of bots) if (b !== spammer && b.s.chat.some((l) => l.sys)) failures.push(`${b.s.name}: saw another player's throttle notice`);
+    for (const b of bots) if (b !== spammer && b !== blocker && b.s.chat.some((l) => l.sys)) failures.push(`${b.s.name}: saw another player's private notice`);
   }
-  console.log(`CHAT ${JSON.stringify({ heard: chatHeard, audience: chatAudience.length, spamDelivered, spamNotices })}`);
+  let blockedNotices = 0;
+  if (blocker) {
+    for (const b of bots) if (b.s.chat.some((l) => l.text.includes(blockedToken))) failures.push(`${b.s.name}: received a line that moderation should have dropped`);
+    blockedNotices = blocker.s.chat.filter((l) => l.sys && l.text.startsWith("Mind your tongue")).length;
+    if (blockedNotices !== 1) failures.push(`chat moderation: blocker got ${blockedNotices} notices (expected 1)`);
+  }
+  console.log(`CHAT ${JSON.stringify({ heard: chatHeard, audience: chatAudience.length, spamDelivered, spamNotices, blockedNotices })}`);
 
   const trade = await tradeCheck;
   if (!trade.ran) console.log(`\ntrade round trip skipped: ${trade.skipped}`);

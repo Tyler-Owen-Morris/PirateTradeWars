@@ -103,12 +103,24 @@ physics in `shared/physics.ts`. Both are shared with the client.
   - `ping` → `{t:"pong", c, st}`.
   - `chat` → `handleChat` (synchronous, message path, never the tick): only the attached socket of a
     live player ship (`gameState.isRegisteredSocket`, not sunk/dead) may chat. `gameState.chat`
-    (`game/chat.ts` `ChatService`) applies a per-player token bucket (burst 5, 1/s; throttled → one private
-    `sys` notice per 3 s), `collapseRepeats` and `maskProfanity` (small built-in list, same-length
-    asterisks, leet-tolerant, pirate words allowed), stamps the server-side name, and keeps a 30-line
-    in-memory ring buffer. Accepted lines go out with `gameState.broadcast(json)` to every attached socket.
-    After `connected`/`reconnected` the socket gets `{t:"chatHistory", lines}`. Nothing is in Redis; a
-    restart clears chat. Tests: `game/__tests__/chat.test.ts` (policy), `chatSocket.test.ts` (handler).
+    (`game/chat.ts` `ChatService`) checks the mute, applies a per-player token bucket (burst 5, 1/s;
+    throttled → one private `sys` notice per 3 s), `collapseRepeats`, then kid-safe moderation
+    (`game/chatFilter.ts` `moderateText`, built on the `obscenity` npm package plus our own lists):
+    mild profanity is masked with asterisks; slurs/hate, sexual content, threats/self-harm and
+    child-safety hits (links, emails, phone numbers, age/location/off-site-contact requests) drop the
+    whole line and send the sender alone "Mind your tongue, sailor — that message was not sent."
+    3 drops in 10 min → 10-min mute, doubling per repeat mute up to 1 h (doubling resets after 24 h
+    quiet). Strikes/mutes are in memory, keyed by player id (survive reconnects, not restarts). Drops
+    are logged as `[chat] dropped player=<id> category=<cat> hash=<sha256[:12]>` (never the text), mutes
+    as `[chat] muted player=<id> minutes=<n> level=<k>`. It stamps the server-side name and keeps a
+    30-line in-memory ring buffer. Accepted lines go out with `gameState.broadcast(json)` to every
+    attached socket. After `connected`/`reconnected` the socket gets `{t:"chatHistory", lines}`. Nothing
+    is in Redis; a restart clears chat. New ship names at `connect` go through `isNameAllowed` (same
+    filter; anything not clean → `nameError` "That ship name isn't allowed..."); existing names are not
+    re-checked on reconnect. Tests: `game/__tests__/chatFilter.test.ts` (filter, false-positive list,
+    names), `chat.test.ts` (policy, escalation), `chatSocket.test.ts` (handler).
+    To tune the filter: add words to `EXTRA_PATTERNS`, innocent words to `SAFE_TERMS`, phrases to
+    `PHRASE_RULES` / `PII_RULES`, and a test case for each.
   - connect, reconnect, trade, sellAll, upgradeShip, repairShip and scuttle (trading: see "Trade Processing") are async
     with Redis, outside the tick), but on the world's live player objects.
   - `connected`/`reconnected` no longer carry the `players`/`cannonBalls`/`goldObjects` dumps. The
