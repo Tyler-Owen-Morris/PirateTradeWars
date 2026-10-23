@@ -16,7 +16,7 @@ build. RELEASED to production 2026-10-23 (main fc9c918, deploy run 40029362322) 
 | I. Trade screen redesign + style guide ("grounded in the world") | subagent `trade-design` | `worktree-agent-a493ec90cfbfb8a69` @efb5c7f | DONE, merged; 463 tests + bots pass | owner tests at :5000; handwritten bill of sale merged (7abf9d7); follow-ups: CC0 sounds, anchor ship while trading, lint rules, leaderboard/game-over restyle, auth on POST /api/update-prices |
 | J. Port city 3D models (style kit + per-city tweaks) | subagent `cities` | `worktree-agent-a66e927ba30cbb679` @96c9aee | DONE, merged | owner review in dev; follow-ups: tiny-islet ports (Nassau etc.), Dutch canals |
 | K. Kid-safe chat (library filter, drop tiers, PII/links, mutes, name check) | subagent `chat-safety` | agent worktree | in progress | merge, ship to prod (owner asked) |
-| L. Dismissable in-port trade prompt (auto-hide + x) | subagent `trade-prompt` (sonnet) | agent worktree | in progress | merge, ship with K |
+| L. Dismissable in-port trade prompt (auto-hide + x) | subagent `trade-prompt` (sonnet) | `worktree-agent-a09c3d51e17342b06` @3d54b76 | DONE, merged | ship with K |
 
 Each agent writes progress notes to `docs/proposals/2026-10-23-<card>-NOTES.md` in its worktree as it goes.
 
