@@ -4,11 +4,12 @@
  * - A port good's stored `currentPrice` is the port's SELLING price: what a player pays to buy.
  * - The port BUYS at `sellPriceOf(currentPrice)`, about 10% less (the spread), so a buy-and-sell round
  *   trip in one port always loses a little.
- * - `notSold` (optional, set by future market data) means the port does not sell that good but still
- *   buys it. Today every port sells every good.
- * - "Wanted" = the port's regional demand (`goodPriceFactor > 1` in shared/world/ports.ts).
+ * - `notSold` means the port does not sell that good but still buys it. The market model
+ *   (shared/world/goodMarkets.ts) sets it on exotic goods away from their sources; the server stores it on
+ *   the port row at seed time and re-syncs it on every market move.
+ * - "Wanted" = the good's GOOD_MARKETS `wanted` list names this port (`isWanted`).
  */
-import { goodPriceFactor } from "./world/ports";
+import { isWanted, type MarketPort } from "./world/goodMarkets";
 
 /** What the port pays, as a fraction of what it charges. */
 export const SELL_SPREAD = 0.9;
@@ -42,13 +43,13 @@ export interface PortGoodView {
   currentPrice: number;
 }
 
-export function portGoodView(row: MarketRow, port: { region?: string; nation?: string } | null, goodName: string): PortGoodView {
+export function portGoodView(row: MarketRow, port: MarketPort | null, goodName: string): PortGoodView {
   return {
     goodId: row.goodId,
     buyPrice: row.notSold ? null : row.currentPrice,
     sellPrice: sellPriceOf(row.currentPrice),
     stock: row.notSold ? 0 : row.stock,
-    wanted: port ? goodPriceFactor(port, goodName) > 1 : false,
+    wanted: port ? isWanted(port, goodName) : false,
     currentPrice: row.currentPrice,
   };
 }

@@ -1,20 +1,15 @@
-﻿// shared/world/ports.ts (card W4): the typed port list, dock-radius checks, market profiles.
+﻿// shared/world/ports.ts (card W4): the typed port list, dock-radius checks (markets: goodMarkets.test.ts).
 import { describe, expect, it } from "vitest";
 import raw from "../ports.json";
 import versions from "../versions.json";
 import {
-  CHEAP_PRICE_FACTOR,
-  DEAR_PRICE_FACTOR,
   PORTS,
   PORTS_VERSION,
   STARTER_PORTS,
   dockDistance,
-  goodPriceFactor,
   nearestDockPort,
   portById,
   portByKey,
-  portGoodPrice,
-  portGoodStock,
   withinDock,
 } from "../ports";
 import { PORT_INTERACTION_RADIUS } from "../../gameConstants";
@@ -72,33 +67,5 @@ describe("dock checks", () => {
       expect(hit.distance).toBeLessThan(1);
     }
     expect(nearestDockPort(0, 0, [])).toBeNull();
-  });
-});
-
-describe("markets", () => {
-  const rng = () => 0.5; // zero fluctuation
-  const good = (name: string, basePrice = 100) => ({ name, basePrice, fluctuation: 20 });
-
-  it("regional specialities are cheap and plentiful; demand is dear and scarce", () => {
-    const pr = portByKey("port_royal")!; // caribbean
-    const macau = portByKey("macau")!; // east_asia
-    expect(goodPriceFactor(pr, "Sugar")).toBe(CHEAP_PRICE_FACTOR);
-    expect(goodPriceFactor(pr, "Silk")).toBe(DEAR_PRICE_FACTOR);
-    expect(goodPriceFactor(macau, "Silk")).toBe(CHEAP_PRICE_FACTOR);
-    expect(goodPriceFactor(pr, "Fish")).toBe(1);
-    expect(portGoodPrice(pr, good("Sugar"), rng)).toBe(70);
-    expect(portGoodPrice(macau, good("Sugar"), rng)).toBe(135);
-    expect(portGoodStock(pr, "Sugar", rng)).toBeGreaterThan(portGoodStock(pr, "Fish", rng));
-    expect(portGoodStock(pr, "Silk", rng)).toBeLessThan(portGoodStock(pr, "Fish", rng));
-  });
-
-  it("pirate havens sell cheap rum", () => {
-    const capeTownLike = { region: "africa", nation: "pirates" };
-    expect(goodPriceFactor(capeTownLike, "Rum")).toBe(CHEAP_PRICE_FACTOR); // africa demands Rum, pirates override
-    expect(goodPriceFactor(portByKey("sainte_marie")!, "Rum")).toBe(CHEAP_PRICE_FACTOR);
-  });
-
-  it("prices stay at least 1", () => {
-    expect(portGoodPrice({ region: "caribbean" }, { name: "Sugar", basePrice: 1, fluctuation: 100 }, () => 0)).toBeGreaterThanOrEqual(1);
   });
 });

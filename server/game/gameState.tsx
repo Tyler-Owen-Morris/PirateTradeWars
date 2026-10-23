@@ -10,8 +10,7 @@
  */
 import { redisStorage } from "../redisStorage";
 import { v4 as uuidv4 } from "uuid";
-import { GOODS } from "@shared/gameConstants";
-import { seedPorts, ensurePortGoods, updatePortMarkets } from "./ports";
+import { seedPorts, seedGoods, ensurePortGoods, updatePortMarkets } from "./ports";
 import { trackEvent, shutdownSegment } from "../segmentClient";
 import { World, TICK_MS, isNpcId, type WorldEffect, type WorldPlayer } from "./world";
 import { FixedStepLoop } from "./loop";
@@ -278,7 +277,7 @@ class GameState {
     await shutdownSegment().catch((err) => console.error("Segment flush failed:", err));
   }
 
-  /** Periodic market move (regional prices + restock, server/game/ports.ts); creates missing goods. */
+  /** Periodic market move (market-model prices, notSold sync, restock: server/game/ports.ts); creates missing goods rows. */
   async updatePrices() {
     try {
       await ensurePortGoods(redisStorage);
@@ -300,11 +299,8 @@ export async function initializeGameState() {
   try {
     // Ports come from shared/world/ports.json; re-seeded (with fresh goods) when portsVersion changes.
     await seedPorts(redisStorage);
-    const goods = await redisStorage.getGoods();
-    if (goods.length === 0) {
-      for (const good of GOODS) await redisStorage.createGood(good);
-      console.log("Goods initialized");
-    }
+    // Goods: every catalogue id missing from Redis is written by id (new goods reach a live server).
+    await seedGoods(redisStorage);
     await ensurePortGoods(redisStorage);
     gameState.start();
   } catch (err) {

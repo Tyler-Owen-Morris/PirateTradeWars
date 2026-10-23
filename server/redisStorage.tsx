@@ -365,7 +365,19 @@ export class RedisStorage {
         }
     }
 
-    async createPortGood(portGood: Omit<PortGood, 'id'>): Promise<PortGood> {
+    /** Set or clear a row's `notSold` (market model sync, server/game/ports.ts updatePortMarkets). */
+    async updatePortGoodNotSold(portId: number, goodId: number, notSold: boolean): Promise<void> {
+        return portQueue.run(`port:${portId}`, async () => {
+            const portGoods = await this.getPortGoods(portId);
+            const portGood = portGoods.find(pg => pg.goodId === goodId) as (PortGood & { notSold?: boolean }) | undefined;
+            if (!portGood) return;
+            if (notSold) { portGood.notSold = true; portGood.stock = 0; } else delete portGood.notSold;
+            portGood.updatedAt = new Date();
+            await this.redis.set(`port:${portId}:goods`, JSON.stringify(portGoods));
+        });
+    }
+
+    async createPortGood(portGood: Omit<PortGood, 'id'> & { notSold?: boolean }): Promise<PortGood> {
         return portQueue.run(`port:${portGood.portId}`, () => this.createPortGoodNow(portGood));
     }
     private async createPortGoodNow(portGood: Omit<PortGood, 'id'>): Promise<PortGood> {
@@ -663,6 +675,16 @@ export class RedisStorage {
                 fluctuation: parsed.fluctuation,
             };
         });
+    }
+
+    /** Write a good under its own id (goods seeding by id, server/game/ports.ts seedGoods) and keep
+     *  `good:next_id` at least that id, so a later createGood never reuses it. */
+    async putGood(good: Good): Promise<void> {
+        const tx = this.redis.multi();
+        tx.hset('goods', String(good.id), JSON.stringify(good));
+        await tx.exec();
+        const next = Number(await this.redis.get('good:next_id')) || 0;
+        if (next < good.id) await this.redis.set('good:next_id', String(good.id));
     }
 
     async createGood(good: Omit<Good, 'id'>): Promise<Good> {

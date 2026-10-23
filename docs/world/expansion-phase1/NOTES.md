@@ -7,10 +7,14 @@ Nothing is pushed, merged or deployed. Another agent can resume from the checkli
 - [x] 1. Ports: 16 new ports appended to `scripts/world/portDefs.ts` (append-only: numeric ids are indices),
       5 new named lanes, `npm run world:build` (tiles unchanged; ports/lanes/versions regenerated), `south_atlantic`
       region type in `shared/world/ports.ts` and the trade screen's region label.
-- [ ] 2. Goods: 5 new goods appended (ids 9-13), GOOD_GROUPS "specie"; goods seeding by id at boot; ensurePortGoods
-      fills missing goods rows.
-- [ ] 3. Market model: `shared/world/goodMarkets.ts` (GOOD_MARKETS, lane-graph distance premium, notSold, wanted);
-      wired into seeding, price updates and the goods API; price simulator.
+- [x] 2. Goods: 5 new goods appended (ids 9-13), GOOD_GROUPS "specie" (Silver, Gold); Cacao, Hides, Wine under
+      Colonial (note now "grown in the colonies and the wine islands"). `seedGoods` writes missing ids at boot
+      (`redisStorage.putGood`); `ensurePortGoods` adds missing rows to existing markets.
+- [x] 3. Market model: `shared/world/goodMarkets.ts` (GOOD_MARKETS, lane-graph distance premium with a 0.6 curve,
+      notSold, wanted). REGION_MARKETS / CHEAP/DEAR factors removed from `shared/world/ports.ts`. Wired into
+      seeding, `updatePortMarkets` (re-syncs notSold via `redisStorage.updatePortGoodNotSold`) and the goods
+      API (`portGoodView` wanted = `isWanted`). Price simulator: `npm run market:sim`
+      (`scripts/market/priceSim.ts`, test `scripts/market/__tests__/priceSim.test.ts`).
 - [ ] 4. NPC zones/fleets for the new lanes; bot test tick numbers.
 - [ ] 5. Cities: CITY_CUSTOM entries for the 16 ports.
 - [ ] 6. Map/minimap label decluttering.
