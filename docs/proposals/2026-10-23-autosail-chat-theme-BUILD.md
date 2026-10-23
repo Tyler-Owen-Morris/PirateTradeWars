@@ -9,10 +9,11 @@ build. NOT released until the user approves (a push to `main` without `[skip ci]
 | B. Global chat | subagent `chat` | `worktree-agent-a2a99e68d114d733d` @cedd0af | DONE, merged (Player.tsx conflict resolved: autosail uses isTextEntryActive) | try in dev build; add "Enter = chat" to help |
 | C. Pirate visual theme (landing + in-game UI) | subagent `theme` | agent worktree | in progress | theme tokens, fonts, restyle |
 | F. Live own-ship km-scale snapping (netcode) | subagent `netcode` | `worktree-agent-ad19e3e3e2b2b5b20` @0044501 | DONE, merged (bots.ts conflict resolved); bots 30x30s: 0 corrections | verify live with `?netdebug=1` after release |
-| G. Port/starboard broadsides (Q/E/Space, per-side reload) | subagent `broadsides` | agent worktree (based on dev branch) | in progress | protocol flags, server cooldowns, HUD |
+| G. Port/starboard broadsides (Q/E/Space, per-side reload) | subagent `broadsides` | `worktree-agent-ac97195eb0cbb5bcb` @71b4013 | DONE, merged (docs/tests/bots conflicts resolved; starved-queue test fires one side) | feel-test in dev build |
 | D. Merge + local dev build | main session | `main` | waiting on A-C | merge, `npm test`, `npm run check`, `npm run dev` |
 | E. Apply theme to chat panel | after merge | `main` | not started | restyle `ChatPanel` with card C's classes |
-| H. World expansion pitch (cities + goods) | main session | n/a | research + pitch page | user decides scope before any build |
+| H. World expansion (cities + goods) | main session | pitch: https://claude.ai/artifact/UxuDRnMyjZBURp46ydXm5u | APPROVED (all recommendations), BLOCKED on card I | build Phase 1 after trade screen redesign |
+| I. Trade screen redesign + style guide ("grounded in the world") | subagent `trade-design` | agent worktree | proposal in progress | then 2 UI-specialist reviews, revise, show user |
 
 Each agent writes progress notes to `docs/proposals/2026-10-23-<card>-NOTES.md` in its worktree as it goes.
 
