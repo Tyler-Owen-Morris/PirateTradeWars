@@ -48,7 +48,7 @@ The game uses Zustand for state management with several stores:
 - `OtherShips.tsx` - Renders other players in the game
 - `Ocean.tsx` - Water rendering
 - `CannonBall.tsx` - Projectiles
-- `Port.tsx` / `Ports.tsx` - real-world ports (card W4), see "Ports (W4)" below
+- `Port.tsx` / `Ports.tsx` - real-world ports (card W4), see "Ports (W4)" below; `PortCity.tsx` - the town (procedural city kit, see "Port cities" below)
 
 ### UI Components
 - `TradeMenu.tsx` - Trading interface for ports
@@ -95,11 +95,29 @@ All maths is pure and tested in `client/src/lib/nav.ts` (`lib/__tests__/nav.test
 - **Ports (W4).** Data: `shared/world/ports.ts` (`PORTS`, typed view of the generated `ports.json`; numeric
   `id` = 1-based index, `key` = string id, town `x/z`, `dock`, `spawn`, `nation`, `region`). `useGameState.loadPorts`
   fetches `GET /api/ports` (same shape) and falls back to the bundled `PORTS`. `Ports.tsx` renders the store's
-  ports; `Port.tsx` draws a procedural town on the coast at x/z (houses, tower, flag in `nationColor`, name label)
-  and a pier + 300-unit ring at the dock. No island .glb any more: land is the W3 terrain (`Island.tsx` is unused).
+  ports; `Port.tsx` mounts `PortCity` (the town, see "Port cities" below), the name label over the town
+  and the 300-unit ring + trade prompt at the dock. No island .glb any more: land is the W3 terrain (`Island.tsx` is unused).
   Docking: `GameScene.checkPortProximity` (10 Hz) uses `nearestDockPort` and enters the port when the metric
   distance to the dock is <= `PORT_INTERACTION_RADIUS` (300), the same rule the server enforces for trade, upgrade
   and repair. `isPlayerNearPort` uses the same 300 radius.
+- **Port cities (2026-10-23).** Kit in `src/lib/city/` (README there: styles, pieces, layout, how to add a style
+  or customise a city); drawn by `components/game/PortCity.tsx`. One generic look per CITY TYPE
+  (`styles.ts`: spanish_colonial, english, dutch, french, portuguese, pirate_haven, east_asian; picked by
+  `port.nation`) plus a small per-city entry in `cities.ts` keyed by `port.key` (landmark, fort placement, extras
+  such as El Morro, Belém Tower, St Paul's dome, windmills, pirate ships). `layout.ts` builds a deterministic town
+  (seeded by the key) on the real coast: quay + piers + boats + warehouses, plaza + landmark, harbour fort, extras,
+  optional ramparts, houses on a street grid (only on land, not on steep ground), trees by latitude, flags.
+  Rendering: three merged layers per city (`main`; `detail` = windows/doors/chimneys/cannons/bollards, hidden
+  beyond `DETAIL_DISTANCE` 1300; `flags` = waving in the vertex shader), one ShaderMaterial program for all cities
+  (`cityMaterial.ts`) that applies the WORLD_SPEC §7 transform per vertex like the terrain, so towns sit exactly on
+  the terrain and never drift. Built lazily within 3200 of the focus once its land tiles are loaded (one build per
+  frame, ~3–20 ms), CPU builds cached (LRU 6), GPU geometry disposed beyond 4200, culled beyond 2300 + radius.
+  ~6–18k triangles and 3 draw calls per city (old towns: ~60–80 draw calls each). No per-frame work except the
+  per-city origin uniforms. Stats for every port: `CITY_REPORT=1 npx vitest run client/src/lib/city`.
+  Dev tools (Vite dev or `?citydebug=1`, `lib/world/cityDebug.ts`): `__cityCam("havana", {dist, height, yaw})`
+  flies the camera to a town (`__cityCam(null)` returns), `__cityHide(true)` unmounts all ports,
+  `__ptwRenderInfo()` / `__ptwFrameStats(ms)` measure; `/?citydebug=1&citygallery=1` shows every piece
+  (`components/dev/CityGallery.tsx`, lazy chunk), `&citystyle=dutch` a whole town of one style.
 - Store (`useGameState`): `calculateDistance` is `metricDist`; `getNearestPort` uses dock points (`portPoint`, x/z fallback); `navTargetId` / `setNavTarget` / `getNavTargetPort()` (selected target, else nearest). The `Port` type has optional `dock` and `nation` (filled by W4's port source).
 
 ## WebSocket Communication

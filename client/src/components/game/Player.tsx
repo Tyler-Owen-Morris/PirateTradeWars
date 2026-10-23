@@ -21,6 +21,7 @@ import { net, combineControls, NEUTRAL_CONTROLS, type ControlState } from '@/lib
 import { isTextEntryActive } from '@/lib/stores/useInputFocus';
 import type { ShipKinematics } from '@shared/physics';
 import { setRenderFocus } from '@/lib/world/renderSpace';
+import { cityDebug } from '@/lib/world/cityDebug';
 import { AutoSail } from '@/lib/net/autoSail';
 import { useAutoSail } from '@/lib/stores/useAutoSail';
 import { useGameState } from '@/lib/stores/useGameState';
@@ -64,7 +65,9 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player({ pla
 
     // The camera focus F = predicted own position (raw world coords). Set once per frame, before every
     // other useFrame (priority 0) converts world positions with toRender().
-    if (net.predictor.initialized) {
+    if (cityDebug.active) {
+      setRenderFocus(cityDebug.fx, cityDebug.fz); // dev city camera (lib/world/cityDebug.ts)
+    } else if (net.predictor.initialized) {
       const r = net.getOwnRenderState(renderState.current);
       setRenderFocus(r.x, r.z);
     } else {
@@ -74,6 +77,7 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player({ pla
 
     if (!ref || !('current' in ref) || !ref.current) return;
     ref.current.position.set(0, 0, 0);
+    if (cityDebug.enabled) ref.current.visible = !cityDebug.active; // dev city camera hides the own ship
     ref.current.rotation.y = renderState.current.rotationY;
   }, -1);
 
