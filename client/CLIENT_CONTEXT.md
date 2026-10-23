@@ -151,7 +151,7 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   (ball hit land) removes the ball exactly like a `hit`.
 - `netClient.ts` — `NetClient` hub; `index.ts` exports the app singleton `net`. Handles `s`, `ent`,
   `gone`, `fire`, `hit`, `sunk`, `splash` (emitted as the `splash` event for dust effects),
-  `goldCollected`, `pong`; forwards every other (legacy `type`) message
+  `goldCollected`, `standing`, `chat`/`chatHistory` (see "Global chat"), `pong`; forwards every other (legacy `type`) message
   via the `legacy` event. `net.frameNow(controls)` = per-frame prediction step; it measures the frame
   dt on its own clock (`now()`), then calls `net.frame(dt, controls)`. Don't pass R3F's `delta`: it
   comes from the shared THREE.Clock, and any `clock.getElapsedTime()`/`getDelta()` call in a useFrame
@@ -166,7 +166,7 @@ wire types in `shared/protocol.ts`, physics in `shared/physics.ts` (same code th
   150 u.
 
 **How React reads it:**
-- `Player.tsx` — useFrame(priority −1): keyboard (drei `get()`) + `controlsRef` → `net.frameNow` →
+- `Player.tsx` — useFrame(priority −1): keyboard (drei `get()`, neutral while `isTextEntryActive()`) + `controlsRef` → `net.frameNow` →
   writes `net.getOwnRenderState()` to the group. No local physics, no snapping, no store mutation.
 - `OtherShips.tsx` — `useSyncExternalStore(net.remote)` for membership/metadata only; useFrame writes
   `net.remote.sample(eid, net.remoteRenderTime())` to each group. HP bars read live hp via `getHp`.
@@ -252,9 +252,32 @@ frame-budget test on the real generated tiles (Jamaica, English Channel: < 0.2 m
   `splash` events with `land: 1`, projected with `toRender`.
 - Port towns / the old decorative island .glb in `Port.tsx` belong to W4 (ports card).
 
+## Global chat (2026-10-23)
+
+Contract: `docs/netcode/PROTOCOL.md` "Global chat".
+- `NetClient` handles `chat` (→ `chat` event) and `chatHistory` (→ `chatHistory` event), each line
+  re-validated with `parseChatLine`. `useSocket` wires them into `lib/stores/useChat.ts` and exposes
+  `sendChat(text)` (sanitizes, sends `{t:"chat", text}`, returns false if empty/offline).
+- `useChat` (zustand): `lines` capped at 100, de-duplicated by server `id` (history is replayed on every
+  connect/reconnect); private notices (`id` 0) get a local key; replayed lines get `receivedAt` 0 so they
+  don't pop up in the collapsed log.
+- `components/ui/ChatPanel.tsx` (one mount line in `GameUI.tsx`): bottom-left; collapsed it shows the last
+  5 lines, each fading out 10 s after it arrived; Enter opens the input, Enter sends, Esc closes (T is
+  already "trade at port", so it does not open chat). A small chat button toggles it on touch devices.
+  Lines are React text nodes only, never HTML. Styling is plain Tailwind kept inside the file. On unmount
+  it clears the focus flag and the buffer.
+- **"Is the player typing?" — `lib/stores/useInputFocus.ts`.** `useInputFocus` holds `chatFocused`
+  (ChatPanel sets it on focus/blur). `isTextEntryActive()` = `chatFocused` OR `document.activeElement` is
+  an editable element (input/textarea/select/contenteditable). drei `KeyboardControls` listens on `window`,
+  so **any code that turns keys into ship actions must check `isTextEntryActive()`**: `Player.tsx` feeds
+  `NEUTRAL_CONTROLS` for the keyboard while it is true (touch/HUD controls still apply). The chat input
+  also stops keydown propagation (GameUI H/T/Tab/M hotkeys, WorldMap Esc) but lets keyup through, so keys
+  held before opening chat are released normally.
+- Tests: `lib/net/__tests__/chat.test.ts` (net events, buffer, focus check).
+
 ## Input Handling
 
-- Keyboard controls for movement and combat
+- Keyboard controls for movement and combat (neutral while typing: `isTextEntryActive()`, see "Global chat")
 - Mouse interaction for UI elements
 - Uses @react-three/drei for keyboard control helpers
 

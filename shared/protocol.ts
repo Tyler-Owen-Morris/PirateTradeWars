@@ -43,6 +43,10 @@ export const MAX_ID_LENGTH = 128;
 export const MAX_TRADE_QUANTITY = 100000;
 /** Input sequence numbers are integers in [0, MAX_SEQ]. */
 export const MAX_SEQ = 0x7fffffff;
+/** Global chat: max characters (code points) of one chat line after sanitizing (longer text is cut). */
+export const MAX_CHAT_LENGTH = 200;
+/** Global chat: how many recent lines the server keeps in memory and replays on (re)join. */
+export const CHAT_HISTORY_SIZE = 30;
 
 /** Entity flag bits (EntityRow[6]). */
 export const FLAG_SUNK = 1;
@@ -116,6 +120,11 @@ export interface RepairShipMessage {
 export interface ScuttleMessage {
   type: "scuttle";
 }
+/** Global chat: send one line to everyone. `text` is sanitized by parseClientMessage (sanitizeChatText). */
+export interface ChatSendMessage {
+  t: "chat";
+  text: string;
+}
 
 export type ClientMessage =
   | ConnectMessage
@@ -125,11 +134,12 @@ export type ClientMessage =
   | TradeMessage
   | UpgradeShipMessage
   | RepairShipMessage
-  | ScuttleMessage;
+  | ScuttleMessage
+  | ChatSendMessage;
 
 /** The discriminator of a ClientMessage, whichever key (`t` or `type`) it uses. */
 export type ClientMessageKind =
-  | "connect" | "reconnect" | "input" | "ping" | "trade" | "upgradeShip" | "repairShip" | "scuttle";
+  | "connect" | "reconnect" | "input" | "ping" | "trade" | "upgradeShip" | "repairShip" | "scuttle" | "chat";
 export function clientMessageKind(m: ClientMessage): ClientMessageKind {
   return "t" in m ? m.t : m.type;
 }
@@ -309,6 +319,29 @@ export function parseStanding(v: unknown): StandingState | null {
   }
   return { rep, notoriety: num(o.notoriety, 0, 100) ?? 0, bounty: num(o.bounty, 0, 1e9) ?? 0 };
 }
+/**
+ * Global chat line (server -> client). Broadcast to every attached player, or (sys notices such as
+ * the rate-limit warning) sent to one player only.
+ * - `id`   server sequence number (> 0, increasing) for broadcast lines; 0 for private system notices.
+ * - `from` the sender's ship name from the SERVER's player record ("" for system lines).
+ * - `text` sanitized + profanity-masked plain text. Clients must render it as text, never as HTML.
+ * - `ts`   server time (ms, Date.now()) when the line was accepted.
+ * - `sys`  1 = system line (join notices, throttle warnings); absent for player lines.
+ */
+export interface ChatMessage {
+  t: "chat";
+  id: number;
+  from: string;
+  text: string;
+  ts: number;
+  sys?: 1;
+}
+/** Global chat: the last CHAT_HISTORY_SIZE broadcast lines, oldest first; sent on connect/reconnect. */
+export interface ChatHistoryMessage {
+  t: "chatHistory";
+  lines: ChatMessage[];
+}
+
 /** Reply to `ping`: `c` echoes the client time, `st` is server time (ms). */
 export interface PongMessage {
   t: "pong";
@@ -388,6 +421,8 @@ export type ServerMessage =
   | SplashMessage
   | GoldCollectedMessage
   | StandingMessage
+  | ChatMessage
+  | ChatHistoryMessage
   | PongMessage
   | WelcomeMessage
   | ConnectedMessage
@@ -449,6 +484,45 @@ function posInt(v: unknown): number | null {
   if (!isFiniteNum(v)) return null;
   const n = Math.floor(v);
   return n >= 0 && n <= MAX_SEQ ? n : null;
+}
+
+// Control chars (C0, DEL, C1), zero-width chars and bidi overrides/isolates (which can reorder or
+// hide text) are removed from chat text. Tabs/newlines become spaces first.
+// eslint-disable-next-line no-control-regex
+const CHAT_STRIP_RE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+// eslint-disable-next-line no-control-regex
+const CHAT_SPACE_RE = /\s+/g;
+
+/**
+ * Global chat: normalize untrusted chat text. Strips control / zero-width / bidi-override chars,
+ * collapses whitespace runs to one space, trims, and cuts to MAX_CHAT_LENGTH code points (never
+ * splitting a surrogate pair). Returns null when nothing is left (or the input is not a string).
+ * Used by parseClientMessage (server) and parseChatLine (client), so both sides agree.
+ */
+export function sanitizeChatText(v: unknown, max: number = MAX_CHAT_LENGTH): string | null {
+  if (typeof v !== "string") return null;
+  const cleaned = v.replace(CHAT_SPACE_RE, " ").replace(CHAT_STRIP_RE, "").replace(/ {2,}/g, " ").trim();
+  if (!cleaned) return null;
+  const cps = Array.from(cleaned);
+  const out = cps.length > max ? cps.slice(0, max).join("").trimEnd() : cleaned;
+  return out || null;
+}
+
+/**
+ * Global chat (client side): validate one server chat line defensively. Returns null if malformed.
+ * Text and name are re-sanitized (the client never trusts the wire), names cut to MAX_NAME_LENGTH.
+ */
+export function parseChatLine(v: unknown): ChatMessage | null {
+  if (!isObj(v)) return null;
+  if (v.t !== undefined && v.t !== "chat") return null;
+  const text = sanitizeChatText(v.text);
+  if (!text) return null;
+  const id = isFiniteNum(v.id) && v.id >= 0 ? Math.floor(v.id) : 0;
+  const ts = isFiniteNum(v.ts) ? v.ts : 0;
+  const from = typeof v.from === "string" ? sanitizeChatText(v.from, MAX_NAME_LENGTH) ?? "" : "";
+  const m: ChatMessage = { t: "chat", id, from, text, ts };
+  if (v.sys === 1 || v.sys === true) m.sys = 1;
+  return m;
 }
 
 /** Type guard for an already-validated InputMessage shape. */
@@ -528,6 +602,13 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     }
     case "scuttle":
       return { type: "scuttle" };
+    case "chat": {
+      // Raw text over 4x the cap is rejected outright (the frame cap is 4096 anyway).
+      if (typeof data.text !== "string" || data.text.length > MAX_CHAT_LENGTH * 4) return null;
+      const text = sanitizeChatText(data.text);
+      if (!text) return null;
+      return { t: "chat", text };
+    }
     default:
       return null;
   }

@@ -17,6 +17,7 @@ import { World, TICK_MS, isNpcId, type WorldEffect, type WorldPlayer } from "./w
 import { FixedStepLoop } from "./loop";
 import { loadLandSync } from "./landLoader";
 import { createLiveNpcSystem, npcsEnabled, type NpcSystem } from "./npc";
+import { ChatService } from "./chat";
 
 export type { PlayerState, WorldPlayer } from "./world";
 export { GRACE_PERIOD, GOLD_COLLECTION_RADIUS, GOLD_OBJECT_LIFETIME } from "./world";
@@ -63,6 +64,9 @@ class GameState {
   readonly npcs: NpcSystem | null = npcsEnabled() ? createLiveNpcSystem(this.world).attach() : null;
   /** NPC2: players whose standing changed this tick (npcRepChange), written to Redis once each. */
   private readonly standingDirty = new Set<string>();
+  /** Global chat: rate limits, text policy and the in-memory history (server/game/chat.ts). Used from
+   *  the socket message path only, never from the tick. Not persisted. */
+  readonly chat = new ChatService();
 
   constructor() {
     this.loop = new FixedStepLoop(() => this.runTick(), { stepMs: TICK_MS, maxCatchUp: 5 });
@@ -111,6 +115,29 @@ class GameState {
     this.sockets.delete(playerId);
     this.world.detachClient(playerId);
     this.world.setConnected(playerId, false);
+  }
+
+  /** True when `ws` is the socket currently attached for `playerId` (chat eligibility). */
+  isRegisteredSocket(playerId: string, ws: ClientSocket): boolean {
+    return this.sockets.get(playerId) === ws;
+  }
+
+  /**
+   * Send one pre-serialized frame to every attached, open socket (global chat). Synchronous; called
+   * from the socket message path, never from the tick. Returns the number of sockets written to.
+   */
+  broadcast(data: string): number {
+    let n = 0;
+    this.sockets.forEach((ws, playerId) => {
+      if (ws.readyState !== OPEN) return;
+      try {
+        ws.send(data);
+        n++;
+      } catch (err) {
+        console.error(`Error broadcasting to ${playerId}:`, err);
+      }
+    });
+    return n;
   }
 
   /** Name check against Redis, then create the player in the world. Null on name conflict. */

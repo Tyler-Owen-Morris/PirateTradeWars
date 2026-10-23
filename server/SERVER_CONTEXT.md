@@ -92,6 +92,14 @@ physics in `shared/physics.ts`. Both are shared with the client.
   - `input` → `world.queueInput` (out-of-order seqs are ignored; the queue is capped at 10, dropping
     the oldest).
   - `ping` → `{t:"pong", c, st}`.
+  - `chat` → `handleChat` (synchronous, message path, never the tick): only the attached socket of a
+    live player ship (`gameState.isRegisteredSocket`, not sunk/dead) may chat. `gameState.chat`
+    (`game/chat.ts` `ChatService`) applies a per-player token bucket (burst 5, 1/s; throttled → one private
+    `sys` notice per 3 s), `collapseRepeats` and `maskProfanity` (small built-in list, same-length
+    asterisks, leet-tolerant, pirate words allowed), stamps the server-side name, and keeps a 30-line
+    in-memory ring buffer. Accepted lines go out with `gameState.broadcast(json)` to every attached socket.
+    After `connected`/`reconnected` the socket gets `{t:"chatHistory", lines}`. Nothing is in Redis; a
+    restart clears chat. Tests: `game/__tests__/chat.test.ts` (policy), `chatSocket.test.ts` (handler).
   - connect, reconnect, trade, upgradeShip, repairShip and scuttle work as before (they are async
     with Redis, outside the tick), but on the world's live player objects.
   - `connected`/`reconnected` no longer carry the `players`/`cannonBalls`/`goldObjects` dumps. The
@@ -219,13 +227,14 @@ Socket handling in `socketHandler.ts`:
    - `connect` / `reconnect` - Player registration
    - `input` - `{t:"input", s, th, ru, f}` throttle/rudder/fire intents (never positions)
    - `ping` - RTT probe
+   - `chat` - `{t:"chat", text}` global chat (see "Socket handling" above)
    - `trade`, `upgradeShip`, `repairShip`, `scuttle` - port and ship actions
    (authoritative list: `shared/protocol.ts`, `parseClientMessage`)
 
 2. **Socket Management**:
    - Each connected client gets a unique ID
    - Messages parsed and validated
-   - Replies sent directly; world state goes out per client as interest-filtered snapshots after each tick (there is no global broadcast)
+   - Replies sent directly; world state goes out per client as interest-filtered snapshots after each tick. The only global broadcast is chat (`gameState.broadcast`)
 
 ## Data Storage
 

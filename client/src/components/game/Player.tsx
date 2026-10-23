@@ -1,7 +1,8 @@
 /**
  * Local player's ship. Movement is NOT simulated here: every frame (useFrame, priority -1 so it runs
  * before the camera and remote ships) we
- *   1. combine keyboard (drei KeyboardControls, read imperatively) + touch/HUD controls,
+ *   1. combine keyboard (drei KeyboardControls, read imperatively; neutral while `isTextEntryActive()`,
+ *      i.e. the chat input or another text field has focus) + touch/HUD controls,
  *   2. call `net.frameNow(controls)` (measures its own frame dt) — fixed 20 Hz prediction with the shared `stepShip`,
  *      sending one `input` per step (see lib/net/prediction.ts),
  *   3. set the floating-origin focus (lib/world/renderSpace.ts) to the predicted render state
@@ -16,17 +17,13 @@ import * as THREE from 'three';
 import { Ship } from './Ship';
 import { PlayerState } from '@/types';
 import { ShipType } from '@/lib/constants';
-import { net, combineControls, type ControlState } from '@/lib/net';
+import { net, combineControls, NEUTRAL_CONTROLS, type ControlState } from '@/lib/net';
+import { isTextEntryActive } from '@/lib/stores/useInputFocus';
 import type { ShipKinematics } from '@shared/physics';
 import { setRenderFocus } from '@/lib/world/renderSpace';
 import { AutoSail } from '@/lib/net/autoSail';
 import { useAutoSail } from '@/lib/stores/useAutoSail';
 import { useGameState } from '@/lib/stores/useGameState';
-
-function textInputFocused(): boolean {
-  const el = document.activeElement as HTMLElement | null;
-  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
-}
 
 type ControlName = keyof ControlState;
 
@@ -51,9 +48,11 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player({ pla
   }, []);
 
   useFrame(() => {
-    const keys = getKeys() as Partial<ControlState>;
+    // While the player types (chat or any text field) the keyboard is neutral; touch/HUD still apply.
+    const typing = isTextEntryActive();
+    const keys = typing ? NEUTRAL_CONTROLS : (getKeys() as Partial<ControlState>);
     const sail = autoSail.current;
-    if (playerRef.current.sunk || useGameState.getState().isTrading || textInputFocused()) {
+    if (playerRef.current.sunk || useGameState.getState().isTrading || typing) {
       sail.reset(!!keys.forward);
     } else {
       sail.update(!!keys.forward, !!keys.backward, performance.now());
