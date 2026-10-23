@@ -15,8 +15,8 @@ build. RELEASED to production 2026-10-23 (main fc9c918, deploy run 40029362322) 
 | H. World expansion (cities + goods) | main session | pitch: https://claude.ai/artifact/UxuDRnMyjZBURp46ydXm5u | Phase 1 DONE, merged (6603623; 43 ports, 13 goods, 185 NPCs) | owner tests; then Phase 2 (North) / Phase 3 (Old World) |
 | I. Trade screen redesign + style guide ("grounded in the world") | subagent `trade-design` | `worktree-agent-a493ec90cfbfb8a69` @efb5c7f | DONE, merged; 463 tests + bots pass | owner tests at :5000; handwritten bill of sale merged (7abf9d7); follow-ups: CC0 sounds, anchor ship while trading, lint rules, leaderboard/game-over restyle, auth on POST /api/update-prices |
 | J. Port city 3D models (style kit + per-city tweaks) | subagent `cities` | `worktree-agent-a66e927ba30cbb679` @96c9aee | DONE, merged | owner review in dev; follow-ups: tiny-islet ports (Nassau etc.), Dutch canals |
-| K. Kid-safe chat (library filter, drop tiers, PII/links, mutes, name check) | subagent `chat-safety` | agent worktree | in progress | merge, ship to prod (owner asked) |
-| L. Dismissable in-port trade prompt (auto-hide + x) | subagent `trade-prompt` (sonnet) | `worktree-agent-a09c3d51e17342b06` @3d54b76 | DONE, merged | ship with K |
+| K. Kid-safe chat (library filter, drop tiers, PII/links, mutes, name check) | subagent `chat-safety` | `worktree-agent-a6ec272c6816ed76b` @193e7d0 | DONE, released (main 2c1fd9a, run 40032613343) | watch `[chat] dropped` log volume |
+| L. Dismissable in-port trade prompt (auto-hide + x) | subagent `trade-prompt` (sonnet) | `worktree-agent-a09c3d51e17342b06` @3d54b76 | DONE, released with K (main 2c1fd9a) | - |
 
 Each agent writes progress notes to `docs/proposals/2026-10-23-<card>-NOTES.md` in its worktree as it goes.
 
