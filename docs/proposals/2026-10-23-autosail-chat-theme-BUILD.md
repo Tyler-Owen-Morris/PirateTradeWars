@@ -12,8 +12,8 @@ build. NOT released until the user approves (a push to `main` without `[skip ci]
 | G. Port/starboard broadsides (Q/E/Space, per-side reload) | subagent `broadsides` | `worktree-agent-ac97195eb0cbb5bcb` @71b4013 | DONE, merged (docs/tests/bots conflicts resolved; starved-queue test fires one side) | feel-test in dev build |
 | D. Merge + local dev build | main session | `dev/2026-10-23-batch`, dev server :5000 running | A,B,C,F,G merged | merge, `npm test`, `npm run check`, `npm run dev` |
 | E. Theme ChatPanel, AutoSailIndicator, ReloadGauges + Enter=chat help | subagent `overlays` (sonnet) | `worktree-agent-ac1bc1b909bd7fc56` @3694d63 | DONE, merged | - |
-| H. World expansion (cities + goods) | main session | pitch: https://claude.ai/artifact/UxuDRnMyjZBURp46ydXm5u | APPROVED (all recommendations), BLOCKED on card I | build Phase 1 after trade screen redesign |
-| I. Trade screen redesign + style guide ("grounded in the world") | subagent `trade-design` | `worktree-agent-a493ec90cfbfb8a69` @efb5c7f | DONE, merged; 463 tests + bots pass | owner tests at :5000; follow-ups: CC0 sounds, anchor ship while trading, lint rules, leaderboard/game-over restyle, auth on POST /api/update-prices |
+| H. World expansion (cities + goods) | main session | pitch: https://claude.ai/artifact/UxuDRnMyjZBURp46ydXm5u | APPROVED; Phase 1 (16 ports, 5 goods, market model) IN PROGRESS, subagent `expansion-p1` in agent worktree | merge into dev, owner tests |
+| I. Trade screen redesign + style guide ("grounded in the world") | subagent `trade-design` | `worktree-agent-a493ec90cfbfb8a69` @efb5c7f | DONE, merged; 463 tests + bots pass | owner tests at :5000; handwritten bill of sale merged (7abf9d7); follow-ups: CC0 sounds, anchor ship while trading, lint rules, leaderboard/game-over restyle, auth on POST /api/update-prices |
 | J. Port city 3D models (style kit + per-city tweaks) | subagent `cities` | `worktree-agent-a66e927ba30cbb679` @96c9aee | DONE, merged | owner review in dev; follow-ups: tiny-islet ports (Nassau etc.), Dutch canals |
 
 Each agent writes progress notes to `docs/proposals/2026-10-23-<card>-NOTES.md` in its worktree as it goes.
