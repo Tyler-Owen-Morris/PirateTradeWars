@@ -14,7 +14,7 @@ build. NOT released until the user approves (a push to `main` without `[skip ci]
 | E. Theme ChatPanel, AutoSailIndicator, ReloadGauges + Enter=chat help | subagent `overlays` (sonnet) | `worktree-agent-ac1bc1b909bd7fc56` @3694d63 | DONE, merged | - |
 | H. World expansion (cities + goods) | main session | pitch: https://claude.ai/artifact/UxuDRnMyjZBURp46ydXm5u | APPROVED (all recommendations), BLOCKED on card I | build Phase 1 after trade screen redesign |
 | I. Trade screen redesign + style guide ("grounded in the world") | subagent `trade-design` | `worktree-agent-a493ec90cfbfb8a69` @11c8c4a | reviews done; designer revising, then IMPLEMENTING in-game (owner approved defaults 2026-10-23) | merge into dev, owner tests at :5000 |
-| J. Port city 3D models (style kit + per-city tweaks) | subagent `cities` | agent worktree | in progress | merge, screenshots |
+| J. Port city 3D models (style kit + per-city tweaks) | subagent `cities` | `worktree-agent-a66e927ba30cbb679` @96c9aee | DONE, merged | owner review in dev; follow-ups: tiny-islet ports (Nassau etc.), Dutch canals |
 
 Each agent writes progress notes to `docs/proposals/2026-10-23-<card>-NOTES.md` in its worktree as it goes.
 
