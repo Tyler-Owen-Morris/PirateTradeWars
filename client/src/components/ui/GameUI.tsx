@@ -5,7 +5,7 @@ import { useAudio } from "@/lib/stores/useAudio";
 import { useSocket } from "@/lib/stores/useSocket";
 import HUD from "./HUD";
 import Leaderboard from "./Leaderboard";
-import { Button } from "./button";
+import { HudPanel, Kbd, PirateButton, WoodPanel, ptwDialogTorn } from "./pirate";
 import { Volume2, VolumeX, HelpCircle, Map, Skull, Sliders, QrCode } from "lucide-react";
 import { HelpTooltip } from "./HelpTooltip";
 import { Minimap } from "./Minimap";
@@ -175,41 +175,39 @@ export default function GameUI({ controlsRef }: GameUIProps) {
       <ToastContainer />
       <ChatPanel />
 
-      <div className="absolute top-4 right-4 z-50 flex gap-2">
-        <Button
-          variant="outline"
-          size="icon"
+      <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-50 flex gap-1.5 sm:gap-2">
+        <PirateButton
+          variant="porthole"
           onClick={() => setShowQRCode(true)}
-          className="bg-black/50 border-0 text-white hover:bg-black/70"
           title="Share Game Link"
+          aria-label="Share game link"
         >
           <QrCode />
-        </Button>
+        </PirateButton>
 
-        <Button
-          variant="outline"
-          size="icon"
+        <PirateButton
+          variant="porthole"
           onClick={toggleMinimap}
-          className="bg-black/50 border-0 text-white hover:bg-black/70"
           title="Toggle Navigation Map"
+          aria-label="Toggle navigation map"
+          aria-pressed={showMinimap}
         >
           <Map />
-        </Button>
+        </PirateButton>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              className="bg-black/50 border-0 text-white hover:bg-black/70"
+            <PirateButton
+              variant="porthole"
               title={isMuted ? "Unmute Sound" : "Mute Sound"}
+              aria-label="Audio settings"
             >
               {isMuted ? <VolumeX /> : <Volume2 />}
-            </Button>
+            </PirateButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="bg-black/90 border-amber-500 text-white p-4 rounded-md shadow-lg">
-            <DropdownMenuLabel className="text-amber-400">Audio Settings</DropdownMenuLabel>
-            <DropdownMenuSeparator className="bg-amber-500" />
+          <DropdownMenuContent className="ptw-hud border-ptw-brass/60 bg-transparent text-ptw-cream p-4 rounded-md shadow-lg w-60">
+            <DropdownMenuLabel className="ptw-font-display text-xl font-normal text-ptw-brass-hi p-0">Audio Settings</DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-ptw-brass/50 my-2" />
 
             {/* <DropdownMenuItem
               onClick={(event) => {
@@ -223,19 +221,19 @@ export default function GameUI({ controlsRef }: GameUIProps) {
             </DropdownMenuItem> */}
 
             <div className="mt-2">
-              <div className="flex justify-between items-center mb-1">
-                <span>Music </span>
-                <Button
-                  variant="outline"
-                  size="icon"
+              <div className="flex justify-between items-center mb-2">
+                <span className="ptw-font-label">Music</span>
+                <PirateButton
+                  variant="porthole"
+                  size="sm"
+                  aria-label={isMusicMuted ? "Unmute music" : "Mute music"}
                   onClick={(event) => {
                     toggleMusicMute();
                     (event.currentTarget as HTMLButtonElement).blur();
                   }}
-                  className="bg-black/50 border-0 text-white hover:bg-amber-500/20"
                 >
                   {isMusicMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                </Button>
+                </PirateButton>
               </div>
               <Slider
                 value={[musicVolume * 100]}
@@ -244,23 +242,24 @@ export default function GameUI({ controlsRef }: GameUIProps) {
                 max={100}
                 step={1}
                 className="w-full"
+                aria-label="Music volume"
               />
             </div>
 
-            <div className="mt-2">
-              <div className="flex justify-between items-center mb-1">
-                <span>SFX </span>
-                <Button
-                  variant="outline"
-                  size="icon"
+            <div className="mt-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="ptw-font-label">Sound Effects</span>
+                <PirateButton
+                  variant="porthole"
+                  size="sm"
+                  aria-label={isSfxMuted ? "Unmute sound effects" : "Mute sound effects"}
                   onClick={(event) => {
                     toggleSfxMute();
                     (event.currentTarget as HTMLButtonElement).blur();
                   }}
-                  className="bg-black/50 border-0 text-white hover:bg-amber-500/20"
                 >
                   {isSfxMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-                </Button>
+                </PirateButton>
               </div>
               <Slider
                 value={[sfxVolume * 100]}
@@ -269,6 +268,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
                 max={100}
                 step={1}
                 className="w-full"
+                aria-label="Sound effects volume"
               />
             </div>
           </DropdownMenuContent>
@@ -280,83 +280,88 @@ export default function GameUI({ controlsRef }: GameUIProps) {
 
       {/* Request to Trade */}
       {gameState.nearestPort && gameState.isNearPort && !isSunk && (
-        <div
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-black/80 text-white p-3 rounded-md border border-amber-500 shadow-lg animate-pulse cursor-pointer hover:bg-black/90 transition-colors"
+        <WoodPanel
+          role="button"
+          tabIndex={0}
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 px-6 py-3 cursor-pointer motion-safe:animate-pulse hover:brightness-110 text-center max-w-[90vw]"
           onClick={startTrade}
+          onKeyDown={(e: React.KeyboardEvent) => {
+            if (e.key === "Enter") startTrade();
+          }}
         >
-          <p className="text-center">
-            <span className="font-bold text-amber-400">
-              {gameState.nearestPort.name}
-            </span>{" "}
-            - Click here or press <span className="font-mono bg-black px-2 rounded">T</span>{" "}
-            to trade
+          <p className="ptw-font-display text-2xl sm:text-3xl leading-none text-ptw-brass-hi">
+            {gameState.nearestPort.name}
           </p>
-        </div>
+          <p className="mt-1.5 text-sm sm:text-base">
+            Click here or press <Kbd>T</Kbd> to trade
+          </p>
+        </WoodPanel>
       )}
 
       {!isSunk && (
-        <div onClick={() => setShowControls(true)} className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40 text-white text-sm opacity-70">
-          Press <span className="font-mono bg-black/60 px-1 rounded">H</span> for help
+        <div
+          onClick={() => setShowControls(true)}
+          className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40 text-ptw-cream text-sm cursor-pointer [text-shadow:0_1px_2px_#000]"
+        >
+          Press <Kbd>H</Kbd> for help
         </div>
       )}
 
       {showControls && (
-        <div onClick={() => setShowControls(false)} className="absolute left-1/2 bottom-4 transform -translate-x-1/2 z-50 bg-black/80 text-white p-4 rounded-md border border-amber-500 shadow-lg">
-          <h3 className="text-center font-bold mb-2 text-amber-400">
+        <HudPanel onClick={() => setShowControls(false)} className="absolute left-1/2 bottom-4 transform -translate-x-1/2 z-50 px-5 py-4 w-[min(22rem,92vw)]">
+          <h3 className="ptw-title text-2xl mb-3 text-ptw-brass-hi">
             Game Controls
           </h3>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
-            <div className="font-mono bg-black/60 px-2 rounded">W / ↑</div>
+          <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1.5 text-sm">
+            <div><Kbd>W</Kbd> <Kbd>â†‘</Kbd></div>
             <div>Move Forward</div>
-            <div className="font-mono bg-black/60 px-2 rounded">S / ↓</div>
+            <div><Kbd>S</Kbd> <Kbd>â†“</Kbd></div>
             <div>Move Backward</div>
-            <div className="font-mono bg-black/60 px-2 rounded">A / ←</div>
+            <div><Kbd>A</Kbd> <Kbd>â†</Kbd></div>
             <div>Turn Left</div>
-            <div className="font-mono bg-black/60 px-2 rounded">D / →</div>
+            <div><Kbd>D</Kbd> <Kbd>â†’</Kbd></div>
             <div>Turn Right</div>
-            <div className="font-mono bg-black/60 px-2 rounded">Space</div>
+            <div><Kbd>Space</Kbd></div>
             <div>Fire All Loaded Cannons</div>
-            <div className="font-mono bg-black/60 px-2 rounded">Q / E</div>
+            <div><Kbd>Q / E</Kbd></div>
             <div>Fire Left / Right Broadside</div>
-            <div className="font-mono bg-black/60 px-2 rounded">T</div>
+            <div><Kbd>T</Kbd></div>
             <div>Trade at Port</div>
-            <div className="font-mono bg-black/60 px-2 rounded">Tab</div>
+            <div><Kbd>Tab</Kbd></div>
             <div>View Leaderboard</div>
-            <div className="font-mono bg-black/60 px-2 rounded">H</div>
+            <div><Kbd>M</Kbd></div>
+            <div>World Map</div>
+            <div><Kbd>H</Kbd></div>
             <div>Toggle Controls</div>
           </div>
-        </div>
+        </HudPanel>
       )}
 
       {displayTouchControls && <TouchControls controlsRef={controlsRef} />}
 
       <Dialog open={showQRCode} onOpenChange={setShowQRCode}>
-        <DialogContent className="bg-black/90 border-amber-500 text-white">
+        <DialogContent className={`${ptwDialogTorn} w-[92vw] max-w-md px-6 pt-8 pb-7`}>
           <DialogHeader>
-            <DialogTitle className="text-amber-400">Share Game Link</DialogTitle>
-            <DialogDescription className="text-gray-300">
+            <DialogTitle className="ptw-title font-normal text-3xl">Share Game Link</DialogTitle>
+            <DialogDescription className="text-ptw-ink-soft text-base text-center italic">
               Scan the QR code or copy the link to share this game with others
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            <div className="bg-white p-4 rounded-lg">
-              <QRCodeSVG value={window.location.href} size={200} />
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="bg-[#fbf3df] p-3 rounded-sm shadow-[0_0_0_2px_#2a1a0c,0_0_0_5px_#f7ecd2,0_0_0_6px_rgba(42,26,12,0.5)]">
+              <QRCodeSVG value={window.location.href} size={200} bgColor="#fbf3df" fgColor="#2a1a0c" />
             </div>
-            <Button
-              onClick={copyToClipboard}
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-            >
+            <PirateButton onClick={copyToClipboard}>
               Click to Copy Link
-            </Button>
+            </PirateButton>
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
+          <DialogFooter className="sm:justify-center">
+            <PirateButton
+              variant="rope"
               onClick={() => setShowQRCode(false)}
-              className="border-amber-400 text-amber-200 hover:bg-amber-800"
             >
               Close
-            </Button>
+            </PirateButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

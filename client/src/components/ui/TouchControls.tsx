@@ -20,6 +20,9 @@ const joystickStyle = {
   position: 'absolute',
   bottom: '22%',
   left: '20px',
+  // Pirate theme: a faint brass compass ring behind nipplejs' own circles.
+  borderRadius: '50%',
+  background: 'radial-gradient(circle, rgba(20,12,6,0.28) 0 54%, rgba(201,162,77,0.65) 55% 57%, rgba(20,12,6,0.25) 58% 62%, transparent 64%)',
 };
 
 interface TouchControlsProps {
@@ -48,7 +51,7 @@ const TouchControls: React.FC<TouchControlsProps> = ({ controlsRef }) => {
       zone: joystickRef.current,
       mode: 'static',
       position: { left: '50%', top: '50%' },
-      color: 'white',
+      color: '#e8c77a', // brass (pirate theme)
     });
 
     // Map joystick movement to controls

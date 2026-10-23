@@ -3,7 +3,7 @@ import { useGameState } from '@/lib/stores/useGameState';
 import { LeaderboardEntry } from '@/types';
 import { apiRequest } from '@/lib/queryClient';
 import { Trophy, Coins, Calendar } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './card';
+import { ParchmentPanel } from './pirate';
 
 interface LeaderboardProps {
   compact?: boolean;
@@ -53,106 +53,94 @@ export default function Leaderboard({ compact = false }: LeaderboardProps) {
     return date.toLocaleDateString();
   };
   
+  const medal = (index: number) =>
+    index === 0 ? 'ptw-medal--gold' : index === 1 ? 'ptw-medal--silver' : index === 2 ? 'ptw-medal--bronze' : null;
+
   if (compact) {
     return (
       <div className="w-full">
-        <h3 className="text-center font-bold mb-2">Top Pirates</h3>
+        <h3 className="ptw-title text-xl mb-2">Top Pirates</h3>
         {loading ? (
-          <div className="text-center py-4">Loading scores...</div>
+          <div className="text-center py-4 italic">Loading scores...</div>
         ) : (
-          <div className="overflow-hidden rounded-md border">
-            <table className="w-full">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="text-left p-2 text-xs">#</th>
-                  <th className="text-left p-2 text-xs">Pirate</th>
-                  <th className="text-right p-2 text-xs">Gold</th>
+          <table className="ptw-ledger ptw-num">
+            <thead>
+              <tr>
+                <th className="text-left p-2 text-xs">#</th>
+                <th className="text-left p-2 text-xs">Pirate</th>
+                <th className="text-right p-2 text-xs">Gold</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.slice(0, 5).map((entry, index) => (
+                <tr key={entry.id}>
+                  <td className="p-2 text-sm">{index + 1}</td>
+                  <td className="p-2 text-sm">{entry.playerName}</td>
+                  <td className="p-2 text-sm text-right">{entry.score}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {entries.slice(0, 5).map((entry, index) => (
-                  <tr key={entry.id} className={index % 2 === 0 ? "bg-transparent" : "bg-muted/20"}>
-                    <td className="p-2 text-sm">{index + 1}</td>
-                    <td className="p-2 text-sm">{entry.playerName}</td>
-                    <td className="p-2 text-sm text-right">{entry.score}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     );
   }
-  
+
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50">
-      <Card className="w-full max-w-2xl mx-4 bg-black/90 text-white border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-center">
-            <Trophy className="h-6 w-6 text-yellow-500 mr-2" />
-            Pirate Leaderboard
-          </CardTitle>
-        </CardHeader>
-        
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8">Loading the leaderboard...</div>
-          ) : error ? (
-            <div className="text-center text-red-500 py-8">{error}</div>
-          ) : (
-            <div className="overflow-hidden rounded-md border border-gray-700">
-              <table className="w-full">
-                <thead className="bg-gray-800">
-                  <tr>
-                    <th className="text-left p-3">#</th>
-                    <th className="text-left p-3">Pirate Name</th>
-                    <th className="text-right p-3">
-                      <div className="flex items-center justify-end">
-                        <Coins className="h-4 w-4 mr-1" />
-                        Gold
-                      </div>
-                    </th>
-                    <th className="text-right p-3">
-                      <div className="flex items-center justify-end">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        Date
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry, index) => (
-                    <tr 
-                      key={entry.id} 
-                      className={index % 2 === 0 ? "bg-transparent" : "bg-gray-800/50"}
-                    >
-                      <td className="p-3">
-                        {index === 0 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-yellow-500 text-black font-bold rounded-full">1</span>
-                        ) : index === 1 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-gray-300 text-black font-bold rounded-full">2</span>
-                        ) : index === 2 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 bg-amber-700 text-white font-bold rounded-full">3</span>
-                        ) : (
-                          index + 1
-                        )}
-                      </td>
-                      <td className="p-3 font-medium">{entry.playerName}</td>
-                      <td className="p-3 text-right font-bold text-yellow-400">{entry.score.toLocaleString()}</td>
-                      <td className="p-3 text-right text-gray-400">{formatDate(entry.achievedAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          
-          <div className="text-center text-sm mt-6 text-gray-400">
-            Press Tab to view this anytime during the game
-          </div>
-        </CardContent>
-      </Card>
+    <div className="fixed inset-0 flex items-center justify-center z-[60] bg-black/40 p-3">
+      <ParchmentPanel torn className="w-full max-w-2xl max-h-[92vh] overflow-y-auto px-4 sm:px-8 pt-7 pb-6">
+        <h2 className="ptw-title text-3xl sm:text-4xl mb-3">
+          <Trophy className="h-6 w-6 sm:h-7 sm:w-7 text-ptw-burn shrink-0" aria-hidden="true" />
+          <span>Pirate Leaderboard</span>
+        </h2>
+
+        {loading ? (
+          <div className="text-center py-8 italic text-ptw-ink-soft">Loading the leaderboard...</div>
+        ) : error ? (
+          <div className="text-center text-ptw-bad-ink font-bold py-8">{error}</div>
+        ) : (
+          <table className="ptw-ledger ptw-num text-sm sm:text-base">
+            <thead>
+              <tr>
+                <th className="text-left py-2 px-2 w-12">#</th>
+                <th className="text-left py-2 px-2">Pirate Name</th>
+                <th className="text-right py-2 px-2">
+                  <div className="flex items-center justify-end">
+                    <Coins className="h-4 w-4 mr-1" aria-hidden="true" />
+                    Gold
+                  </div>
+                </th>
+                <th className="text-right py-2 px-2 hidden sm:table-cell">
+                  <div className="flex items-center justify-end">
+                    <Calendar className="h-4 w-4 mr-1" aria-hidden="true" />
+                    Date
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry, index) => (
+                <tr key={entry.id}>
+                  <td className="py-1.5 px-2">
+                    {medal(index) ? (
+                      <span className={`ptw-medal ${medal(index)}`}>{index + 1}</span>
+                    ) : (
+                      <span className="inline-block w-[1.7rem] text-center">{index + 1}</span>
+                    )}
+                  </td>
+                  <td className={`py-1.5 px-2 ${index < 3 ? 'font-bold' : ''}`}>{entry.playerName}</td>
+                  <td className="py-1.5 px-2 text-right font-bold">{entry.score.toLocaleString()}</td>
+                  <td className="py-1.5 px-2 text-right text-ptw-ink-soft hidden sm:table-cell">{formatDate(entry.achievedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        <div className="text-center text-sm mt-5 italic text-ptw-ink-soft">
+          Press <kbd className="ptw-kbd">Tab</kbd> to view this anytime during the game
+        </div>
+      </ParchmentPanel>
     </div>
   );
 }

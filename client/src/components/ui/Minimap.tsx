@@ -144,12 +144,12 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
 
   return (
     <div className="fixed bottom-32 left-4 z-50">
-      <div className="p-2 bg-gray-900/80 border-2 border-amber-700 rounded-lg">
+      <div className="ptw-hud p-2 pt-1.5">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="font-bold text-amber-400 text-sm">Navigation Map</h3>
+          <h3 className="ptw-font-label text-ptw-brass-hi text-sm">Navigation Map</h3>
           <div className="flex gap-1">
             <button
-              className="w-6 h-6 rounded bg-amber-700/60 text-white text-sm leading-none pointer-events-auto"
+              className="ptw-btn ptw-btn--porthole ptw-btn--sm pointer-events-auto leading-none"
               onClick={() => setRadius((r) => stepMinimapRadius(r, 1))}
               title="Zoom in"
               aria-label="Zoom in"
@@ -157,7 +157,7 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
               +
             </button>
             <button
-              className="w-6 h-6 rounded bg-amber-700/60 text-white text-sm leading-none pointer-events-auto"
+              className="ptw-btn ptw-btn--porthole ptw-btn--sm pointer-events-auto leading-none"
               onClick={() => setRadius((r) => stepMinimapRadius(r, -1))}
               title="Zoom out"
               aria-label="Zoom out"
@@ -171,9 +171,9 @@ export function Minimap({ toggleMinimap }: { toggleMinimap: () => void }) {
           width={Math.round(MINIMAP_SIZE * dpr)}
           height={Math.round(MINIMAP_SIZE * dpr)}
           style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE }}
-          className="rounded"
+          className="block rounded-sm shadow-[0_0_0_1px_#120a05,0_0_0_3px_#c9a24d,0_0_0_4px_#120a05]"
         />
-        <div className="text-xs text-center mt-1 text-amber-300">{minimapSpanLabel(radius)}</div>
+        <div className="ptw-num text-xs text-center mt-1.5 text-ptw-cream/85">{minimapSpanLabel(radius)}</div>
       </div>
     </div>
   );
