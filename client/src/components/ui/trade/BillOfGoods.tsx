@@ -40,6 +40,7 @@ const NATION: Record<string, string> = { england: "English", spain: "Spanish", f
 const REGION: Record<string, string> = {
   caribbean: "the Caribbean", north_atlantic: "the North Atlantic", europe: "Europe", africa: "Africa",
   indian_ocean: "the Indian Ocean", east_asia: "the East Indies", americas_pacific: "the Pacific coast",
+  south_atlantic: "the South Atlantic",
 };
 const shipName = (t: string) => ((SHIP_DISPLAY_NAMES as Record<string, string>)[t] ?? t).replace(/^The\s+/, "");
 const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;

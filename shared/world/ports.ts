@@ -26,7 +26,8 @@ export type PortRegion =
   | "africa"
   | "indian_ocean"
   | "east_asia"
-  | "americas_pacific";
+  | "americas_pacific"
+  | "south_atlantic";
 
 export interface GamePort {
   /** Numeric id used on the wire and in Redis (1-based index in ports.json). */
@@ -147,6 +148,7 @@ export const REGION_MARKETS: Readonly<Record<PortRegion, MarketProfile>> = Objec
   indian_ocean: { cheap: ["Spices", "Cotton"], dear: ["Wood", "Rum"] },
   east_asia: { cheap: ["Silk", "Spices"], dear: ["Sugar", "Tobacco"] },
   americas_pacific: { cheap: ["Silk", "Fish"], dear: ["Wood", "Rum"] },
+  south_atlantic: { cheap: ["Sugar", "Tobacco"], dear: ["Wood", "Cotton"] },
 });
 
 export const CHEAP_PRICE_FACTOR = 0.7;

@@ -511,5 +511,309 @@
       "z": 81420.9
     },
     "safeRadius": 600
+  },
+  {
+    "id": "salvador",
+    "name": "Salvador da Bahia",
+    "lat": -12.97,
+    "lon": -38.51,
+    "nation": "portugal",
+    "region": "south_atlantic",
+    "x": 157251,
+    "z": 114379.9,
+    "dock": {
+      "x": 157202.1,
+      "z": 114526.4
+    },
+    "spawn": {
+      "x": 157251,
+      "z": 114575.2
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "rio_de_janeiro",
+    "name": "Rio de Janeiro",
+    "lat": -22.91,
+    "lon": -43.17,
+    "nation": "portugal",
+    "region": "south_atlantic",
+    "x": 151977.5,
+    "z": 125463.9,
+    "dock": {
+      "x": 152075.2,
+      "z": 125610.4
+    },
+    "spawn": {
+      "x": 152124,
+      "z": 125659.2
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "recife",
+    "name": "Recife",
+    "lat": -8.05,
+    "lon": -34.88,
+    "nation": "portugal",
+    "region": "south_atlantic",
+    "x": 161254.9,
+    "z": 108911.1,
+    "dock": {
+      "x": 161352.5,
+      "z": 109008.8
+    },
+    "spawn": {
+      "x": 161401.4,
+      "z": 109057.6
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "buenos_aires",
+    "name": "Buenos Aires",
+    "lat": -34.6,
+    "lon": -58.37,
+    "nation": "spain",
+    "region": "south_atlantic",
+    "x": 135131.8,
+    "z": 138452.1,
+    "dock": {
+      "x": 135180.7,
+      "z": 138305.7
+    },
+    "spawn": {
+      "x": 135278.3,
+      "z": 138305.7
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "montevideo",
+    "name": "Montevideo",
+    "lat": -34.9,
+    "lon": -56.19,
+    "nation": "spain",
+    "region": "south_atlantic",
+    "x": 137573.2,
+    "z": 138745.1,
+    "dock": {
+      "x": 137573.2,
+      "z": 138891.6
+    },
+    "spawn": {
+      "x": 137573.2,
+      "z": 138940.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "paramaribo",
+    "name": "Paramaribo",
+    "lat": 5.85,
+    "lon": -55.2,
+    "nation": "netherlands",
+    "region": "caribbean",
+    "x": 138666.7,
+    "z": 93500,
+    "dock": {
+      "x": 138647.5,
+      "z": 93286.1
+    },
+    "spawn": {
+      "x": 138647.5,
+      "z": 93188.5
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "la_guaira",
+    "name": "La Guaira",
+    "lat": 10.6,
+    "lon": -66.93,
+    "nation": "spain",
+    "region": "caribbean",
+    "x": 125610.4,
+    "z": 88256.8,
+    "dock": {
+      "x": 125610.4,
+      "z": 88110.4
+    },
+    "spawn": {
+      "x": 125610.4,
+      "z": 88061.5
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "portobelo",
+    "name": "Portobelo",
+    "lat": 9.55,
+    "lon": -79.65,
+    "nation": "spain",
+    "region": "caribbean",
+    "x": 111500,
+    "z": 89388.9,
+    "dock": {
+      "x": 111401.4,
+      "z": 89282.2
+    },
+    "spawn": {
+      "x": 111352.5,
+      "z": 89233.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "panama",
+    "name": "Panamá",
+    "lat": 8.95,
+    "lon": -79.53,
+    "nation": "spain",
+    "region": "americas_pacific",
+    "x": 111596.7,
+    "z": 90063.5,
+    "dock": {
+      "x": 111743.2,
+      "z": 90112.3
+    },
+    "spawn": {
+      "x": 111792,
+      "z": 90161.1
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "guayaquil",
+    "name": "Guayaquil",
+    "lat": -2.19,
+    "lon": -79.88,
+    "nation": "spain",
+    "region": "americas_pacific",
+    "x": 111010.7,
+    "z": 102710,
+    "dock": {
+      "x": 110717.8,
+      "z": 103100.6
+    },
+    "spawn": {
+      "x": 110620.1,
+      "z": 103149.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "callao",
+    "name": "Callao",
+    "lat": -12.06,
+    "lon": -77.15,
+    "nation": "spain",
+    "region": "americas_pacific",
+    "x": 114277.8,
+    "z": 113400,
+    "dock": {
+      "x": 114184.6,
+      "z": 113501
+    },
+    "spawn": {
+      "x": 114135.7,
+      "z": 113549.8
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "valparaiso",
+    "name": "Valparaíso",
+    "lat": -33.05,
+    "lon": -71.62,
+    "nation": "spain",
+    "region": "americas_pacific",
+    "x": 120422.2,
+    "z": 136722.2,
+    "dock": {
+      "x": 120336.9,
+      "z": 136596.7
+    },
+    "spawn": {
+      "x": 120239.3,
+      "z": 136547.9
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "juan_fernandez",
+    "name": "Juan Fernández",
+    "lat": -33.64,
+    "lon": -78.85,
+    "nation": "pirates",
+    "region": "americas_pacific",
+    "x": 112388.9,
+    "z": 137377.8,
+    "dock": {
+      "x": 112377.9,
+      "z": 137524.4
+    },
+    "spawn": {
+      "x": 112377.9,
+      "z": 137573.2
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "new_york",
+    "name": "New York",
+    "lat": 40.7,
+    "lon": -74.01,
+    "nation": "england",
+    "region": "north_atlantic",
+    "x": 117797.9,
+    "z": 54809.6,
+    "dock": {
+      "x": 117993.2,
+      "z": 55053.7
+    },
+    "spawn": {
+      "x": 118042,
+      "z": 55102.5
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "porto",
+    "name": "Porto",
+    "lat": 41.15,
+    "lon": -8.61,
+    "nation": "portugal",
+    "region": "europe",
+    "x": 190433.3,
+    "z": 54277.8,
+    "dock": {
+      "x": 190210,
+      "z": 54321.3
+    },
+    "spawn": {
+      "x": 190161.1,
+      "z": 54370.1
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "funchal",
+    "name": "Funchal",
+    "lat": 32.65,
+    "lon": -16.91,
+    "nation": "portugal",
+    "region": "europe",
+    "x": 181225.6,
+    "z": 63696.3,
+    "dock": {
+      "x": 181225.6,
+      "z": 63842.8
+    },
+    "spawn": {
+      "x": 181225.6,
+      "z": 63891.6
+    },
+    "safeRadius": 600
   }
 ]
