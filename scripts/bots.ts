@@ -25,6 +25,7 @@ import { MAX_NAME_LENGTH, PING_INTERVAL_MS } from "../shared/protocol";
 import type { ShipInput } from "../shared/physics";
 import { Predictor } from "../client/src/lib/net/prediction";
 import { loadLandSync } from "../server/game/landLoader";
+import { tradeRoundTrip, type TradeCheckResult } from "./tradeCheck";
 
 /** Largest own-ship reconciliation correction (world units) a bot may see after warmup. */
 const MAX_OWN_CORRECTION = 1;
@@ -361,6 +362,8 @@ async function main(): Promise<void> {
   }
   console.log(`bots: ${opts.bots} -> ${opts.url}, ${opts.duration}s${opts.assert ? ", --assert" : ""}`);
   for (const b of bots) { b.start(); await sleep(25); }
+  // Trade round trip (one extra, idle player at its port spawn); awaited before the report.
+  const tradeCheck: Promise<TradeCheckResult> = tradeRoundTrip(opts.url, `trd${runId}`.slice(0, MAX_NAME_LENGTH));
 
   // If nothing can connect (server down) fail fast with a clear message.
   await sleep(2000);
@@ -469,6 +472,11 @@ async function main(): Promise<void> {
     for (const b of bots) if (b !== spammer && b.s.chat.some((l) => l.sys)) failures.push(`${b.s.name}: saw another player's throttle notice`);
   }
   console.log(`CHAT ${JSON.stringify({ heard: chatHeard, audience: chatAudience.length, spamDelivered, spamNotices })}`);
+
+  const trade = await tradeCheck;
+  if (!trade.ran) console.log(`\ntrade round trip skipped: ${trade.skipped}`);
+  else if (!trade.failures.length) console.log("\ntrade round trip ok (concurrent buys, expectedPrice guard, sellAll, empty_hold)");
+  failures.push(...trade.failures);
 
   if (opts.json) {
     writeFileSync(opts.json, JSON.stringify({ summary, bots: reports, failures }, null, 2));

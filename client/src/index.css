@@ -1,5 +1,7 @@
 /* Pirate theme layer: tokens + ptw-* component classes (see components/ui/pirate/README.md). */
 @import "./styles/pirate.css";
+/* Trade screen (bill of goods): components/ui/trade/BillOfGoods.tsx, docs/design/STYLE_GUIDE.md. */
+@import "./styles/trade.css";
 
 @tailwind base;
 @tailwind components;

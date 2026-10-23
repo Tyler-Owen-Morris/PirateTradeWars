@@ -54,7 +54,7 @@ export default function GameUI({ controlsRef }: GameUIProps) {
   const [showControls, setShowControls] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
   const [showWorldMap, setShowWorldMap] = useState(false);
-  const { isSunk, gameState } = useGameState();
+  const { isSunk, gameState, isTrading: tradingOpen } = useGameState();
   const {
     isMuted,
     isMusicMuted,
@@ -91,7 +91,8 @@ export default function GameUI({ controlsRef }: GameUIProps) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      //console.log("key down", e.key, showLeaderboard)
+      // The trade screen owns the keyboard while it is open (its own T / Esc / Tab focus trap).
+      if (useGameState.getState().isTrading) return;
       if (e.key === "Tab") {
         e.preventDefault();
         setShowLeaderboard(true);
@@ -339,7 +340,8 @@ export default function GameUI({ controlsRef }: GameUIProps) {
         </HudPanel>
       )}
 
-      {displayTouchControls && <TouchControls controlsRef={controlsRef} />}
+      {/* Hidden while trading: nipplejs draws above every overlay (z-index 999). */}
+      {displayTouchControls && !tradingOpen && <TouchControls controlsRef={controlsRef} />}
 
       <Dialog open={showQRCode} onOpenChange={setShowQRCode}>
         <DialogContent className={`${ptwDialogTorn} w-[92vw] max-w-md px-6 pt-8 pb-7`}>

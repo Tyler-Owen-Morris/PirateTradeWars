@@ -9,7 +9,7 @@ import GameUI from "./components/ui/GameUI";
 import ShipSelection from "./components/ui/ShipSelection";
 import GameOver from "./components/ui/GameOver";
 import { useGameState } from "./lib/stores/useGameState";
-import TradeMenu from "./components/ui/TradeMenu";
+import BillOfGoods from "./components/ui/trade/BillOfGoods";
 // import TouchControls from './components/ui/TouchControls'
 import { isMobile } from 'react-device-detect';
 import { net } from "./lib/net";
@@ -190,7 +190,7 @@ function App() {
 
                 <GameUI controlsRef={controlsRef} />
 
-                {isTrading && <TradeMenu />}
+                {isTrading && <BillOfGoods />}
 
                 {isSunk && <GameOver score={gameState.player?.gold || 0} />}
 
