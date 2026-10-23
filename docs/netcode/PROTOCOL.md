@@ -217,14 +217,33 @@ The client never sends position, speed, direction or rotation. The server is aut
 - **Server → client** `{t:"chat", id, from, text, ts, sys?}` (`ChatMessage`):
   - `id` increasing server sequence number (> 0) for broadcast lines; `0` for private system notices.
   - `from` is the sender's ship name from the server's player record (`""` for system lines).
-  - `text` is sanitized, runs of > 3 identical characters are cut to 3, and a small built-in word list
-    (profanity and slurs, leet-tolerant) is masked with asterisks of the same length.
+  - `text` is sanitized, runs of > 3 identical characters are cut to 3, and MILD profanity is masked
+    with asterisks (see "Moderation" below). Lines with severe or personal-info content are never sent.
   - `ts` server `Date.now()` when accepted; `sys: 1` marks a system line.
   - Player lines are broadcast at once to every attached socket (all players, not interest-filtered), from
     the socket message path. Chat never runs inside `World.step()` and never waits on the tick.
 - **Rate limit:** a token bucket per player id: burst 5, refill 1 per second (a reconnect does not refill
   it). A throttled line is dropped and the sender alone gets a private notice
   `{t:"chat", id:0, from:"", sys:1, text:"Easy there, matey! ..."}`, at most once per 3 s.
+- **Moderation (2026-10-23, kid-safe; `server/game/chatFilter.ts`, server-only so cached clients benefit):**
+  detection runs on a normalized copy (NFKD, accents removed, Cyrillic/Greek/small-caps look-alikes and
+  leet folded, letter-spaced runs like "f u c k" / "s.h.i.t" joined) using the `obscenity` package's
+  English dataset plus our own patterns, with a `SAFE_TERMS` list against false positives (Scunthorpe,
+  cocktail, shiitake, Dickens, Moby Dick, Rio Negro...). Allowed pirate words: damn, hell, bloody, blast, crap.
+  - **Mild** (fuck, shit, ass, bitch, bastard, cock, dick, piss...): the word is masked with `*`, the line is sent.
+  - **Severe** (slurs/hate, sexual content, self-harm/threats such as "kys") and **child safety** (links,
+    `x dot com`, discord invites, emails, phone numbers, street addresses, "how old r u", "where do you
+    live", "snap me", "add me on discord", any mention of snapchat/instagram/discord/tiktok...): the whole
+    line is dropped; the sender alone gets `{t:"chat", id:0, from:"", sys:1, text:"Mind your tongue,
+    sailor — that message was not sent."}`. Nothing is added to the history.
+  - **Escalation:** 3 dropped lines within 10 min → muted for 10 min (that notice adds "You're muted from
+    chat for 10 minutes."); each further mute doubles, max 1 h; the doubling resets after 24 h without a
+    mute. While muted every line is dropped with `"You're muted from chat for another N minutes."` (at most
+    once per 3 s). Keyed by player id: survives reconnects, cleared by a server restart.
+  - **Names:** `connect` with a name that is not clean (any tier) → `{type:"nameError", message:"That ship
+    name isn't allowed. Please choose another."}`.
+  - `sanitizeChatText` also strips soft hyphens, U+034F, Hangul fillers and U+180E, and strips BEFORE it
+    collapses whitespace (U+FEFF counts as `\s`).
 - **History:** the server keeps the last `CHAT_HISTORY_SIZE` (30) broadcast lines in memory and sends
   `{t:"chatHistory", lines:[ChatMessage...]}` (oldest first) right after every `connected`/`reconnected`.
   Nothing is stored in Redis: a server restart (deploy) clears the chat. Private notices are not kept.

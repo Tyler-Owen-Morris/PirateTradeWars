@@ -4,13 +4,16 @@
  * Every frame is validated with `parseClientMessage`; invalid frames are dropped silently (no
  * per-frame error replies). Hot-path messages are synchronous: `input` goes straight into the
  * world's per-player input queue (consumed by the 20 Hz tick), `ping` is answered with `pong`, and
- * `chat` is rate-limited/cleaned by `gameState.chat` (server/game/chat.ts) and broadcast at once.
+ * `chat` is rate-limited/moderated by `gameState.chat` (server/game/chat.ts) and broadcast at once;
+ * a refused line (throttled, muted, blocked) gets only a private notice to the sender. New ship names
+ * are checked with `isNameAllowed` (server/game/chatFilter.ts) at `connect`.
  * The legacy flows (connect / reconnect / trade / upgradeShip / repairShip / scuttle) stay async
  * (Redis) but run outside the tick and operate on the live world player objects.
  */
 import { redisStorage } from "../redisStorage";
 import { gameState, type WorldPlayer } from "./gameState";
 import { isNpcId } from "./world";
+import { isNameAllowed } from "./chatFilter";
 import { decayNotoriety } from "./npc/factions";
 import { WebSocket } from "ws";
 import { SHIP_UPGRADE_PATH, SHIP_STATS, GOODS } from "@shared/gameConstants";
@@ -109,6 +112,10 @@ export function handleSocketConnection(ws: WebSocket) {
     if (isNpcId(data.tempPlayerId)) delete data.tempPlayerId; // NPC1: npc:* ids are reserved
     if (!data.name || data.name.trim().length < 3) {
       return sendError(ws, "Name must be at least 3 characters");
+    }
+    // Kid-safe names (chatFilter.ts): the ship name is shown to everyone and is chat's `from`.
+    if (!isNameAllowed(data.name)) {
+      return sendError(ws, "That ship name isn't allowed. Please choose another.", "nameError");
     }
     const reservedPlayerId = await redisStorage.getActiveNamePlayerId(data.name);
     if (reservedPlayerId && reservedPlayerId !== data.tempPlayerId) {

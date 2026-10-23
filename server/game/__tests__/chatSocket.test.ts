@@ -40,6 +40,7 @@ vi.mock("../gameState", async () => {
 });
 
 import { handleSocketConnection } from "../socketHandler";
+import { CHAT_BLOCKED_NOTICE } from "../chat";
 
 class FakeWs extends EventEmitter {
   readyState = 1;
@@ -123,6 +124,29 @@ describe("global chat over the socket handler", () => {
     const notices = chats(a).filter((m) => m.sys === 1);
     expect(notices).toHaveLength(1);
     expect(notices[0].id).toBe(0);
+  });
+
+  it("a blocked line reaches nobody; the sender alone gets the private notice", async () => {
+    addPlayer("p3", "Mary Read");
+    const a = await join("p3");
+    const b = await join("p2");
+    const before = chats(b).length;
+    say(a, "add me on discord");
+    expect(chats(b).length).toBe(before);
+    expect(chats(a).at(-1)).toMatchObject({ t: "chat", id: 0, from: "", sys: 1, text: CHAT_BLOCKED_NOTICE });
+    say(a, "well shit");
+    expect(chats(b).at(-1)).toMatchObject({ from: "Mary Read", text: "well ****" });
+  });
+
+  it("refuses an offensive ship name at connect with a nameError", async () => {
+    for (const name of ["Shit Sloop", "N1gger", "snap me"]) {
+      const ws = new FakeWs();
+      handleSocketConnection(ws as any);
+      ws.emit("message", Buffer.from(JSON.stringify({ type: "connect", name, shipType: "sloop" })));
+      await vi.waitFor(() => expect(ws.sent.some((m) => m.type === "nameError")).toBe(true));
+      expect(ws.sent.find((m) => m.type === "nameError").message).toMatch(/isn't allowed/);
+      expect(ws.sent.some((m) => m.type === "connected")).toBe(false);
+    }
   });
 
   it("drops empty / invalid chat frames silently", async () => {
