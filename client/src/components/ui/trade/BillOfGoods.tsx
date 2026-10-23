@@ -533,14 +533,21 @@ export default function BillOfGoods() {
       };
     }
     const side = sel.sel.side, g = selGood, price = side === "buy" ? g.buyPrice : g.sellPrice;
+    // Written as the clerk's bill: "Bought of the Harbourmaster, Havana: / Fish, at 9 g each .... 180 g".
     const head = (
       <div className="tb-sgood">
         <span className="sr">{side === "buy" ? "Purchase:" : "Sale:"}</span>
-        <b>{g.name}</b>
-        <span className="each">{price !== null && <>at <Num n={price} /> g each</>}</span>
+        <span className="tb-of">{side === "buy" ? "Bought of" : "Sold to"}<span className="long"> the Harbourmaster,</span> {port.name}:</span>
         <span className="sp" />
         <button className="tb-x" data-fk="clear" aria-label="Clear selection" disabled={locked} onClick={clearSel}><XIcon /></button>
       </div>
+    );
+    const item = (total: number | null) => (
+      <p className="tb-item">
+        <b>{g.name}</b>
+        <span className="each">{price !== null && <>, at <Num n={price} /> g each</>}</span>
+        {total !== null && <><span className="tb-lead" aria-hidden="true" /><span key={total} className="tb-total"><Num n={total} /> g</span></>}
+      </p>
     );
     const title = <>Bill of Sale <em className={side}>— {side === "buy" ? "Purchase" : "Sale"}</em></>;
     if (!lim.max) {
@@ -549,6 +556,7 @@ export default function BillOfGoods() {
         body: (
           <>
             {head}
+            {item(null)}
             <p className="tb-limit block" id="tb-limit">{lim.block}</p>
             <div className="tb-sfoot"><button id="tb-sign" className="tb-btn ptw-sign" data-fk="sign" disabled aria-describedby="tb-limit">
               {side === "buy" ? (g.buyPrice === null ? "Not sold here" : "Cannot buy") : "Nothing to sell"}
@@ -567,6 +575,7 @@ export default function BillOfGoods() {
       body: (
         <>
           {head}
+          {item(q !== null ? total : null)}
           <p className="tb-sline">{side === "buy" ? <><Num n={g.stock} /> in the warehouse</> : <><Num n={g.held} /> aboard{g.paid !== undefined && <>, paid <Num n={g.paid} /> each</>}</>}</p>
           <div className="tb-qrow">
             <div className="tb-stepper" role="group" aria-label="Amount">
@@ -602,9 +611,9 @@ export default function BillOfGoods() {
           </p>
           {q !== null && (
             <p className="tb-sum ptw-num" id="tb-sum">
-              <span>Purse <s>{fmt(purse.gold)}</s> → <b>{fmt(goldAfter)}</b> g</span>
-              <span>Hold <s>{used}</s> → <b>{side === "buy" ? used + q : used - q}</b>/{cap}</span>
-              {profit !== null && <span>{profit >= 0 ? "Profit" : "Loss"} <b className={profit >= 0 ? "pl-up" : "pl-dn"}>{profit >= 0 ? "+" : "−"}{fmt(Math.abs(profit))} g</b> on what you paid</span>}
+              <span><i>Purse</i> <s>{fmt(purse.gold)}</s> <b>{fmt(goldAfter)}</b> g</span>
+              <span><i>Hold</i> <s>{used}</s> <b>{side === "buy" ? used + q : used - q}</b> of {cap}</span>
+              {profit !== null && <span><i>{profit >= 0 ? "Profit" : "Loss"}</i> <b className={profit >= 0 ? "pl-up" : "pl-dn"}>{profit >= 0 ? "+" : "−"}{fmt(Math.abs(profit))} g</b> on cost</span>}
             </p>
           )}
           <div className="tb-sfoot">
@@ -636,8 +645,8 @@ export default function BillOfGoods() {
     );
     const sum = (
       <p className="tb-sum ptw-num" id="tb-sum">
-        <span>Purse <s>{fmt(purse.gold)}</s> → <b>{short > 0 ? "—" : fmt(purse.gold - cost)}</b> g</span>
-        {isRep ? <span>Hull <s>{player.hp}</s> → <b>{player.maxHp}</b></span> : <span>Hold {cap} → <b>{nextStats?.cargoCapacity}</b></span>}
+        <span><i>Purse</i> <s>{fmt(purse.gold)}</s> <b>{short > 0 ? "—" : fmt(purse.gold - cost)}</b> g</span>
+        {isRep ? <span><i>Hull</i> <s>{player.hp}</s> <b>{player.maxHp}</b></span> : <span><i>Hold</i> <s>{cap}</s> <b>{nextStats?.cargoCapacity}</b></span>}
       </p>
     );
     const title = <>Work Order <em className="order">— {isRep ? "repair" : "refit"}</em></>;
@@ -810,6 +819,8 @@ export default function BillOfGoods() {
           </div>
         </div>
         <div className="tb-slipwrap">
+          {/* the wax dab that holds the bill of sale to the counter (decorative) */}
+          <span className="tb-dab" aria-hidden="true" />
           <div className="ptw-slip">
             <h2 className="tb-slip-h">{slip.head}</h2>
             <div className="tb-slipbody">{slip.body}</div>

@@ -2,6 +2,7 @@
 @import "./styles/pirate.css";
 /* Trade screen (bill of goods): components/ui/trade/BillOfGoods.tsx, docs/design/STYLE_GUIDE.md. */
 @import "./styles/trade.css";
+@import "./styles/trade-slip.css"; /* the handwritten bill of sale (layered over trade.css) */
 
 @tailwind base;
 @tailwind components;
