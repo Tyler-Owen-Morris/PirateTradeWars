@@ -60,6 +60,9 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
         if (type === 'sloop') {
           model.position.y = dims.height - 5;
         }
+        if (type === 'brigantine') {
+          model.rotation.y = Math.PI; // the .glb is authored stern-first
+        }
         if (type === 'galleon') {
           model.rotation.y = Math.PI / 2 + Math.PI;
           let localScaleFactor = dims.length / 1.4;
