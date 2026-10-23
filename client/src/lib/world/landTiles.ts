@@ -51,6 +51,8 @@ export class ClientLandTiles {
   private readonly dataTiles = new Set<number>();
   private uniform = new Set<number>();
   private centerKey = -1;
+  /** Dev city camera (lib/world/cityDebug.ts): load around this point instead of the ship. */
+  centerOverride: { x: number; z: number } | null = null;
   /** Bumps whenever a tile arrives (renderers can watch it). */
   version = 0;
   private listeners = new Set<() => void>();
@@ -79,6 +81,10 @@ export class ClientLandTiles {
 
   /** Make sure the tiles around (x, z) are loaded or loading. Call every frame. */
   update(x: number, z: number): void {
+    if (this.centerOverride) {
+      x = this.centerOverride.x;
+      z = this.centerOverride.z;
+    }
     if (this.manifestState !== "done") {
       this.loadManifest();
       return;
