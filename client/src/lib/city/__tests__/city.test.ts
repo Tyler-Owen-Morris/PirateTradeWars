@@ -87,7 +87,8 @@ describe("buildCity", () => {
       total += tris;
       rows.push(`${p.key.padEnd(13)} ${c.styleId.padEnd(17)} h${String(c.stats.houses).padStart(3)} w${c.stats.warehouses} piers${c.stats.piers} x${c.stats.extras} t${String(c.stats.trees).padStart(3)} tris ${c.main.triangles}+${c.detail.triangles}+${c.flags.triangles} ${c.stats.ms}ms ${c.stats.placed.join(",")}${c.stats.missed.length ? " MISSED " + c.stats.missed.join(",") : ""}`);
       checks.push(() => {
-        expect(c.stats.houses, p.key).toBeGreaterThan(8);
+        // A town has > 8 houses; an outpost that caps its houses (Juan Fernández: one hut) gets all of them.
+        expect(c.stats.houses, p.key).toBeGreaterThanOrEqual(Math.min(9, CITY_CUSTOM[p.key]?.tweak?.maxHouses ?? 9));
         expect(tris, p.key).toBeLessThan(40000);
         expect(c.main.position.every(Number.isFinite), p.key).toBe(true); // nothing is NaN
       });

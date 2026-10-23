@@ -1,6 +1,6 @@
 # Port-city kit
 
-Procedural, data-driven low-poly towns for the 27 ports (and the coming expansion). One generic
+Procedural, data-driven low-poly towns for the 43 ports (27 original + 16 from New Horizons phase 1, 2026-10-23). One generic
 look per **city type** (style), plus a **small per-city entry** for well-known landmarks. Everything
 here is framework-free and deterministic (seeded by the port key) except `cityMaterial.ts`
 (three.js shader) and the React component `components/game/PortCity.tsx`.
@@ -9,7 +9,7 @@ here is framework-free and deterministic (seeded by the port key) except `cityMa
 |---|---|
 | `styles.ts` | The style table (`STYLES`), nation → style (`STYLE_BY_NATION`), all style fields documented on `CityStyle`. |
 | `cities.ts` | `CITY_CUSTOM[port.key]`: per-city tweaks (style override, size, fort side/where/scale, landmark scale, extras, field overrides). |
-| `pieces.ts` | The pieces: houses (+ roofs: gable/hip/flat/tiered/shed/stepgable/bellgable), warehouse, landmarks, forts, cannons, ramparts, boats/ships, careened ship, gallows, lighthouse, round tower, Belém tower, facade, keep, windmill, trees, flags. `EXTRA_PIECES` registry. |
+| `pieces.ts` | The pieces: houses (+ roofs: gable/hip/flat/tiered/shed/stepgable/bellgable), warehouse, landmarks, forts, cannons, ramparts, boats/ships, careened ship, gallows, lookout (timber watch platform, Juan Fernández), lighthouse, round tower, Belém tower, facade, keep, windmill, trees, flags. `EXTRA_PIECES` registry. |
 | `layout.ts` | `buildCity(input, site)`: places everything on the real coast and returns three merged layers. |
 | `site.ts` | `makeCitySite` (terrain SDF + height around a town, local metric), `flatCoastSite` (no-land fallback), `cityInputFor(port)`. |
 | `meshBuilder.ts` | Tiny flat-shaded triangle builder with frames (push/pop), auto-fixed winding, sRGB vertex colours. |
@@ -71,3 +71,11 @@ havana: {
 },
 ```
 Keep entries small: one or two signature pieces. Look at the result with `__cityCam("havana", {dist: 300, height: 95, yaw: 30})`.
+
+## New Horizons phase 1 towns (2026-10-23)
+The 16 new ports use their nation's style (`spanish_colonial`, `portuguese`, `english`, `dutch`, `pirate_haven`) with
+one-line `CITY_CUSTOM` entries: Salvador (churches on the upper town's escarpment), Buenos Aires (low flat roofs, the
+bastioned Fuerte), Montevideo (walled), Callao (the Real Felipe star fort, ×1.6), Portobelo (shore batteries), Panamá
+(sea walls), Juan Fernández (one hut and a `lookout`; `maxHouses: 1`, so the kit test's "> 8 houses" rule yields to
+the cap), New York (Fort George, a windmill), Porto (wine lodges and barges on the Ribeira), Funchal (whitewash under
+green hills). Rio's Sugarloaf is terrain. `CITY_REPORT=1` numbers: 4-12k triangles, 4-12 ms per town.

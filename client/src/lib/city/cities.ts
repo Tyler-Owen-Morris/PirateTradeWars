@@ -200,4 +200,101 @@ export const CITY_CUSTOM: Record<string, CityCustom> = {
     extras: [{ piece: "ship", where: "water", scale: 1.2 }],
     note: "Fort San Diego (star fort) over the bay; the Manila galleon at anchor.",
   },
+
+  // --- New Horizons phase 1 (2026-10-23): the Americas, both coasts --------------------------------
+  // South Atlantic
+  salvador: {
+    size: 1.15,
+    tweak: { trees: "palm" },
+    extras: [{ piece: "church_twin_towers", where: "highpoint", scale: 0.9 }, { piece: "church_bell_tower", where: "highpoint", scale: 0.8 }],
+    note: "Capital of Brazil: the upper town's churches on the escarpment above the lower town's quay (the split is the real terrain).",
+  },
+  rio_de_janeiro: {
+    tweak: { trees: "palm" },
+    fortScale: 1.15,
+    extras: [{ piece: "ship", where: "water" }],
+    note: "Gold-rush port of Minas: whitewash and tile round Guanabara Bay, Santa Cruz fort at the mouth. Sugarloaf is terrain.",
+  },
+  recife: {
+    tweak: { trees: "palm", walls: ["#f6f3ea", "#f0d58a", "#e8c27a", "#f2a88a"] },
+    note: "The 'Brazilian Mauritsstad': tall pastel fronts on the reef-sheltered river island, Forte do Brum on the sand.",
+  },
+  buenos_aires: {
+    tweak: { roofKinds: { flat: 0.85, hip: 0.15 }, floors: [1, 1], fort: "bastion", trees: "broadleaf" },
+    fortScale: 1.2,
+    note: "A low flat-roofed town on the pampa's edge; the Fuerte (bastioned) on the river bank.",
+  },
+  montevideo: {
+    size: 0.85,
+    tweak: { cityWalls: true, roofKinds: { flat: 0.7, hip: 0.3 }, fort: "star" },
+    note: "Walled Spanish citadel town on its peninsula across the River Plate.",
+  },
+  // Caribbean (the Main and the Guianas)
+  paramaribo: {
+    size: 0.85,
+    tweak: { trees: "palm", walls: ["#f4f1ea", "#efe8d8", "#f6f3ea", "#e6dcc6"], roofs: ["#3f4652", "#5a5048"], extras: [] },
+    fortScale: 1.1,
+    note: "White timber Dutch houses on the Suriname river; Fort Zeelandia (star fort); no windmills in the tropics.",
+  },
+  la_guaira: {
+    size: 0.8,
+    fortWhere: "highpoint",
+    tweak: { trees: "palm", fort: "bastion" },
+    note: "Caracas's port squeezed under the mountain wall; the Castillo de San Carlos above the town.",
+  },
+  portobelo: {
+    size: 0.8,
+    tweak: { trees: "palm", fort: "bastion" },
+    extras: [{ piece: "fort_bastion", where: "mouth", scale: 0.8 }, { piece: "fort_bastion", where: "coast", scale: 0.7 }],
+    note: "Fair town of the treasure fleet: shore batteries round the bay (Santiago, San Jerónimo, San Fernando).",
+  },
+  // Pacific coast of the Americas
+  panama: {
+    tweak: { cityWalls: true, trees: "palm" },
+    landmarkScale: 1.1,
+    note: "Panamá Viejo's successor on its walled peninsula: sea walls round the town, the cathedral's bell tower.",
+  },
+  guayaquil: {
+    size: 0.9,
+    tweak: { trees: "palm", roofKinds: { hip: 0.7, gable: 0.3 } },
+    extras: [{ piece: "careened_ship", where: "coast" }],
+    note: "Timber town and shipyard of the South Sea on the Guayas (a hull on the slip).",
+  },
+  callao: {
+    tweak: { fort: "star" },
+    fortScale: 1.6,
+    note: "Lima's port; the Real Felipe fortress (pentagonal star fort, built 1747) dominates the waterfront.",
+  },
+  valparaiso: {
+    size: 0.85,
+    fortWhere: "highpoint",
+    tweak: { fort: "bastion", trees: "broadleaf" },
+    note: "Small port under the hills; Castillo San José on the height.",
+  },
+  juan_fernandez: {
+    size: 1,
+    tweak: {
+      maxHouses: 1, warehouses: 0, piers: 1, boats: 1, shipsAtAnchor: 0, fort: "none", landmark: "none",
+      trees: "broadleaf", treeCount: 45, extras: [{ piece: "lookout", where: "highpoint" }],
+    },
+    note: "Uninhabited: one lonely hut on Cumberland Bay and a lookout on the ridge, where Selkirk was marooned (1704–09).",
+  },
+  // North Atlantic and Europe
+  new_york: {
+    size: 1.1,
+    tweak: { fort: "star", extras: [{ piece: "windmill", where: "outskirts", count: 1 }] },
+    fortScale: 1.1,
+    extras: [{ piece: "ship", where: "water" }],
+    note: "Fort George (Fort Amsterdam, four bastions) at the tip of Manhattan; Trinity's steeple; a Dutch windmill left over.",
+  },
+  porto: {
+    tweak: { fort: "none", warehouses: 6, boats: 6 },
+    extras: [{ piece: "boat", where: "water", count: 3 }, { piece: "church_bell_tower", where: "highpoint", scale: 1.1 }],
+    note: "The Ribeira riverfront: wine lodges on the Douro quay, port-wine barges (rabelos) moored off, the Clérigos tower above.",
+  },
+  funchal: {
+    size: 0.9,
+    tweak: { walls: ["#f6f3ea", "#f4f1ea", "#efe8d8"], trees: "broadleaf", treeCount: 90 },
+    note: "Madeira: a whitewashed town with tile roofs under green terraced hills; São Lourenço fort on the bay.",
+  },
 };
