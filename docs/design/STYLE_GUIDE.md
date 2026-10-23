@@ -41,6 +41,7 @@ These are not allowed on in-world surfaces (anything parchment, wood or wax):
 - Pirata One anywhere but the port / screen name.
 - Bootstrap-style red alert boxes. Refusals are the clerk's note: wax rule + small seal.
 - Brass on anything except the one Sign button.
+- Handwriting on a control (button labels are printed), or a hand font for long sentences outside the bill of sale.
 
 ### Lint rules (to add with the trade screen)
 
@@ -57,7 +58,7 @@ These are not allowed on in-world surfaces (anything parchment, wood or wax):
 |---|---|---|---|
 | Trade overlay | plank **counter** | `.ptw-counter` | wood grain (`--ptw-tex-grain`) over a 3-stop wood gradient, plank seams every 120px, iron nails at the corners; padding 18px desktop / 8px phone / 5px landscape; shadow `0 10px 12px rgb(0 0 0/.55)` |
 | The list | **bill of goods** page | `.ptw-ledger-page` | parchment gradient + noise; torn edge on all four sides (CSS mask of the theme layer's torn tiles); contact shadow via `filter: drop-shadow(0 3px 3px rgb(0 0 0/.55))` on a wrapper (the mask clips box-shadow); red double margin rule at 31–36px |
-| The action area | **bill of sale**, torn from a book | `.ptw-slip` | its own sheet, darker (`--ptw-slip` #dcc597), overlapping the page by 14px; perforated edge (left on desktop and landscape, top on phone) via a radial-gradient mask; drop shadow ≤ 4px blur |
+| The action area | **bill of sale**: a small scrap of laid rag paper the clerk fills in with a quill | `.ptw-slip` (+ `styles/trade-slip.css`) | its own sheet, overlapping the page by 14px. Edges: a deckled CSS mask (`--ptw-deckle-*`) on all four sides; on phones there is no bottom edge. Rotation: −0.8° on desktop, +0.35° on phones, −0.6° in landscape. Tone: a warm, uneven radial (#f2e5c2 → #d2b57c), plus noise, laid lines every 7px and 3–4 foxing spots. It has a red margin rule and is held by a wax dab (`.tb-dab`). The contact shadow is `drop-shadow(1px 3px 2px rgb(0 0 0/.5))` on the wrapper (the mask clips box-shadow). See §8a for how controls sit on it |
 | Shipwright | **work orders** pinned up | `.ptw-order` | parchment-lo chit, square corners, ±0.6° rotation, iron pin, shadow `0 2px 3px` |
 | Hold gauge | **bar of crates** | `HoldCrates` | one cell per unit (cap ≤ 50; above that one cell per 2 units); full cells burnt-wood, the pending purchase hatched ink-blue, the pending sale hatched burn |
 | Hull | **plank tally** | `HullPlanks` | 10 planks; damaged planks drawn broken (ink-off outline, cracked clip-path) |
@@ -121,6 +122,8 @@ Scrim behind any modal: `radial-gradient(ellipse at center, rgb(7 18 27/.35), rg
 | Display | Pirata One | **the port name only** (and equivalent screen titles) | 32 / 26 / 22 landscape |
 | Label | IM Fell English SC | column heads, group heads, tabs, button *words*, stamp | 13–18 |
 | Note **(renamed `--ptw-font-note`)** | IM Fell English italic | the clerk's annotations: subtitle, "not sold here", "cheap here", margin notes | 12–15 |
+| **Hand** (`--ptw-font-hand`) | **La Belle Aurore** | text the clerk WRITES on the bill of sale: "Bought of the Harbourmaster, Havana:", the item line, the sums, the limit note, the hint and the result line. Its figures too: 1/7, 4/9 and 0/6 stay distinct at 16px | 15–26 (needs about 1.25× the size of Alegreya; never below 15) |
+| **Flourish** (`--ptw-font-flourish`) | **Pinyon Script** | the "Bill of Sale" heading only | 24–34 |
 | Body | Alegreya | goods names (600), sentences, filter links (italic), reasons | 15–18 |
 | Numerals | Alegreya `.ptw-num` (lining, tabular) | **every digit**, including inside Fell SC buttons (wrap the number in `.ptw-num`) | figures 19 / 18 bold; purse 22 / 19 |
 
@@ -161,6 +164,33 @@ The list reads like an 18th-century *price current*: `Sugar ........... 18 | 16`
 **Two-step confirms** (sell the whole hold, refit): the first press *arms*; the armed panel lists what will happen
 (every line, and any sold below what was paid); the real confirm is a wax button **in a different place** from the
 button just pressed (the spot under the finger becomes the harmless "Keep …"), and it ignores taps for **400ms**.
+
+## 8a. Handwriting and controls on paper (the bill of sale)
+
+Rule: **what is written is in the hand; what you press is an object lying on the paper.** Button labels
+stay in Alegreya or Fell SC (printed), so a control can never be mistaken for writing.
+
+- **Writing** (iron-gall ink `--ptw-quill` #2b1a0e; labels and notes in `--ptw-quill-faded` #5a3b1f; slip
+  ~#e4cf9d gives 10:1 and 6:1). A 0.25px text stroke gives the nib some weight so hairlines survive on phones.
+  - Heading: "Bill of Sale" in Pinyon Script, then "— *Purchase*" (ink-blue) or "— *Sale*" (wax).
+  - Opening line: "Bought of / Sold to the Harbourmaster, {port}:" (on phones, "Bought of {port}:").
+  - Item line: "**Fish**, at 9 g each ……… 180 g", ruled underneath. The total "writes in" (clip reveal, 260 ms;
+    none under reduced motion).
+  - Sums are the clerk's sums on ruled lines: "Purse ~~200~~ 20 g", "Hold ~~0~~ 20 of 20", "Loss −20 g on cost".
+    The old figure is struck through in ink, with no arrows.
+  - Errors stay in Alegreya on the clerk's wax-ruled note (legibility first).
+- **Controls**:
+
+  | Control | Object | Default | Hover | Pressed / selected | Disabled |
+  |---|---|---|---|---|---|
+  | −, +, × | round **bone counters** (`--ptw-bone`, 44px, 40px drawn on phones with a 44px hit area) | ivory face, 3px raised edge (`--ptw-bone-edge`) and a cast shadow | brighter face | sinks 3px, inset shadow | flat, dotted ink-off ring, no shadow |
+  | 1 / 10 / Max | square **bone counters** (radius 3px) | same | same | **inked** (ink face, parchment text, sunk) | same as above |
+  | Amount | an **underlined blank** written in the hand (30px), visible caret | 2px ink underline | faint paper wash | focus: wash + the gold/ink ring | — |
+  | Slider (desktop) | a **wooden rule** with ink ticks and a turned bead | — | — | ink fill up to the bead | faded |
+  | Sign | the **brass plate** with a **wax seal** at its left end (the only brass) | raised | brighter | sinks | seal removed, dotted outline on bare paper, reason in text |
+  | Links (Sell the whole hold…, Keep my cargo) | printed italic with a dotted underline | — | wash | — | ink-off |
+
+- Contrast: ink on bone is 14.3:1; parchment-hi on the inked counter is 14.3:1. Focus is still the ink-haloed gold ring.
 
 ## 8. Quantity entry
 
