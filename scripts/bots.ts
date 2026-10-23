@@ -224,7 +224,8 @@ class Bot {
       t: "input", s: ++this.seq,
       th: Math.random() < 0.9 ? 1 : 0,
       ru: this.rudder,
-      f: Math.random() < 0.03 ? 1 : 0,
+      // Fire flags (PROTOCOL §4 broadsides): mostly legacy f:1 (fire all loaded), some port-only (2) / starboard-only (4).
+      f: Math.random() < 0.03 ? [1, 1, 2, 4][Math.floor(Math.random() * 4)] : 0,
     });
   }
 

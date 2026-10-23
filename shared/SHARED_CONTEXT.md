@@ -37,12 +37,16 @@ The shared directory contains code and types that are used by both the client an
     `ShipPhysicsStats.hullRadius`
     (`HULL_RADIUS`: sloop 12 … dreadnaught 30). Helpers: `lerpWrapped`, `lerpAngle`, `normalizeAngle`,
     `metricXAdvance`, re-exported `wrap`/`wrappedDelta`/`metricX`/`metricDelta`/`metricDistSq`;
-    `wrappedDistSq` is a deprecated alias of `metricDistSq`. Cannonballs: `spawnBroadside`,
+    `wrappedDistSq` is a deprecated alias of `metricDistSq`. Broadsides (2026-10-23): `ShipInput.f` is a
+    bit set `FIRE_ALL` 1 (every loaded side; legacy `f:1`) | `FIRE_PORT` 2 | `FIRE_STARBOARD` 4,
+    `fireSides(f, portReady, starboardReady)` picks the sides, `broadsideAngle(r, side)` = r − π/2 (port,
+    LEFT) / r + π/2 (starboard, RIGHT). Cannonballs: `spawnBroadside(ship, n, side = "starboard")`,
     `ballPositionAt`, `stepBall` (exact metric straight line), `ballHitsLand`, metric
     `segmentHitsCircle`. Pure. Units: speed = metric units per 1/60 s, negative velocity = forward (W).
   - `protocol.ts` - WebSocket message types (`ClientMessage`, `ServerMessage`), snapshot entity rows
     (`packEntityRow`/`unpackEntityRow`), flag bits, netcode constants (interest radius, grid cell,
-    interpolation delay, input queue cap) and `parseClientMessage` (validates/clamps untrusted frames).
+    interpolation delay, input queue cap) and `parseClientMessage` (validates/clamps untrusted frames;
+    input `f` via `fireFlags()`, back-compatible with old clients' `f:1`).
   - `__tests__/` - vitest unit tests (`npm test`).
   - `world/` - generated world data (do not hand-edit; regenerate with `npm run world:build`, see
     `docs/world/DATA_PIPELINE.md`): `ports.json` (27 real ports with town/dock/spawn, spec §5),

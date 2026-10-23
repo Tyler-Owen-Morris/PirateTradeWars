@@ -313,7 +313,9 @@ export default function GameUI({ controlsRef }: GameUIProps) {
             <div className="font-mono bg-black/60 px-2 rounded">D / →</div>
             <div>Turn Right</div>
             <div className="font-mono bg-black/60 px-2 rounded">Space</div>
-            <div>Fire Cannons</div>
+            <div>Fire All Loaded Cannons</div>
+            <div className="font-mono bg-black/60 px-2 rounded">Q / E</div>
+            <div>Fire Left / Right Broadside</div>
             <div className="font-mono bg-black/60 px-2 rounded">T</div>
             <div>Trade at Port</div>
             <div className="font-mono bg-black/60 px-2 rounded">Tab</div>

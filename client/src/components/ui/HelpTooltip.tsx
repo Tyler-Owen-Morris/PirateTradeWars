@@ -55,8 +55,14 @@ export function HelpTooltip() {
                 <h3 className="text-sm font-semibold text-amber-300">Combat & Speed</h3>
               </div>
               
-              <div className="text-sm">Fire Cannons</div>
-              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">Space</div>
+              <div className="text-sm">Fire All Loaded Cannons</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">Space / F</div>
+
+              <div className="text-sm">Fire Left (Port) Broadside</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">Q</div>
+
+              <div className="text-sm">Fire Right (Starboard) Broadside</div>
+              <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">E</div>
               
               <div className="text-sm">Increase Speed</div>
               <div className="text-sm font-mono bg-gray-800 px-2 py-1 rounded text-center">Shift</div>

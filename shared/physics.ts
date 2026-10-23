@@ -91,11 +91,38 @@ export interface ShipKinematics {
  *  th: throttle, 1 = W/Up (full ahead, target velocity −maxSpeed), −1 = S/Down (reverse, target
  *      +maxSpeed·REVERSE_SPEED_FACTOR), 0 = coast.
  *  ru: rudder, 1 = A/Left (rotationY increases), −1 = D/Right, 0 = straight.
- *  f:  fire, 1 = fire button held this tick (reload gating is the server's job, not physics). */
+ *  f:  fire bit flags (FIRE_ALL | FIRE_PORT | FIRE_STARBOARD, 0 = not firing). Reload gating is the
+ *      server's job, not physics; stepShip ignores f. Legacy clients only ever send 1 (FIRE_ALL). */
 export interface ShipInput {
   th: -1 | 0 | 1;
   ru: -1 | 0 | 1;
-  f: 0 | 1;
+  f: FireFlags;
+}
+
+// ---- Broadside fire flags (input `f`, PROTOCOL.md §4 "Broadsides") ----------------------------
+/** Integer bit set 0..FIRE_MASK carried in `ShipInput.f` / the wire input `f`. */
+export type FireFlags = number;
+/** Fire every side that is loaded (Space / F / HUD button). The legacy meaning of `f: 1`. */
+export const FIRE_ALL = 1;
+/** Fire the port (LEFT) battery if loaded (Q). */
+export const FIRE_PORT = 2;
+/** Fire the starboard (RIGHT) battery if loaded (E). */
+export const FIRE_STARBOARD = 4;
+/** All valid fire bits; anything above is dropped by parseClientMessage. */
+export const FIRE_MASK = FIRE_ALL | FIRE_PORT | FIRE_STARBOARD;
+
+/** A ship's gun side. Port = LEFT of the bow, starboard = RIGHT (see `broadsideAngle`). */
+export type BroadsideSide = "port" | "starboard";
+export const BROADSIDE_SIDES: readonly BroadsideSide[] = ["port", "starboard"];
+
+/** Which sides fire this tick for fire flags `f`, given which sides are loaded. FIRE_ALL asks for
+ *  both (so it fires whatever is loaded: both, one, or none); FIRE_PORT / FIRE_STARBOARD ask for one. */
+export function fireSides(f: FireFlags, portReady: boolean, starboardReady: boolean): { port: boolean; starboard: boolean } {
+  const all = (f & FIRE_ALL) !== 0;
+  return {
+    port: portReady && (all || (f & FIRE_PORT) !== 0),
+    starboard: starboardReady && (all || (f & FIRE_STARBOARD) !== 0),
+  };
 }
 
 /** The "no input" value (coast, rudder centered, not firing). */
@@ -299,16 +326,32 @@ export interface BallSpawn {
 }
 
 /**
- * Spawn one broadside, identical to the old server `fireCannonBall`: `cannonCount` balls fanned
- * BALL_SPREAD rad apart, centered on the broadside direction `rotationY + π/2`, each starting
- * BALL_SPAWN_OFFSET metric units from the ship center along its own direction (x wrapped).
+ * Direction angle (sin/cos convention: unit vector `(sin a, cos a)` in x/z) the `side` battery
+ * points along for heading `rotationY`. The bow points along `(−sin r, −cos r)` (negative velocity =
+ * forward) and y is up, so the ship's RIGHT is `(cos r, −sin r)` = angle `r + π/2` (starboard) and
+ * its LEFT is `r − π/2` (port). Before 2026-10-23 every ship fired `r + π/2` only (right side).
  */
-export function spawnBroadside(ship: Pick<ShipKinematics, "x" | "z" | "rotationY">, cannonCount: number): BallSpawn[] {
+export function broadsideAngle(rotationY: number, side: BroadsideSide): number {
+  return side === "port" ? rotationY - Math.PI / 2 : rotationY + Math.PI / 2;
+}
+
+/**
+ * Spawn one broadside, identical to the old server `fireCannonBall` for the starboard side:
+ * `cannonCount` balls fanned BALL_SPREAD rad apart, centered on `broadsideAngle(rotationY, side)`
+ * (default starboard, the only side before 2026-10-23), each starting BALL_SPAWN_OFFSET metric
+ * units from the ship center along its own direction (x wrapped).
+ */
+export function spawnBroadside(
+  ship: Pick<ShipKinematics, "x" | "z" | "rotationY">,
+  cannonCount: number,
+  side: BroadsideSide = "starboard",
+): BallSpawn[] {
   const balls: BallSpawn[] = [];
   const n = Math.max(0, Math.floor(cannonCount));
+  const center = broadsideAngle(ship.rotationY, side);
   for (let i = 0; i < n; i++) {
     const offsetAngle = (i - (n - 1) / 2) * BALL_SPREAD;
-    const angle = ship.rotationY + Math.PI / 2 + offsetAngle;
+    const angle = center + offsetAngle;
     const dx = Math.sin(angle);
     const dz = Math.cos(angle);
     balls.push({

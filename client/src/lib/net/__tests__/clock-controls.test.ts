@@ -64,7 +64,7 @@ describe("controlsToInput (PROTOCOL §2/§4 mapping)", () => {
   });
   it("combineControls ORs keyboard and touch sources", () => {
     const c = combineControls({ forward: true }, { left: true, fire: true }, null, undefined);
-    expect(c).toEqual({ forward: true, backward: false, left: true, right: false, fire: true });
+    expect(c).toEqual({ forward: true, backward: false, left: true, right: false, fire: true, firePort: false, fireStarboard: false });
     expect(controlsToInput(c)).toEqual({ th: 1, ru: 1, f: 1 });
   });
 });

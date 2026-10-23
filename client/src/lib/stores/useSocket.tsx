@@ -68,6 +68,9 @@ function buildPlayer(me: SelfState): PlayerState {
     cargoCapacity: me.cargoCapacity,
     canFire: me.canFire,
     reloadMs: me.reloadMs,
+    // Broadsides: per-side gauges (an older server without them → both follow the single gauge).
+    reloadPortMs: me.reloadPortMs ?? me.reloadMs,
+    reloadStarboardMs: me.reloadStarboardMs ?? me.reloadMs,
     reloadTime: stats.cannonReload * 1000,
     sunk: me.sunk,
     eid: me.eid,
@@ -107,7 +110,9 @@ function syncSelf(me: SelfState, force: boolean): void {
     prev.sunk !== me.sunk ||
     prev.shipType !== me.shipType ||
     prev.cargoUsed !== me.cargoUsed ||
-    prev.canFire !== me.canFire;
+    prev.canFire !== me.canFire ||
+    (prev.reloadPortMs === 0) !== ((me.reloadPortMs ?? me.reloadMs) === 0) ||
+    (prev.reloadStarboardMs === 0) !== ((me.reloadStarboardMs ?? me.reloadMs) === 0);
   if (!force && !important && now - lastUiSync < UI_SYNC_INTERVAL_MS) return;
   const periodic = now - lastUiSync >= UI_SYNC_INTERVAL_MS;
   lastUiSync = now;
@@ -172,7 +177,12 @@ function wireNet(): void {
     if (net.me) syncSelf(net.me, true);
   });
 
-  net.on("fire", () => {
+  // Broadsides: a ship firing both batteries sends two `fire` events in one tick; play one bang.
+  let lastBang = "";
+  net.on("fire", (m) => {
+    const key = `${m.eid}:${m.k}`;
+    if (key === lastBang) return;
+    lastBang = key;
     useAudio.getState().playCannonFire();
   });
 

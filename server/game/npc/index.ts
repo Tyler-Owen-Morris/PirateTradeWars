@@ -32,7 +32,7 @@ import {
   type PlayerStanding,
 } from "./factions";
 import { pointAt, projectOnto, type Lane } from "./lod";
-import { normalizeAngle, stepShip, type ShipInput } from "@shared/physics";
+import { FIRE_PORT, FIRE_STARBOARD, normalizeAngle, stepShip, type ShipInput } from "@shared/physics";
 import { defaultMetric, type NpcMetric } from "./metric";
 import {
   arrive,
@@ -50,7 +50,7 @@ import {
   type WanderState,
   type AvoidMemo,
 } from "./steering";
-import { FIRE_RANGE_FACTOR, beamError, engage, fireTolerance, firepower } from "./tactics";
+import { FIRE_RANGE_FACTOR, beamError, engage, fireTolerance, firepower, type Side } from "./tactics";
 import { callForHelp, ThreatTable } from "./threat";
 import { headingForDir, moveDir, mulberry32 } from "./util";
 import { LANES as LIVE_LANES, liveDirector, portSafeZones } from "./population";
@@ -167,6 +167,8 @@ export interface ActiveNpc {
   aimSlack: number;
   /** F1: `p.lastFired` when `aimSlack` was rolled (a new shot → roll again). */
   aimSlackFor: number;
+  /** Broadsides: the battery this NPC is fighting with (chooseSide hysteresis; fire flag side). */
+  gunSide: Side;
   /** F1: playerId → sim ms of that player's last hit on this NPC (self-defence, SELF_DEFENCE_MS). */
   attackedBy: Map<string, number>;
   /** F1 (B3): sim ms until which the NPC counts as under fire (no docking), see UNDER_FIRE_MS. */
@@ -331,6 +333,7 @@ export class NpcSystem {
       nextPlanMs: 0,
       aimSlack: 0,
       aimSlackFor: NaN,
+      gunSide: "starboard",
       attackedBy: new Map(),
       underFireUntilMs: 0,
       fleeDir: null,
@@ -659,7 +662,8 @@ export class NpcSystem {
     switch (a.brain.state) {
       case "engage": {
         if (!live) break;
-        const reloading = now - p.lastFired < p.reloadTime;
+        // Broadsides: each battery reloads on its own; the side that faces the target decides.
+        const reloadingBySide = { port: !w.sideReady(p, "port", now), starboard: !w.sideReady(p, "starboard", now) };
         if (a.aimSlackFor !== p.lastFired) {
           // F1: one aim-error roll per volley (re-rolled after each shot).
           a.aimSlackFor = p.lastFired;
@@ -668,11 +672,13 @@ export class NpcSystem {
         const order = engage(
           self,
           live,
-          { range: a.arch.engageRange, aimError: a.arch.aimError, cannonCount: p.cannonCount, aimSlack: a.aimSlack },
-          reloading,
+          { range: a.arch.engageRange, aimError: a.arch.aimError, cannonCount: p.cannonCount, aimSlack: a.aimSlack, prevSide: a.gunSide },
+          reloadingBySide,
           this.metric,
           a.rng,
         );
+        a.gunSide = order.side;
+        const reloading = reloadingBySide[order.side];
         const d = moveDir(order.heading);
         v = { x: d.x * order.speed, z: d.z * order.speed };
         // F1: whether to fire is decided below on the pose AFTER this tick's rudder (see aim()).
@@ -756,13 +762,14 @@ export class NpcSystem {
       const me = stepShip({ x: p.x, z: p.z, rotationY: p.rotationY, velocity: p.speed }, { th: input.th, ru, f: 0 }, p.physics, land);
       const dist = Math.sqrt(this.metric.distSq(me.x, me.z, tgt.x, tgt.z));
       if (dist > maxDist) continue;
-      const err = Math.abs(beamError({ x: me.x, z: me.z, rotationY: me.rotationY, velocity: me.velocity }, tgt, this.metric));
+      const err = Math.abs(beamError({ x: me.x, z: me.z, rotationY: me.rotationY, velocity: me.velocity }, tgt, this.metric, a.gunSide));
       if (err <= fireTolerance(dist, p.cannonCount) + a.aimSlack && err < bestErr - 1e-9) {
         bestErr = err;
         bestRu = ru;
       }
     }
-    return bestRu === null ? input : { th: input.th, ru: bestRu, f: 1 };
+    // Broadsides: fire ONLY the engaged side (never FIRE_ALL: the far battery would shoot at nothing).
+    return bestRu === null ? input : { th: input.th, ru: bestRu, f: a.gunSide === "port" ? FIRE_PORT : FIRE_STARBOARD };
   }
 
   /**

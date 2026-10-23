@@ -145,7 +145,7 @@ const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
             <div className="text-amber-100">
               <h3 className="text-xl font-bold mb-2">Gameplay Rules</h3>
               <ul className="list-disc ml-6">
-                <li><span className="font-semibold">Combat</span>: All ships have cannons firing 90° to their bow. Position strategically to hit enemies.</li>
+                <li><span className="font-semibold">Combat</span>: All ships carry cannons on both sides, firing 90° to their bow (Q left, E right, Space both). Each side reloads separately. Position strategically to hit enemies.</li>
                 <li><span className="font-semibold">Navigation</span>: Sail an infinite ocean that wraps around. Find 16 islands for resources or search for other pirates to do battle.</li>
                 <li><span className="font-semibold">Stats</span>:
                   <ul className="list-circle ml-6">

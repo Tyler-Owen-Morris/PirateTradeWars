@@ -31,6 +31,8 @@ implementer must deviate, they write the deviation into their progress file AND 
 - `stepShip(state, input, stats) → state` is a pure function. Unit tested for determinism and wrapping.
 - Cannonballs: `stepBall`, speed 15 units/(1/60 s), lifetime 3000 ms, spawn rule identical to today's
   `fireCannonBall` (cannonCount balls, spread 0.1 rad, broadside `rotationY + π/2`, 10 units out).
+  Since 2026-10-23 there are two broadsides: starboard `rotationY + π/2` (RIGHT) and port
+  `rotationY − π/2` (LEFT); see "Broadsides clarifications" below.
   Position of a ball at time t is analytic: `p0 + dir * speed * 60 * t` (wrapped) — clients simulate locally.
 
 ## 3. Transport
@@ -47,7 +49,7 @@ implementer must deviate, they write the deviation into their progress file AND 
 | msg | fields | notes |
 |-----|--------|-------|
 | `connect` / `reconnect` | unchanged | existing name/ship flow |
-| `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0|1}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). Server clamps values, ignores out-of-order seq, caps queue at 10 (drop oldest). |
+| `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0..7}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). `f` = fire bit flags: 1 fire every loaded side (legacy `f:1`), 2 port (left), 4 starboard (right); see "Broadsides clarifications". Server clamps values, ignores out-of-order seq, caps queue at 10 (drop oldest). |
 | `ping` | `{t:"ping", c:clientTimeMs}` | every 2 s |
 | `trade`, `upgradeShip`, `repairShip`, `scuttle` | unchanged shape | W4: trade, upgrade and repair are rejected with `error "Too far from port"` unless the ship is within 300 (metric) of the port's dock. `portId` is the numeric id from `GET /api/ports` (1-based index in ports.json). |
 
@@ -67,7 +69,7 @@ The client never sends position, speed, direction or rotation. The server is aut
 ## 6. Server → client snapshot (every tick)
 ```
 { t:"s", k:tick, st:serverTimeMs, a:lastProcessedInputSeq,
-  me:{ x,z,r,v,hp,maxHp,gold,cargoUsed,cargoCapacity,sunk,canFire,reloadMs, shipType },   // full private self state
+  me:{ x,z,r,v,hp,maxHp,gold,cargoUsed,cargoCapacity,sunk,canFire,reloadMs,reloadPortMs?,reloadStarboardMs?, shipType },   // full private self state
   e:[ [eid, x, z, r, v, hp, flags], ... ],   // other visible ships, numbers rounded (x,z 1 decimal, r 3 decimals)
   g?:[ [id, x, z, gold], ... ]               // gold objects in range, only every 10th tick
 }
@@ -78,7 +80,7 @@ The client never sends position, speed, direction or rotation. The server is aut
   `{t:"ent", eid, id, name, shipType, maxHp}`. On leaving view: `{t:"gone", eid}`. Server tracks the
   known-set per client. Other players' gold/cargo/inventory are NEVER sent.
 - Events (sent immediately, to clients that can see them):
-  - `{t:"fire", eid, k:tick, balls:[[id, x, z, dx, dz]...], spd, life}` — clients simulate the balls.
+  - `{t:"fire", eid, k:tick, side?, balls:[[id, x, z, dx, dz]...], spd, life}` — clients simulate the balls.
   - `{t:"hit", target:eid|"me", ball:id, hp}` — remove ball, show impact.
   - `{t:"sunk", eid}` ; `{t:"goldCollected", gold, newTotalGold}` (to the collector).
 
@@ -189,6 +191,33 @@ The client never sends position, speed, direction or rotation. The server is aut
   (or the ice) at (x, z) and was removed. Sent to clients within `INTEREST_RADIUS` (metric) of (x, z),
   after the view diff and before the snapshot, like other events. `ball` is the id from the `fire`
   row (an addition to the spec's `{x, z, land:1}`), so clients remove the ball exactly as on `hit`.
+
+**Broadsides clarifications (2026-10-23; `shared/physics.ts` fire flags, `server/game/world.ts`):**
+- **Root cause of "cannons only fire right":** `spawnBroadside` always used `rotationY + π/2`. The bow
+  points along `(−sin r, −cos r)` (negative velocity = forward) with y up, so that direction,
+  `(cos r, −sin r)`, is the ship's RIGHT (starboard). There was one `lastFired` per ship.
+- **Sides.** `broadsideAngle(r, side)`: starboard (RIGHT) = `r + π/2`, port (LEFT) = `r − π/2`. A/Left
+  rudder (`ru = 1`) turns the bow toward the port side. `spawnBroadside(ship, n, side = "starboard")`.
+- **Input `f` is a bit set** (`FIRE_ALL = 1`, `FIRE_PORT = 2`, `FIRE_STARBOARD = 4`, `FIRE_MASK = 7`):
+  - 1 = fire every battery that is loaded (both, one or none). Space / F / the HUD and touch fire
+    button. This is exactly what an old cached client's `f:1` means, so old clients keep firing.
+  - 2 = port only (Q), 4 = starboard only (E). Bits combine (Q+E = 6, Q+Space = 3).
+  - `parseClientMessage` → `fireFlags()`: `true` → 1; numbers floored and masked to 7; a positive value
+    with no known bit (0.5, 8) → 1 (the old "any positive fires"); negative / NaN / non-number → 0.
+  - New client against an old server (not a supported deploy, but harmless): the old `unit()` clamp turns
+    2/4/6 into 1, i.e. fire-all.
+- **Server.** Each ship has `lastFiredPort` / `lastFiredStarboard`; each battery reloads in the ship
+  type's `reloadTime` independently (`World.sideReady`, `World.reloadLeftMs`). Per tick the flags of the
+  consumed input(s) are OR-ed (catch-up consumes 2) and `fireSides(f, portReady, starboardReady)` picks
+  the sides. Holding a key re-fires each requested side whenever it is loaded. `lastFired` (persisted)
+  = the most recent volley of either side.
+- **`fire` event** gains `side: "port" | "starboard"`. One event per side volley, so firing both in one
+  tick sends two `fire` events with the same `k` (the client plays one bang per eid+tick). The ball rows
+  already carry the geometry, so old clients draw port balls correctly without knowing `side`.
+- **`me` snapshot**: `reloadPortMs` and `reloadStarboardMs` (ms until that battery is loaded, 0 = ready).
+  `canFire` = at least one side loaded; `reloadMs` = min of the two (legacy single gauge).
+- **NPCs** fire one side at a time: the side facing their target (`tactics.chooseSide`, 25° hysteresis),
+  with that side's reload, sending `FIRE_PORT` or `FIRE_STARBOARD` (never `FIRE_ALL`).
 
 ## 8. Wave 2 (deferred): Colyseus
 Wave 1 fixes the transport-independent causes (split worlds, physics mismatch, snapping, tick stalls,

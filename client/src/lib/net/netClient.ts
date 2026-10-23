@@ -39,7 +39,7 @@ import { MAX_FRAME_DT_SEC, Predictor } from "./prediction";
 import { RemoteWorld } from "./interpolation";
 import { BallSim } from "./cannonballs";
 import { Connection, type ConnectionOptions } from "./connection";
-import { controlsToInput, type ControlState } from "./controls";
+import { FireLatch, controlsToInput, type ControlState } from "./controls";
 
 export interface NetEvents {
   /** Socket opened (fresh or after a reconnect). */
@@ -90,6 +90,8 @@ export class NetClient {
   lastAck = -1;
   lastTick = 0;
   hidden = false;
+  /** Broadsides: keeps a quick Space/Q/E tap alive until a 20 Hz step has sent it (controls.ts). */
+  private readonly fireLatch = new FireLatch();
   /** `now()` at the previous `frameNow` call (null = the next frame gets dt 0). */
   private lastFrameAt: number | null = null;
   readonly now: () => number;
@@ -208,9 +210,13 @@ export class NetClient {
     const now = this.now();
     this.balls.expire(this.clock.serverNow(now));
     if (this.land && this.predictor.initialized) this.land.update(this.predictor.cur.x, this.predictor.cur.z);
+    if (this.hidden || this.me?.sunk) this.fireLatch.reset();
     if (this.hidden) return;
-    const input = this.me?.sunk ? NEUTRAL_INPUT : controlsToInput(controls);
-    this.predictor.advance(Math.min(dtSec, MAX_FRAME_DT_SEC), input, this.sendInputFn);
+    const raw = this.me?.sunk ? NEUTRAL_INPUT : controlsToInput(controls);
+    const input = raw.f === this.fireLatch.peek(raw.f) ? raw : { ...raw, f: this.fireLatch.peek(raw.f) };
+    const steps = this.predictor.advance(Math.min(dtSec, MAX_FRAME_DT_SEC), input, this.sendInputFn);
+    if (this.predictor.initialized) this.fireLatch.commit(raw.f, steps > 0);
+    else this.fireLatch.reset(); // no stale press fires on the first step after (re)joining
   }
 
   /**

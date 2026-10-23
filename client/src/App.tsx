@@ -20,7 +20,9 @@ const controls = [
   { name: "backward", keys: ["KeyS", "ArrowDown"] },
   { name: "left", keys: ["KeyA", "ArrowLeft"] },
   { name: "right", keys: ["KeyD", "ArrowRight"] },
-  { name: "fire", keys: ["Space", "KeyF"] },
+  { name: "fire", keys: ["Space", "KeyF"] }, // fire every loaded side
+  { name: "firePort", keys: ["KeyQ"] }, // broadsides: left battery
+  { name: "fireStarboard", keys: ["KeyE"] }, // right battery
 ];
 
 // Interface for control state

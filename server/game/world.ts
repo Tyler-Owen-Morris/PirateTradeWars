@@ -27,11 +27,14 @@ import {
   SHIP_HIT_RADIUS,
   TICK_DT,
   ballHitsLand,
+  fireSides,
   segmentHitsCircle,
   shipPhysicsStats,
   spawnBroadside,
   stepBall,
   stepShip,
+  type BroadsideSide,
+  type FireFlags,
   type ShipInput,
   type ShipPhysicsStats,
 } from "@shared/physics";
@@ -160,6 +163,10 @@ export interface WorldPlayer extends PlayerState {
   physics: ShipPhysicsStats;
   /** Tick of the last broadside (for the FIRING flag). */
   firedAtTick: number;
+  /** Broadsides (2026-10-23): simulation ms of the last port (left) / starboard (right) volley.
+   *  Each side reloads independently in `reloadTime`. `lastFired` (persisted) = the latest of the two. */
+  lastFiredPort: number;
+  lastFiredStarboard: number;
   /** Simulation ms when the player disconnected (grace period start). */
   disconnectedAtMs: number;
   /** Simulation ms when the player became `dead`. */
@@ -211,7 +218,7 @@ export interface GoldObject {
 
 /** Things clients must hear about this tick (filtered per client by buildMessages). */
 export type WorldEvent =
-  | { kind: "fire"; eid: number; balls: BallRow[] }
+  | { kind: "fire"; eid: number; side: BroadsideSide; balls: BallRow[] }
   | { kind: "hit"; targetEid: number; ownerEid: number; ball: number; hp: number; /** NPC1: server-only */ damage?: number }
   | { kind: "sunk"; eid: number }
   | { kind: "goldCollected"; playerId: string; gold: number; newTotalGold: number }
@@ -551,6 +558,8 @@ export class World {
       lastInput: { ...NEUTRAL_INPUT },
       physics: { ...shipPhysicsStats(state.shipType), maxSpeed: state.maxSpeed },
       firedAtTick: -1e9,
+      lastFiredPort: -1e12,
+      lastFiredStarboard: -1e12,
       disconnectedAtMs: state.connected ? 0 : this.timeMs,
       deadAtMs: state.dead ? this.timeMs : 0,
       metaVersion: 1,
@@ -713,12 +722,17 @@ export class World {
     if (this.npcHook) this.npcHook(this, prevEvents);
 
     // 2. Movement (consume inputs).
+    // Broadsides: firers[i] asked for fire flags firerFlags[i] this tick (FIRE_* bits).
     const firers: WorldPlayer[] = [];
+    const firerFlags: FireFlags[] = [];
     this.players.forEach((p) => {
       if (p.controller === "npc" && !p.sunk && !p.dead) {
         // NPC1: AI input set by the hook (lastInput); the fire flag is consumed once.
         this.applyStep(p, p.lastInput);
-        if (p.lastInput.f === 1) firers.push(p);
+        if (p.lastInput.f) {
+          firers.push(p);
+          firerFlags.push(p.lastInput.f);
+        }
         p.lastInput.f = 0;
         return;
       }
@@ -730,7 +744,7 @@ export class World {
         p.speed = 0;
         return;
       }
-      let wantsFire = false;
+      let wantsFire: FireFlags = 0;
       if (!p.connected) {
         this.applyStep(p, NEUTRAL_INPUT);
       } else if (p.inputQueue.length === 0) {
@@ -742,11 +756,14 @@ export class World {
           const inp = p.inputQueue.shift()!;
           p.lastSeq = inp.s;
           p.lastInput = { th: inp.th, ru: inp.ru, f: inp.f };
-          if (inp.f === 1) wantsFire = true;
+          wantsFire |= inp.f; // catch-up: a press in either consumed input counts
           this.applyStep(p, p.lastInput);
         }
       }
-      if (wantsFire) firers.push(p);
+      if (wantsFire) {
+        firers.push(p);
+        firerFlags.push(wantsFire);
+      }
     });
 
     // 3. Spatial grid (all ships that exist on the map).
@@ -760,7 +777,7 @@ export class World {
 
     // 5. New broadsides (spawned after ball stepping: a ball fired at tick k sits at its spawn
     //    point at tick k, matching the client's analytic p0 + dir*speed*60*t).
-    for (const p of firers) this.tryFire(p, now);
+    for (let i = 0; i < firers.length; i++) this.tryFire(firers[i], firerFlags[i], now);
 
     // 6. Gold: expire + pickup.
     this.stepGold(now);
@@ -768,7 +785,7 @@ export class World {
     // 7. Derived per-player flags.
     this.players.forEach((p) => {
       p.firing = this.tick - p.firedAtTick < FIRING_FLAG_TICKS;
-      p.canFire = !p.sunk && !p.dead && now - p.lastFired >= p.reloadTime;
+      p.canFire = !p.sunk && !p.dead && (this.sideReady(p, "port", now) || this.sideReady(p, "starboard", now));
     });
 
     this.stepWallMs = this.wallClock();
@@ -789,12 +806,33 @@ export class World {
     p.direction.z = Math.cos(next.rotationY);
   }
 
-  private tryFire(p: WorldPlayer, now: number): void {
+  /** Broadsides: ms until `side`'s battery is reloaded (0 = ready), on the simulation clock. */
+  reloadLeftMs(p: WorldPlayer, side: BroadsideSide, now: number = this.timeMs): number {
+    const last = side === "port" ? p.lastFiredPort : p.lastFiredStarboard;
+    return Math.max(0, Math.ceil(p.reloadTime - (now - last)));
+  }
+
+  /** Broadsides: is `side`'s battery loaded? */
+  sideReady(p: WorldPlayer, side: BroadsideSide, now: number = this.timeMs): boolean {
+    const last = side === "port" ? p.lastFiredPort : p.lastFiredStarboard;
+    return now - last >= p.reloadTime;
+  }
+
+  /** Fire the batteries `f` asks for that are loaded (FIRE_ALL = every loaded side; see
+   *  shared/physics.ts `fireSides`). Each side volley is its own `fire` event. */
+  private tryFire(p: WorldPlayer, f: FireFlags, now: number): void {
     if (p.sunk || p.dead || (!p.connected && p.controller !== "npc")) return; // NPC1
-    if (now - p.lastFired < p.reloadTime) return;
+    const sides = fireSides(f, this.sideReady(p, "port", now), this.sideReady(p, "starboard", now));
+    if (sides.port) this.fireSide(p, "port", now);
+    if (sides.starboard) this.fireSide(p, "starboard", now);
+  }
+
+  private fireSide(p: WorldPlayer, side: BroadsideSide, now: number): void {
+    if (side === "port") p.lastFiredPort = now;
+    else p.lastFiredStarboard = now;
     p.lastFired = now;
     p.firedAtTick = this.tick;
-    const spawns = spawnBroadside(p, p.cannonCount);
+    const spawns = spawnBroadside(p, p.cannonCount, side);
     const rows: BallRow[] = [];
     for (const s of spawns) {
       const ball: CannonBall = {
@@ -812,7 +850,7 @@ export class World {
       this.balls.push(ball);
       rows.push([ball.id, roundPos(s.x), roundPos(s.z), round4(s.dx), round4(s.dz)]);
     }
-    this.events.push({ kind: "fire", eid: p.eid, balls: rows });
+    this.events.push({ kind: "fire", eid: p.eid, side, balls: rows });
   }
 
   private stepBalls(now: number): void {
@@ -994,7 +1032,7 @@ export class World {
       switch (ev.kind) {
         case "fire":
           if (ev.eid === p.eid || this.seenWith(ev.eid, stamp)) {
-            out.push({ t: "fire", eid: ev.eid, k: this.tick, balls: ev.balls, spd: BALL_SPEED, life: BALL_LIFETIME_MS });
+            out.push({ t: "fire", eid: ev.eid, k: this.tick, side: ev.side, balls: ev.balls, spd: BALL_SPEED, life: BALL_LIFETIME_MS });
           }
           break;
         case "hit":
@@ -1038,7 +1076,10 @@ export class World {
         cargoCapacity: p.cargoCapacity,
         sunk: p.sunk,
         canFire: p.canFire,
-        reloadMs: Math.max(0, Math.ceil(p.reloadTime - (now - p.lastFired))),
+        // Legacy single gauge = the first battery to be ready; plus one gauge per side (broadsides).
+        reloadMs: Math.min(this.reloadLeftMs(p, "port", now), this.reloadLeftMs(p, "starboard", now)),
+        reloadPortMs: this.reloadLeftMs(p, "port", now),
+        reloadStarboardMs: this.reloadLeftMs(p, "starboard", now),
         shipType: p.shipType,
       },
     };
