@@ -171,7 +171,7 @@ Rule: **what is written is in the hand; what you press is an object lying on the
 stay in Alegreya or Fell SC (printed), so a control can never be mistaken for writing.
 
 - **Writing** (iron-gall ink `--ptw-quill` #2b1a0e; labels and notes in `--ptw-quill-faded` #5a3b1f; slip
-  ~#e4cf9d gives 10:1 and 6:1). A 0.25px text stroke gives the nib some weight so hairlines survive on phones.
+  ~#e4cf9d gives 10.9:1 and 6.6:1; wax 5.9:1, ink-blue 7.6:1). A 0.25px text stroke gives the nib some weight so hairlines survive on phones.
   - Heading: "Bill of Sale" in Pinyon Script, then "— *Purchase*" (ink-blue) or "— *Sale*" (wax).
   - Opening line: "Bought of / Sold to the Harbourmaster, {port}:" (on phones, "Bought of {port}:").
   - Item line: "**Fish**, at 9 g each ……… 180 g", ruled underneath. The total "writes in" (clip reveal, 260 ms;
