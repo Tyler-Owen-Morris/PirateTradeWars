@@ -43,6 +43,8 @@ const NATION: Record<string, string> = {
 };
 /** Ports held by someone other than their nation's crown (the subtitle names the holder instead). */
 const HOLDER: Record<string, string> = { york_factory: "the Hudson's Bay Company's" };
+/** Russia's St Andrew's ensign is a diagonal cross (the others draw a straight one). */
+const SALTIRE = "M0 0h5l35 21v3h-5L0 3zM40 0v3L5 24H0v-3L35 0z";
 const REGION: Record<string, string> = {
   caribbean: "the Caribbean", north_atlantic: "the North Atlantic", europe: "Europe", africa: "Africa",
   indian_ocean: "the Indian Ocean", east_asia: "the East Indies", americas_pacific: "the Pacific coast",
@@ -706,7 +708,7 @@ export default function BillOfGoods() {
             <header className="tb-head">
               <svg className="tb-flag" viewBox="0 0 40 24" role="img" aria-label={nationWord ? `${nationWord} colours` : "the black flag"}>
                 <defs><clipPath id="tb-pennant"><path d="M0 0H40L33 12 40 24H0Z" /></clipPath></defs>
-                <g clipPath="url(#tb-pennant)"><rect width="40" height="24" fill={flag.field} /><path d="M14 0h6v24h-6zM0 9h40v6H0z" fill={flag.accent} /></g>
+                <g clipPath="url(#tb-pennant)"><rect width="40" height="24" fill={flag.field} /><path d={port.nation === "russia" ? SALTIRE : "M14 0h6v24h-6zM0 9h40v6H0z"} fill={flag.accent} /></g>
                 <path d="M0 0H40L33 12 40 24H0Z" fill="none" stroke="#2a1a0c" strokeWidth="1" />
               </svg>
               <div className="tb-titles">
