@@ -17,10 +17,10 @@
  *  - `renderFocus.travelX/travelZ` = accumulated rendered travel of F (float64). The ocean samples its
  *    wave pattern at (renderPos + travel) so waves stay put in the world while the plane follows us.
  */
-import { WORLD_C, WORLD_H, Z_ICE_N, Z_ICE_S, ICE_LAT, metricX, latOf, wrap, wrappedDelta } from "@shared/world/geo";
+import { WORLD_C, WORLD_H, Z_ICE_N, Z_ICE_S, ICE_LAT_N, ICE_LAT_S, metricX, latOf, wrap, wrappedDelta } from "@shared/world/geo";
 
 // Re-exported so renderers import everything world-geometric from one place.
-export { WORLD_C, WORLD_H, Z_ICE_N, Z_ICE_S, ICE_LAT, metricX, wrappedDelta };
+export { WORLD_C, WORLD_H, Z_ICE_N, Z_ICE_S, ICE_LAT_N, ICE_LAT_S, metricX, wrappedDelta };
 /** Latitude (degrees) of coordinate z (= geo.latOf). */
 export const latOfZ = latOf;
 

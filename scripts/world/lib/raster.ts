@@ -2,7 +2,7 @@
 // equirectangular grid. A pixel is land when its CENTRE is inside the polygon (even-odd rule per
 // polygon, so holes work). Natural Earth splits every feature at the antimeridian, so no ring
 // crosses lon ±180 and no wrap handling is needed here.
-import { W, H } from "./common";
+import { W, H, WORLD_C, lonToX, latToZ } from "./common";
 
 type Ring = number[][]; // [[lon, lat], ...]
 type Poly = Ring[];
@@ -79,4 +79,47 @@ function rasterizePolygon(poly: Poly, mask: Uint8Array) {
       for (let i = ia; i <= ib; i++) mask[base + i] = 1;
     }
   }
+}
+
+/**
+ * New Horizons phase 2 (2026-10-24): carve a navigable channel through a strait that is narrower than
+ * the raster can hold open (the Øresund is ~4 km wide at Helsingør; a pixel is 4.9 km tall and ~2.7 km
+ * wide there). Every LAND pixel whose centre is within `halfWidth` metric units of the polyline
+ * (`points` = [lon, lat] pairs) becomes water. Returns the number of pixels changed. Deterministic.
+ * The polyline must not cross the antimeridian (none of ours do).
+ */
+export function carveChannel(mask: Uint8Array, points: [number, number][], halfWidth: number): number {
+  const PXu = WORLD_C / W;
+  const toXZ = ([lon, lat]: [number, number]) => [lonToX(lon), latToZ(lat)];
+  let changed = 0;
+  for (let k = 0; k + 1 < points.length; k++) {
+    const [ax, az] = toXZ(points[k]);
+    const [bx, bz] = toXZ(points[k + 1]);
+    const mx = Math.cos((((points[k][1] + points[k + 1][1]) / 2) * Math.PI) / 180);
+    const xPad = halfWidth / mx;
+    // segment in metric space (x scaled by cos of the segment's mean latitude)
+    const sx = (bx - ax) * mx;
+    const sz = bz - az;
+    const len2 = sx * sx + sz * sz;
+    const j0 = Math.max(0, Math.floor((Math.min(az, bz) - halfWidth) / PXu));
+    const j1 = Math.min(H - 1, Math.floor((Math.max(az, bz) + halfWidth) / PXu));
+    const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - xPad) / PXu));
+    const i1 = Math.min(W - 1, Math.floor((Math.max(ax, bx) + xPad) / PXu));
+    for (let j = j0; j <= j1; j++) {
+      const qz = (j + 0.5) * PXu - az;
+      for (let i = i0; i <= i1; i++) {
+        const idx = j * W + i;
+        if (!mask[idx]) continue;
+        const qx = ((i + 0.5) * PXu - ax) * mx;
+        const t = len2 > 0 ? Math.max(0, Math.min(1, (qx * sx + qz * sz) / len2)) : 0;
+        const dx = qx - t * sx;
+        const dz = qz - t * sz;
+        if (dx * dx + dz * dz <= halfWidth * halfWidth) {
+          mask[idx] = 0;
+          changed++;
+        }
+      }
+    }
+  }
+  return changed;
 }

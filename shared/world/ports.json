@@ -815,5 +815,328 @@
       "z": 63891.6
     },
     "safeRadius": 600
+  },
+  {
+    "id": "st_petersburg",
+    "name": "St. Petersburg",
+    "lat": 59.93,
+    "lon": 30.31,
+    "nation": "russia",
+    "region": "baltic",
+    "x": 233032.2,
+    "z": 33422.9,
+    "dock": {
+      "x": 232104.5,
+      "z": 33276.4
+    },
+    "spawn": {
+      "x": 231958,
+      "z": 33276.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "riga",
+    "name": "Riga",
+    "lat": 56.95,
+    "lon": 24.11,
+    "nation": "sweden",
+    "region": "baltic",
+    "x": 226788.9,
+    "z": 36722.2,
+    "dock": {
+      "x": 226489.3,
+      "z": 36547.9
+    },
+    "spawn": {
+      "x": 226391.6,
+      "z": 36499
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "stockholm",
+    "name": "Stockholm",
+    "lat": 59.33,
+    "lon": 18.07,
+    "nation": "sweden",
+    "region": "baltic",
+    "x": 220077.8,
+    "z": 34077.8,
+    "dock": {
+      "x": 220776.4,
+      "z": 34301.8
+    },
+    "spawn": {
+      "x": 220922.9,
+      "z": 34350.6
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "copenhagen",
+    "name": "Copenhagen",
+    "lat": 55.68,
+    "lon": 12.57,
+    "nation": "denmark_norway",
+    "region": "baltic",
+    "x": 213842.8,
+    "z": 38110.4,
+    "dock": {
+      "x": 214135.7,
+      "z": 38110.4
+    },
+    "spawn": {
+      "x": 214135.7,
+      "z": 38305.7
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "bergen",
+    "name": "Bergen",
+    "lat": 60.39,
+    "lon": 5.32,
+    "nation": "denmark_norway",
+    "region": "arctic",
+    "x": 205911.1,
+    "z": 32900,
+    "dock": {
+      "x": 205297.9,
+      "z": 32885.7
+    },
+    "spawn": {
+      "x": 205151.4,
+      "z": 32885.7
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "arkhangelsk",
+    "name": "Arkhangelsk",
+    "lat": 64.54,
+    "lon": 40.54,
+    "nation": "russia",
+    "region": "arctic",
+    "x": 245044.4,
+    "z": 28288.9,
+    "dock": {
+      "x": 244604.5,
+      "z": 27905.3
+    },
+    "spawn": {
+      "x": 244311.5,
+      "z": 27856.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "reykjavik",
+    "name": "Reykjavík",
+    "lat": 64.15,
+    "lon": -21.94,
+    "nation": "denmark_norway",
+    "region": "arctic",
+    "x": 175659.2,
+    "z": 28735.4,
+    "dock": {
+      "x": 175317.4,
+      "z": 28686.5
+    },
+    "spawn": {
+      "x": 175122.1,
+      "z": 28637.7
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "godthab",
+    "name": "Godthåb",
+    "lat": 64.18,
+    "lon": -51.72,
+    "nation": "denmark_norway",
+    "region": "arctic",
+    "x": 142651.4,
+    "z": 28686.5,
+    "dock": {
+      "x": 142358.4,
+      "z": 28784.2
+    },
+    "spawn": {
+      "x": 142260.7,
+      "z": 28833
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "st_johns",
+    "name": "St. John's",
+    "lat": 47.56,
+    "lon": -52.71,
+    "nation": "england",
+    "region": "north_atlantic",
+    "x": 141433.3,
+    "z": 47155.6,
+    "dock": {
+      "x": 141674.8,
+      "z": 47143.6
+    },
+    "spawn": {
+      "x": 141772.5,
+      "z": 47143.6
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "quebec",
+    "name": "Québec",
+    "lat": 46.81,
+    "lon": -71.21,
+    "nation": "france",
+    "region": "north_atlantic",
+    "x": 120922.9,
+    "z": 48022.5,
+    "dock": {
+      "x": 121118.2,
+      "z": 47876
+    },
+    "spawn": {
+      "x": 121655.3,
+      "z": 47485.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "york_factory",
+    "name": "York Factory",
+    "lat": 57,
+    "lon": -92.3,
+    "nation": "england",
+    "region": "arctic",
+    "x": 97444.4,
+    "z": 36666.7,
+    "dock": {
+      "x": 97436.5,
+      "z": 36499
+    },
+    "spawn": {
+      "x": 97631.8,
+      "z": 36401.4
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "okhotsk",
+    "name": "Okhotsk",
+    "lat": 59.36,
+    "lon": 143.24,
+    "nation": "russia",
+    "region": "north_pacific",
+    "x": 359155.3,
+    "z": 34008.8,
+    "dock": {
+      "x": 359155.3,
+      "z": 34155.3
+    },
+    "spawn": {
+      "x": 359204.1,
+      "z": 34204.1
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "petropavlovsk",
+    "name": "Petropavlovsk",
+    "lat": 53.02,
+    "lon": 158.65,
+    "nation": "russia",
+    "region": "north_pacific",
+    "x": 376342.8,
+    "z": 41088.9,
+    "dock": {
+      "x": 376538.1,
+      "z": 41284.2
+    },
+    "spawn": {
+      "x": 376586.9,
+      "z": 41333
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "sitka",
+    "name": "Sitka",
+    "lat": 57.05,
+    "lon": -135.33,
+    "nation": "russia",
+    "region": "north_pacific",
+    "x": 49731.4,
+    "z": 36596.7,
+    "dock": {
+      "x": 49389.6,
+      "z": 36743.2
+    },
+    "spawn": {
+      "x": 49292,
+      "z": 36840.8
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "guam",
+    "name": "Guam",
+    "lat": 13.47,
+    "lon": 144.75,
+    "nation": "spain",
+    "region": "north_pacific",
+    "x": 360833.3,
+    "z": 85033.3,
+    "dock": {
+      "x": 360717.8,
+      "z": 84936.5
+    },
+    "spawn": {
+      "x": 360668.9,
+      "z": 84887.7
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "honolulu",
+    "name": "Honolulu",
+    "lat": 21.31,
+    "lon": -157.86,
+    "nation": "hawaii",
+    "region": "north_pacific",
+    "x": 24585,
+    "z": 76293.9,
+    "dock": {
+      "x": 24536.1,
+      "z": 76440.4
+    },
+    "spawn": {
+      "x": 24487.3,
+      "z": 76489.3
+    },
+    "safeRadius": 600
+  },
+  {
+    "id": "galapagos",
+    "name": "Galápagos",
+    "lat": -0.9,
+    "lon": -89.6,
+    "nation": "pirates",
+    "region": "americas_pacific",
+    "x": 100463.9,
+    "z": 101001,
+    "dock": {
+      "x": 100366.2,
+      "z": 100903.3
+    },
+    "spawn": {
+      "x": 100317.4,
+      "z": 100854.5
+    },
+    "safeRadius": 600
   }
 ]

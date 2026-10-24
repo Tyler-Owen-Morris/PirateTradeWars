@@ -8,7 +8,7 @@ import { buildSyntheticLand, ALWAYS_WATER_TEST_FIELD, ArrayTileSource, LandField
 import { WATER_Y, terrainHeight, valueNoise, fbm, BEACH_HEIGHT } from "../terrainHeight";
 import { buildChunkData, CHUNK, CHUNKS_X, LOD_STEPS, TerrainManager, VIEW_DISTANCE, DISPOSE_MARGIN } from "../terrain";
 import { ShoreField } from "../shoreField";
-import { ICE_PERIOD, ICE_CIRCUMFERENCE, MX_ICE, iceShift, iceProfile, PolarIce } from "../ice";
+import { ICE_PERIOD, ICE_CIRCUMFERENCE, MX_ICE, ICE_LINE_N, ICE_LINE_S, iceShift, iceProfile, PolarIce } from "../ice";
 import { toRenderInto } from "../renderSpace";
 
 const EQ = WORLD_H / 2;
@@ -161,15 +161,21 @@ describe("ShoreField", () => {
 
 describe("PolarIce", () => {
   it("period divides the ice-line circumference; pattern is anchored to the world", () => {
-    expect(MX_ICE).toBeCloseTo(Math.cos((70 * Math.PI) / 180), 9);
-    const k = ICE_CIRCUMFERENCE / ICE_PERIOD;
-    expect(Math.abs(k - Math.round(k))).toBeLessThan(1e-6);
-    expect(ICE_PERIOD).toBeGreaterThan(1500);
-    // world arc of local s=0 is a multiple of the period, for any focus (incl. across the seam)
-    for (const fx of [0, 123.4, WORLD_C / 2, WORLD_C - 0.5, WORLD_C + 3]) {
-      const s0 = (((fx % WORLD_C) + WORLD_C) % WORLD_C) * MX_ICE + iceShift(fx);
-      const r = s0 / ICE_PERIOD;
-      expect(Math.abs(r - Math.round(r))).toBeLessThan(1e-6);
+    // north 72°, south 70° (asymmetric since New Horizons phase 2): each line has its own period
+    expect(MX_ICE).toBeCloseTo(Math.cos((72 * Math.PI) / 180), 9);
+    expect(ICE_LINE_N.mx).toBe(MX_ICE);
+    expect(ICE_LINE_S.mx).toBeCloseTo(Math.cos((70 * Math.PI) / 180), 9);
+    expect(ICE_CIRCUMFERENCE).toBe(ICE_LINE_N.circumference);
+    for (const line of [ICE_LINE_N, ICE_LINE_S]) {
+      const k = line.circumference / line.period;
+      expect(Math.abs(k - Math.round(k))).toBeLessThan(1e-6);
+      expect(line.period).toBeGreaterThan(1500);
+      // world arc of local s=0 is a multiple of the period, for any focus (incl. across the seam)
+      for (const fx of [0, 123.4, WORLD_C / 2, WORLD_C - 0.5, WORLD_C + 3]) {
+        const s0 = (((fx % WORLD_C) + WORLD_C) % WORLD_C) * line.mx + iceShift(fx, line);
+        const r = s0 / line.period;
+        expect(Math.abs(r - Math.round(r))).toBeLessThan(1e-6);
+      }
     }
     expect(iceProfile(0, 1)).toBeCloseTo(iceProfile(ICE_PERIOD, 1), 6);
   });

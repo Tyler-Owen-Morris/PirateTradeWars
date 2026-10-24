@@ -5,8 +5,10 @@
  * Coordinates:
  * - x is longitude and WRAPS in [0, WORLD_C). x = 0 is lon −180, x = C/2 is lon 0 (Greenwich).
  * - z is latitude and does NOT wrap: z = 0 is the north pole, z = WORLD_H the south pole, H/2 the
- *   equator. North is −z. Play is closed by polar pack ice at |lat| > ICE_LAT (Z_ICE_N / Z_ICE_S);
- *   the ice is land in shared/world/land.ts.
+ *   equator. North is −z. Play is closed by polar pack ice north of ICE_LAT_N (72°N, Z_ICE_N) and
+ *   south of ICE_LAT_S (70°S, Z_ICE_S); the ice is land in shared/world/land.ts. The two lines are
+ *   NOT symmetric since New Horizons phase 2 (2026-10-24), which moved the north line from 70° to 72°
+ *   so ships can round North Cape (71.2°N) into the White Sea.
  * - 1 unit ≈ 100 m. z units are metric everywhere; an x unit is metricX(z) metric units long
  *   (cos of the latitude), so 1 unit of x at lat 60 is half a metric unit.
  *
@@ -20,12 +22,22 @@ export const WORLD_C = 400_000;
 export const WORLD_H = 200_000;
 /** Sphere radius in units (C / 2π ≈ 63 662). */
 export const WORLD_R = WORLD_C / (2 * Math.PI);
-/** |latitude| above this (degrees) is impassable pack ice. */
-export const ICE_LAT = 70;
-/** z of the northern ice line (lat +70), ≈ 22 222.2. z < Z_ICE_N is ice. */
-export const Z_ICE_N = (WORLD_H * (90 - ICE_LAT)) / 180;
+/** Latitude (degrees north) beyond which the Arctic is impassable pack ice (70 until 2026-10-24). */
+export const ICE_LAT_N = 72;
+/** Latitude (degrees south, positive) beyond which the Southern Ocean is impassable pack ice. */
+export const ICE_LAT_S = 70;
+/** z of the northern ice line (lat +72), = 20 000. z < Z_ICE_N is ice. */
+export const Z_ICE_N = (WORLD_H * (90 - ICE_LAT_N)) / 180;
 /** z of the southern ice line (lat −70), ≈ 177 777.8. z > Z_ICE_S is ice. */
-export const Z_ICE_S = (WORLD_H * (90 + ICE_LAT)) / 180;
+export const Z_ICE_S = (WORLD_H * (90 + ICE_LAT_S)) / 180;
+/** The ice-line latitude (positive degrees) for `lat`'s hemisphere: ICE_LAT_N north, ICE_LAT_S south. */
+export function iceLatFor(lat: number): number {
+  return lat >= 0 ? ICE_LAT_N : ICE_LAT_S;
+}
+/** True if latitude `lat` (degrees, signed) is beyond its hemisphere's ice line. */
+export function isIceLat(lat: number): boolean {
+  return lat > ICE_LAT_N || lat < -ICE_LAT_S;
+}
 /**
  * Version stamp of the coordinate system, persisted on player records (`worldVersion`). Records
  * without it (or with an older value) are from the retired 10000×10000 torus and get relocated.
@@ -86,7 +98,7 @@ export function zOfLat(lat: number): number {
 
 /**
  * East-west scale factor at z: cos(lat(z)) = sin(π·z/H). One x unit is metricX(z) metric units.
- * Clamped to ≥ MIN_METRIC_X (in play it is ≥ cos 70° ≈ 0.342).
+ * Clamped to ≥ MIN_METRIC_X (in play it is ≥ cos 72° ≈ 0.309, at the northern ice line).
  */
 export function metricX(z: number): number {
   const m = Math.sin((z * Math.PI) / WORLD_H);

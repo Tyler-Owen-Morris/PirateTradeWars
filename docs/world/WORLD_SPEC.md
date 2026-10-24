@@ -15,12 +15,13 @@ Approved by Theo on 2026-10-16. The full rationale is in `docs/proposals/WORLD_A
 WORLD_C   = 400_000            // MAP_WIDTH  (x wraps in [0, C))
 WORLD_H   = 200_000            // MAP_HEIGHT (z in [0, H]; z = 0 is the north pole, H is the south pole)
 WORLD_R   = C / (2π)           // ≈ 63_661.98
-ICE_LAT   = 70                 // degrees; |lat| > 70 is impassable pack ice
-Z_ICE_N   = H * (90 - 70) / 180   // ≈ 22_222.2
+ICE_LAT_N = 72                 // degrees north; lat > 72 is impassable pack ice (70 before 2026-10-24)
+ICE_LAT_S = 70                 // degrees south; lat < −70 is impassable pack ice
+Z_ICE_N   = H * (90 - 72) / 180   // = 20_000 (22_222.2 before 2026-10-24)
 Z_ICE_S   = H * (90 + 70) / 180   // ≈ 177_777.8
 lon(x) = x / C * 360 - 180             x(lon) = (lon + 180) / 360 * C
 lat(z) = 90 - z / H * 180              z(lat) = (90 - lat) / 180 * H
-metricX(z) = cos(lat(z))               // east-west scale factor; at least cos(70°) ≈ 0.342 in play
+metricX(z) = cos(lat(z))               // east-west scale factor; at least cos(72°) ≈ 0.309 in play
 ```
 - North is −z. Physics is unchanged: forward is negative velocity, so with `rotationY = 0` and v < 0, z decreases (north).
 - **Compass heading, clockwise from north, in degrees** = `normalize(-rotationY) * 180/π` mapped to [0, 360).
@@ -162,3 +163,24 @@ export interface TileSource { get(tx: number, ty: number): Int8Array | 'water' |
     Load test: 200 players + 185 NPC records, avg tick 2.1 ms (budget 25 ms).
   - Changing PORTS_VERSION re-seeds the ports and regenerates every port market (accepted; verified on a local Redis
     holding the old 27-port world).
+- 2026-10-24 (New Horizons phase 2, "North of everything"; approved by the owner):
+  - §2: **the ice lines are asymmetric.** `ICE_LAT` is split into `ICE_LAT_N = 72` and `ICE_LAT_S = 70`
+    (shared/world/geo.ts, mirrored in scripts/world/lib/common.ts), so ships can round North Cape (71.2°N) into the
+    White Sea. `Z_ICE_N` = 20 000; `Z_ICE_S` unchanged. The manifest's `iceLat` became `iceLatN` / `iceLatS`. The
+    SDF tiles do not contain the ice, so the move itself changed only lanes, maps and the client ice visuals.
+  - §4.1: the land mask gets **carved channels** before the SDF (scripts/world/channels.ts): the Øresund and the
+    St. Lawrence below Québec, half-width 150 units. New land version `bd01338429`.
+  - §5 regions add `"baltic"`, `"arctic"`, `"north_pacific"`; nations add `"russia"` (a fighting NPC faction),
+    `"sweden"`, `"denmark_norway"`, `"hawaii"` (display-only). **There are 60 ports**, the 17 new ones appended:
+    St. Petersburg, Arkhangelsk, Okhotsk, Petropavlovsk, Sitka (russia); Riga, Stockholm (sweden); Copenhagen, Bergen,
+    Reykjavík, Godthåb (denmark_norway); St. John's, York Factory (england); Québec (france); Guam (spain);
+    Honolulu (hawaii); Galápagos (pirates). St. Petersburg's town moved 324 units to the Neva mouth; every other new
+    port ≤ 74. Every port is reachable from Port Royal on the lane graph; min lane clearance 69.
+  - §6 named lanes added: london–arkhangelsk (the Archangel convoy round North Cape), amsterdam–st_petersburg (the
+    Sound), copenhagen–reykjavik, london–york_factory (Hudson Strait), saint_malo–quebec, petropavlovsk–sitka,
+    acapulco–guam. 169 lanes. New ports displaced 11 old 4-nearest lanes (e.g. batavia–sainte_marie, acapulco–
+    juan_fernandez); no surviving old lane changed shape.
+  - §8: faction ids add `russia`. Persistent population 214 (zones `north`, `npacific`); ≤ 80 active. Load test:
+    200 players + 214 NPC records, avg tick 2.07 ms.
+  - Goods 14 Furs, 15 Whale Oil, 16 Naval Stores (group "northern"). Changing PORTS_VERSION re-seeds ports and markets
+    (verified on a local Redis holding the 43-port world).

@@ -49,7 +49,12 @@ export interface LandManifest {
   tile: number;
   px: number;
   sdfUnit: number;
-  iceLat: number;
+  /** Ice lines in degrees (north 72, south 70; a single `iceLat: 70` before 2026-10-24). Informational:
+   *  the runtime uses Z_ICE_N / Z_ICE_S from geo.ts. */
+  iceLatN?: number;
+  iceLatS?: number;
+  /** Pre-2026-10-24 manifests. */
+  iceLat?: number;
   /** Tile file encoding: "gzip" → files are `t_<tx>_<ty>.bin.gz` (gzipped, served as plain bytes);
    *  absent / "raw" → `t_<tx>_<ty>.bin`. Decompressed content is always TILE·TILE Int8 bytes. */
   encoding?: "gzip" | "raw";

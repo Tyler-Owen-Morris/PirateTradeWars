@@ -115,14 +115,20 @@ Measured in the browser (real server, F1): a pirate sloop vs a still player sloo
 
 ## Live behaviour on the real map (NPC2)
 
-### Population (`population.ts` `liveFleets()`, 185 persistent, ≤ 80 active)
+### Population (`population.ts` `liveFleets()`, 214 persistent, ≤ 80 active)
 
 Halved on 2026-10-16 (from 300: every fleet halved, rounded up, to 153). Perf numbers below were measured with 300.
 New Horizons phase 1 (2026-10-23) added 32 ships in two new zones for the 16 new ports and left every older fleet
 as it was, so the Caribbean keeps its 72. Measured with 185 (live-world load test, 200 players, real map): avg
 2.1 ms/tick spread over all ports, 1.9 ms packed at the starter ports (worst 7.1 ms; budget 25 ms).
+New Horizons phase 2 (2026-10-24) added 29 ships in two more zones (`north`, `npacific`) for the 17 northern ports and
+**Russia** as a fighting faction (`FACTION_IDS`/`NATIONS` gain `russia`, lawful, "Russian Navy"); every older fleet is
+unchanged (the Caribbean keeps 72). Sweden, Denmark-Norway and the Hawaiian chiefs are display-only nations: their
+ports send out Guild merchants (`portFaction` maps any non-faction nation to `merchants_guild`). Measured with 214
+(live-world load test, 200 players): avg 2.07 ms/tick spread over all ports (NPC system 0.55 ms, max 6.0), 1.96 ms
+packed at the starter ports; real server with 30 bots: `[tick] avg 3.03 ms (max 11.9)`, 212 NPC records, 38 active.
 
-Lanes get a zone from their two ports' regions (`laneZone`), in this order of precedence: **east** (touches the Indian Ocean or East Asia, incl. the Manila galleon), **pacific** (touches the Pacific coast of the Americas: Acapulco, Panamá, Guayaquil, Callao, Valparaíso, Juan Fernández, incl. the Cape Horn lane), **south** (touches the South Atlantic: Brazil and the River Plate), then **americas** (both ends Caribbean/Gulf or the American Atlantic coast), **atlantic** (Americas ↔ Europe/Africa crossings), **africa**, **europe**.
+Lanes get a zone from their two ports' regions (`laneZone`), in this order of precedence: **east** (touches the Indian Ocean or East Asia, incl. the Manila galleon and Guam/Okhotsk to Manila or Macau), **npacific** (touches the North Pacific: Okhotsk, Petropavlovsk, Sitka, Guam, Honolulu), **pacific** (touches the Pacific coast of the Americas: Acapulco, Panamá, Guayaquil, Callao, Valparaíso, Juan Fernández, incl. the Cape Horn lane), **south** (touches the South Atlantic: Brazil and the River Plate), **north** (touches the Baltic or the arctic ports: Bergen, Arkhangelsk, Reykjavík, Godthåb, York Factory), then **americas** (both ends Caribbean/Gulf or the American Atlantic coast), **atlantic** (Americas ↔ Europe/Africa crossings), **africa**, **europe**.
 
 | Fleet (region label) | Archetype | Count | Lanes | Faction |
 |---|---|---|---|---|
@@ -133,21 +139,27 @@ Lanes get a zone from their two ports' regions (`laneZone`), in this order of pr
 | east/merchant | merchant | 14 | east | origin port |
 | south/merchant | merchant | 10 | south | origin port |
 | pacific/merchant | merchant | 8 | pacific | origin port |
+| north/merchant | merchant | 10 | north | origin port (Swedish/Danish ports → merchants_guild) |
+| npacific/merchant | merchant | 6 | npacific | origin port (Honolulu → merchants_guild) |
 | americas/navy/{spain 5, england 4, france 2, netherlands 2} | navy | 13 | americas lanes touching that nation's ports | the nation |
 | europe/navy/{england 3, spain 2, france 2, netherlands 2, portugal 2} | navy | 11 | europe lanes touching its ports | the nation |
 | east/navy/{portugal 2, netherlands 2 (+africa), spain 2} | navy | 6 | east lanes touching its ports | the nation |
 | south/navy/{portugal 3, spain 1} | navy | 4 | south lanes touching its South Atlantic ports | the nation |
 | pacific/navy/spain | navy | 3 | pacific lanes touching Spain's Pacific ports (the Armada del Mar del Sur) | spain |
+| north/navy/russia | navy | 4 | north lanes touching St. Petersburg or Arkhangelsk (the Baltic, the White Sea) | russia |
+| npacific/navy/russia | navy | 4 | npacific lanes touching Okhotsk, Petropavlovsk or Sitka (the fur coasts) | russia |
 | americas/pirate/havens | pirate | 18 | americas lanes touching Nassau or Tortuga | pirates |
 | americas/pirate/lanes | pirate | 3 | americas | pirates |
 | atlantic/pirate | pirate | 6 | atlantic | pirates |
 | east/pirate/sainte_marie | pirate | 6 | lanes touching Île Sainte-Marie | pirates |
 | pacific/pirate/juan_fernandez | pirate | 4 | lanes touching Juan Fernández | pirates |
 | south/pirate | pirate | 3 | south | pirates |
+| pacific/pirate/galapagos | pirate | 3 | lanes touching the Galápagos | pirates |
+| north/pirate | pirate | 2 | north | pirates |
 | americas/privateer | privateer | 8 | americas | england / france / netherlands |
 | atlantic/privateer | privateer | 2 | atlantic | spain |
 
-About 51 % of the fleet is in the Caribbean/Gulf and on the crossings (62 % before the South Atlantic and Pacific fleets). A fleet's ships keep to its lanes forever: at every lane end the next lane is drawn from the fleet's lane filter (a navy that reaches a foreign port with no home lane turns around). Groups spawn from the archetype's `group` (merchant convoys 1–3, navy and pirate pairs) on one lane, `GROUP_SPACING` (160) apart, with the same ship type and faction; members leave port right after their leader and take the lane it took (`NpcRecord.leader`).
+About 44 % of the fleet is in the Caribbean/Gulf and on the crossings (51 % before the northern fleets, 62 % before the South Atlantic and Pacific ones). A fleet's ships keep to its lanes forever: at every lane end the next lane is drawn from the fleet's lane filter (a navy that reaches a foreign port with no home lane turns around). Groups spawn from the archetype's `group` (merchant convoys 1–3, navy and pirate pairs) on one lane, `GROUP_SPACING` (160) apart, with the same ship type and faction; members leave port right after their leader and take the lane it took (`NpcRecord.leader`).
 
 ### Navigation on real coastlines (`index.ts` `followLaneOrWander` / `unstick`, `nav.ts`, `steering.ts`)
 

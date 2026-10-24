@@ -157,6 +157,10 @@ export const GOODS: GoodDef[] = [
     { id: 11, name: "Cacao", basePrice: 55, fluctuation: 30, group: "colonial" },
     { id: 12, name: "Hides", basePrice: 25, fluctuation: 20, group: "colonial" },
     { id: 13, name: "Wine", basePrice: 45, fluctuation: 25, group: "colonial" },
+    // New Horizons phase 2 (2026-10-24), "North of everything": the Northern group. APPEND ONLY.
+    { id: 14, name: "Furs", basePrice: 120, fluctuation: 30, group: "northern" },
+    { id: 15, name: "Whale Oil", basePrice: 65, fluctuation: 25, group: "northern" },
+    { id: 16, name: "Naval Stores", basePrice: 35, fluctuation: 20, group: "northern" }, // tar, pitch, hemp, masts
 ];
 
 // Ports live in shared/world/ports.ts (PORTS, generated ports.json; card W4). The old DEFAULT_PORTS

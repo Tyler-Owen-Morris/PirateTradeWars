@@ -14,7 +14,8 @@
 import type { WorldEffect } from "../world";
 import { clamp } from "./util";
 
-export const FACTION_IDS = ["england", "spain", "france", "portugal", "netherlands", "pirates", "merchants_guild"] as const;
+// "russia" was added by New Horizons phase 2 (2026-10-24): a lawful nation with navies on the fur coasts.
+export const FACTION_IDS = ["england", "spain", "france", "portugal", "netherlands", "pirates", "merchants_guild", "russia"] as const;
 export type FactionId = (typeof FACTION_IDS)[number];
 
 export function isFactionId(v: unknown): v is FactionId {
@@ -37,9 +38,10 @@ export const FACTIONS: Readonly<Record<FactionId, Faction>> = {
   netherlands: { id: "netherlands", name: "the Netherlands", adjective: "Dutch", lawful: true },
   pirates: { id: "pirates", name: "the Brethren", adjective: "Pirate", lawful: false },
   merchants_guild: { id: "merchants_guild", name: "the Merchants' Guild", adjective: "Guild", lawful: true },
+  russia: { id: "russia", name: "Russia", adjective: "Russian", lawful: true },
 };
 
-export const NATIONS: readonly FactionId[] = ["england", "spain", "france", "portugal", "netherlands"];
+export const NATIONS: readonly FactionId[] = ["england", "spain", "france", "portugal", "netherlands", "russia"];
 
 /** Relation values, −100 (war) … 100 (allied). */
 export const REL_SELF = 100;
@@ -102,6 +104,7 @@ export const DEFAULT_PLAYER_REP: Readonly<Record<FactionId, number>> = {
   netherlands: 0,
   pirates: -60,
   merchants_guild: 10,
+  russia: 0,
 };
 
 export function newStanding(): PlayerStanding {

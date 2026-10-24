@@ -5,9 +5,12 @@
 
 export const WORLD_C = 400_000; // x wraps in [0, C)
 export const WORLD_H = 200_000; // z in [0, H]; 0 = north pole
-export const ICE_LAT = 70;
-export const Z_ICE_N = (WORLD_H * (90 - ICE_LAT)) / 180;
-export const Z_ICE_S = (WORLD_H * (90 + ICE_LAT)) / 180;
+// Ice lines (New Horizons phase 2, 2026-10-24): north moved 70 -> 72 so North Cape and the White Sea
+// open; south stays at 70. Mirrors ICE_LAT_N / ICE_LAT_S in shared/world/geo.ts.
+export const ICE_LAT_N = 72;
+export const ICE_LAT_S = 70;
+export const Z_ICE_N = (WORLD_H * (90 - ICE_LAT_N)) / 180;
+export const Z_ICE_S = (WORLD_H * (90 + ICE_LAT_S)) / 180;
 
 export const W = 8192; // raster width (pixels)
 export const H = 4096; // raster height (pixels)

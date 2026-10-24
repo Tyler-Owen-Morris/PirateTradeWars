@@ -96,7 +96,7 @@ All 2D UI uses one theme layer. Read `components/ui/pirate/README.md` before sty
 ## Navigation UI (card W5)
 All maths is pure and tested in `client/src/lib/nav.ts` (`lib/__tests__/nav.test.ts`); components only draw. It uses `shared/world/geo.ts` (`metricDelta`, `metricDist`, `bearingDeg`, `compassHeading`, `lonOf`/`latOf`) - never raw x deltas.
 - `ui/Minimap.tsx`: north-up, centred on the player. Radius (world units centre-to-edge) defaults to 6000 (1 unit = 100 m, so 600 km), +/- halve/double (1500..24000). The caption is the full span, `minimapSpanLabel(radius)` = "1200 km across" at the default (F1/Q1 B4: it used to print the radius as "Edge = 600 km"). Land is drawn from the SDF tiles already loaded around the ship (`clientLand`) by `lib/world/minimapLand.ts` (2026-10-16 fix: the 1024 texture is ~390 units/px, so zoomed in it showed as big blurred blocks): chart colours like the world map texture, coast anti-aliased over one device px, and below one SDF px per output px it blurs the SDF under the view (~1 SDF px) so coasts read as curves, not 49-unit stair-steps. `MinimapLandLayer` keeps a 1.5x offscreen buffer and only re-renders (~5-10 ms at dpr 2) when the ship has moved far, the zoom changes or a tile arrives (`clientLand.version`). Pixels on unloaded tiles stay transparent over the old texture backdrop, drawn row by row from `/world/map_1024x512.png` (no graticule since F1) via `minimapRow` (each row spans +-radius/metricX(z) x-units, split in two across the x seam). The canvas is backed at devicePixelRatio (capped at 3). Ports (nation-coloured, at their dock; labels decluttered by `lib/nav.ts` `placeLabels`), ships/NPCs (`otherPlayers`), heading arrow, highlighted target port.
-- `ui/WorldMap.tsx`: full-screen canvas over `/world/map_4096x2048.png`. Opened by `M` or the "Map" button in the compass HUD (GameUI owns the toggle; Esc closes). View = `{cx, cz, k}` (k = px per world unit, same on both axes); drag pans with x wrap, wheel/pinch zoom about the cursor, clicking a port (no drag) calls `setNavTarget(port.id)`. Draws 30 degree grid, +-70 degree ice lines/shading, ports and names, player arrow. Labels (New Horizons phase 1, 43 ports): every dot is drawn, then `placeLabels` (lib/nav.ts) keeps only labels that don't overlap one already placed, in priority order: the nav target, `MAJOR_PORT_KEYS`, then by port id; zoomed in, all show.
+- `ui/WorldMap.tsx`: full-screen canvas over `/world/map_4096x2048.png`. Opened by `M` or the "Map" button in the compass HUD (GameUI owns the toggle; Esc closes). View = `{cx, cz, k}` (k = px per world unit, same on both axes); drag pans with x wrap, wheel/pinch zoom about the cursor, clicking a port (no drag) calls `setNavTarget(port.id)`. Draws 30 degree grid, 72°N / 70°S ice lines/shading (asymmetric since New Horizons phase 2), ports and names, player arrow. Labels (New Horizons phase 1, 43 ports; phase 2, 60 ports, adds St. Petersburg, Copenhagen, Québec and Arkhangelsk to `MAJOR_PORT_KEYS`): every dot is drawn, then `placeLabels` (lib/nav.ts) keeps only labels that don't overlap one already placed, in priority order: the nav target, `MAJOR_PORT_KEYS`, then by port id; zoomed in, all show.
 - `ui/CompassHUD.tsx` (top centre): heading tape + `deg + cardinal`, lat/lon like `17°56′N 76°50′W`, and the target port with distance in sea miles (`nm`, 1 nm = 18.52 units), compass bearing and an arrow relative to the bow. Speed stays in `HUD.tsx` (knots): `speedToKnots(v)` = |v| × `KNOTS_PER_SPEED_UNIT` (1.5), a fixed display scale (F1/Q1 B5; game time is compressed, so a literal m/s conversion is meaningless): sloop 4 → 6 kn … dreadnought 9 → 13.5 kn.
 - **Ports (W4).** Data: `shared/world/ports.ts` (`PORTS`, typed view of the generated `ports.json`; numeric
   `id` = 1-based index, `key` = string id, town `x/z`, `dock`, `spawn`, `nation`, `region`). `useGameState.loadPorts`
@@ -307,7 +307,8 @@ frame-budget test on the real generated tiles (Jamaica, English Channel: < 0.2 m
   Water shader tints water turquoise within ~220 u of a coast and draws a moving surf-foam band in the
   first ~20 u.
 - `lib/world/ice.ts` `PolarIce`: the ice lines are constant-z lines, so in render space each is a
-  straight line at `rz = Z_ICE − F.z` with constant metricX (cos 70°). One rigid wall mesh (jagged,
+  straight line at `rz = Z_ICE − F.z` with constant metricX (cos 72° north, cos 70° south since New Horizons
+  phase 2; each line is an `IceLine` with its own period and geometry). One rigid wall mesh (jagged,
   flat-shaded, face never on the water side of the physics line) plus a pack-ice plane with a
   tileable Voronoi floe texture, per pole (the south one mirrored). The pattern period divides the
   ice-line circumference and the mesh is shifted by −(s_F mod period) so the ice stays world-anchored.
@@ -398,3 +399,13 @@ Design: `docs/design/STYLE_GUIDE.md` (rules, tokens, banned list) and `docs/prop
 
 `?trailer=1` on the Vite dev server (`components/game/useTrailerHooks.ts`, `lib/trailer/path.ts`) installs `window.__trailer` (camera paths via the dev city camera, HUD hide). Compile-time off in production builds. See `docs/trailer/NOTES.md`.
 
+
+## New Horizons phase 2 (2026-10-24): "North of everything"
+- 60 ports (17 new: the Baltic, the northern seas, New France and Hudson Bay, the North Pacific, Guam, Honolulu,
+  Galápagos). Regions `baltic` / `arctic` / `north_pacific` and nations `russia` / `sweden` / `denmark_norway` /
+  `hawaii` have labels in `ui/trade/BillOfGoods.tsx` (`REGION`, `NATION`; `HOLDER` names the Hudson's Bay Company
+  for York Factory), map dot colours in `lib/nav.ts` `NATION_COLORS`, flag colours in `lib/world/factions.ts` and
+  flag patterns in `lib/city/pieces.ts` `flagCell`.
+- The trade screen's "Northern" section (GOOD_GROUPS `northern`) lists Furs, Whale Oil and Naval Stores.
+- Minimap/world-map ice: `iceLatFor(lat)` (shared/world/geo.ts) picks 72 or 70 per hemisphere.
+- City kit: styles `nordic`, `russian`, `trading_post`, `pacific_island`, landmark `onion_church` (lib/city/README.md).

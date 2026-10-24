@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { World } from "../../world";
 import { loadLandSync, type LoadedLand } from "../../landLoader";
 import { createLiveNpcSystem, type ActiveNpc } from "../index";
-import { LANES, PORTS, laneZone, liveFleets } from "../population";
+import { LANES, PORTS, laneZone, liveFleets, portFaction } from "../population";
 import { mulberry32 } from "../util";
 import { metricDistSq } from "@shared/world/geo";
 import { SHIP_STATS } from "@shared/gameConstants";
@@ -18,18 +18,43 @@ beforeAll(() => {
 });
 
 describe("live population", () => {
-  it("fleet targets total 185 and every fleet has lanes", () => {
+  it("fleet targets total 214 and every fleet has lanes", () => {
     const fleets = liveFleets();
     const total = fleets.reduce((n, t) => n + t.count, 0);
-    expect(total).toBe(185);
+    expect(total).toBe(214);
     for (const t of fleets) expect(LANES.some((l) => t.lanes!(l)), t.region).toBe(true);
     // Heavy in the Caribbean/Gulf + the Europe–Caribbean crossings.
     const sum = (pre: string) => fleets.filter((t) => t.region.startsWith(pre)).reduce((n, t) => n + t.count, 0);
-    expect((sum("americas") + sum("atlantic")) / total).toBeGreaterThan(0.45);
+    // (was > 0.45 at 185 NPCs; the phase 2 northern fleets leave the Caribbean counts alone but dilute the share)
+    expect((sum("americas") + sum("atlantic")) / total).toBeGreaterThan(0.42);
     // New Horizons phase 1 added the south/pacific fleets without emptying the Caribbean.
     expect(sum("americas")).toBe(72);
     expect(sum("south")).toBe(17);
-    expect(sum("pacific")).toBe(15);
+    expect(sum("pacific")).toBe(18); // + the Galápagos buccaneers (phase 2)
+    // New Horizons phase 2: the north (Baltic, White Sea, Hudson Bay) and the North Pacific fur coasts.
+    expect(sum("north")).toBe(16);
+    expect(sum("npacific")).toBe(10);
+    expect(fleets.filter((t) => t.factions?.includes("russia")).reduce((n, t) => n + t.count, 0)).toBe(8);
+  });
+
+  it("phase 2 lanes get zones: the Baltic and the arctic are 'north', the fur coasts 'npacific'", () => {
+    const zone = (a: string, b: string) => laneZone(LANES.find((l) => (l.from === a && l.to === b) || (l.from === b && l.to === a))!);
+    expect(zone("london", "arkhangelsk")).toBe("north");
+    expect(zone("amsterdam", "st_petersburg")).toBe("north");
+    expect(zone("london", "york_factory")).toBe("north");
+    expect(zone("petropavlovsk", "sitka")).toBe("npacific");
+    expect(zone("acapulco", "guam")).toBe("npacific");
+    expect(zone("guam", "manila")).toBe("east");
+    expect(zone("saint_malo", "quebec")).toBe("atlantic");
+  });
+
+  it("display-only nations send out Guild merchants; Russia flies its own colours", () => {
+    expect(portFaction("copenhagen")).toBe("merchants_guild");
+    expect(portFaction("riga")).toBe("merchants_guild");
+    expect(portFaction("honolulu")).toBe("merchants_guild");
+    expect(portFaction("galapagos")).toBe("merchants_guild");
+    expect(portFaction("arkhangelsk")).toBe("russia");
+    expect(portFaction("york_factory")).toBe("england");
   });
 
   it("new lanes get zones: Brazil and the River Plate are 'south', the Pacific coast 'pacific', the galleon 'east'", () => {
@@ -42,13 +67,13 @@ describe("live population", () => {
     expect(zone("cartagena", "portobelo")).toBe("americas");
   });
 
-  it("director fills the world: 185 records, merchants under their origin port's nation, convoys", () => {
+  it("director fills the world: 214 records, merchants under their origin port's nation, convoys", () => {
     expect(land.version).not.toBeNull();
     const w = new World({ land: land.field, rng: mulberry32(1) });
     const sys = createLiveNpcSystem(w).attach();
     w.step();
     const recs = [...sys.director.records.values()];
-    expect(recs.length).toBe(185);
+    expect(recs.length).toBe(214);
     const nations = new Set(PORTS.map((p) => p.nation));
     const byArch: Record<string, number> = {};
     let convoyMembers = 0;
@@ -65,7 +90,7 @@ describe("live population", () => {
       expect(land.field.distance(p.x, p.z), `${r.region} spawn`).toBeGreaterThan(20);
     }
     console.log(`[npc live] population ${JSON.stringify(byArch)}, convoy/group members ${convoyMembers}`);
-    expect(byArch).toMatchObject({ merchant: 98, navy: 37, pirate: 40, privateer: 10 });
+    expect(byArch).toMatchObject({ merchant: 114, navy: 45, pirate: 45, privateer: 10 });
     expect(convoyMembers).toBeGreaterThan(20);
     // navies patrol home waters: every navy lane touches a port of its nation
     for (const r of recs) {
@@ -130,7 +155,7 @@ describe("load: 200 players + the live NPC fleets on the real map", () => {
     );
     // A record sunk in the melee (e.g. pirate friendly fire, more likely since NPCs have two
     // batteries) is gone until the director respawns it 2–5 min later.
-    expect(sys.stats.records + npcSunk).toBe(185);
+    expect(sys.stats.records + npcSunk).toBe(214);
     expect(npcSunk).toBeLessThanOrEqual(3);
     expect(sys.stats.active).toBeLessThanOrEqual(80);
     expect(sys.stats.active).toBeGreaterThan(20);

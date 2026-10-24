@@ -3,12 +3,14 @@
  * THREE objects, no WebGL needed (unit-tested in `__tests__/terrain.test.ts`). React glue: Terrain.tsx.
  *
  * Why this is cheap: the ice lines are lines of constant z, so in render space each one is a
- * straight line parallel to x at rz = Z_ICE − F.z, and metricX is the same constant (cos 70°) along
- * it. So the wall is one rigid mesh, translated per frame; no per-vertex transform is needed.
+ * straight line parallel to x at rz = Z_ICE − F.z, and metricX is a constant along it (cos 72° north,
+ * cos 70° south: the lines are asymmetric since New Horizons phase 2, 2026-10-24). So each wall is one
+ * rigid mesh, translated per frame; no per-vertex transform is needed. Each line has its own metric
+ * circumference, so each gets its own period and geometry (`IceLine`).
  *
- * World anchoring: along the line, metric arc length is s = x·MX_ICE. The jagged profile and the
- * floe texture repeat with period ICE_PERIOD, which divides the line's circumference exactly
- * (WORLD_C·MX_ICE), so the pattern is continuous across the x wrap. Each frame the mesh is shifted
+ * World anchoring: along a line, metric arc length is s = x·mx. The jagged profile and the
+ * floe texture repeat with that line's period, which divides the line's circumference exactly
+ * (WORLD_C·mx), so the pattern is continuous across the x wrap. Each frame the mesh is shifted
  * by −(s_F mod ICE_PERIOD) (float64), so local s = 0 is always a multiple of the period in the world:
  * the ice stays put as you sail along it.
  *
@@ -22,14 +24,32 @@ import { WORLD_C, Z_ICE_N, Z_ICE_S, metricX, wrap } from "@shared/world/geo";
 import { CAMERA_FAR } from "./renderSpace";
 import { WATER_Y } from "./terrainHeight";
 
-/** metricX at the ice lines (cos 70°; equal for both by symmetry). */
-export const MX_ICE = metricX(Z_ICE_N);
-/** Circumference of the ice line in metric units (≈ 136 808). */
-export const ICE_CIRCUMFERENCE = WORLD_C * MX_ICE;
-/** Pattern period along the line: ≈ 2000, dividing the circumference exactly. */
-export const ICE_PERIOD = ICE_CIRCUMFERENCE / Math.round(ICE_CIRCUMFERENCE / 2000);
-/** The wall mesh extends ± this along the line (whole periods, covers the camera range + 1 period). */
-export const ICE_HALF_LENGTH = Math.ceil((CAMERA_FAR + 600) / ICE_PERIOD + 1) * ICE_PERIOD;
+/** One ice line's along-line constants. */
+export interface IceLine {
+  /** metricX along the line (cos of its latitude). */
+  mx: number;
+  /** Metric circumference of the line. */
+  circumference: number;
+  /** Pattern period along the line: ≈ 2000, dividing the circumference exactly. */
+  period: number;
+  /** The wall mesh extends ± this along the line (whole periods, covers the camera range + 1 period). */
+  halfLength: number;
+}
+
+function iceLine(z: number): IceLine {
+  const mx = metricX(z);
+  const circumference = WORLD_C * mx;
+  const period = circumference / Math.round(circumference / 2000);
+  return { mx, circumference, period, halfLength: Math.ceil((CAMERA_FAR + 600) / period + 1) * period };
+}
+
+/** The northern line (72°N, circumference ≈ 123 607) and the southern one (70°S, ≈ 136 808). */
+export const ICE_LINE_N: IceLine = iceLine(Z_ICE_N);
+export const ICE_LINE_S: IceLine = iceLine(Z_ICE_S);
+/** Northern-line aliases (the pre-2026-10-24 single-line names). */
+export const MX_ICE = ICE_LINE_N.mx;
+export const ICE_CIRCUMFERENCE = ICE_LINE_N.circumference;
+export const ICE_PERIOD = ICE_LINE_N.period;
 export const WALL_SEGMENT = 12;
 export const WALL_JAG = 10;
 export const WALL_DEPTH = 80;
@@ -39,9 +59,9 @@ export const FLOE_REPEATS = 5;
 
 const TAU = Math.PI * 2;
 
-/** Periodic profile in [−1, 1] along the line (integer frequencies per ICE_PERIOD). */
-export function iceProfile(s: number, seed: number): number {
-  const p = (s / ICE_PERIOD) * TAU;
+/** Periodic profile in [−1, 1] along a line (integer frequencies per `period`). */
+export function iceProfile(s: number, seed: number, period = ICE_PERIOD): number {
+  const p = (s / period) * TAU;
   return (
     0.45 * Math.sin(13 * p + seed) +
     0.3 * Math.sin(37 * p + 2.1 * seed) +
@@ -50,20 +70,21 @@ export function iceProfile(s: number, seed: number): number {
   );
 }
 
-/** Local-x shift that anchors the pattern for a focus at world x `fx` (−(s_F mod period)). */
-export function iceShift(fx: number): number {
-  return -wrap(wrap(fx, WORLD_C) * MX_ICE, ICE_PERIOD);
+/** Local-x shift that anchors a line's pattern for a focus at world x `fx` (−(s_F mod period)). */
+export function iceShift(fx: number, line: IceLine = ICE_LINE_N): number {
+  return -wrap(wrap(fx, WORLD_C) * line.mx, line.period);
 }
 
-function buildWallGeometry(): THREE.BufferGeometry {
-  const n = Math.round((2 * ICE_HALF_LENGTH) / WALL_SEGMENT);
+function buildWallGeometry(line: IceLine): THREE.BufferGeometry {
+  const P = line.period;
+  const n = Math.round((2 * line.halfLength) / WALL_SEGMENT);
   const pos: number[] = [];
   const col: number[] = [];
   const cols: [number, number, number][] = [];
   for (let k = 0; k <= n; k++) {
-    const s = -ICE_HALF_LENGTH + k * WALL_SEGMENT;
-    const top = WATER_Y + 26 + 12 * iceProfile(s, 1);
-    const face = -WALL_JAG * (0.5 + 0.5 * iceProfile(s, 4)); // ≤ 0: into the ice
+    const s = -line.halfLength + k * WALL_SEGMENT;
+    const top = WATER_Y + 26 + 12 * iceProfile(s, 1, P);
+    const face = -WALL_JAG * (0.5 + 0.5 * iceProfile(s, 4, P)); // ≤ 0: into the ice
     cols.push([s, top, face]);
   }
   const push = (x: number, y: number, z: number, shade: number) => {
@@ -82,8 +103,8 @@ function buildWallGeometry(): THREE.BufferGeometry {
     push(s1, b, f1, 0.8);
     push(s1, t1, f1 - 3, 1);
     // top, sloping back into the shelf
-    const back0 = WATER_Y + 6 + 4 * iceProfile(s0, 9);
-    const back1 = WATER_Y + 6 + 4 * iceProfile(s1, 9);
+    const back0 = WATER_Y + 6 + 4 * iceProfile(s0, 9, P);
+    const back1 = WATER_Y + 6 + 4 * iceProfile(s1, 9, P);
     push(s0, t0, f0 - 3, 1);
     push(s1, t1, f1 - 3, 1);
     push(s0, back0, -WALL_DEPTH, 0.97);
@@ -155,13 +176,13 @@ export function buildFloeTexture(size = 256, cells = 7, seed = 3): THREE.DataTex
   return tex;
 }
 
-function buildPackGeometry(): THREE.BufferGeometry {
-  const len = 2 * ICE_HALF_LENGTH;
+function buildPackGeometry(line: IceLine): THREE.BufferGeometry {
+  const len = 2 * line.halfLength;
   const g = new THREE.PlaneGeometry(len, PACK_DEPTH - WALL_DEPTH + 20, 1, 1);
   g.rotateX(-Math.PI / 2); // plane in xz, +y normal; local z ∈ [−d/2, d/2]
   g.translate(0, WATER_Y + 4, -(WALL_DEPTH - 20) - (PACK_DEPTH - WALL_DEPTH + 20) / 2);
-  // UVs anchored to local coordinates: FLOE_REPEATS tiles per ICE_PERIOD in both directions
-  const tile = ICE_PERIOD / FLOE_REPEATS;
+  // UVs anchored to local coordinates: FLOE_REPEATS tiles per period in both directions
+  const tile = line.period / FLOE_REPEATS;
   const p = g.getAttribute("position");
   const uv = g.getAttribute("uv");
   for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / tile, p.getZ(i) / tile);
@@ -173,41 +194,39 @@ export class PolarIce {
   readonly group = new THREE.Group();
   readonly north = new THREE.Group();
   readonly south = new THREE.Group();
-  private readonly wallGeom = buildWallGeometry();
-  private readonly packGeom = buildPackGeometry();
+  private readonly wallGeoms = [buildWallGeometry(ICE_LINE_N), buildWallGeometry(ICE_LINE_S)];
+  private readonly packGeoms = [buildPackGeometry(ICE_LINE_N), buildPackGeometry(ICE_LINE_S)];
   private readonly floe = buildFloeTexture();
   private readonly wallMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide });
   private readonly packMat = new THREE.MeshLambertMaterial({ map: this.floe, side: THREE.DoubleSide });
 
   constructor() {
     this.group.name = "PolarIce";
-    for (const g of [this.north, this.south]) {
-      const wall = new THREE.Mesh(this.wallGeom, this.wallMat);
-      const pack = new THREE.Mesh(this.packGeom, this.packMat);
+    [this.north, this.south].forEach((g, k) => {
+      const wall = new THREE.Mesh(this.wallGeoms[k], this.wallMat);
+      const pack = new THREE.Mesh(this.packGeoms[k], this.packMat);
       wall.frustumCulled = false; // the line spans the view; cheaper than bounds churn
       pack.frustumCulled = false;
       g.add(wall, pack);
       this.group.add(g);
-    }
+    });
     this.south.scale.z = -1; // the southern shelf faces north
   }
 
   /** Place both shelves for focus (fx, fz) (raw world coords). */
   update(fx: number, fz: number): void {
-    const shift = iceShift(fx);
     const range = CAMERA_FAR + PACK_DEPTH;
     const rzN = Z_ICE_N - fz;
     const rzS = Z_ICE_S - fz;
     this.north.visible = Math.abs(rzN) < range;
     this.south.visible = Math.abs(rzS) < range;
-    this.north.position.set(shift, 0, rzN);
-    // mirrored: local x is unchanged, so the same shift anchors it
-    this.south.position.set(shift, 0, rzS);
+    this.north.position.set(iceShift(fx, ICE_LINE_N), 0, rzN);
+    // mirrored: local x is unchanged; the southern line has its own period
+    this.south.position.set(iceShift(fx, ICE_LINE_S), 0, rzS);
   }
 
   dispose(): void {
-    this.wallGeom.dispose();
-    this.packGeom.dispose();
+    for (const g of [...this.wallGeoms, ...this.packGeoms]) g.dispose();
     this.floe.dispose();
     this.wallMat.dispose();
     this.packMat.dispose();

@@ -13,6 +13,12 @@ export const FACTION_FLAG_COLORS: Record<string, { field: string; accent: string
   netherlands: { field: '#21468b', accent: '#ae1c28' },
   pirates: { field: '#111111', accent: '#f5f5f5' }, // the black flag
   merchants_guild: { field: '#2e7d32', accent: '#ffd54f' },
+  // New Horizons phase 2 (2026-10-24). Russia is a fighting faction (St Andrew's ensign: white, blue saltire);
+  // the others are display-only (port cards, city flags): the field + cross reads as their Nordic crosses.
+  russia: { field: '#ffffff', accent: '#2a5aa8' },
+  sweden: { field: '#2f6fc0', accent: '#f2c230' },
+  denmark_norway: { field: '#c63a3a', accent: '#ffffff' },
+  hawaii: { field: '#c8202a', accent: '#f4f1ea' },
 };
 
 const NEUTRAL = { field: '#9e9e9e', accent: '#424242' };
