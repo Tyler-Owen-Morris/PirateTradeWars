@@ -388,6 +388,23 @@ export function landmark(ctx: CityCtx, kind: LandmarkKind, x: number, z: number,
       top = y0 + 38 * S;
       break;
     }
+    case "onion_church": {
+      // New Horizons phase 2: a Russian church. Timber nave and refectory, an octagonal tower with a
+      // flared drum and an onion dome, a small onion over the apse, gilded spikes.
+      nave(12 * S, 22 * S, 10 * S, 2 * S);
+      const gold = hex("#c9a640");
+      const onion = (cx: number, cz: number, by: number, r: number) => {
+        m.prism(cx, by, cz, r * 0.7, r * 0.7, r * 0.9, 8, wall); // drum
+        m.prism(cx, by + r * 0.9, cz, r * 0.7, r * 1.15, r * 0.5, 8, roofC); // the flare
+        m.dome(cx, by + r * 1.4, cz, r * 1.15, 8, 3, roofC, 1.5);
+        m.prism(cx, by + r * 1.4 + r * 1.7, cz, r * 0.22, 0, r * 1.3, 6, gold);
+        return by + r * 4.4;
+      };
+      m.prism(0, y0, -13 * S, 4.5 * S, 4.5 * S, 22 * S, 8, wall); // octagonal bell tower at the west end
+      top = onion(0, -13 * S, y0 + 22 * S, 3.4 * S);
+      onion(0, 4 * S, y0 + 14 * S, 3.8 * S);
+      break;
+    }
     case "pagoda": {
       let y = y0;
       let s = 12 * S;
@@ -967,6 +984,7 @@ export const EXTRA_PIECES: Record<string, ExtraPiece> = {
   church_steeple: landmarkPiece("steeple"),
   church_gothic_tower: landmarkPiece("gothic_tower"),
   church_dome: landmarkPiece("dome"),
+  onion_church: landmarkPiece("onion_church"),
   pagoda: landmarkPiece("pagoda"),
   chapel: landmarkPiece("chapel"),
   fort_star: fortPiece("star"),

@@ -341,7 +341,7 @@ export function pickPort<T extends NavPort>(
 }
 
 // ---------------------------------------------------------------------------------------------
-// Label decluttering (New Horizons phase 1: 43 ports crowd the Caribbean and the River Plate when
+// Label decluttering (New Horizons phase 1: 43 ports, phase 2: 60, crowd the Caribbean and the River Plate when
 // zoomed out). Dots are always drawn; a label is drawn only if its box does not overlap a label
 // already placed, in priority order: the navigation target, then major ports, then the rest by id.
 // ---------------------------------------------------------------------------------------------
@@ -351,6 +351,8 @@ export const MAJOR_PORT_KEYS: ReadonlySet<string> = new Set([
   "port_royal", "havana", "cartagena", "veracruz", "nassau", "tortuga", "boston", "new_york",
   "london", "amsterdam", "lisbon", "cadiz", "cape_town", "goa", "batavia", "macau", "manila",
   "acapulco", "callao", "panama", "portobelo", "rio_de_janeiro", "buenos_aires", "salvador",
+  // New Horizons phase 2 (60 ports): the Baltic and New France crowd too
+  "st_petersburg", "copenhagen", "quebec", "arkhangelsk",
 ]);
 
 export interface LabelCandidate {

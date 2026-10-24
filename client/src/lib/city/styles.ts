@@ -25,6 +25,7 @@ export type LandmarkKind =
   | "dome" // big dome on a drum with lantern (St Paul's, Cádiz cathedral, Goa)
   | "windmill"
   | "pagoda" // tiered roofs (future East Asian styles)
+  | "onion_church" // Russian church: octagonal tower and onion domes (New Horizons phase 2)
   | "chapel" // small timber chapel (pirate havens, trading posts)
   | "none";
 export type FortKind =
@@ -374,7 +375,116 @@ const EAST_ASIAN: CityStyle = {
   trees: "broadleaf",
 };
 
+// ---------------------------------------------------------------------------------------------
+// New Horizons phase 2 (2026-10-24): the north.
+// ---------------------------------------------------------------------------------------------
+
+/** Scandinavian timber towns (Sweden, Denmark-Norway): falu-red and ochre board houses, steep gables,
+ *  conifers. Copenhagen and Stockholm tweak it to brick/stucco in cities.ts. */
+const NORDIC: CityStyle = {
+  ...ENGLISH,
+  id: "nordic",
+  label: "Nordic timber",
+  walls: ["#8e2f22", "#9c3a2a", "#7e2a20", "#c8973e", "#d9b46a", "#e8e0cc", "#6a6a5a"],
+  trim: ["#f2efe6", "#e8e0cc"],
+  plinth: "#5e5a52",
+  roofs: ["#3a3530", "#4a4038", "#5a3a2a", "#3f444c"],
+  roofKinds: { gable: 1 },
+  pitch: 1.05,
+  eaves: 0.6,
+  houseW: [7, 11],
+  houseD: [7, 10],
+  floors: [1, 2],
+  chimneys: 0.9,
+  maxHouses: 75,
+  warehouseWalls: ["#8e2f22", "#7a5a3a", "#c8973e"],
+  warehouseRoofs: ["#3a3530"],
+  boats: 4,
+  landmark: "steeple",
+  landmarkWall: "#e8e0cc",
+  landmarkRoof: "#4f7a6a", // copper gone green
+  fort: "bastion",
+  fortStone: "#8a8478",
+  trees: "conifer",
+  treeCount: 60,
+};
+
+/** Russian timber towns (Arkhangelsk, Okhotsk, Kamchatka, Sitka): log houses, steep plank roofs, an
+ *  onion-domed church, a timber stockade. St. Petersburg tweaks it to stucco and stone in cities.ts. */
+const RUSSIAN: CityStyle = {
+  ...NORDIC,
+  id: "russian",
+  label: "Russian timber",
+  walls: ["#7a5a3e", "#6a4c34", "#8a6a48", "#5e4632", "#9a7a56"],
+  trim: ["#e8dcc4", "#3a6a5a"],
+  plinth: "#4a3a2c",
+  roofs: ["#5a5048", "#4a4440", "#6a5a48"],
+  pitch: 1.0,
+  chimneys: 0.7,
+  shutters: true,
+  irregularity: 0.2,
+  density: 0.75,
+  maxHouses: 60,
+  warehouseWalls: ["#6a4c34", "#7a5a3e"],
+  warehouseRoofs: ["#4a4440"],
+  landmark: "onion_church",
+  landmarkWall: "#efe8d8",
+  landmarkRoof: "#3f7a5a",
+  fort: "palisade",
+  fortStone: "#6a5034",
+};
+
+/** A fur-trade post (York Factory): a few big timber stores and houses inside a stockade. */
+const TRADING_POST: CityStyle = {
+  ...NORDIC,
+  id: "trading_post",
+  label: "Fur-trade post",
+  walls: ["#e8e2d4", "#d8d0bc", "#7a5a3e"],
+  roofs: ["#5a4a3a", "#4a4038"],
+  floors: [1, 2],
+  radius: 120,
+  maxHouses: 14,
+  warehouses: 3,
+  warehouseWalls: ["#e8e2d4", "#d8d0bc"],
+  warehouseRoofs: ["#5a4a3a"],
+  piers: 1,
+  boats: 3,
+  shipsAtAnchor: 1,
+  landmark: "chapel",
+  landmarkWall: "#e8e2d4",
+  landmarkRoof: "#5a4a3a",
+  fort: "palisade",
+  cityWalls: false,
+  treeCount: 50,
+};
+
+/** Mid-Pacific island town (Honolulu): thatched huts among palms, outrigger canoes, no fort. */
+const PACIFIC_ISLAND: CityStyle = {
+  ...PIRATE,
+  id: "pacific_island",
+  label: "Pacific island",
+  walls: ["#a8875a", "#9a7a4e", "#b8986a", "#8a6a44"],
+  roofs: ["#b89a5a", "#a88a4e", "#c8aa6a"],
+  roofKinds: { gable: 0.6, hip: 0.4 },
+  pitch: 1.1,
+  eaves: 1.2,
+  irregularity: 0.6,
+  maxHouses: 35,
+  warehouses: 1,
+  boats: 6,
+  shipsAtAnchor: 1,
+  landmark: "none",
+  fort: "none",
+  trees: "palm",
+  treeCount: 80,
+  extras: [],
+};
+
 export const STYLES: Record<string, CityStyle> = {
+  nordic: NORDIC,
+  russian: RUSSIAN,
+  trading_post: TRADING_POST,
+  pacific_island: PACIFIC_ISLAND,
   spanish_colonial: SPANISH,
   english: ENGLISH,
   dutch: DUTCH,
@@ -391,6 +501,11 @@ export const STYLE_BY_NATION: Record<string, string> = {
   france: "french",
   portugal: "portuguese",
   pirates: "pirate_haven",
+  // New Horizons phase 2 (2026-10-24)
+  russia: "russian",
+  sweden: "nordic",
+  denmark_norway: "nordic",
+  hawaii: "pacific_island",
 };
 
 /** Style id for a port: explicit override, else by nation (fallback English). */

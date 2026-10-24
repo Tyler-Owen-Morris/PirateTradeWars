@@ -58,7 +58,7 @@ describe("placeLabels (map label decluttering)", () => {
     expect(far.size).toBeLessThan(PORTS.length);
     expect(far.size).toBeGreaterThan(15);
     expect(near.size).toBe(PORTS.length);
-    for (const k of ["port_royal", "london", "callao", "rio_de_janeiro"]) expect(far.has(PORTS.find((p) => p.key === k)!.id), k).toBe(true);
+    for (const k of ["port_royal", "london", "callao", "rio_de_janeiro", "st_petersburg", "quebec"]) expect(far.has(PORTS.find((p) => p.key === k)!.id), k).toBe(true);
   });
 });
 
