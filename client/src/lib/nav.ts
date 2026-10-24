@@ -306,6 +306,11 @@ export const NATION_COLORS: Record<string, string> = {
   netherlands: "#f08a24",
   portugal: "#3fbf7f",
   pirates: "#b0b0b0",
+  // New Horizons phase 2 (2026-10-24)
+  russia: "#8fb3e8",
+  sweden: "#2f6fc0",
+  denmark_norway: "#c63a3a",
+  hawaii: "#d9a05b",
 };
 export function nationColor(nation?: string): string {
   return (nation && NATION_COLORS[nation]) || "#e6c577";

@@ -900,6 +900,16 @@ export function flagCell(nation: string, u: number, v: number): string {
       return Math.abs(u - 0.5) < 0.1 && Math.abs(v - 0.5) < 0.2 ? "#d8b040" : "#f4f1ea";
     case "portugal":
       return Math.abs(u - 0.5) < 0.12 && Math.abs(v - 0.5) < 0.25 ? (v < 0.5 ? "#24448a" : "#b8202a") : "#f4f1ea";
+    // New Horizons phase 2 (2026-10-24)
+    case "russia": // St Andrew's naval ensign: white, a blue saltire
+      return Math.abs(u - v) < 0.12 || Math.abs(u - (1 - v)) < 0.12 ? "#2a5aa8" : "#f4f1ea";
+    case "sweden": // blue, a yellow Nordic cross
+      return Math.abs(u - 0.38) < 0.09 || Math.abs(v - 0.5) < 0.12 ? "#e8b830" : "#2f62a8";
+    case "denmark_norway": // the Dannebrog: red, a white Nordic cross
+      return Math.abs(u - 0.38) < 0.09 || Math.abs(v - 0.5) < 0.12 ? "#f4f1ea" : "#c03030";
+    case "hawaii": // red, white and blue stripes under a red-cross canton
+      if (u < 0.4 && v < 0.5) return Math.abs(u - 0.2) < 0.05 || Math.abs(v - 0.25) < 0.07 ? "#c8202a" : "#f4f1ea";
+      return ["#f4f1ea", "#c8202a", "#24448a"][Math.floor(v * 6) % 3];
     case "pirates":
       if (Math.abs(u - 0.5) < 0.1 && v > 0.15 && v < 0.5) return "#f0ece0";
       if (v > 0.55 && v < 0.85 && (Math.abs(u - 0.5 - (v - 0.7)) < 0.08 || Math.abs(u - 0.5 + (v - 0.7)) < 0.08)) return "#f0ece0";

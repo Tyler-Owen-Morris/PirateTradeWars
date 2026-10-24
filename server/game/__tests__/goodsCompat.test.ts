@@ -46,13 +46,15 @@ describe("inventory back-compat", () => {
     expect(sold).toMatchObject({ ok: true, price: 270, total: 540 });
     expect(applySellAll(st, market, undefined)).toMatchObject({ ok: true });
   });
-  it("the trade screen ledger lists all 13 goods; an old server's 8 rows leave the new ones 'not traded'", () => {
+  it("the trade screen ledger lists all 16 goods; an old server's 8 rows leave the new ones 'not traded'", () => {
     const ledger = buildLedger(GOODS, market.slice(0, 2).map(({ goodId, currentPrice, stock }) => ({ goodId, currentPrice, stock })), old.inventory);
-    expect(ledger.length).toBe(13);
+    expect(ledger.length).toBe(16);
     expect(ledger.find((g) => g.id === 9)).toMatchObject({ untraded: true, buyPrice: null });
     expect(ledger.find((g) => g.id === 3)).toMatchObject({ held: 10, paid: undefined, buyPrice: 30 });
     const groups = groupLedger(buildLedger(GOODS, market, old.inventory)).map((s) => s.id);
-    expect(groups).toEqual(["staples", "colonial", "luxuries", "specie"]);
+    expect(groups).toEqual(["staples", "colonial", "luxuries", "specie", "northern"]);
     expect(groupLedger(buildLedger(GOODS, market, [])).find((s) => s.id === "specie")!.goods.map((g) => g.name)).toEqual(["Silver", "Gold"]);
+    // New Horizons phase 2: the Northern group
+    expect(groupLedger(buildLedger(GOODS, market, [])).find((s) => s.id === "northern")!.goods.map((g) => g.name)).toEqual(["Furs", "Whale Oil", "Naval Stores"]);
   });
 });

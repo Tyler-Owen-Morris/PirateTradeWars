@@ -4,7 +4,7 @@ import { allRoutes, bestPerGood, formatRoute, topRoutes } from "../priceSim";
 
 describe("price simulator", () => {
   it("finds profitable routes for every good", () => {
-    expect(bestPerGood().length).toBe(13);
+    expect(bestPerGood().length).toBe(16);
     expect(allRoutes().length).toBeGreaterThan(500);
   });
   it("no single route dominates per cargo unit", () => {

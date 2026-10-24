@@ -36,11 +36,18 @@ const nextRef = () => (refSeq = (refSeq % 2_000_000_000) + 1);
 type Pending = { ref?: number; kind: "trade" | "sellAll" | "repair" | "upgrade"; goodId?: number; side?: Side };
 type Status = { kind: "ok" | "err"; text: string; side?: Side } | null;
 
-const NATION: Record<string, string> = { england: "English", spain: "Spanish", france: "French", netherlands: "Dutch", portugal: "Portuguese" };
+const NATION: Record<string, string> = {
+  england: "English", spain: "Spanish", france: "French", netherlands: "Dutch", portugal: "Portuguese",
+  // New Horizons phase 2 (2026-10-24)
+  russia: "Russian", sweden: "Swedish", denmark_norway: "Danish", hawaii: "Hawaiian",
+};
+/** Ports held by someone other than their nation's crown (the subtitle names the holder instead). */
+const HOLDER: Record<string, string> = { york_factory: "the Hudson's Bay Company's" };
 const REGION: Record<string, string> = {
   caribbean: "the Caribbean", north_atlantic: "the North Atlantic", europe: "Europe", africa: "Africa",
   indian_ocean: "the Indian Ocean", east_asia: "the East Indies", americas_pacific: "the Pacific coast",
   south_atlantic: "the South Atlantic",
+  baltic: "the Baltic", arctic: "the northern seas", north_pacific: "the North Pacific",
 };
 const shipName = (t: string) => ((SHIP_DISPLAY_NAMES as Record<string, string>)[t] ?? t).replace(/^The\s+/, "");
 const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -411,7 +418,7 @@ export default function BillOfGoods() {
 
   // ------------------------------------------------------------------ render helpers
   const flag = factionFlagColors(port.nation);
-  const nationWord = port.nation === "pirates" ? null : NATION[port.nation ?? ""];
+  const nationWord = port.nation === "pirates" ? null : HOLDER[(port as { key?: string }).key ?? ""] ?? NATION[port.nation ?? ""];
   const regionWord = REGION[(port as { region?: string }).region ?? ""] ?? "the open sea";
   const used = purse.used, cap = purse.cap;
   const after = tab === "goods" && sel.sel && sel.qty ? (sel.sel.side === "buy" ? used + sel.qty : used - sel.qty) : used;

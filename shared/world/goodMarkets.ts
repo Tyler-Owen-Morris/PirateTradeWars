@@ -11,7 +11,7 @@
  *   FAR_DISTANCE (200 000 units, half the world) and stays there beyond.
  * - "Wanted at" ports multiply by WANTED_FACTOR (1.3) on top, hold less stock, and the trade screen marks
  *   them ("pays well").
- * - EXOTIC goods (the 5 new ones, Spices and Silk) are only stocked for sale within EXOTIC_SOLD_WITHIN
+ * - EXOTIC goods (Spices, Silk, the phase 1 goods and the phase 2 Northern goods) are only stocked for sale within EXOTIC_SOLD_WITHIN
  *   lane units of a source: elsewhere the port row is `notSold` (stock 0), though every port still BUYS
  *   every good. Staples (Fish, Wood, Sugar, Cotton, Rum, Tobacco) are on sale everywhere.
  * - Pirate havens are Rum sources (`nation:pirates`), so they keep their cheap Rum.
@@ -39,20 +39,34 @@ export interface GoodMarket {
 /** Per good (by name, matching GOODS in shared/gameConstants.ts). */
 export const GOOD_MARKETS: Readonly<Record<string, GoodMarket>> = Object.freeze({
   // Staples: on sale everywhere, cheap near their sources.
-  Fish: { sources: ["north_atlantic", "africa", "americas_pacific"], wanted: ["caribbean", "lisbon", "porto"] }, // salt cod
-  Wood: { sources: ["north_atlantic", "europe"], wanted: ["caribbean", "africa", "indian_ocean", "americas_pacific", "south_atlantic"] },
-  Sugar: { sources: ["caribbean", "south_atlantic"], wanted: ["north_atlantic", "europe", "east_asia"] },
+  // Phase 2: the arctic ports (Bergen stockfish, Iceland) are Fish sources; the Baltic is a Wood source and pays
+  // well for sugar, rum and wine (Copenhagen); Guam wants silver.
+  Fish: { sources: ["north_atlantic", "africa", "americas_pacific", "arctic"], wanted: ["caribbean", "lisbon", "porto"] }, // salt cod
+  Wood: { sources: ["north_atlantic", "europe", "baltic"], wanted: ["caribbean", "africa", "indian_ocean", "americas_pacific", "south_atlantic"] },
+  Sugar: { sources: ["caribbean", "south_atlantic"], wanted: ["north_atlantic", "europe", "east_asia", "baltic"] },
   Cotton: { sources: ["indian_ocean", "africa", "europe"], wanted: ["south_atlantic", "americas_pacific"] },
-  Rum: { sources: ["caribbean", "nation:pirates"], wanted: ["north_atlantic", "africa", "indian_ocean", "americas_pacific"] },
+  Rum: { sources: ["caribbean", "nation:pirates"], wanted: ["north_atlantic", "africa", "indian_ocean", "americas_pacific", "baltic"] },
   Tobacco: { sources: ["caribbean", "salvador", "recife"], wanted: ["europe", "east_asia", "africa"] },
   // Exotics: only stocked near their sources.
   Spices: { sources: ["indian_ocean", "east_asia"], wanted: ["europe"], exotic: true },
   Silk: { sources: ["east_asia", "acapulco"], wanted: ["europe", "caribbean"], exotic: true }, // Acapulco: the Manila galleon
-  Silver: { sources: ["callao", "portobelo", "panama", "buenos_aires", "acapulco"], wanted: ["manila", "macau", "goa", "batavia"], exotic: true },
+  Silver: { sources: ["callao", "portobelo", "panama", "buenos_aires", "acapulco"], wanted: ["manila", "macau", "goa", "batavia", "guam"], exotic: true },
   Gold: { sources: ["rio_de_janeiro", "elmina"], wanted: ["lisbon", "london", "goa"], exotic: true },
   Cacao: { sources: ["la_guaira", "guayaquil", "paramaribo"], wanted: ["cadiz", "seville", "amsterdam", "veracruz"], exotic: true },
   Hides: { sources: ["buenos_aires", "montevideo", "valparaiso"], wanted: ["london", "amsterdam", "cadiz", "boston"], exotic: true },
-  Wine: { sources: ["porto", "funchal", "valparaiso", "cape_town"], wanted: ["london", "amsterdam", "boston", "caribbean"], exotic: true },
+  Wine: { sources: ["porto", "funchal", "valparaiso", "cape_town"], wanted: ["london", "amsterdam", "boston", "caribbean", "baltic"], exotic: true },
+  // New Horizons phase 2 (2026-10-24): the Northern group.
+  Furs: {
+    sources: ["quebec", "york_factory", "okhotsk", "petropavlovsk", "sitka", "arkhangelsk"],
+    wanted: ["london", "amsterdam", "macau", "manila"], // the European fur markets and Canton (via Macau)
+    exotic: true,
+  },
+  "Whale Oil": { sources: ["bergen", "reykjavik", "godthab", "st_johns"], wanted: ["london", "amsterdam", "saint_malo", "lisbon"], exotic: true }, // lamp oil
+  "Naval Stores": {
+    sources: ["riga", "st_petersburg", "stockholm", "arkhangelsk"],
+    wanted: ["london", "bristol", "amsterdam", "cadiz", "lisbon", "havana", "port_royal"], // the navy yards
+    exotic: true,
+  },
 });
 
 export const SOURCE_FACTOR = 0.6;
