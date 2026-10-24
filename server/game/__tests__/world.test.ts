@@ -4,7 +4,7 @@ import { World, SpatialGrid, GRACE_PERIOD, DEFAULT_SPAWN_CENTER, SPAWN_MIN_WATER
 import { FixedStepLoop } from "../loop";
 import { FLAG_DISCONNECTED, FLAG_SUNK, GOLD_SNAPSHOT_EVERY, MAX_INPUT_QUEUE, type ServerMessage, type SnapshotMessage } from "@shared/protocol";
 import { FIRE_ALL, FIRE_PORT, FIRE_STARBOARD, TICK_DT } from "@shared/physics";
-import { WORLD_C, WORLD_H, WORLD_VERSION, metricDistSq, zOfLat } from "@shared/world/geo";
+import { WORLD_C, WORLD_H, WORLD_VERSION, Z_ICE_N, metricDistSq, zOfLat } from "@shared/world/geo";
 import { buildSyntheticLand, type LandQuery } from "@shared/world/land";
 import { STARTER_PORTS } from "@shared/world/ports";
 
@@ -590,7 +590,7 @@ describe("world on the wrapping Earth", () => {
 
   it("balls splash on the polar ice too", () => {
     const w = mkWorld();
-    addRaw(w, "s", 5000, 22_500, { rotationY: Math.PI / 2 }); // starboard = rotationY + π/2 → −z (north)
+    addRaw(w, "s", 5000, Z_ICE_N + 278, { rotationY: Math.PI / 2 }); // starboard = rotationY + π/2 → −z (north)
     w.queueInput("s", input(1, 0, 0, FIRE_STARBOARD));
     let splashes = 0;
     for (let i = 0; i < 20; i++) {

@@ -22,20 +22,21 @@ describe("renderSpace", () => {
   it("spec constants (WORLD_SPEC §2)", () => {
     expect(WORLD_C).toBe(400_000);
     expect(WORLD_H).toBe(200_000);
-    expect(Z_ICE_N).toBeCloseTo(22_222.2, 1);
+    expect(Z_ICE_N).toBeCloseTo(20_000, 6); // 72°N since New Horizons phase 2
     expect(Z_ICE_S).toBeCloseTo(177_777.8, 1);
     expect(latOfZ(0)).toBe(90);
     expect(latOfZ(EQ)).toBe(0);
     expect(latOfZ(WORLD_H)).toBe(-90);
   });
 
-  it("metricX = cos(lat): 1 at the equator, 0.5 at ±60°, cos70 at the ice lines", () => {
+  it("metricX = cos(lat): 1 at the equator, 0.5 at ±60°, cos72 / cos70 at the ice lines", () => {
     expect(metricX(EQ)).toBeCloseTo(1, 12);
     const z60n = ((90 - 60) / 180) * WORLD_H;
     const z60s = ((90 + 60) / 180) * WORLD_H;
     expect(metricX(z60n)).toBeCloseTo(0.5, 12);
     expect(metricX(z60s)).toBeCloseTo(0.5, 12);
-    expect(metricX(Z_ICE_N)).toBeCloseTo(Math.cos((70 * Math.PI) / 180), 12);
+    expect(metricX(Z_ICE_N)).toBeCloseTo(Math.cos((72 * Math.PI) / 180), 12);
+    expect(metricX(Z_ICE_S)).toBeCloseTo(Math.cos((70 * Math.PI) / 180), 12);
     expect(metricX(0)).toBeGreaterThan(0); // geo clamps to MIN_METRIC_X beyond the ice
     expect(metricX(0)).toBeLessThan(0.02);
   });

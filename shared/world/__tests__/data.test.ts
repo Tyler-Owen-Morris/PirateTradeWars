@@ -19,7 +19,7 @@ const W = 8192;
 const H = 4096;
 const TILE = 256;
 const PX = C / W;
-const z_ICE_N = (H_UNITS * 20) / 180;
+const z_ICE_N = (H_UNITS * 18) / 180; // 72°N since New Horizons phase 2 (2026-10-24)
 const z_ICE_S = (H_UNITS * 160) / 180;
 const x = (lon: number) => ((lon + 180) / 360) * C;
 const z = (lat: number) => ((90 - lat) / 180) * H_UNITS;
@@ -73,7 +73,7 @@ const at = (lat: number, lon: number) => sdf(x(lon), z(lat));
 
 describe("land manifest and tiles", () => {
   it("manifest matches the spec constants", () => {
-    expect(manifest).toMatchObject({ width: 8192, height: 4096, tile: 256, px: 48.828125, sdfUnit: 4, iceLat: 70 });
+    expect(manifest).toMatchObject({ width: 8192, height: 4096, tile: 256, px: 48.828125, sdfUnit: 4, iceLatN: 72, iceLatS: 70 });
     expect(manifest.version).toMatch(/^[0-9a-f]{6,}$/);
     expect(versions.land).toBe(manifest.version);
   });
@@ -106,6 +106,12 @@ describe("land manifest and tiles", () => {
     expect(at(22.0, -79.5)).toBeLessThan(0); // Cuba
     expect(at(50.2, -1.5)).toBeGreaterThan(100); // English Channel
     expect(at(35.97, -5.55)).toBeGreaterThan(0); // Strait of Gibraltar
+    // New Horizons phase 2: carved channels (scripts/world/channels.ts) and the open North Cape
+    expect(at(56.04, 12.62)).toBeGreaterThan(100); // the Øresund at Helsingør
+    expect(at(55.7, 12.75)).toBeGreaterThan(100); // the Sound off Copenhagen
+    expect(at(48.0, -69.7)).toBeGreaterThan(100); // the St. Lawrence off Tadoussac
+    expect(at(47.3, -70.5)).toBeGreaterThan(100); // the St. Lawrence below Île d'Orléans
+    expect(at(71.6, 25.8)).toBeGreaterThan(400); // off North Cape (south of the 72° ice)
   });
 
   it("the Panama isthmus is closed (every meridian crossing it hits land)", () => {
@@ -175,7 +181,17 @@ describe("lanes.json", () => {
   it("includes the named long-haul lanes", () => {
     const has = (a: string, b: string) => lanes.some((l) => (l.from === a && l.to === b) || (l.from === b && l.to === a));
     for (const [a, b] of [["london", "boston"], ["cadiz", "cape_town"], ["cape_town", "goa"], ["goa", "batavia"],
-      ["batavia", "macau"], ["cartagena", "havana"], ["havana", "seville"]]) expect(has(a, b), `${a}-${b}`).toBe(true);
+      ["batavia", "macau"], ["cartagena", "havana"], ["havana", "seville"],
+      // New Horizons phase 2
+      ["london", "arkhangelsk"], ["amsterdam", "st_petersburg"], ["copenhagen", "reykjavik"], ["london", "york_factory"],
+      ["saint_malo", "quebec"], ["petropavlovsk", "sitka"], ["acapulco", "guam"]]) expect(has(a, b), `${a}-${b}`).toBe(true);
+  });
+
+  it("New Horizons phase 2: the Archangel convoy rounds North Cape between it and the 72° ice", () => {
+    const l = lanes.find((q) => (q.from === "arkhangelsk" && q.to === "london") || (q.from === "london" && q.to === "arkhangelsk"))!;
+    const lats = (l.points as number[][]).map(([, zz]) => 90 - (zz / H_UNITS) * 180);
+    expect(Math.max(...lats)).toBeGreaterThan(71.2); // north of North Cape
+    expect(Math.max(...lats)).toBeLessThan(72); // south of the ice
   });
 
   it("starts and ends at docks, x is unwrapped, and every segment avoids land", () => {

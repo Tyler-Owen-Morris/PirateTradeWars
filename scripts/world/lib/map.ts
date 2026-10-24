@@ -1,9 +1,9 @@
 // Stylised age-of-sail chart texture (equirectangular, lon -180..180 left->right, lat 90..-90
 // top->bottom), rendered from the SDF. Parchment land with a dark ink coastline, pale sea with
-// shallow tint and a couple of coastal "ripple" contour lines, white pack ice beyond ±ICE_LAT, and a
+// shallow tint and a couple of coastal "ripple" contour lines, white pack ice beyond 72°N / 70°S (ICE_LAT_N/S), and a
 // faint 15° graticule (world map only; the 1024 minimap texture is built without it, F1/B4).
 // Ports, ships and labels are drawn by the client (W5), not baked in.
-import { W, H, SDF_UNIT, ICE_LAT } from "./common";
+import { W, H, SDF_UNIT, ICE_LAT_N, ICE_LAT_S } from "./common";
 
 type RGB = [number, number, number];
 const SEA_DEEP: RGB = [118, 156, 165];
@@ -65,13 +65,15 @@ export function renderMap(sdf: Int8Array, width: number, opts: RenderMapOptions 
         if (gu < 1 || gv < 1) c = [c[0] * GRID_DARKEN, c[1] * GRID_DARKEN, c[2] * GRID_DARKEN];
       }
       // polar pack ice
+      // degrees past this hemisphere's ice line (positive = in the ice)
+      const iceLat = lat >= 0 ? ICE_LAT_N : ICE_LAT_S;
       const al = Math.abs(lat);
-      if (al > ICE_LAT) {
-        const t = Math.min(1, (al - ICE_LAT) / 0.6);
+      if (al > iceLat) {
+        const t = Math.min(1, (al - iceLat) / 0.6);
         c = mix(ICE_EDGE, ICE, t);
         if (d < 0) c = mix(c, LAND_INNER, 0.15);
-      } else if (al > ICE_LAT - 0.4) {
-        c = mix(c, ICE_EDGE, (al - (ICE_LAT - 0.4)) / 0.4);
+      } else if (al > iceLat - 0.4) {
+        c = mix(c, ICE_EDGE, (al - (iceLat - 0.4)) / 0.4);
       }
       const o = (v * width + u) * 3;
       out[o] = Math.round(c[0]);

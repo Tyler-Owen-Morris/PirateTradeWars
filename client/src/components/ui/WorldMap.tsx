@@ -22,7 +22,7 @@ const MAP_SRC = '/world/map_4096x2048.png';
 
 /**
  * Full-screen world map (card W5). Opened with M / the HUD button (GameUI owns the toggle; this
- * component closes itself on Esc). Equirectangular chart with 30° lat/lon grid, ±70° ice lines,
+ * component closes itself on Esc). Equirectangular chart with 30° lat/lon grid, 72°N / 70°S ice lines,
  * nation-coloured ports with names, the player's marker and heading. Drag pans (x wraps), wheel
  * and pinch zoom, a click (no drag) on a port selects it as the navigation target.
  * All geometry is in lib/nav.ts (tested).
@@ -95,7 +95,7 @@ export function WorldMap({ onClose }: { onClose: () => void }) {
       for (const o of offsets) ctx.drawImage(img, o, top, WORLD_C * v.k, mapH);
     }
 
-    // Ice (±70°) shading and lines
+    // Ice (72°N / 70°S) shading and lines
     const yN = mapWorldToScreen(v, w, h, 0, Z_ICE_N).y;
     const yS = mapWorldToScreen(v, w, h, 0, Z_ICE_S).y;
     ctx.fillStyle = 'rgba(220,240,255,0.35)';
@@ -286,7 +286,7 @@ export function WorldMap({ onClose }: { onClose: () => void }) {
         <div className="ptw-font-display text-xl sm:text-2xl leading-none mb-1">World Map</div>
         <div>Drag to pan, wheel/pinch to zoom, click a port to navigate to it.</div>
         <div className="ptw-num text-ptw-ink-soft">Centre {formatLatLon(centreLat, centreLon)}{hover ? ` · ${hover}` : ''}</div>
-        <div className="text-ptw-ink-soft italic">Dashed lines: polar pack ice (70°)</div>
+        <div className="text-ptw-ink-soft italic">Dashed lines: polar pack ice (72°N, 70°S)</div>
       </div>
       <div className="absolute top-2 right-2 sm:top-4 sm:right-4 flex flex-col gap-2">
         <button className="ptw-btn ptw-btn--porthole text-xl" onClick={onClose} title="Close (Esc / M)" aria-label="Close map">

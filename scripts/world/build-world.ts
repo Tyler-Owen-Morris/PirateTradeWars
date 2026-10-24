@@ -17,10 +17,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import {
-  W, H, PX, TILE, TILES_X, TILES_Y, SDF_UNIT, SDF_MAX, ICE_LAT, WORLD_C, Z_ICE_N, Z_ICE_S,
+  W, H, PX, TILE, TILES_X, TILES_Y, SDF_UNIT, SDF_MAX, ICE_LAT_N, ICE_LAT_S, WORLD_C, Z_ICE_N, Z_ICE_S,
   latToZ, lonToX, metricDist, sampleSdf, rowLat, wrap,
 } from "./lib/common";
-import { rasterizeGeoJson } from "./lib/raster";
+import { carveChannel, rasterizeGeoJson } from "./lib/raster";
+import { CHANNELS } from "./channels";
 import { buildSdf } from "./lib/sdf";
 import { oceanMask, placePorts, type PlacedPort } from "./lib/ports";
 import { LaneGrid, type Lane, LANE_CLEARANCE } from "./lib/lanes";
@@ -97,6 +98,8 @@ function buildLandMask(ne10: any, ne50: any, minor: any): Uint8Array {
       land[idx] = inBox ? m10[idx] : m50[idx];
     }
   }
+  // New Horizons phase 2: straits narrower than a pixel that a port sits behind (scripts/world/channels.ts)
+  for (const ch of CHANNELS) log(`carved channel ${ch.name}: ${carveChannel(land, ch.points, ch.halfWidth)} pixels`);
   return land;
 }
 
@@ -265,6 +268,11 @@ function writeDebugCrops(sdf: Int8Array, ports: PlacedPort[], lanes: Lane[]) {
     // name, lonMin, latMax, lonMax, latMin
     ["caribbean", -100, 33, -55, 5],
     ["europe", -15, 60, 10, 34],
+    // New Horizons phase 2: the northern ports
+    ["baltic", 4, 66, 32, 53],
+    ["north_atlantic", -96, 72, 45, 44],
+    ["nw_pacific", 130, 62, 180, 10],
+    ["ne_pacific", -180, 62, -120, 10],
     ["world", -180, 90, 180, -90],
   ];
   const base = renderMap(sdf, W);
@@ -368,7 +376,9 @@ async function main() {
     tile: TILE,
     px: PX,
     sdfUnit: SDF_UNIT,
-    iceLat: ICE_LAT,
+    // New Horizons phase 2: the single symmetric `iceLat` became iceLatN / iceLatS (nothing read it).
+    iceLatN: ICE_LAT_N,
+    iceLatS: ICE_LAT_S,
     allWater: tiles.allWater,
     allLand: tiles.allLand,
   };
