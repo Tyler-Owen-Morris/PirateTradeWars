@@ -77,7 +77,7 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player({ pla
 
     if (!ref || !('current' in ref) || !ref.current) return;
     ref.current.position.set(0, 0, 0);
-    if (cityDebug.enabled) ref.current.visible = !cityDebug.active; // dev city camera hides the own ship
+    if (cityDebug.enabled) ref.current.visible = !cityDebug.active || cityDebug.showShip; // dev city camera hides the own ship
     ref.current.rotation.y = renderState.current.rotationY;
   }, -1);
 

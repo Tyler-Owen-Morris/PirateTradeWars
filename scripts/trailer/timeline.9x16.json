@@ -1,0 +1,19 @@
+{
+  "aspect": "9x16",
+  "fps": 30,
+  "xfade": 0.4,
+  "music": { "file": "docs/trailer/assets/music/pirates_orchestra.mp3", "start": 0, "fadeIn": 0.4, "fadeOut": 2.0, "gainDb": 0 },
+  "sfx": [
+    { "file": "docs/trailer/assets/sfx/cannon_fire.ogg", "at": 0.9, "gainDb": -2 }
+  ],
+  "clips": [
+    { "src": "capture/16x9/broadside.mp4", "in": 6.2, "dur": 5, "cropX": 0.5, "caption": "Fire at will.", "capIn": 0.15, "capDur": 2.0, "_note": "HOOK: starts on the first Q broadside (muzzle flash in the first second). Pick `in` after the dry run." },
+    { "src": "capture/16x9/sail-run.mp4", "in": 1.2, "dur": 4.5, "cropX": 0.5 },
+    { "src": "capture/9x16/havana-approach", "dur": 4.5, "caption": "Trade where the price is right.", "capIn": 0.4, "capDur": 3.3 },
+    { "src": "capture/16x9/trade-screen.mp4", "in": 1.2, "dur": 4.5, "cropX": 0.5, "_note": "Prefer a native 9x16 recording of the trade screen if the bill of sale is cut off by the centre crop." },
+    { "src": "capture/9x16/northern-seas", "dur": 4.5, "caption": "Chart the frozen north.", "capIn": 0.4, "capDur": 3.3, "_needs": "expansion" },
+    { "src": "capture/16x9/world-map.mp4", "in": 1.2, "dur": 3.5, "cropX": 0.5 },
+    { "src": "capture/16x9/leaderboard.mp4", "in": 1.2, "dur": 3, "caption": "Climb the leaderboard.", "capIn": 0.3, "capDur": 2.3 }
+  ],
+  "end": { "dur": 3.5, "title": "Pirate Trade Wars", "url": "piratetradewars.com", "tagline": "Free to play in your browser" }
+}

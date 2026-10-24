@@ -27,6 +27,7 @@ import { net, type ControlState } from "@/lib/net";
 import { CameraFollow } from "@/lib/cameraFollow";
 import { renderFocus, CAMERA_FAR } from "@/lib/world/renderSpace";
 import { useCityDebugHooks } from "./useCityDebugHooks";
+import { useTrailerHooks } from "./useTrailerHooks";
 import { cityDebug } from "@/lib/world/cityDebug";
 import { nearestDockPort } from "@shared/world/ports";
 import { PORT_INTERACTION_RADIUS } from "@shared/gameConstants";
@@ -51,6 +52,7 @@ export function GameScene({ controlsRef }: GameSceneProps) {
 
   const { camera } = useThree();
   useCityDebugHooks(() => follow.current.requestSnap());
+  useTrailerHooks(() => follow.current.requestSnap()); // dev-only (?trailer=1), docs/trailer/NOTES.md
 
   // Load initial game data
   useEffect(() => {

@@ -394,3 +394,7 @@ Design: `docs/design/STYLE_GUIDE.md` (rules, tokens, banned list) and `docs/prop
 3. Advanced combat mechanics
 4. Social features integration
 5. Improved mobile support
+## Trailer tooling (dev only)
+
+`?trailer=1` on the Vite dev server (`components/game/useTrailerHooks.ts`, `lib/trailer/path.ts`) installs `window.__trailer` (camera paths via the dev city camera, HUD hide). Compile-time off in production builds. See `docs/trailer/NOTES.md`.
+
