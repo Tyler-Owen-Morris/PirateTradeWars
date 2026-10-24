@@ -32,6 +32,8 @@ Real-time model: authoritative 20 Hz server, client prediction (own ship) + inte
 ## Netcode docs
 `docs/netcode/README.md` (start here), `PROTOCOL.md` (contract), `LOAD_TEST.md` (bots), `BUILD_STATE.md` (history, numbers).
 `shared/physics.ts` runs on both client and server: changing it changes both.
+The ice lines are asymmetric (`ICE_LAT_N` 72, `ICE_LAT_S` 70 in `shared/world/geo.ts`, mirrored in
+`scripts/world/lib/common.ts`); there is no single `ICE_LAT`. Use `iceLatFor(lat)` for per-hemisphere code.
 
 ## Gotchas
 - `reusePort` is unsupported on Windows; `server/index.ts` skips it on win32.

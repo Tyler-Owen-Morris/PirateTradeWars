@@ -1,6 +1,7 @@
 # Port-city kit
 
-Procedural, data-driven low-poly towns for the 43 ports (27 original + 16 from New Horizons phase 1, 2026-10-23). One generic
+Procedural, data-driven low-poly towns for the 60 ports (27 original + 16 from New Horizons phase 1, 2026-10-23,
++ 17 from phase 2, 2026-10-24). One generic
 look per **city type** (style), plus a **small per-city entry** for well-known landmarks. Everything
 here is framework-free and deterministic (seeded by the port key) except `cityMaterial.ts`
 (three.js shader) and the React component `components/game/PortCity.tsx`.
@@ -79,3 +80,19 @@ bastioned Fuerte), Montevideo (walled), Callao (the Real Felipe star fort, ×1.6
 (sea walls), Juan Fernández (one hut and a `lookout`; `maxHouses: 1`, so the kit test's "> 8 houses" rule yields to
 the cap), New York (Fort George, a windmill), Porto (wine lodges and barges on the Ribeira), Funchal (whitewash under
 green hills). Rio's Sugarloaf is terrain. `CITY_REPORT=1` numbers: 4-12k triangles, 4-12 ms per town.
+
+## New Horizons phase 2 towns (2026-10-24)
+Four new styles (data only, in `styles.ts`) and one new landmark:
+- `nordic` (Sweden, Denmark-Norway): falu-red and ochre timber, steep gables, copper-green steeples, conifers.
+- `russian` (Russia): log houses, steep plank roofs, the new **`onion_church`** landmark (octagonal tower, flared
+  drums, onion domes, gilded spikes; also an extra piece), a timber stockade (`palisade`).
+- `trading_post` (York Factory via `style`): ~14 white stores and houses inside a stockade, a chapel.
+- `pacific_island` (the Hawaiian chiefs): thatched huts among palms, canoes, no fort, no landmark.
+
+`CITY_CUSTOM` entries for all 17: St. Petersburg (stucco and stone, the gilded spire, a star fortress ×1.3, an onion
+church on the outskirts), Riga (Dutch-style Hanseatic gables, green spire), Stockholm (ochre stucco, Tre Kronor
+castle), Copenhagen (brick, Kastellet star fort, the Round Tower), Bergen (Bryggen's seven warehouses, Bergenhus),
+Arkhangelsk, Reykjavík (11 houses, no trees), Godthåb (5 houses, a chapel), St. John's, Québec (walled, citadel on the
+high point), York Factory, Okhotsk, Petropavlovsk (earth battery), Sitka (fort on Castle Hill), Guam (Spanish, palms),
+Honolulu, Galápagos (`maxHouses: 0`: a bare anchorage with a careened buccaneer ship). `CITY_REPORT=1` numbers:
+0.7-10k triangles, 0.4-10.5 ms per town.

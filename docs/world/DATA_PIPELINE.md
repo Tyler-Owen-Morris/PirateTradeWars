@@ -32,8 +32,8 @@ Natural Earth vector data, **public domain** (https://www.naturalearthdata.com/a
 | `client/public/world/land/<version>/t_<tx>_<ty>.bin.gz` | 317 Int8 SDF tiles, 256², gzipped | 1.47 MiB (raw would be 19.8 MiB) |
 | `client/public/world/map_4096x2048.png` | equirectangular chart texture for the world map | 0.85 MiB |
 | `client/public/world/map_1024x512.png` | the same at minimap size | 0.10 MiB |
-| `shared/world/ports.json` | 43 ports (spec §5; 27 + 16 from New Horizons phase 1) | 19 KB |
-| `shared/world/lanes.json` | 117 lanes (spec §6) | 60 KB |
+| `shared/world/ports.json` | 60 ports (spec §5; 27 + 16 from New Horizons phase 1 + 17 from phase 2) | 20 KB |
+| `shared/world/lanes.json` | 169 lanes (spec §6) | 65 KB |
 | `shared/world/versions.json` | `{ land, ports, lanes }` short content hashes | — |
 
 - Of the 512 tiles: 143 are all water, 52 are all land, and 317 are stored.
@@ -49,6 +49,7 @@ The raw tiles would total 19.8 MiB, which is over the 15 MB budget. So they are 
 
 ## How it works (`scripts/world/`)
 - `build-world.ts`: orchestration, tiling, validation, writing, and the `--debug` crops.
+- `channels.ts` (New Horizons phase 2): **carved channels**, see below.
 - `portDefs.ts`: **the input list of ports** (real lat/lon, nation c. 1700, region) and the named long-haul lanes. Edit this file to add a port, then rebuild.
 - `lib/common.ts`: the spec constants and coordinate helpers, duplicated from the spec on purpose (no runtime imports). It also holds `sampleSdf`, the same bilinear sampling as spec §4.2, without the ice.
 - `lib/raster.ts`: a scanline rasterizer.
@@ -62,7 +63,7 @@ The raw tiles would total 19.8 MiB, which is over the 15 MB budget. So they are 
   - Using the query row's latitude instead of the mean latitude is off by far less than one SDF_UNIT within the ±508 range.
 - `lib/ports.ts`: places each port's town, dock and spawn (see below), and builds the ocean-connectivity mask.
 - `lib/lanes.ts`: the lane grid, Dijkstra/A*, string pulling and subdivision.
-- `lib/map.ts`: the chart renderer: parchment land, an ink coastline, shallow tint and two coastal contour lines, white pack ice beyond ±70°, and a 15° graticule. Ports and labels are left to the client. `renderMap(sdf, width, { graticule })`: the 4096 world map keeps the graticule; the 1024 minimap texture is built without it (F1/Q1 B4: zoomed in, the 1-px lines read as dark stripes). The F1 `--maps-only` rebuild reproduced the 4096 PNG byte for byte.
+- `lib/map.ts`: the chart renderer: parchment land, an ink coastline, shallow tint and two coastal contour lines, white pack ice beyond 72°N / 70°S (`ICE_LAT_N/S`, asymmetric since 2026-10-24), and a 15° graticule. Ports and labels are left to the client. `renderMap(sdf, width, { graticule })`: the 4096 world map keeps the graticule; the 1024 minimap texture is built without it (F1/Q1 B4: zoomed in, the 1-px lines read as dark stripes). The F1 `--maps-only` rebuild reproduced the 4096 PNG byte for byte.
 - `lib/png.ts`: a pure-JS PNG encoder (node:zlib, with per-row filter choice). There are no native dependencies, and **no new npm dependencies** at all.
 
 ## Decisions
@@ -105,7 +106,7 @@ The raw tiles would total 19.8 MiB, which is over the 15 MB budget. So they are 
   - Known samples: mid-Atlantic, Madrid, Gibraltar, Jamaica, Panama, the English Channel, Cuba and the Pacific.
   - Port distances.
   - Every port is reachable from Port Royal on the lane graph.
-  - Lane clearance: the minimum observed is 70 (72 before the expansion). The test asserts ≥ 60.
+  - Lane clearance: the minimum observed is 69 (70 after phase 1, 72 before the expansion). The test asserts ≥ 60.
   - The test also checks that the manifest and tile set agree, that every tile is 65536 bytes, that the Panama isthmus is closed on every meridian from −80 to −77.6, and that values are continuous across the antimeridian.
 
 ## Known limits
@@ -120,3 +121,23 @@ The raw tiles would total 19.8 MiB, which is over the 15 MB budget. So they are 
   screen's region label (`client/src/components/ui/trade/BillOfGoods.tsx` `REGION`).
 - The land tiles did not change for the 16 new ports (only ports/lanes/versions were rewritten).
 - The new ports' versions hash changes `PORTS_VERSION`, so the server re-seeds ports and markets at boot.
+
+## New Horizons phase 2 (2026-10-24): the ice line and carved channels
+- **Ice:** `ICE_LAT_N = 72`, `ICE_LAT_S = 70` in `lib/common.ts` (mirrors shared/world/geo.ts). The ocean-mask rows,
+  the lane grid's ice margin, the lane validation and the map tint all use the per-hemisphere line. The manifest
+  writes `iceLatN` / `iceLatS`. Moving the ice does not change the SDF: the first rebuild with only the ice moved
+  reproduced land version `fb6d8abef3`.
+- **Carved channels** (`scripts/world/channels.ts`, `lib/raster.ts` `carveChannel`): after the per-box land mask is
+  built, every land pixel within `halfWidth` metric units of a channel's polyline becomes water, then the SDF is
+  computed as usual. Use it only where a port sits behind a strait the 4.9 km raster cannot hold open:
+  | Channel | Why | Half-width | Pixels carved |
+  |---|---|---|---|
+  | Øresund (Kullen → Helsingør → Copenhagen/Malmö → Falsterbo) | 1-2 px at Helsingør; the whole Baltic was a lake at sdf ≥ 100, so St. Petersburg had "no dock water" | 150 | 97 |
+  | St. Lawrence (Pointe-des-Monts side → Île d'Orléans) | open at 1:50m but sdf ≥ 100 only 1-3 px wide on a diagonal; the 2×2 lane cells could not leave Québec's dock ("only 0 ports reachable") | 150 | 148 |
+  The carve changes the tiles: land version `fb6d8abef3` → `bd01338429`.
+- **Checking a strait:** dump the SDF and print it as ASCII (`#` land, `.` water < 80, `-` 80-99, `o` ≥ 100). The
+  scripts used are described in docs/world/expansion-phase2/NOTES.md. `npm run world:build -- --check --debug` also
+  writes `debug_baltic.png`, `debug_north_atlantic.png`, `debug_nw_pacific.png`, `debug_ne_pacific.png`.
+- Every other strait a new port sits behind was open at lane clearance: the Gulf of Finland, the Gulf of Riga (Irbe
+  strait), the Stockholm approaches, North Cape and the White Sea's Gorlo (with the 72° ice), Hudson Strait, the Sea
+  of Okhotsk, Avacha Bay and Sitka Sound. Port displacements are in the NOTES.
