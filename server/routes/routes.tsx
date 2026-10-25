@@ -11,6 +11,7 @@ import { registerStripeRoutes } from "./stripeRoutes";
 import { SHIP_STATS, SHIP_TYPES, GOODS } from "@shared/gameConstants";
 import { portGoodView } from "@shared/market";
 import { HEARTBEAT_INTERVAL_MS } from "@shared/protocol";
+import { shipsFree } from "../config";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
@@ -24,6 +25,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: 'healthy' });
   });
 
+
+  // Public runtime config for the client (no secrets). shipsFree: SHIPS_FREE env var, see server/config.ts.
+  app.get('/api/config', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ shipsFree: shipsFree() });
+  });
 
   // Player name verification
   app.get('/api/check-player-name', async (req, res) => {

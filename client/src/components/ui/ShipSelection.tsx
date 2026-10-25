@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useShip } from "@/lib/stores/useShip";
 import { useGameState } from "@/lib/stores/useGameState";
@@ -15,14 +15,45 @@ import {
   WoodPanel,
 } from "./pirate";
 import { SHIP_TYPES, SHIP_DESCRIPTIONS, SHIP_PRICES, SHIP_STATS, SHIP_DISPLAY_NAMES, SHIP_UPGRADE_PATH } from "@shared/gameConstants";
+import { KNOTS_PER_SPEED_UNIT } from "@/lib/nav";
 import PaymentModal from "./PaymentModal";
 import pirateNamesData from "./pirateNames.json";
 
 
-// Add constant to control purchases
-const PURCHASES_ENABLED = true;
+// Whether ships are charged is a runtime server switch (SHIPS_FREE env var, see server/config.ts).
+// The component fetches GET /api/config on mount; until it answers (or if it fails) we charge as before.
 
-const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+// One card's worth of display data, built the same way for every ship so the four stay consistent.
+// `premiumTier` is the tier number for paid ships (undefined for the free sloop).
+function shipCard(type: string, color: string, testId: string, premiumTier?: number) {
+  const s = SHIP_STATS[type];
+  const hours = s.playerTTL / 3600;
+  return {
+    type,
+    name: SHIP_DISPLAY_NAMES[type],
+    premiumTier,
+    color,
+    testId,
+    stats: {
+      price: type === SHIP_TYPES.SLOOP ? "Free" : `$${(SHIP_PRICES[type] / 100).toFixed(2)}`,
+      ttl: type === SHIP_TYPES.SLOOP ? `${s.playerTTL / 60} min` : `${hours} ${hours === 1 ? "hour" : "hours"}`,
+      speed: `${(s.speed * KNOTS_PER_SPEED_UNIT).toFixed(1)} kn`,
+      hull: `${s.hullStrength} HP`,
+      cargo: `${s.cargoCapacity} units`,
+      cannons: `${s.cannonCount} (${s.cannonDamage} dmg)`,
+      startingGold: `${s.startingGold}`,
+    },
+  };
+}
+
+const SHIP_CARDS = [
+  shipCard(SHIP_TYPES.SLOOP, "blue-100", "cypress-sloop-card"),
+  shipCard(SHIP_TYPES.BRIGANTINE, "green-100", "cypress-brigantine-card", 1),
+  shipCard(SHIP_TYPES.GALLEON, "yellow-100", "cypress-galleon-card", 2),
+  shipCard(SHIP_TYPES.MAN_O_WAR, "red-100", "cypress-man-o-war-card", 3),
+];
+
+const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void; purchasesEnabled: boolean }> = ({ isOpen, onClose, purchasesEnabled }) => {
   const [activeTab, setActiveTab] = useState("overview");
 
   const handleTabChange = (tab: string) => {
@@ -100,13 +131,13 @@ const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           {activeTab === "ships" && (
             <div>
               <h3 className="ptw-font-display text-2xl mb-2">Ships & Stats</h3>
-              <p>There are 5 ships, each with unique stats. The sloop is free; others require purchase via Stripe, and the dreadnaught can only acquired with ingame money. Game currency can be earned by winning battles or trading at islands (not available for purchase).</p>
+              <p>There are 5 ships, each with unique stats. {purchasesEnabled ? "The sloop is free; others require purchase via Stripe" : "Every ship is free to sail right now"}, and the dreadnaught can only acquired with ingame money. Game currency can be earned by winning battles or trading at islands (not available for purchase).</p>
               <div className="overflow-x-auto">
                 <table className="ptw-ledger ptw-num w-full text-left mt-4 text-sm">
                   <thead>
                     <tr>
                       <th className="p-2">Ship</th>
-                      <th className="p-2">Speed</th>
+                      <th className="p-2">Top Speed</th>
                       <th className="p-2">Cannons</th>
                       <th className="p-2">Hull</th>
                       <th className="p-2">Armor</th>
@@ -120,13 +151,13 @@ const InstructionsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                       return (
                         <tr key={shipType}>
                           <td className="p-2 font-bold">{SHIP_DISPLAY_NAMES[shipType]}</td>
-                          <td>{stats.speed}</td>
+                          <td>{(stats.speed * KNOTS_PER_SPEED_UNIT).toFixed(1)} kn</td>
                           <td>{stats.cannonCount} ({stats.cannonDamage} dmg)</td>
                           <td>{stats.hullStrength} HP</td>
                           <td>{stats.armor}</td>
                           <td>{shipType === SHIP_TYPES.SLOOP ? "Free" :
                             shipType === SHIP_TYPES.DREADNAUGHT ? "In-game upgrade" :
-                              `$${(SHIP_PRICES[shipType] / 100).toFixed(2)}`}</td>
+                              purchasesEnabled ? `$${(SHIP_PRICES[shipType] / 100).toFixed(2)}` : "Free"}</td>
                           <td>{shipType === SHIP_TYPES.SLOOP ? "-" :
                             upgradeInfo ? `${upgradeInfo.cost.toLocaleString()} gold` : "-"}</td>
                         </tr>
@@ -197,6 +228,19 @@ export default function ShipSelection() {
   const [tempPlayerId, setTempPlayerId] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  // Charge by default; flips to false only when the server says SHIPS_FREE is on.
+  const [purchasesEnabled, setPurchasesEnabled] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (!cancelled && cfg && typeof cfg.shipsFree === "boolean") setPurchasesEnabled(!cfg.shipsFree);
+      })
+      .catch(() => { /* keep charging behaviour */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Log current state for debugging
   useEffect(() => {
@@ -377,7 +421,7 @@ export default function ShipSelection() {
     useSocket.getState().resetError();
     setNameError(null);
 
-    if (selectedShip.isPaid && PURCHASES_ENABLED) {
+    if (selectedShip.isPaid && purchasesEnabled) {
       const { available, tempPlayerId } = await checkNameAvailability(playerName);
       console.log("checkNameAvailability:", { available, tempPlayerId });
       if (available && tempPlayerId) {
@@ -488,68 +532,7 @@ export default function ShipSelection() {
 
             <div className="px-4 sm:px-7 pt-2 pb-7">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {[
-                  {
-                    type: SHIP_TYPES.SLOOP,
-                    name: SHIP_DISPLAY_NAMES[SHIP_TYPES.SLOOP],
-                    tier: "Free",
-                    color: "blue-100",
-                    stats: {
-                      price: "Free",
-                      ttl: `${SHIP_STATS[SHIP_TYPES.SLOOP].playerTTL / 60} min`,
-                      hull: `${SHIP_STATS[SHIP_TYPES.SLOOP].hullStrength} HP`,
-                      cargo: `${SHIP_STATS[SHIP_TYPES.SLOOP].cargoCapacity} units`,
-                      cannons: `${SHIP_STATS[SHIP_TYPES.SLOOP].cannonCount} (${SHIP_STATS[SHIP_TYPES.SLOOP].cannonDamage} dmg)`,
-                      startingGold: `${SHIP_STATS[SHIP_TYPES.SLOOP].startingGold}`,
-                    },
-                    testId: "cypress-sloop-card",
-                  },
-                  {
-                    type: SHIP_TYPES.BRIGANTINE,
-                    name: SHIP_DISPLAY_NAMES[SHIP_TYPES.BRIGANTINE],
-                    tier: "Premium Tier 1",
-                    color: "green-100",
-                    stats: {
-                      price: `$${(SHIP_PRICES[SHIP_TYPES.BRIGANTINE] / 100).toFixed(2)}`,
-                      ttl: `${(SHIP_STATS[SHIP_TYPES.BRIGANTINE].playerTTL / 60) / 60} hour`,
-                      hull: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].hullStrength} HP`,
-                      cargo: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cargoCapacity} units`,
-                      cannons: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cannonCount} (${SHIP_STATS[SHIP_TYPES.BRIGANTINE].cannonDamage} dmg)`,
-                      startingGold: `${SHIP_STATS[SHIP_TYPES.BRIGANTINE].startingGold}`,
-                    },
-                    testId: "cypress-brigantine-card",
-                  },
-                  {
-                    type: SHIP_TYPES.GALLEON,
-                    name: SHIP_DISPLAY_NAMES[SHIP_TYPES.GALLEON],
-                    tier: "Premium Tier 2",
-                    color: "yellow-100",
-                    stats: {
-                      price: `$${(SHIP_PRICES[SHIP_TYPES.GALLEON] / 100).toFixed(2)}`,
-                      ttl: `${(SHIP_STATS[SHIP_TYPES.GALLEON].playerTTL / 60) / 60} hours`,
-                      hull: `${SHIP_STATS[SHIP_TYPES.GALLEON].hullStrength} HP`,
-                      cargo: `${SHIP_STATS[SHIP_TYPES.GALLEON].cargoCapacity} units`,
-                      cannons: `${SHIP_STATS[SHIP_TYPES.GALLEON].cannonCount} (${SHIP_STATS[SHIP_TYPES.GALLEON].cannonDamage} dmg)`,
-                      startingGold: `${SHIP_STATS[SHIP_TYPES.GALLEON].startingGold}`,
-                    },
-                    testId: "cypress-galleon-card",
-                  },
-                  {
-                    type: SHIP_TYPES.MAN_O_WAR,
-                    name: SHIP_DISPLAY_NAMES[SHIP_TYPES.MAN_O_WAR],
-                    tier: "Premium Tier 3",
-                    color: "red-100",
-                    stats: {
-                      price: `$${(SHIP_PRICES[SHIP_TYPES.MAN_O_WAR] / 100).toFixed(2)}`,
-                      ttl: `${(SHIP_STATS[SHIP_TYPES.MAN_O_WAR].playerTTL / 60) / 60} hours`,
-                      hull: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].hullStrength} HP`,
-                      cargo: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cargoCapacity} units`,
-                      cannons: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cannonCount} (${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].cannonDamage} dmg)`,
-                      startingGold: `${SHIP_STATS[SHIP_TYPES.MAN_O_WAR].startingGold}`,
-                    },
-                    testId: "cypress-man-o-war-card",
-                  },
-                ].map((ship) => {
+                {SHIP_CARDS.map((ship) => {
                   const selected = selectedShip?.name === ship.type;
                   return (
                     <div
@@ -574,16 +557,16 @@ export default function ShipSelection() {
                           </span>
                         )}
                         <h3 className="ptw-font-display text-[1.6rem] leading-none pr-20">{ship.name}</h3>
-                        <p className="ptw-font-label text-sm text-ptw-ink-soft mt-1">{ship.tier}</p>
+                        <p className="ptw-font-label text-sm text-ptw-ink-soft mt-1">{ship.premiumTier ? `${purchasesEnabled ? "Premium " : ""}Tier ${ship.premiumTier}` : "Free"}</p>
                         <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
-                          {!PURCHASES_ENABLED && ship.type !== SHIP_TYPES.SLOOP && (
+                          {!purchasesEnabled && ship.type !== SHIP_TYPES.SLOOP && (
                             <span className="ptw-tag ptw-tag--green">Free</span>
                           )}
                           <span
                             className={cn(
                               "ptw-tag",
                               ship.type === SHIP_TYPES.SLOOP && "ptw-tag--green",
-                              !PURCHASES_ENABLED && ship.type !== SHIP_TYPES.SLOOP && "line-through",
+                              !purchasesEnabled && ship.type !== SHIP_TYPES.SLOOP && "ptw-tag--struck",
                             )}
                           >
                             {ship.stats.price}
@@ -609,6 +592,7 @@ export default function ShipSelection() {
                         <dl className="ptw-ledger ptw-num text-sm mt-auto">
                           {[
                             ["Persistence", ship.stats.ttl],
+                            ["Top Speed", ship.stats.speed],
                             ["Hull", ship.stats.hull],
                             ["Cargo", ship.stats.cargo],
                             ["Cannons", ship.stats.cannons],
@@ -693,6 +677,7 @@ export default function ShipSelection() {
       <InstructionsModal
         isOpen={showInstructions}
         onClose={() => setShowInstructions(false)}
+        purchasesEnabled={purchasesEnabled}
       />
     </div>
   );

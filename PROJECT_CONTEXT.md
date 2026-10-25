@@ -102,6 +102,8 @@ See `docs/netcode/PROTOCOL.md` for the exact contract and `docs/netcode/README.m
   gaps, ack progress, privacy and visibility symmetry (details in `docs/netcode/LOAD_TEST.md`). Needs Redis.
 - Local Redis: `docker run -d --name ptw-redis -p 6379:6379 redis:7`, then `REDIS_CONN_STRING=redis://localhost:6379`.
   Do not test against the Upstash Redis in `.env`.
+- Env var `SHIPS_FREE` (`true`/`1` = ships free, no Stripe charge; default unset = charge). Runtime-only, set on the EB
+  environment (toggle command in `CLAUDE.md`); served to the client via `GET /api/config`.
 - Local server runs need a dummy `STRIPE_SECRET_KEY=sk_test_dummy` (the Stripe routes throw at import without it).
   `SEGMENT_WRITE_KEY` may be unset (no-op). `test:bots` injects the dummy keys itself.
 
