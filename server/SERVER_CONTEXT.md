@@ -305,6 +305,10 @@ Express routes in `routes.ts`:
    - `/api/ports` - Port information
    - `/api/ports/:id/goods` - Port goods and prices
 
+   - `GET /api/config` - public runtime config `{ shipsFree }` from the `SHIPS_FREE` env var (`server/config.ts`
+     `shipsFree()`, read per call). While free, `POST /api/stripe/create-payment-intent` returns 409
+     `{message:"Ships are free right now"}`. The websocket register path never checks payment.
+
 3. **Admin Routes**:
    - Update port prices and stock
    - Modify game parameters

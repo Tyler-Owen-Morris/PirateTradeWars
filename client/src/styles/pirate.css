@@ -701,6 +701,26 @@
     box-shadow: none;
   }
 
+  /* Struck-through price (ships free): a bold diagonal ink stroke across the tag, like a clerk voiding an entry. */
+  .ptw-tag--struck {
+    position: relative;
+    opacity: 0.8;
+  }
+  .ptw-tag--struck::after {
+    content: "";
+    position: absolute;
+    left: -0.15em;
+    right: -0.15em;
+    top: 50%;
+    height: 0.2em;
+    margin-top: -0.1em;
+    background: var(--ptw-ink);
+    border-radius: 0.1em;
+    transform: rotate(-12deg);
+    box-shadow: 0 0 0 0.04em rgb(0 0 0 / 0.15);
+    pointer-events: none;
+  }
+
   /* Wax seal medal (leaderboard ranks, badges). */
   .ptw-medal {
     display: inline-flex;
