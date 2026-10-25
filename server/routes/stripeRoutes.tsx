@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { redisStorage } from '../redisStorage';
 import { SHIP_PRICES } from '@shared/gameConstants';
 import { v4 as uuidv4 } from 'uuid';
+import { shipsFree } from '../config';
 import { identifyPlayer, trackEvent, flushSegment } from '../segmentClient';
 
 // Initialize Stripe with your secret key (loaded from environment variable)
@@ -33,6 +34,10 @@ export function registerStripeRoutes(app: Express) {
 
     // Route to create a Payment Intent for a premium ship
     app.post('/api/stripe/create-payment-intent', async (req: Request, res: Response) => {
+        // SHIPS_FREE switch: never create a charge while ships are free.
+        if (shipsFree()) {
+            return res.status(409).json({ message: 'Ships are free right now' });
+        }
         const { shipName, amount, currency, playerName, tempPlayerId } = req.body;
         console.log("create-payment-intent request:", req.body)
         if (!shipName || !amount || !currency || !playerName || !tempPlayerId) {
