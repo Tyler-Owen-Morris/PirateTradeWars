@@ -15,7 +15,18 @@ The feature doc is `README.md` next to this file.
 - [x] `npm run check`: same error set as the 56-line baseline (no new errors)  - [x] `npm run build` passes;
       AdminPage chunk 16 kB JS + 7 kB CSS, imports only the index chunk (no three.js)
 - [x] docs: README.md, SERVER_CONTEXT, CLIENT_CONTEXT, PROTOCOL §4, CLAUDE.md, PROJECT_CONTEXT
-- [ ] live check (waits for the PM's go)
+- [~] live check (2026-10-25, stopped early: owner said ship). Server :5160 on Redis DB 12 with a TEST hash, one
+      Playwright browser; server stopped and DB 12 flushed afterwards. Verified live, no bugs found:
+      `?utm_source=tiktok&utm_campaign=Trailer1` -> sessionStorage TikTok/trailer1 -> connect -> tiles "New captains 1,
+      From social 1 (TikTok 1), 100% (1 of 1 link clicks)", row "Came from TikTok · trailer1", status In port / Havana;
+      wrong password -> "Wrong password. 4 tries left..."; right password -> dashboard; gold +100/+1,000/+10,000/custom
+      2,500 and 200,000 (confirm dialog; dismiss = no change), bad custom "12abc" refused inline; upgrade x4
+      Sloop -> Dreadnaught, then "Already a Dreadnaught" (disabled). The player's own HUD showed every gold / hull /
+      ship change within ~1.5 s. Screenshots `01-signin.png` ... `04-after-actions.png`.
+      NOT verified live (unit/route tests only): repair full / +25% on a damaged ship, filters, pin click, hidden-tab
+      pause, phone width, sign out, the 5-try lockout. (Script in the PM scratchpad `pw/admin-live.mjs` covers them; it
+      stopped at the reconnect step because the game reconnects on its own and never shows `#playerName`; a test-script
+      issue, not an app bug.)
 
 ## Decisions made while building
 - Status signals: combat = fired (`firedAtTick`) or hit (new `hitAtTick`) in the last 15 s; idle = no NON-neutral
