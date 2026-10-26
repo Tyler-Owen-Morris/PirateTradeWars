@@ -1,6 +1,6 @@
 # Trailer: working notes and runbook
 
-State (2026-10-25): **trailer 1 (the live game, no northern expansion) is recorded and cut**, both aspects. The tooling has had
+State (2026-10-25): **trailer 1 and trailer 2 (the North) are recorded and cut**, both aspects (trailer 2: see "Trailer 2 run log" at the end). The tooling has had
 its first live run and the fixes are in (see "Trailer 1 run log" below). Trailer 2 (after the North ships) reuses all of it:
 add the north shots to `shots.mjs`, re-capture, re-cut.
 
@@ -151,3 +151,37 @@ Tooling changes:
 Survey (town-<key> preview): St. Petersburg (white church, painted houses) and Stockholm/Bergen read well from 250 out;
 Arkhangelsk is dark timber with ice floes on the beach (needs a high camera, it sits behind land); Sitka's end pose good.
 The north is green land like everywhere else (the game has no snow on land); ice shows as floes and the ice sheet at 72 N.
+
+Run 2 progress (later the same day):
+- **Ship speed**: a galleon under full sail covers ~950-1500 render units in 4.6 s (it is a big world). A sailing shot
+  must start ~2000+ units out; `pre` (W held through the 3 s settle) already moves it ~700.
+- **Ship-relative path axes** (rot:"ship", path.ts): -z = ahead of the bow, +z = astern, +x = starboard. Heading:
+  forward = (-sin r, -cos r) in (east, south) (the physics.ts comment reads the other way; this is what the game does).
+  r = -PI/2 sails east, r = PI/2 west, r = PI south. The broadside setup's starboard formula (cos r, -sin r) is right.
+- `arrive-north`: chase camera from the port quarter, start 60.0 N 26.8 E (mid Gulf of Finland) heading east; the town
+  slides past on the right at ~2-3 s. A start computed along the town->dock line from 2000 out landed on a shoal (grounded).
+- `ice-edge`: 71.9 N 38 E, r = PI/2 (west): the 72 N ice sheet is a grey cracked cliff to starboard. Camera ahead of the bow
+  looking back; portrait has its own path (look further to starboard or the ice is out of frame).
+- `navy-pass` / `navy-pass-b`: Russian Navy **man-o-war** forced (`ship`), spawned 750 ahead / 220 to starboard on the
+  opposite course; we sail at it with W and the script fires E or Q when it is abeam (|along| < 170), so both ships move
+  and the volley lands mid-frame. A rolled navy galleon had red sails and looked like us; at beam 120 the ships nearly
+  collided. b = second angle: trackPair from astern (16:9) / `high: 1.9` portrait (9:16; the side framing put both ships
+  at the frame edges). The navy returns fire after the first volley. Restart the server before every take (batch script).
+- `trade-north`: Furs at Arkhangelsk rise after each take (56 -> 89 g): the script falls back to the Max chip when 10 is
+  unaffordable (that was a 30 s click timeout).
+- `world-map-north`: wheel-zoom on Scandinavia after 1.2 s on the whole world; the zoom point differs per aspect.
+- `edit.mjs`: per-clip `zoom` (punch-in, lanczos) with cropX/cropY; used for the 9:16 trade (two 2 s beats: ledger with
+  the Northern group, then the bill) and the 9:16 ship cards, and a light 1.25 on the 16:9 trade.
+- Reused from trailer 1 (copied to `capture/t1/`): hero-dawn, ship-select (16:9), havana-approach, leaderboard (invented
+  names). Not reused (owner feedback): sail-run, trade-screen, broadside. New 9:16 ship-select capture.
+- Timelines: `scripts/trailer/timeline.v2.16x9.json`, `timeline.v2.9x16.json` (trailer-1 timelines kept).
+- Batch helper used (session scratchpad, not committed): clean = kill the :5150 listener + delete player keys in DB 11;
+  then start the server hidden, wait for /api/ports, run capture.mjs; one restart per shot group.
+
+Result: `ptw-trailer-v2-16x9.mp4` 43.7 s (35 MB), `ptw-trailer-v2-9x16.mp4` 31.1 s (24.5 MB), both -14 LUFS, H.264 High,
+yuv420p, AAC. Reviewed at 1 fps; contact sheets in the same folder. Cleanup done: server stopped, DB 11 flushed,
+socketHandler reverted, ptw-redis stopped.
+
+Known weaknesses: fixed noon sky; land in the north is as green as the tropics (no snow in the game); the 9:16 trade
+beats are a 1.6x upscale (slightly soft but legible); the 16:9 St. Petersburg truck ends over rooftops; realtime clips
+keep the HUD in combat (health bars and the "Russian Navy - Man-o'-War" plate are the point).

@@ -1,0 +1,24 @@
+{
+  "aspect": "16x9",
+  "fps": 30,
+  "xfade": 0.4,
+  "_note": "Trailer 2 (New Horizons phase 2, the North). capture/t1/* = trailer-1 frames reused (copied from the trailer-1 worktree; unchanged by phase 2). Owner feedback applied: no long empty sailing, one quick trade, combat with both ships moving (two angles). Music from 74 s like trailer 1.",
+  "music": { "file": "docs/trailer/assets/music/pirates_orchestra.mp3", "start": 74, "fadeIn": 0.8, "fadeOut": 3.0, "gainDb": 0 },
+  "sfx": [],
+  "clips": [
+    { "src": "capture/16x9/ice-edge", "in": 0.3, "dur": 4.0, "caption": "Chart the frozen north.", "capIn": 0.5, "capDur": 3.0 },
+    { "src": "capture/16x9/arrive-north", "in": 0.8, "dur": 3.2 },
+    { "src": "capture/16x9/stpete", "dur": 4.0 },
+    { "src": "capture/t1/16x9/ship-select", "in": 1.2, "dur": 3.0 },
+    { "src": "capture/t1/16x9/hero-dawn", "dur": 3.0 },
+    { "src": "capture/16x9/sitka", "dur": 3.4, "caption": "Furs, whale oil and timber.", "capIn": 0.4, "capDur": 2.6 },
+    { "src": "capture/16x9/trade-north", "in": 0.5, "dur": 2.9, "zoom": 1.25, "cropY": 0.75 },
+    { "src": "capture/t1/16x9/havana-approach", "in": 0.5, "dur": 3.2 },
+    { "src": "capture/16x9/world-map-north", "in": 0.8, "dur": 4.2, "caption": "60 ports. One ocean.", "capIn": 0.3, "capDur": 2.0 },
+    { "src": "capture/16x9/navy-pass", "in": 0.9, "dur": 3.6, "caption": "Mind the Russian Navy.", "capIn": 0.2, "capDur": 2.2, "sfx": [{ "src": 2.1, "gainDb": -4 }] },
+    { "src": "capture/16x9/navy-pass-b", "in": 1.3, "dur": 3.0, "sfx": [{ "src": 2.12, "gainDb": -5 }] },
+    { "src": "capture/16x9/bergen", "dur": 4.0 },
+    { "src": "capture/t1/16x9/leaderboard", "in": 0.9, "dur": 3.4 }
+  ],
+  "end": { "dur": 4.0, "title": "Pirate Trade Wars", "url": "piratetradewars.com", "tagline": "Free to play in your browser" }
+}

@@ -1,0 +1,23 @@
+{
+  "aspect": "9x16",
+  "fps": 30,
+  "xfade": 0.4,
+  "_note": "Trailer 2 TikTok cut, all native 1080x1920. Hook = Russian Navy broadside inside the first second. Trade in two quick zoomed beats (ledger with the Northern group, then the bill); zoom/cropX/cropY are edit.mjs punch-ins. Music from 82 s. Hook = the high two-shot (navy-pass-b): the volley crosses between both ships at ~0.7 s.",
+  "music": { "file": "docs/trailer/assets/music/pirates_orchestra.mp3", "start": 82, "fadeIn": 0.3, "fadeOut": 2.5, "gainDb": 0 },
+  "sfx": [],
+  "clips": [
+    { "src": "capture/9x16/navy-pass-b", "in": 1.5, "dur": 3, "caption": "Fire at will.", "capIn": 0.15, "capDur": 2.2, "sfx": [{ "src": 2.2, "gainDb": -3 }] },
+    { "src": "capture/9x16/ice-edge", "in": 0.3, "dur": 3, "caption": "Chart the frozen north.", "capIn": 0.3, "capDur": 2.3 },
+    { "src": "capture/9x16/arrive-north", "in": 0.8, "dur": 3 },
+    { "src": "capture/9x16/stpete", "dur": 3 },
+    { "src": "capture/9x16/sitka", "dur": 2.8, "caption": "Furs, whale oil and timber.", "capIn": 0.3, "capDur": 2.2 },
+    { "src": "capture/9x16/trade-north", "in": 0.4, "dur": 2, "zoom": 1.6, "cropX": 0, "cropY": 0.42 },
+    { "src": "capture/9x16/trade-north", "in": 1.3, "dur": 2, "zoom": 1.6, "cropX": 1, "cropY": 0.42 },
+    { "src": "capture/9x16/world-map-north", "in": 0.8, "dur": 3.6, "caption": "60 ports. One ocean.", "capIn": 0.3, "capDur": 2 },
+    { "src": "capture/9x16/navy-pass", "in": 1.9, "dur": 2.4, "sfx": [{ "src": 2.33, "gainDb": -5 }] },
+    { "src": "capture/9x16/bergen", "dur": 2.6 },
+    { "src": "capture/9x16/ship-select", "in": 3.6, "dur": 2.4, "zoom": 1.5, "cropX": 0.75, "cropY": 0.15 },
+    { "src": "capture/t1/9x16/leaderboard", "in": 0.9, "dur": 2.6 }
+  ],
+  "end": { "dur": 3.5, "title": "Pirate Trade Wars", "url": "piratetradewars.com", "tagline": "Free to play in your browser" }
+}

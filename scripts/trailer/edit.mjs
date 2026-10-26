@@ -16,7 +16,7 @@
 //   "music": {"file":"docs/trailer/assets/music/pirates_orchestra.mp3","start":0,"fadeIn":1,"fadeOut":2.5,"gainDb":0},
 //   "sfx": [{"file":"docs/trailer/assets/sfx/cannon_fire.ogg","at":9.2,"gainDb":-3}],
 //   "clips": [ {"src":"capture/9x16/hero-dawn" | "capture/16x9/sail-run.mp4" | {"lavfi":"testsrc2=size=1920x1080:rate=30"},
-//               "in":0, "dur":4, "caption":"Sail the known world.", "capIn":0.5, "capDur":2.5, "cropX":0.5, "srcFps":30 } ],
+//               "in":0, "dur":4, "caption":"Sail the known world.", "capIn":0.5, "capDur":2.5, "cropX":0.5, "zoom":1.4, "srcFps":30 } ],
 //   "end": {"dur":4, "title":"Pirate Trade Wars", "url":"piratetradewars.com", "tagline":"Free to play in your browser"} }
 // "src" paths resolve against the repo root. A directory source is a PNG sequence 00000.png.. from capture.mjs.
 import { spawnSync } from "child_process";
@@ -77,7 +77,9 @@ export async function build(tl, outFile, work) {
     const dur = c.dur;
     const cx = c.cropX ?? 0.5;
     const cy = c.cropY ?? 0.5;
-    let vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:(iw-${W})*${cx}:(ih-${H})*${cy},fps=${fps},setsar=1,scale=out_range=tv,format=yuv420p[v]`; // screencast JPGs are full range (yuvj): force TV range
+    // "zoom" (>1) punches in on the frame (e.g. to make the 9:16 trade text legible); cropX/cropY pick the window.
+    const z = c.zoom ?? 1, ZW = 2 * Math.round((W * z) / 2), ZH = 2 * Math.round((H * z) / 2);
+    let vf = `[0:v]scale=${ZW}:${ZH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H}:(iw-${W})*${cx}:(ih-${H})*${cy},fps=${fps},setsar=1,scale=out_range=tv,format=yuv420p[v]`; // screencast JPGs are full range (yuvj): force TV range
     const args = [...inArgs];
     let map = "[v]";
     if (cards.captions[i]) {
