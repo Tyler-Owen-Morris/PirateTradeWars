@@ -159,6 +159,71 @@ export async function trackPair(h, { portrait = h.aspect === "9x16" } = {}) {
   }, portrait);
 }
 
+/** Combat (owner feedback on trailer 1: both ships moving). A Russian Navy ship passes on the opposite course; see notes. */
+function navyPass(id, o) {
+  return {
+    id,
+    hud: true,
+    plates: "others",
+    mode: "realtime",
+    dur: 12,
+    ship: "galleon",
+    note: (o.note ? o.note + " " : "") + "Owner feedback: both ships moving. Under sail in the Norwegian Sea; a RUSSIAN NAVY ship (devnpc f:russia) spawned ahead on the starboard bow on the opposite course. Fires the broadside on whichever side the enemy is abeam (adaptive), then turns towards it for another pass. trackPair camera. Restart the server before each take.",
+    setup: async (h) => {
+      await h.tp(...h.at(66.0, 4.0), Math.PI); // r = PI: heading north (forward = (-sin r, -cos r))
+      const me = await h.me();
+      const mx = Math.cos(66 * Math.PI / 180);
+      const ahead = o.ahead ?? 750, beam = o.beam ?? 220;
+      const fx = -Math.sin(me.r), fz = -Math.cos(me.r);    // forward (metric east, south)
+      const sx = Math.cos(me.r), sz = -Math.sin(me.r);     // starboard
+      await h.npc({ a: "navy", f: "russia", ship: h.enemy, x: me.x + (fx * ahead + sx * beam) / mx, z: me.z + fz * ahead + sz * beam, r: me.r + Math.PI });
+    },
+    run: async (h) => {
+      const rel = () => h.page.evaluate(() => {
+        const net = window.__net, c = net.predictor.cur, rt = net.remoteRenderTime();
+        const mx = Math.cos(((90 - (c.z / 200000) * 180) * Math.PI) / 180);
+        let best = null;
+        for (const e of net.remote.renderable()) {
+          if (!e.meta?.npc) continue;
+          const p = net.remote.sample(e.eid, rt); if (!p) continue;
+          const dx = (p.x - c.x) * mx, dz = p.z - c.z, d = Math.hypot(dx, dz);
+          if (!best || d < best.d) best = { dx, dz, d };
+        }
+        if (!best) return null;
+        const fx = -Math.sin(c.rotationY), fz = -Math.cos(c.rotationY), sx = Math.cos(c.rotationY), sz = -Math.sin(c.rotationY);
+        return { along: best.dx * fx + best.dz * fz, side: best.dx * sx + best.dz * sz, d: best.d };
+      });
+      await trackPair(h, o.astern ? { portrait: h.aspect !== "9x16" } : undefined); // b = the other framing
+      await h.keys.down("w");
+      await h.mark("go");
+      const t0 = Date.now();
+      let last = -1e9, shots = 0, turning = null;
+      const log = [];
+      while (Date.now() - t0 < (o.ms ?? 7000)) {
+        const r = await rel();
+        const t = Date.now() - t0;
+        if (r) {
+          if (t - last > 2300 && Math.abs(r.along) < 170 && Math.abs(r.side) < 480) {
+            await h.keys.tap(r.side > 0 ? "e" : "q");
+            last = t; shots++;
+            await h.mark((r.side > 0 ? "E" : "Q") + shots);
+            log.push({ t, ...r });
+          }
+          // after it passes astern, put the helm over towards it to come round for another broadside
+          const want = r.along < -150 ? (r.side > 0 ? "d" : "a") : null;
+          if (want !== turning) { if (turning) await h.keys.up(turning); if (want) await h.keys.down(want); turning = want; }
+        }
+        await h.sleep(60);
+      }
+      if (turning) await h.keys.up(turning);
+      await h.keys.up("w");
+      await h.mark("end");
+      console.log("  volleys", JSON.stringify(log.map((l) => ({ t: l.t, along: Math.round(l.along), side: Math.round(l.side) }))));
+      await h.page.evaluate(() => window.__trackStop());
+    },
+  };
+}
+
 export const SHOTS = [
   {
     id: "hero-dawn",
@@ -372,27 +437,30 @@ export const SHOTS = [
     mode: "realtime",
     dur: 4,
     ship: "galleon",
-    note: "Purposeful sailing (owner feedback on trailer 1): under full sail INTO a living northern port, town ahead past the bow. Ship-relative chase from the quarter.",
-    port: "bergen",
+    note: "Purposeful sailing (owner feedback on trailer 1): under full sail up the Gulf of Finland INTO St. Petersburg, chase camera from the quarter, town ahead. Ships are fast (~330 render units/s for a galleon): start ~2400 out.",
     setup: async (h) => {
-      const key = h.shotPort ?? "bergen";
+      const key = "st_petersburg";
       const p = h.port(key);
       const mx = Math.cos((90 - (p.dock.z / 200000) * 180) * Math.PI / 180);
       let ux = (p.dock.x - p.x) * mx, uz = p.dock.z - p.z;
       const l = Math.hypot(ux, uz); ux /= l; uz /= l;
-      const back = h.arriveFrom ?? 260;
-      // heading toward the town: forward (sin r, cos r) = (-ux, -uz)
-      await h.tp(p.dock.x + (ux * back) / mx, p.dock.z + uz * back, Math.atan2(-ux, -uz));
+      const d = h.arriveFrom ?? 2000;
+      // Ship forward is (-sin r, -cos r) in (east, south) (checked 2026-10-25): head for the town = (-ux, -uz).
+      await h.tp(p.dock.x + (ux * d) / mx, p.dock.z + uz * d, Math.atan2(ux, uz));
     },
     pre: async (h) => h.keys.down("w"),
     path: [
-      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: -95, y: 34, z: 70 }, look: { x: 0, y: 22, z: -200 } },
-      { t: 5, anchor: { ship: true }, rot: "ship", cam: { x: -55, y: 48, z: 150 }, look: { x: 0, y: 18, z: -260 } },
+      // ship-relative axes: -z = ahead (bow), +z = astern, +x = starboard (trailer-1 sail-run frames)
+      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: -75, y: 40, z: 150 }, look: { x: 0, y: 24, z: -250 } },
+      { t: 5, anchor: { ship: true }, rot: "ship", cam: { x: -40, y: 55, z: 190 }, look: { x: 0, y: 20, z: -320 } },
     ],
     run: async (h) => {
+      const a = await h.me();
       await h.mark("start");
       await h.sleep(4600);
       await h.mark("end");
+      const b = await h.me();
+      console.log("  moved", Math.hypot((b.x - a.x) * Math.cos(60 * Math.PI / 180), b.z - a.z).toFixed(0), "render units in 4.6 s");
       await h.keys.up("w");
     },
   },
@@ -402,11 +470,11 @@ export const SHOTS = [
     dur: 4,
     ship: "galleon",
     note: "Running east along the 72 N ice edge in the Barents Sea, ice beyond the ship; camera low on the south side.",
-    setup: async (h) => h.tp(...h.at(71.82, 38.0), Math.PI / 2), // heading east
+    setup: async (h) => h.tp(...h.at(71.9, 38.0), Math.PI / 2), // heading east; ice sheet from 72 N (port side)
     pre: async (h) => h.keys.down("w"),
     path: [
-      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: 130, y: 30, z: 40 }, look: { x: 0, y: 26, z: -40 } },
-      { t: 5, anchor: { ship: true }, rot: "ship", cam: { x: 110, y: 42, z: -40 }, look: { x: 0, y: 26, z: -110 } },
+      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: 70, y: 110, z: -170 }, look: { x: -70, y: 0, z: 60 } },
+      { t: 5, anchor: { ship: true }, rot: "ship", cam: { x: 40, y: 90, z: -120 }, look: { x: -80, y: 0, z: 90 } },
     ],
     run: async (h) => {
       await h.mark("start");
@@ -458,46 +526,16 @@ export const SHOTS = [
       await h.sleep(900);
       await h.mark("open");
       const { width: w, height: ht } = h.viewport;
-      await h.page.mouse.move(w * 0.7, ht * 0.45);
-      await h.page.mouse.down();
-      await h.page.mouse.move(w * 0.35, ht * 0.6, { steps: 110 });
-      await h.page.mouse.up();
-      await h.mark("dragged");
-      await h.sleep(1000);
+      // Whole world first (all 60 ports), then wheel-zoom in on Scandinavia/the Baltic (the map opens centred on the ship).
+      await h.sleep(1200);
+      await h.page.mouse.move(w * (h.aspect === "9x16" ? 0.5 : 0.53), ht * (h.aspect === "9x16" ? 0.42 : 0.15));
+      for (let i = 0; i < 16; i++) { await h.page.mouse.wheel(0, -60); await h.sleep(55); }
+      await h.mark("zoomed");
+      await h.sleep(1200);
     },
   },
-  {
-    id: "navy-pass",
-    hud: true,
-    plates: "others",
-    mode: "realtime",
-    dur: 12,
-    ship: "galleon",
-    note: "Owner feedback: both ships moving. Under sail in the Norwegian Sea; a RUSSIAN NAVY ship (devnpc f:russia) spawned ahead on the starboard bow on the opposite course; as it comes abeam, E (starboard broadside) then a turn and another. trackPair camera. Restart the server before each take.",
-    setup: async (h) => {
-      await h.tp(...h.at(66.0, 4.0), 0); // heading south
-      const me = await h.me();
-      const mx = Math.cos(66 * Math.PI / 180);
-      const ahead = h.ahead ?? 260, beam = h.beam ?? 70;
-      const fx = Math.sin(me.r), fz = Math.cos(me.r);      // forward (metric east, south)
-      const sx = Math.cos(me.r), sz = -Math.sin(me.r);     // starboard
-      await h.npc({ a: "navy", f: "russia", ship: h.enemy, x: me.x + (fx * ahead + sx * beam) / mx, z: me.z + fz * ahead + sz * beam, r: me.r + Math.PI });
-    },
-    pre: async (h) => h.keys.down("w"),
-    run: async (h) => {
-      await trackPair(h);
-      await h.mark("before");
-      for (let i = 0; i < 4; i++) {
-        await h.sleep(1500);
-        await h.keys.tap("e");
-        await h.mark("e" + i);
-        await h.sleep(1500);
-      }
-      await h.mark("end");
-      await h.keys.up("w");
-      await h.page.evaluate(() => window.__trackStop());
-    },
-  },
+  navyPass("navy-pass", {}),
+  navyPass("navy-pass-b", { astern: true, note: "Second angle of the same action: trackPair from astern (the portrait framing) in any aspect." }),
   {
     id: "leaderboard",
     hud: true,
