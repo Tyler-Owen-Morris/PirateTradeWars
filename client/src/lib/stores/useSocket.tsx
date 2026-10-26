@@ -16,6 +16,7 @@ import { useAudio } from "./useAudio";
 import { useChat } from "./useChat";
 import type { PlayerState, RemoteShipSummary, GoldObject } from "@/types";
 import { net } from "@/lib/net";
+import { landingSource } from "@/lib/source";
 import { SHIP_STATS, SHIP_TYPES } from "@shared/gameConstants";
 import { FLAG_SUNK, sanitizeChatText, type GoldRow, type SelfState, type TradeMessage, type TradeResultMessage } from "@shared/protocol";
 
@@ -150,7 +151,7 @@ function wireNet(): void {
     const storedPlayerId = localStorage.getItem("playerId");
     const storedName = localStorage.getItem("playerName");
     if (storedPlayerId && storedName) {
-      net.send({ type: "reconnect", id: storedPlayerId, name: storedName });
+      net.send({ type: "reconnect", id: storedPlayerId, name: storedName, ...landingSource() });
     }
   });
 
@@ -373,10 +374,12 @@ export const useSocket = create<SocketState>((set, get) => ({
       return;
     }
     const storedPlayerId = localStorage.getItem("playerId");
+    // Admin dashboard: where this session came from (lib/source.ts; the server re-sanitizes it).
+    const { source, campaign } = landingSource();
     if (storedPlayerId) {
-      net.send({ type: "reconnect", id: storedPlayerId, name, tempPlayerId });
+      net.send({ type: "reconnect", id: storedPlayerId, name, tempPlayerId, source, ...(campaign ? { campaign } : {}) });
     } else {
-      net.send({ type: "connect", name, shipType, tempPlayerId });
+      net.send({ type: "connect", name, shipType, tempPlayerId, source, ...(campaign ? { campaign } : {}) });
     }
   },
 

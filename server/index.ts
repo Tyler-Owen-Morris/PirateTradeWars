@@ -19,9 +19,13 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const duration = Date.now() - start;
+    // Admin: the dashboard polls /api/admin/state every second (not logged); other admin and beacon
+    // calls are logged without their bodies (player names, session details). Admin routes log
+    // their own `[admin] ...` lines.
+    if (path === "/api/admin/state" && res.statusCode === 200) return;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      if (capturedJsonResponse && !path.startsWith("/api/admin") && path !== "/api/visit") {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 

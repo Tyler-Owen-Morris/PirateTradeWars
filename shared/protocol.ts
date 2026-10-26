@@ -9,6 +9,7 @@
  * (negative = forward), times in milliseconds unless the name says otherwise.
  */
 import { FIRE_ALL, FIRE_MASK, type BroadsideSide, type FireFlags } from "./physics";
+import { sanitizeCampaign, sanitizeSource } from "./source";
 
 // ---------------------------------------------------------------------------------------------
 // Constants
@@ -87,6 +88,11 @@ export interface ConnectMessage {
   name: string;
   shipType: string;
   tempPlayerId?: string;
+  /** Admin dashboard: where the player came from (shared/source.ts label; sanitized by the parser).
+   *  Optional: old clients omit it (= "Direct"). */
+  source?: string;
+  /** utm_campaign, sanitized (shared/source.ts sanitizeCampaign). Optional. */
+  campaign?: string;
 }
 /** Re-join with a stored player id. Legacy shape (uses `type`). */
 export interface ReconnectMessage {
@@ -94,6 +100,9 @@ export interface ReconnectMessage {
   id: string;
   name: string;
   tempPlayerId?: string;
+  /** Same as ConnectMessage.source / campaign (shown on the admin dashboard; not counted as a new captain). */
+  source?: string;
+  campaign?: string;
 }
 /** One client sim step of intent (20/s). `s` = monotonically increasing sequence number.
  *  th: 1 = W ahead, −1 = S reverse; ru: 1 = left, −1 = right.
@@ -640,6 +649,13 @@ export function isInputMessage(m: unknown): m is InputMessage {
  * the seq is floored to an integer. Names are trimmed and limited to MAX_NAME_LENGTH. Accepts the
  * discriminator under either `t` or `type`. Unknown fields are dropped.
  */
+/** Admin dashboard: copy a sanitized `source` / `campaign` from a connect/reconnect frame (absent = omitted). */
+function addSource(m: { source?: string; campaign?: string }, data: Record<string, unknown>): void {
+  if (data.source !== undefined) m.source = sanitizeSource(data.source);
+  const campaign = sanitizeCampaign(data.campaign);
+  if (campaign) m.campaign = campaign;
+}
+
 export function parseClientMessage(raw: unknown): ClientMessage | null {
   let data: unknown = raw;
   if (typeof raw === "string") {
@@ -670,6 +686,7 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       if (!name || name.length > MAX_NAME_LENGTH || !shipType || tempPlayerId === null) return null;
       const m: ConnectMessage = { type: "connect", name, shipType };
       if (tempPlayerId !== undefined) m.tempPlayerId = tempPlayerId;
+      addSource(m, data);
       return m;
     }
     case "reconnect": {
@@ -679,6 +696,7 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
       if (!id || !name || name.length > MAX_NAME_LENGTH || tempPlayerId === null) return null;
       const m: ReconnectMessage = { type: "reconnect", id, name };
       if (tempPlayerId !== undefined) m.tempPlayerId = tempPlayerId;
+      addSource(m, data);
       return m;
     }
     case "trade": {

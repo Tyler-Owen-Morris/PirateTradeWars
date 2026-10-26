@@ -59,6 +59,10 @@ class GameState {
   private tickTimeTotal = 0;
   /** Longest single tick (ms) in the current 60 s log window. */
   private tickTimeMax = 0;
+  /** Admin dashboard: exponential moving average of the tick time (~5 s horizon) and the max of the
+   *  last completed 60 s log window. */
+  private tickEmaMs = 0;
+  private lastWindowMaxMs = 0;
 
   /** NPC2: the live NPC system (lanes.json, port safe zones, ~300 NPCs, the World's land). ON by
    *  default; NPCS_ENABLED=0 turns it off. */
@@ -94,6 +98,11 @@ class GameState {
   /** Player by id (live world object; mutations are visible to the next tick). */
   getPlayer(id: string): WorldPlayer | undefined {
     return this.world.getPlayer(id);
+  }
+
+  /** Admin dashboard: tick time (ms): moving average, and the longest tick over the current/last 60 s. */
+  get tickStats(): { avgMs: number; maxMs: number } {
+    return { avgMs: this.tickEmaMs, maxMs: Math.max(this.tickTimeMax, this.lastWindowMaxMs) };
   }
 
   get playerCount(): number {
@@ -188,6 +197,7 @@ class GameState {
     const tickMs = performance.now() - t0;
     this.tickTimeTotal += tickMs;
     if (tickMs > this.tickTimeMax) this.tickTimeMax = tickMs;
+    this.tickEmaMs = this.tickEmaMs === 0 ? tickMs : this.tickEmaMs * 0.99 + tickMs * 0.01;
     if (++this.tickCount % (20 * 60) === 0) {
       console.log(
         `[tick] avg ${(this.tickTimeTotal / (20 * 60)).toFixed(2)} ms (max ${this.tickTimeMax.toFixed(1)}) over 60 s, players=${this.world.players.size}, ` +
@@ -198,6 +208,7 @@ class GameState {
           (this.npcs ? `, npcs=${this.npcs.stats.active}/${this.npcs.stats.records} (npc max ${this.npcs.stats.maxTickMs.toFixed(1)} ms)` : ""),
       );
       if (this.npcs) this.npcs.stats.maxTickMs = 0;
+      this.lastWindowMaxMs = this.tickTimeMax;
       this.tickTimeTotal = 0;
       this.tickTimeMax = 0;
     }

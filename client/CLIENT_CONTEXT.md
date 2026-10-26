@@ -400,6 +400,17 @@ Design: `docs/design/STYLE_GUIDE.md` (rules, tokens, banned list) and `docs/prop
 `?trailer=1` on the Vite dev server (`components/game/useTrailerHooks.ts`, `lib/trailer/path.ts`) installs `window.__trailer` (camera paths via the dev city camera, HUD hide). Compile-time off in production builds. See `docs/trailer/NOTES.md`.
 
 
+## Admin page `/admin` (2026-10-25)
+- `main.tsx` renders `admin/AdminPage` (lazy chunk) when the path is `/admin` or `/admin/...`; the game `App` is a
+  lazy chunk too, so `/admin` never loads the game or three.js. Page code: `src/admin/` (`AdminPage` = session check,
+  `SignIn`, `Dashboard` = tiles / world chart / table / selected-captain actions / admin log, `api.ts`, `format.ts`,
+  `admin.css` scoped under `.hm`; `html.hm-root` undoes the game's full-screen body/#root rules). Wire types are in
+  `shared/adminApi.ts`. Plain CSS in the approved draft's look (not the pirate theme kit, not Tailwind).
+- Landing source (`src/lib/source.ts`): `captureLandingSource()` runs once at startup on game pages (utm_source / ref /
+  referrer -> `shared/source.ts` label, sessionStorage, one `POST /api/visit` beacon per session); `useSocket` adds
+  `landingSource()` (`source`, `campaign`) to every `connect`/`reconnect`.
+- Full doc: `docs/admin/README.md`. Tests: `src/admin/__tests__/format.test.ts`.
+
 ## New Horizons phase 2 (2026-10-24): "North of everything"
 - 60 ports (17 new: the Baltic, the northern seas, New France and Hudson Bay, the North Pacific, Guam, Honolulu,
   Galápagos). Regions `baltic` / `arctic` / `north_pacific` and nations `russia` / `sweden` / `denmark_norway` /

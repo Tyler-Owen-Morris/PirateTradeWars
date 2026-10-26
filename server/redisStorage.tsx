@@ -198,6 +198,23 @@ export class RedisStorage {
         await multi.exec();
     }
 
+    /** Admin dashboard daily counters (server/admin/stats.ts): HINCRBY `stats:<day>:<kind>` <field>, with a TTL. */
+    async incrDailyStat(day: string, kind: 'visits' | 'captains', field: string, ttlSeconds: number): Promise<void> {
+        const key = `stats:${day}:${kind}`;
+        await this.redis.multi().hincrby(key, field, 1).expire(key, ttlSeconds).exec();
+    }
+
+    /** Admin dashboard: one day's counters (field -> count); {} when none. */
+    async getDailyStat(day: string, kind: 'visits' | 'captains'): Promise<Record<string, number>> {
+        const raw = await this.redis.hgetall(`stats:${day}:${kind}`);
+        const out: Record<string, number> = {};
+        for (const [k, v] of Object.entries(raw)) {
+            const n = Number(v);
+            if (Number.isFinite(n)) out[k] = n;
+        }
+        return out;
+    }
+
     async updatePlayerGold(id: string, gold: number): Promise<void> {
         console.log("updating player gold:", id, gold);
         const currentPlayer = await this.getPlayer(id);
