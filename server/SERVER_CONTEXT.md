@@ -138,6 +138,26 @@ physics in `shared/physics.ts`. Both are shared with the client.
   - Use the local Docker Redis (`ptw-redis`), never the `.env` Upstash.
   - `reusePort` is skipped on Windows.
 
+## Admin dashboard (`admin/`, 2026-10-25)
+
+Full doc: `docs/admin/README.md`. `routes/routes.tsx` calls `registerAdminRoutes(app, liveAdminDeps)` after the Stripe
+routes: `/api/admin/{login,logout,session,state,action}` and the public landing beacon `POST /api/visit`.
+- Off (every `/api/admin/*` 404s) unless `ADMIN_PASSWORD_HASH` (`scrypt:<salt>:<hash>`, `npm run admin:hash`) and
+  `ADMIN_SESSION_SECRET` (>= 32 bytes hex) are set. HttpOnly SameSite=Strict cookie (Secure in production), 12 h HMAC
+  token, 5 fails/IP/15 min + 30 global, client IP = XFF entry 2 hops from the right in production
+  (`ADMIN_TRUSTED_PROXY_HOPS`; Express `trust proxy` is not set). POSTs must be JSON and same-Origin.
+- Actions (`repairFull`, `repairQuarter`, `gold` 1..1,000,000, free `upgrade`) run in `admin/live.ts` on
+  `playerQueue`, mutate the live world player synchronously, then `updatePlayerState`. The client sees them through
+  the snapshot `me` (no extra message). The upgrade is `world.setShipType` (cost-free copy of `handleUpgradeShip`).
+- World additions (server-only, not persisted): `WorldPlayer.hitAtTick` (set in `applyHit`) and `lastActiveWall`
+  (non-neutral input, set in `queueInput`) drive the combat / idle status; `source`, `campaign`, `joinedAtWall` are
+  set by `socketHandler` on connect/reconnect. `gameState.tickStats` = tick-time moving average + recent max.
+- `socketHandler` `connect` counts a new captain by source (`admin/counters.ts` `dailyStats`, Redis
+  `stats:<day>:captains` / `stats:<day>:visits`, 90-day TTL, `redisStorage.incrDailyStat` / `getDailyStat`) and adds
+  `source`/`campaign` to Segment "Player Connected". `server/index.ts` does not log the 1 s state polls or admin bodies.
+- Tests: `admin/__tests__/` (auth, routes on a plain Express app with fakes, state/actions on a real World, stats,
+  connect source through the real socket handler).
+
 ## NPC ships (`game/npc/`, cards NPC1 + NPC2)
 
 Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
@@ -309,9 +329,9 @@ Express routes in `routes.ts`:
      `shipsFree()`, read per call). While free, `POST /api/stripe/create-payment-intent` returns 409
      `{message:"Ships are free right now"}`. The websocket register path never checks payment.
 
-3. **Admin Routes**:
-   - Update port prices and stock
-   - Modify game parameters
+3. **Admin Routes**: the Harbour Master dashboard API, `/api/admin/*` (see "Admin dashboard" above and
+   docs/admin/README.md). Note `POST /api/update-prices` is an older, unauthenticated route (it only re-runs the
+   market update).
 
 ## Trading System
 

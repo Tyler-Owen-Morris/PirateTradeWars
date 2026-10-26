@@ -48,7 +48,7 @@ implementer must deviate, they write the deviation into their progress file AND 
 ## 4. Client → server
 | msg | fields | notes |
 |-----|--------|-------|
-| `connect` / `reconnect` | unchanged | existing name/ship flow |
+| `connect` / `reconnect` | existing name/ship flow, plus optional `source`, `campaign` (2026-10-25) | Admin dashboard: where the player came from (`shared/source.ts` label, e.g. `"TikTok"`, `"Direct"`, `"Search"`, a domain) and its utm_campaign. The parser re-sanitizes both (`sanitizeSource` / `sanitizeCampaign`); absent = `"Direct"` (old clients). Only a `connect` counts as a new captain. See docs/admin/README.md. |
 | `input` | `{t:"input", s:seq, th:-1|0|1, ru:-1|0|1, f:0..7}` | one per client sim step (20/s). `th=1` = W (ahead), `-1` = S (reverse). `f` = fire bit flags: 1 fire every loaded side (legacy `f:1`), 2 port (left), 4 starboard (right); see "Broadsides clarifications". Server clamps values, ignores out-of-order seq, caps queue at 40 (= 2 s, drop oldest; was 10 before 2026-10-23). |
 | `ping` | `{t:"ping", c:clientTimeMs}` | every 2 s |
 | `chat` | `{t:"chat", text}` | global chat line, ≤ 200 chars after sanitizing; see "Global chat" below |

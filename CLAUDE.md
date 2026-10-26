@@ -31,6 +31,9 @@ Real-time model: authoritative 20 Hz server, client prediction (own ship) + inte
   `aws elasticbeanstalk update-environment --region us-east-2 --environment-name PirateTradeWarsEnv --option-settings Namespace=aws:elasticbeanstalk:application:environment,OptionName=SHIPS_FREE,Value=true`
   (`Value=false` to charge again). `deploy.yml` only passes the ASG MinSize/MaxSize option settings and `.ebextensions/`
   sets only health check and ALB idle timeout, so a deploy does not overwrite EB env vars. Confirm with the user first.
+- **Admin dashboard** (`/admin`, "Harbour Master"): `docs/admin/README.md`. Off unless the EB env vars
+  `ADMIN_PASSWORD_HASH` (`npm run admin:hash -- '<password>'`) and `ADMIN_SESSION_SECRET` (>= 32 bytes hex) are set;
+  rotating either signs everyone out. Code in `server/admin/` + `client/src/admin/`. Confirm with Theo before setting them.
 - **Game OFF/ON** ("turn the game off", "park the site", "turn it back on"): follow `docs/infra/GAME_OFF_ON.md`.
   OFF = EB environment terminated, domain on a static parked page (~$1/mo); ON = EB environment re-created from
   the saved template. The current state is at the top of that doc. Confirm with the user before switching.
