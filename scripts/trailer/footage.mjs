@@ -64,7 +64,7 @@ export function contact(folder) {
     const { dur } = probe(path.join(folder, c));
     const label = c.replace(/\.mp4$/, "").replace(/'/g, "").replace(/:/g, "-");
     run(["-ss", (dur / 2).toFixed(2), "-i", path.join(folder, c), "-frames:v", "1",
-      "-vf", `scale=480:270:force_original_aspect_ratio=decrease,pad=480:300:(ow-iw)/2:0:color=0x111111,drawtext=fontfile=${FONT}:text='${label}':fontsize=12:fontcolor=white:x=6:y=280`,
+      "-vf", `scale=480:270:force_original_aspect_ratio=decrease,pad=480:300:(ow-iw)/2:0:color=0x111111,drawtext=fontfile='${FONT}':text='${label}':fontsize=12:fontcolor=white:x=6:y=280`,
       "-q:v", "3", path.join(tmp, `${String(i).padStart(3, "0")}.jpg`)]);
   });
   const cols = 4, rows = Math.ceil(clips.length / cols);

@@ -1,4 +1,4 @@
-// Raw footage pack shots (docs/trailer/FOOTAGE.md). Same shot format as shots.mjs; capture.mjs looks here first.
+﻿// Raw footage pack shots (docs/trailer/FOOTAGE.md). Same shot format as shots.mjs; capture.mjs looks here first.
 // Capture with --size 2560x1440 (16:9) or --aspect 9x16 (1080x1920). Ids: sc-* scenic, bt-* battles, pt-* ports, ui-*.
 // Heading convention (NOTES.md): forward = (-sin r, -cos r) in (east, south): r = 0 sails north, r = PI south,
 // r = -PI/2 east, r = PI/2 west. Ship-relative path axes: -z ahead, +z astern, +x starboard. Paths should run ~1-2 s
@@ -93,7 +93,8 @@ const relAll = (h) => h.page.evaluate(() => {
  * Fight for `ms`: W held (or pulsed with `duty`), fire Q/E whenever an NPC within `range` is abeam on that side
  * (cooldown per side), and (steer) put the helm over to bring the nearest enemy onto the beam. Logs the volleys.
  */
-async function fight(h, ms, { duty = 1, steer = true, range = 420, cool = 2300, fire = true } = {}) {
+// Hits only land between ~100 and ~185 units (closer: the balls spawn past the target; tested 2026-10-25), so fire there.
+async function fight(h, ms, { duty = 1, steer = true, range = 185, minR = 95, cool = 2300, fire = true, holdMs = 0, alongMax = 170 } = {}) {
   const t0 = Date.now();
   const last = { q: -1e9, e: -1e9 };
   let turning = null, wOn = false;
@@ -103,9 +104,9 @@ async function fight(h, ms, { duty = 1, steer = true, range = 420, cool = 2300, 
     const t = Date.now() - t0;
     await setW(duty >= 1 || t % 400 < 400 * duty);
     const all = (await relAll(h)).filter((n) => !n.sunk);
-    if (fire) {
+    if (fire && t >= holdMs) {
       for (const n of all) {
-        if (n.d > range || Math.abs(n.along) > 130) continue;
+        if (n.d > range || n.d < minR || Math.abs(n.along) > alongMax) continue;
         const k = n.side > 0 ? "e" : "q";
         if (t - last[k] > cool) { await h.keys.tap(k); last[k] = t; log.push({ t, k, d: Math.round(n.d), hp: n.hp }); await h.mark(k.toUpperCase()); }
       }
@@ -120,14 +121,14 @@ async function fight(h, ms, { duty = 1, steer = true, range = 420, cool = 2300, 
   }
   if (turning) await h.keys.up(turning);
   await setW(false);
-  console.log("  volleys", JSON.stringify(log));
+  console.log("  volleys", JSON.stringify(log), "end", JSON.stringify((await relAll(h)).slice(0, 4).map((n) => ({ d: Math.round(n.d), along: Math.round(n.along), hp: n.hp, sunk: n.sunk }))));
 }
 
 /**
  * In-page group camera: frames the own ship (includeMe) and the NPCs within `radius` at the start (locked), from a
  * world bearing (deg, 0 = north of the group, turning `spin` deg/s), distance from the group's spread, smoothed.
  */
-async function trackGroup(h, { bearing = 200, spin = 0, high = 0.45, distK = 1.5, minD = 220, maxD = 700, includeMe = true, radius = 800, k = 0.05, lookY = 10 } = {}) {
+async function trackGroup(h, { bearing = 200, spin = 0, high = 0.45, distK = 1.5, minD = 220, maxD = 700, includeMe = true, radius = 800, k = 0.05, lookY = 10, dyn = 0 } = {}) {
   await h.page.evaluate((o) => {
     const net = window.__net;
     let lock = null, a = null, D = null, raf = 0, stop = false;
@@ -137,13 +138,24 @@ async function trackGroup(h, { bearing = 200, spin = 0, high = 0.45, distK = 1.5
       const me = net.getOwnRenderState(), rt = net.remoteRenderTime();
       const mx = Math.cos(((90 - (me.z / 200000) * 180) * Math.PI) / 180);
       const pts = o.includeMe ? [{ x: me.x, z: me.z }] : [];
-      const seen = [];
+      const seen = [], all = [];
       for (const e of net.remote.renderable()) {
         if (!e.meta?.npc) continue;
         const p = net.remote.sample(e.eid, rt); if (!p) continue;
+        if (o.dyn) { all.push({ eid: e.eid, x: p.x, z: p.z }); continue; }
         if (lock ? lock.includes(e.eid) : Math.hypot((p.x - me.x) * mx, p.z - me.z) < o.radius) { pts.push({ x: p.x, z: p.z }); seen.push(e.eid); }
       }
-      if (!lock && seen.length) lock = seen;
+      if (o.dyn) {
+        // dynamic: the subject (own ship, or the NPC nearest to us at the start) plus every NPC within dyn of it now
+        let subj = o.includeMe ? { x: me.x, z: me.z } : null;
+        if (!subj) {
+          if (lock === null) { let b = null; for (const q of all) { const d = Math.hypot((q.x - me.x) * mx, q.z - me.z); if (!b || d < b.d) b = { d, eid: q.eid }; } if (b) lock = [b.eid]; }
+          subj = all.find((q) => lock && q.eid === lock[0]) ?? null;
+          if (subj) pts.push(subj);
+        }
+        if (subj) for (const q of all) if (q !== subj && Math.hypot((q.x - subj.x) * mx, q.z - subj.z) < o.dyn) pts.push(q);
+      }
+      if (!o.dyn && !lock && seen.length) lock = seen;
       if (!pts.length) { raf = requestAnimationFrame(tick); return; }
       const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length, cz = pts.reduce((s, p) => s + p.z, 0) / pts.length;
       const spread = Math.max(0, ...pts.map((p) => Math.hypot((p.x - cx) * mx, p.z - cz)));
@@ -158,7 +170,7 @@ async function trackGroup(h, { bearing = 200, spin = 0, high = 0.45, distK = 1.5
     };
     window.__trackStop = () => { stop = true; cancelAnimationFrame(raf); };
     tick();
-  }, { bearing, spin, high, distK, minD, maxD, includeMe, radius, k, lookY });
+  }, { bearing, spin, high, distK, minD, maxD, includeMe, radius, k, lookY, dyn });
 }
 
 /** In-page close camera on the nearest NPC (locked): `dist` beyond it on the far side from us (+ `sideways`), low. */
@@ -214,6 +226,11 @@ function battle(id, o) {
     setup: async (h) => {
       await h.tp(...h.at(o.lat, o.lon), o.r);
       for (const n of o.npcs) await spawnRel(h, n);
+      if (o.weaken) { // dev shortcut (devhp): the nearest NPC starts on `weaken` hp so one hit sinks it on camera
+        await h.sleep(800);
+        const n = (await relAll(h))[0];
+        if (n) await h.page.evaluate(([eid, hp]) => window.__net.send({ t: "devhp", eid, hp }), [n.eid, o.weaken]);
+      }
     },
     pre: async (h) => {
       await o.camera(h);
@@ -332,84 +349,95 @@ const SCENIC = [
 // Restart the server before each battle take (spawned NPCs never despawn).
 const BATTLES = [
   battle("bt-spanish-pass", {
-    dur: 11, lat: 14.0, lon: -72.0, r: WEST, preMs: 600,
-    npcs: [{ a: "navy", f: "spain", ship: "man-o-war", ahead: 700, beam: 200, rel: Math.PI }],
-    note: "Spanish Navy man-o'-war on the opposite course; broadsides as it comes abeam, it returns fire. Two-shot tracker.",
-    camera: (h) => trackPair(h),
+    dur: 12, lat: 14.0, lon: -72.0, r: WEST, preMs: 400,
+    npcs: [{ a: "navy", f: "spain", ship: "man-o-war", ahead: 650, beam: 150, rel: Math.PI }],
+    note: "Spanish Navy man-o'-war on the opposite course; broadsides as it comes abeam, we come about for more, it returns fire.",
+    fight: { duty: 0.35, steer: true },
+    camera: (h) => trackGroup(h, { dyn: 700, bearing: 200, high: 0.3, distK: 1.2, minD: 200, maxD: 700, k: 0.05 }),
   }),
   battle("bt-spanish-pass-wide", {
-    dur: 11, lat: 14.0, lon: -72.0, r: WEST, preMs: 600,
-    npcs: [{ a: "navy", f: "spain", ship: "man-o-war", ahead: 700, beam: 200, rel: Math.PI }],
-    note: "Same action, wide high angle (slow group camera).",
-    camera: (h) => trackGroup(h, { bearing: 250, high: 0.5, distK: 1.4, minD: 380, maxD: 750, k: 0.03 }),
+    dur: 12, lat: 14.0, lon: -72.0, r: WEST, preMs: 400,
+    npcs: [{ a: "navy", f: "spain", ship: "man-o-war", ahead: 650, beam: 150, rel: Math.PI }],
+    note: "Spanish Navy man-o'-war, second take: wide, high and slowly circling.",
+    fight: { duty: 0.35, steer: true },
+    camera: (h) => trackGroup(h, { dyn: 500, bearing: 140, spin: 4, high: 0.6, distK: 1.5, minD: 380, maxD: 750, k: 0.03 }),
   }),
   battle("bt-english-pass", {
-    dur: 11, lat: 49.8, lon: -3.5, r: WEST, preMs: 600,
-    npcs: [{ a: "navy", f: "england", ship: "man-o-war", ahead: 700, beam: -200, rel: Math.PI }],
-    note: "English Channel: English Navy man-o'-war passing to port, broadsides exchanged (we fire first).",
-    camera: (h) => trackPair(h),
+    dur: 12, lat: 49.8, lon: -3.5, r: WEST, preMs: 400,
+    npcs: [{ a: "navy", f: "england", ship: "man-o-war", ahead: 650, beam: -150, rel: Math.PI }],
+    note: "Western Approaches of the Channel: English Navy man-o'-war passing to port, broadsides exchanged (we fire first).",
+    fight: { duty: 0.35, steer: true },
+    camera: (h) => trackGroup(h, { dyn: 700, bearing: 20, high: 0.3, distK: 1.2, minD: 200, maxD: 700, k: 0.05 }),
   }),
   battle("bt-russian-pass", {
-    dur: 11, lat: 66.0, lon: 4.0, r: NORTH, preMs: 600,
-    npcs: [{ a: "navy", f: "russia", ship: "man-o-war", ahead: 700, beam: 200, rel: Math.PI }],
-    note: "Norwegian Sea: Russian Navy man-o'-war, broadsides on the pass, camera from astern and high.",
-    camera: (h) => trackPair(h, { portrait: true, high: 1.3 }),
+    dur: 12, lat: 66.0, lon: 4.0, r: NORTH, preMs: 400,
+    npcs: [{ a: "navy", f: "russia", ship: "man-o-war", ahead: 650, beam: 150, rel: Math.PI }],
+    note: "Norwegian Sea: Russian Navy man-o'-war, broadsides on the pass and after we come about.",
+    fight: { duty: 0.35, steer: true },
+    camera: (h) => trackGroup(h, { dyn: 700, bearing: 120, high: 0.4, distK: 1.2, minD: 220, maxD: 700, k: 0.05 }),
   }),
   battle("bt-sink-sloop", {
-    dur: 12, lat: 15.0, lon: -72.0, r: WEST,
-    npcs: [{ a: "pirate", ship: "sloop", beam: 70 }],
-    note: "Pirate sloop on the starboard beam: broadsides until she sinks (sink animation).",
-    fight: { duty: 0.35, range: 300 },
-    camera: (h) => trackPair(h),
+    dur: 12, lat: 15.0, lon: -72.0, r: WEST, ship: "man-o-war", // 4 x 15 per volley: a sloop (50 hp) goes down fast
+    npcs: [{ a: "pirate", ship: "sloop", beam: 155 }],
+    note: "Pirate sloop on the starboard beam: broadsides until she sinks (the sink animation, then her gold floats).",
+    fight: { duty: 0, steer: true, holdMs: 700, minR: 115, range: 195, alongMax: 30, cool: 1500 }, weaken: 8,
+    camera: (h) => trackGroup(h, { dyn: 400, bearing: 300, high: 0.4, distK: 1.1, minD: 200, maxD: 420, k: 0.06 }), // from ahead: our ship does not hide the sloop
   }),
   battle("bt-sink-close", {
-    dur: 12, lat: 15.0, lon: -72.0, r: WEST,
-    npcs: [{ a: "pirate", ship: "sloop", beam: 75 }],
+    dur: 12, lat: 15.0, lon: -72.0, r: WEST, ship: "man-o-war", // 4 x 15 per volley: a sloop (50 hp) goes down fast
+    npcs: [{ a: "pirate", ship: "sloop", beam: 155 }],
     note: "Close on the pirate sloop from beyond her: splashes and hits, then she goes down; our galleon firing behind.",
-    fight: { duty: 0.3, range: 300 },
-    camera: (h) => trackEnemy(h, { dist: 80, height: 16, lookBias: 0.4, sideways: 30 }),
+    fight: { duty: 0, steer: true, holdMs: 700, minR: 115, range: 195, alongMax: 30, cool: 1500 }, weaken: 8,
+    camera: (h) => trackEnemy(h, { dist: 95, height: 20, lookBias: 0.4, sideways: 40 }),
   }),
   battle("bt-brigantine-duel-close", {
-    dur: 12, lat: 15.0, lon: -72.0, r: WEST,
-    npcs: [{ a: "pirate", ship: "brigantine", beam: 80 }],
-    note: "Pirate brigantine close aboard; low camera beside her, cannonball splashes and smoke close up.",
-    fight: { duty: 0.4, range: 320 },
-    camera: (h) => trackEnemy(h, { dist: 60, height: 10, lookBias: 0.55, sideways: -60 }),
+    dur: 14, lat: 15.0, lon: -72.0, r: WEST,
+    npcs: [{ a: "pirate", ship: "brigantine", beam: 150 }],
+    note: "Pirate brigantine duel: low camera beside her, broadsides both ways, cannonball splashes and smoke close up.",
+    fight: { duty: 0.15, steer: true },
+    camera: (h) => trackEnemy(h, { dist: 90, height: 14, lookBias: 0.5, sideways: -60 }),
+  }),
+  battle("bt-brigantine-duel-two-shot", {
+    dur: 14, lat: 15.0, lon: -72.0, r: WEST,
+    npcs: [{ a: "pirate", ship: "brigantine", beam: 150 }],
+    note: "Pirate brigantine duel, low two-shot (both ships in frame).",
+    fight: { duty: 0.15, steer: true },
+    camera: (h) => trackGroup(h, { dyn: 400, bearing: 210, high: 0.22, distK: 1.1, minD: 170, maxD: 420, k: 0.06 }),
   }),
   battle("bt-pursuit", {
     dur: 12, lat: 17.0, lon: -68.0, r: WEST,
     npcs: [{ a: "pirate", ship: "brigantine", ahead: -380, beam: 60 }],
-    note: "Pursuit: a pirate brigantine runs us down from astern; low camera beyond the pirate, our galleon ahead.",
-    fight: { duty: 0.75, steer: false, range: 300 },
-    camera: (h) => trackEnemy(h, { dist: 120, height: 22, lookBias: 0.6, sideways: 20, k: 0.05 }),
+    note: "Pursuit: a pirate brigantine runs our galleon down from astern; camera beyond the pirate, our galleon ahead.",
+    fight: { duty: 0.3, steer: false },
+    camera: (h) => trackEnemy(h, { dist: 110, height: 26, lookBias: 0.6, sideways: 20, k: 0.05 }),
   }),
   battle("bt-pursuit-ahead", {
     dur: 12, lat: 17.0, lon: -68.0, r: WEST,
     npcs: [{ a: "pirate", ship: "brigantine", ahead: -380, beam: 60 }],
     note: "Pursuit, reverse angle: from beyond our galleon looking back at the pirate closing in.",
-    fight: { duty: 0.75, steer: false, range: 300 },
+    fight: { duty: 0.3, steer: false },
     camera: (h) => trackPair(h, { portrait: true, high: 0.8 }),
   }),
   battle("bt-melee-3", {
     dur: 14, lat: 14.5, lon: -76.0, r: WEST,
     npcs: [{ a: "pirate", ship: "brigantine", beam: 160, ahead: 120 }, { a: "pirate", ship: "brigantine", beam: -170, ahead: 60 }, { a: "pirate", ship: "sloop", ahead: 300, beam: 30, rel: Math.PI }],
     note: "Melee: our galleon against three pirates (two brigantines, a sloop), broadsides both sides; slow orbiting wide camera.",
-    fight: { duty: 0.5, range: 380, cool: 2000 },
-    camera: (h) => trackGroup(h, { bearing: 160, spin: 5, high: 0.55, distK: 1.3, minD: 300, maxD: 650, k: 0.04 }),
+    fight: { duty: 0.15, cool: 2000 },
+    camera: (h) => trackGroup(h, { dyn: 450, bearing: 160, spin: 5, high: 0.5, distK: 1.3, minD: 300, maxD: 650, k: 0.04 }),
   }),
   battle("bt-melee-3-low", {
     dur: 14, lat: 14.5, lon: -76.0, r: WEST,
     npcs: [{ a: "pirate", ship: "brigantine", beam: 160, ahead: 120 }, { a: "pirate", ship: "brigantine", beam: -170, ahead: 60 }, { a: "pirate", ship: "sloop", ahead: 300, beam: 30, rel: Math.PI }],
-    note: "Melee, second angle: low two-shot on the nearest pirate.",
-    fight: { duty: 0.5, range: 380, cool: 2000 },
-    camera: (h) => trackPair(h, { high: 0.7 }),
+    note: "Melee, second angle: low and close among the ships.",
+    fight: { duty: 0.15, cool: 2000 },
+    camera: (h) => trackGroup(h, { dyn: 350, bearing: 250, spin: -3, high: 0.22, distK: 1.0, minD: 200, maxD: 480, k: 0.05 }),
   }),
   battle("bt-navy-vs-pirates", {
     dur: 14, lat: 13.5, lon: -70.0, r: WEST,
-    npcs: [{ a: "navy", f: "spain", ship: "man-o-war", ahead: 0, beam: 650, rel: Math.PI / 2 }, { a: "pirate", ship: "brigantine", ahead: 260, beam: 650, rel: -Math.PI / 2 }, { a: "pirate", ship: "brigantine", ahead: -260, beam: 650, rel: -Math.PI / 2 }],
-    note: "Spanish Navy man-o'-war against two pirate brigantines (NPC vs NPC, our ship hove to out of frame); wide group camera.",
+    npcs: [{ a: "navy", f: "spain", ship: "man-o-war", ahead: 0, beam: 650, rel: Math.PI / 2 }, { a: "pirate", ship: "brigantine", ahead: 200, beam: 820, rel: -Math.PI / 2 }, { a: "pirate", ship: "brigantine", ahead: -200, beam: 820, rel: -Math.PI / 2 }],
+    note: "Spanish Navy man-o'-war against two pirate brigantines (NPC vs NPC, our ship hove to out of frame); group camera on the navy ship.",
     script: async (h) => { await h.sleep(14600); },
-    camera: (h) => trackGroup(h, { includeMe: false, bearing: 90, spin: 3, high: 0.45, distK: 1.4, minD: 300, maxD: 650, radius: 1100, k: 0.04 }),
+    camera: (h) => trackGroup(h, { includeMe: false, dyn: 450, bearing: 90, spin: 3, high: 0.4, distK: 1.3, minD: 250, maxD: 600, k: 0.04 }),
   }),
 ];
 
@@ -656,7 +684,7 @@ const UI = [
     dur: 12, plates: "others",
     note: "Combat with the HUD: pirate brigantine on the beam, broadsides; enemy health bar and nameplate, reload gauges.",
     setup: async (h) => { await h.tp(...h.at(15.0, -72.0), WEST); await spawnRel(h, { a: "pirate", ship: "brigantine", beam: 80 }); },
-    run: async (h) => fight(h, 12600, { duty: 0.4, range: 320 }),
+    run: async (h) => fight(h, 12600, { duty: 0.15 }),
   }),
 ];
 

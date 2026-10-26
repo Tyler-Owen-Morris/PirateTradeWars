@@ -46,3 +46,10 @@ capture runbook). Branch `worktree-agent-abeaf55e71f818c31`, from `origin/dev/20
   aerial-bahamas, aerial-antilles, ice-cliff-dolly, ice-orbit-man-o-war, aerial-oresund, aerial-gulf-finland, reveal-havana.
   merchant-fleet re-shot (sailShot `pre` holds W at full speed through settle: NPCs spawned < 1000 ahead get overrun).
 - 04 battles: batch running via scratchpad `takes.ps1` (one server restart per take).
+- 04 battles done (3 batches). Lessons: **hits only land ~100-190 units out and roughly abeam** (|along| < ~30 for a sure hit;
+  closer than ~90 the balls spawn past the target); the NPC AI breaks off within ~5 s (sloops flee a galleon, navies sail on),
+  so the action is in the first 4-8 s of each take; trackers now use `trackGroup({ dyn })` (own ship + any NPC near it) so
+  the frame never goes empty. The on-camera sink uses a man-o'-war (4 x 15 per volley) and `weaken: 8` (devhp) on the sloop;
+  the sinking shows a ~1.2 s capture hitch when the gold coin first appears (shader compile, probably). Pursuit reverse angle
+  dropped (pirate too far). `takes.ps1` bug: PowerShell variables are case-insensitive ($s shadowed $S): no restarts happened
+  in batch 1.
