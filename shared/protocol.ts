@@ -340,7 +340,7 @@ export interface StandingMessage extends StandingState {
   t: "standing";
 }
 /** Faction ids accepted in a standing (WORLD_SPEC §8). */
-export const STANDING_FACTIONS = ["england", "spain", "france", "portugal", "netherlands", "pirates", "merchants_guild"] as const;
+export const STANDING_FACTIONS = ["england", "spain", "france", "portugal", "netherlands", "pirates", "merchants_guild", "russia"] as const;
 /**
  * NPC2: validate a standing from Redis or the wire. Unknown factions and non-numbers are dropped,
  * values clamped (rep ±100, notoriety 0…100, bounty ≥ 0, all rounded to 0.1). Null if not an object.

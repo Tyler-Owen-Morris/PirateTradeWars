@@ -20,7 +20,7 @@ import { ShipType } from '@/lib/constants';
 import { net, combineControls, NEUTRAL_CONTROLS, type ControlState } from '@/lib/net';
 import { isTextEntryActive } from '@/lib/stores/useInputFocus';
 import type { ShipKinematics } from '@shared/physics';
-import { setRenderFocus } from '@/lib/world/renderSpace';
+import { setRenderFocus, toRender } from '@/lib/world/renderSpace';
 import { cityDebug } from '@/lib/world/cityDebug';
 import { AutoSail } from '@/lib/net/autoSail';
 import { useAutoSail } from '@/lib/stores/useAutoSail';
@@ -77,7 +77,14 @@ export const Player = forwardRef<THREE.Group, PlayerProps>(function Player({ pla
 
     if (!ref || !('current' in ref) || !ref.current) return;
     ref.current.position.set(0, 0, 0);
-    if (cityDebug.enabled) ref.current.visible = !cityDebug.active; // dev city camera hides the own ship
+    if (cityDebug.active && cityDebug.showShip && net.predictor.initialized) {
+      // Trailer camera (useTrailerHooks): the focus is the shot's anchor, not the ship, so draw the own ship
+      // where it really is in that frame (a port shot would otherwise show it parked on the dock).
+      const r = net.getOwnRenderState(renderState.current);
+      const p = toRender(r.x, r.z);
+      ref.current.position.set(p.x, 0, p.z);
+    }
+    if (cityDebug.enabled) ref.current.visible = !cityDebug.active || cityDebug.showShip; // dev city camera hides the own ship
     ref.current.rotation.y = renderState.current.rotationY;
   }, -1);
 

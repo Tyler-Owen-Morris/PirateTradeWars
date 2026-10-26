@@ -31,7 +31,7 @@ const P = (k: string) => {
 };
 const rng = () => 0.5; // zero fluctuation
 const STAPLES = ["Fish", "Wood", "Sugar", "Cotton", "Rum", "Tobacco"];
-const EXOTICS = ["Spices", "Silk", "Silver", "Gold", "Cacao", "Hides", "Wine"];
+const EXOTICS = ["Spices", "Silk", "Silver", "Gold", "Cacao", "Hides", "Wine", "Furs", "Whale Oil", "Naval Stores"];
 
 describe("GOOD_MARKETS data", () => {
   it("covers every good in the catalogue; every selector names a real port, region or nation", () => {
@@ -44,11 +44,13 @@ describe("GOOD_MARKETS data", () => {
       expect(portsMatching(m.sources).length, name).toBeGreaterThan(0);
     }
   });
-  it("exactly the five new goods plus Spices and Silk are exotic; staples are not", () => {
+  it("the phase 1 and phase 2 goods plus Spices and Silk are exotic; staples are not", () => {
     expect(Object.entries(GOOD_MARKETS).filter(([, m]) => m.exotic).map(([n]) => n).sort()).toEqual([...EXOTICS].sort());
   });
   it("the new goods are appended with the ids the inventories will use", () => {
-    expect(GOODS.slice(8).map((g) => [g.id, g.name])).toEqual([[9, "Silver"], [10, "Gold"], [11, "Cacao"], [12, "Hides"], [13, "Wine"]]);
+    expect(GOODS.slice(8).map((g) => [g.id, g.name])).toEqual([[9, "Silver"], [10, "Gold"], [11, "Cacao"], [12, "Hides"], [13, "Wine"],
+      [14, "Furs"], [15, "Whale Oil"], [16, "Naval Stores"]]);
+    expect(GOODS.slice(13).every((g) => g.group === "northern")).toBe(true);
     expect(GOODS.slice(0, 8).map((g) => g.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });

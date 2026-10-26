@@ -7,6 +7,7 @@ import { PORT_INTERACTION_RADIUS } from '@shared/gameConstants';
 import { toRender, inRenderRange } from '@/lib/world/renderSpace';
 import { PortCity } from './PortCity';
 import { cityDebug } from '@/lib/world/cityDebug';
+import { TRAILER_NAMEPLATES } from './useTrailerHooks';
 
 /*
  * A real-world port (card W4): the town on the coast at the port's town x/z (PortCity: the procedural
@@ -49,7 +50,7 @@ export function Port({ port }: PortProps) {
       {/* Name label over the town (y set by PortCity from the built skyline) */}
       <group ref={townRef} position={[0, -10000, 0]}>
         <group ref={labelRef} position={[0, 100, 0]}>
-          <Billboard follow={true}>
+          <Billboard follow={true} visible={TRAILER_NAMEPLATES !== "none"}>
             <Text fontSize={22} color="#FFD700" anchorX="center" anchorY="middle" outlineWidth={2} outlineColor="#000000" renderOrder={1000}>
               {port.name}
             </Text>

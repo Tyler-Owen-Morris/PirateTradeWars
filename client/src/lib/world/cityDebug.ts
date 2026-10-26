@@ -27,6 +27,8 @@ export interface CityDebugState {
   look: { x: number; y: number; z: number };
   /** Dev: unmount every port (Ports.tsx) to measure the scene without them. */
   hidePorts: boolean;
+  /** Trailer tooling (useTrailerHooks.ts): keep the own ship drawn while the debug camera is active. */
+  showShip: boolean;
 }
 
 const listeners = new Set<() => void>();
@@ -58,6 +60,7 @@ export const cityDebug: CityDebugState = {
   cam: { x: 0, y: 0, z: 0 },
   look: { x: 0, y: 0, z: 0 },
   hidePorts: false,
+  showShip: false,
 };
 
 export interface CityCamPort {

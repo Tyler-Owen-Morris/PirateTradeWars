@@ -1,7 +1,10 @@
 // Wrapping-Earth geometry, land sampling and no-damage coast collision (docs/world/WORLD_SPEC.md §2–§4).
 import { describe, expect, it } from "vitest";
 import {
-  ICE_LAT,
+  ICE_LAT_N,
+  ICE_LAT_S,
+  iceLatFor,
+  isIceLat,
   WORLD_C,
   WORLD_H,
   WORLD_R,
@@ -52,9 +55,16 @@ describe("geo", () => {
     expect(WORLD_C).toBe(400_000);
     expect(WORLD_H).toBe(200_000);
     expect(WORLD_R).toBeCloseTo(63_661.98, 1);
-    expect(ICE_LAT).toBe(70);
-    expect(Z_ICE_N).toBeCloseTo(22_222.2, 1);
+    // New Horizons phase 2 (2026-10-24): the north line moved 70 -> 72 (North Cape, the White Sea).
+    expect(ICE_LAT_N).toBe(72);
+    expect(ICE_LAT_S).toBe(70);
+    expect(Z_ICE_N).toBeCloseTo(20_000, 6);
     expect(Z_ICE_S).toBeCloseTo(177_777.8, 1);
+    expect(iceLatFor(71)).toBe(72);
+    expect(iceLatFor(-71)).toBe(70);
+    expect(isIceLat(71.2)).toBe(false); // North Cape is open water
+    expect(isIceLat(72.1)).toBe(true);
+    expect(isIceLat(-70.1)).toBe(true);
   });
 
   it("lon/lat round-trip; north pole is z = 0", () => {
@@ -72,7 +82,8 @@ describe("geo", () => {
     expect(metricX(EQ)).toBeCloseTo(1, 12);
     expect(metricX(zOfLat(60))).toBeCloseTo(0.5, 12);
     expect(metricX(zOfLat(-60))).toBeCloseTo(0.5, 12);
-    expect(metricX(Z_ICE_N)).toBeCloseTo(Math.cos((70 * Math.PI) / 180), 12);
+    expect(metricX(Z_ICE_N)).toBeCloseTo(Math.cos((72 * Math.PI) / 180), 12);
+    expect(metricX(Z_ICE_S)).toBeCloseTo(Math.cos((70 * Math.PI) / 180), 12);
     expect(metricX(0)).toBeGreaterThan(0); // clamped, never 0
   });
 
@@ -111,7 +122,7 @@ describe("LandField", () => {
     expect(f.distance(1234, Z_ICE_N + 100)).toBeCloseTo(100, 9);
     expect(f.distance(1234, Z_ICE_N - 50)).toBeCloseTo(-50, 9);
     expect(f.distance(1234, Z_ICE_S - 30)).toBeCloseTo(30, 9);
-    expect(f.distance(1234, 10)).toBeLessThan(-20000);
+    expect(f.distance(1234, 10)).toBeLessThan(-19000); // deep in the northern ice (Z_ICE_N = 20 000)
     const nN = f.normal(5000, Z_ICE_N + 100);
     expect(nN.nz).toBeCloseTo(1, 6); // toward water = south (+z)
     const nS = f.normal(5000, Z_ICE_S - 100);

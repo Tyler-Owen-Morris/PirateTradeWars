@@ -126,7 +126,7 @@ describe("goods seeding by id (New Horizons phase 1)", () => {
     // A live server's Redis: the 8 original goods, one of them with a tweaked price that must survive.
     s.goods = GOODS.filter((g) => g.id <= 8).map((g) => ({ id: g.id, name: g.name, basePrice: g.id === 1 ? 11 : g.basePrice, fluctuation: g.fluctuation }));
     const added = await seedGoods(s);
-    expect(added).toEqual([9, 10, 11, 12, 13]);
+    expect(added).toEqual([9, 10, 11, 12, 13, 14, 15, 16]);
     expect(s.goods.map((g) => g.id).sort((a, b) => a - b)).toEqual(GOODS.map((g) => g.id));
     for (const g of GOODS) expect(s.goods.find((x) => x.id === g.id)!.name).toBe(g.name);
     expect(s.goods.find((g) => g.id === 1)!.basePrice).toBe(11);

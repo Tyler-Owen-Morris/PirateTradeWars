@@ -13,7 +13,7 @@
  * just shifts it while the ship moves, re-rendering only when the shift gets large, the zoom
  * changes or a tile arrives (`clientLand.version`).
  */
-import { ICE_LAT, latOf, metricX, wrappedDelta, WORLD_C, WORLD_H } from "@shared/world/geo";
+import { iceLatFor, latOf, metricX, wrappedDelta, WORLD_C, WORLD_H } from "@shared/world/geo";
 import { PX, SDF_FAR, SDF_H, SDF_UNIT, SDF_W, TILES_X, type LandField, type TileData } from "@shared/world/land";
 
 type RGB = readonly [number, number, number];
@@ -65,8 +65,9 @@ export function chartColor(d: number, lat: number, upp: number, out: Uint8Clampe
   b += (INK[2] - b) * ink;
   // polar pack ice
   const al = Math.abs(lat);
-  if (al > ICE_LAT) {
-    const t = Math.min(1, (al - ICE_LAT) / 0.6);
+  const iceLat = iceLatFor(lat); // 72 north, 70 south (asymmetric since 2026-10-24)
+  if (al > iceLat) {
+    const t = Math.min(1, (al - iceLat) / 0.6);
     r = ICE_EDGE[0] + (ICE[0] - ICE_EDGE[0]) * t;
     g = ICE_EDGE[1] + (ICE[1] - ICE_EDGE[1]) * t;
     b = ICE_EDGE[2] + (ICE[2] - ICE_EDGE[2]) * t;
@@ -75,8 +76,8 @@ export function chartColor(d: number, lat: number, upp: number, out: Uint8Clampe
       g += (LAND_INNER[1] - g) * 0.15;
       b += (LAND_INNER[2] - b) * 0.15;
     }
-  } else if (al > ICE_LAT - 0.4) {
-    const t = (al - (ICE_LAT - 0.4)) / 0.4;
+  } else if (al > iceLat - 0.4) {
+    const t = (al - (iceLat - 0.4)) / 0.4;
     r += (ICE_EDGE[0] - r) * t;
     g += (ICE_EDGE[1] - g) * t;
     b += (ICE_EDGE[2] - b) * t;
@@ -130,7 +131,7 @@ export function renderMinimapLand(field: LandField, ax: number, az: number, scal
     const z = az + (v + 0.5 - half) * upp;
     if (z < 0 || z > WORLD_H) continue;
     const lat = latOf(z);
-    const nearIce = Math.abs(lat) > ICE_LAT - 0.4;
+    const nearIce = Math.abs(lat) > iceLatFor(lat) - 0.4;
     const xPerPx = upp / metricX(z);
     const fz = z / PX - 0.5;
     const j0f = Math.floor(fz);
@@ -220,7 +221,7 @@ function renderSmoothed(
     const z = az + (v + 0.5 - half) * upp;
     if (z < 0 || z > WORLD_H) continue;
     const lat = latOf(z);
-    const nearIce = Math.abs(lat) > ICE_LAT - 0.4;
+    const nearIce = Math.abs(lat) > iceLatFor(lat) - 0.4;
     const xPerPx = upp / metricX(z);
     const fz = z / PX - 0.5 - jA;
     const j0 = Math.floor(fz);

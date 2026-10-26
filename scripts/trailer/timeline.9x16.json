@@ -1,0 +1,19 @@
+{
+  "aspect": "9x16",
+  "fps": 30,
+  "xfade": 0.4,
+  "_note": "Trailer 1 TikTok cut. Every clip captured natively at 1080x1920 (capture.mjs --aspect 9x16): no crops. Hook = broadside volley in the first second. Music from 82 s (the track's loudest stretch, 84-96 s).",
+  "music": { "file": "docs/trailer/assets/music/pirates_orchestra.mp3", "start": 82, "fadeIn": 0.3, "fadeOut": 2.5, "gainDb": 0 },
+  "sfx": [],
+  "clips": [
+    { "src": "capture/9x16/broadside", "in": 0.3, "dur": 5.5, "caption": "Fire at will.", "capIn": 0.15, "capDur": 2.4, "sfx": [{ "src": 0.75, "gainDb": -3 }, { "src": 4.0, "gainDb": -6 }] },
+    { "src": "capture/9x16/sail-run", "in": 0.4, "dur": 3.6 },
+    { "src": "capture/9x16/havana-approach", "dur": 4.5, "caption": "Trade where the price is right.", "capIn": 0.4, "capDur": 3.4 },
+    { "src": "capture/9x16/trade-screen", "in": 1.6, "dur": 4.5 },
+    { "src": "capture/9x16/callao", "in": 1.0, "dur": 3.5 },
+    { "src": "capture/9x16/world-map", "in": 0.8, "dur": 3.4, "caption": "43 ports. One ocean.", "capIn": 0.3, "capDur": 2.7 },
+    { "src": "capture/9x16/hero-dawn", "dur": 2.6 },
+    { "src": "capture/9x16/leaderboard", "in": 0.9, "dur": 3.2 }
+  ],
+  "end": { "dur": 3.5, "title": "Pirate Trade Wars", "url": "piratetradewars.com", "tagline": "Free to play in your browser" }
+}

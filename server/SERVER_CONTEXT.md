@@ -207,7 +207,11 @@ Full details are in `game/npc/README.md`; the contract is WORLD_SPEC §8.
   `updatePortMarkets`, which also re-syncs each row's `notSold` with the model (`redisStorage.updatePortGoodNotSold`).
   `npm run market:sim` prints the best routes. To check a re-seed against an old world:
   `REDIS_CONN_STRING=redis://localhost:6379/7 npx tsx scripts/market/seed-old-world.ts <old ports.json> <old version>`,
-  then boot the server on that DB (docs/world/expansion-phase1/NOTES.md).
+  then boot the server on that DB (docs/world/expansion-phase1/NOTES.md). New Horizons phase 2 (2026-10-24): goods
+  14 Furs, 15 Whale Oil, 16 Naval Stores (the "northern" group) are added by id the same way; the seeder takes an
+  optional goods count (`... <old version> 13` = the phase 1 world), and the boot then logs `[ports] seeded 60 ports`
+  and `[goods] seeded 3 missing goods (ids 14, 15, 16)` (docs/world/expansion-phase2/NOTES.md). NPCs: Russia is a
+  fighting faction (`server/game/npc/factions.ts`); see server/game/npc/README.md for the 214-ship population.
 - **Interaction gate:** trade, upgradeShip and repairShip (`socketHandler.withinPort`) need the metric distance
   from the ship to the port's **dock** <= `PORT_INTERACTION_RADIUS` (300); otherwise `error "Too far from port"`.
   Trade had no distance check before W4.

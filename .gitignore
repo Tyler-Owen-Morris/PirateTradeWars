@@ -8,3 +8,6 @@ vite.config.ts.*
 .github/workflows/deploy-infra.yml
 .claude/worktrees/
 scripts/world/.cache/
+
+# trailer capture output (scripts/trailer)
+/capture/

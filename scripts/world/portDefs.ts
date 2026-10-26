@@ -12,7 +12,18 @@
 // - Buenos Aires and Montevideo (founded 1724-26): Spanish, the River Plate.
 // - Paramaribo: Dutch Suriname (ceded by England in 1667). New York: English since 1664.
 // - Juan Fernández: the uninhabited Pacific island where pirates watered (Selkirk, 1704-09) -> pirates.
-export type Nation = "england" | "spain" | "france" | "portugal" | "netherlands" | "pirates";
+// New Horizons phase 2 (2026-10-24), "North of everything":
+// - Russia: St. Petersburg (founded 1703), Arkhangelsk (the White Sea, round North Cape), Okhotsk,
+//   Petropavlovsk (1740) and Sitka (Russian America, 1799). Russia is a fighting NPC faction.
+// - Sweden held Riga (Swedish Livonia until 1710) and Stockholm; Denmark-Norway held Copenhagen (the Sound
+//   toll), Bergen, Iceland (Reykjavík) and Greenland (Godthåb, 1728). Display-only nations: their ships sail
+//   as the Merchants' Guild (server/game/npc/population.ts portFaction).
+// - York Factory: the Hudson's Bay Company's post (English charter, 1670) -> england.
+// - Honolulu: the Hawaiian chiefs (display-only nation "hawaii"). Galápagos: the buccaneers' anchorage of
+//   the 1680s -> pirates.
+export type Nation =
+  | "england" | "spain" | "france" | "portugal" | "netherlands" | "pirates"
+  | "russia" | "sweden" | "denmark_norway" | "hawaii";
 export type Region =
   | "caribbean"
   | "north_atlantic"
@@ -21,7 +32,11 @@ export type Region =
   | "indian_ocean"
   | "east_asia"
   | "americas_pacific"
-  | "south_atlantic";
+  | "south_atlantic"
+  // New Horizons phase 2 (2026-10-24)
+  | "baltic" // the Baltic, through the Sound
+  | "arctic" // the North Sea coast of Norway, the White Sea, Iceland, Greenland and Hudson Bay
+  | "north_pacific"; // Okhotsk, Kamchatka, Russian America, and the mid-Pacific islands (Guam, Hawaii)
 
 export interface PortDef {
   id: string;
@@ -89,6 +104,28 @@ export const PORT_DEFS: PortDef[] = [
   { id: "new_york", name: "New York", lat: 40.7, lon: -74.01, nation: "england", region: "north_atlantic" },
   { id: "porto", name: "Porto", lat: 41.15, lon: -8.61, nation: "portugal", region: "europe" },
   { id: "funchal", name: "Funchal", lat: 32.65, lon: -16.91, nation: "portugal", region: "europe" },
+  // --- New Horizons phase 2 (2026-10-24): "North of everything". APPEND ONLY. ---
+  // The Baltic (through the Sound: a channel is carved through the Øresund, scripts/world/channels.ts)
+  { id: "st_petersburg", name: "St. Petersburg", lat: 59.93, lon: 30.31, nation: "russia", region: "baltic" },
+  { id: "riga", name: "Riga", lat: 56.95, lon: 24.11, nation: "sweden", region: "baltic" },
+  { id: "stockholm", name: "Stockholm", lat: 59.33, lon: 18.07, nation: "sweden", region: "baltic" },
+  { id: "copenhagen", name: "Copenhagen", lat: 55.68, lon: 12.57, nation: "denmark_norway", region: "baltic" },
+  // The northern seas (the ice line moved to 72°N so North Cape and the White Sea open)
+  { id: "bergen", name: "Bergen", lat: 60.39, lon: 5.32, nation: "denmark_norway", region: "arctic" },
+  { id: "arkhangelsk", name: "Arkhangelsk", lat: 64.54, lon: 40.54, nation: "russia", region: "arctic" },
+  { id: "reykjavik", name: "Reykjavík", lat: 64.15, lon: -21.94, nation: "denmark_norway", region: "arctic" },
+  { id: "godthab", name: "Godthåb", lat: 64.18, lon: -51.72, nation: "denmark_norway", region: "arctic" },
+  // North America
+  { id: "st_johns", name: "St. John's", lat: 47.56, lon: -52.71, nation: "england", region: "north_atlantic" },
+  { id: "quebec", name: "Québec", lat: 46.81, lon: -71.21, nation: "france", region: "north_atlantic" },
+  { id: "york_factory", name: "York Factory", lat: 57.0, lon: -92.3, nation: "england", region: "arctic" },
+  // The North Pacific (the fur coasts) and the mid-Pacific landfalls
+  { id: "okhotsk", name: "Okhotsk", lat: 59.36, lon: 143.24, nation: "russia", region: "north_pacific" },
+  { id: "petropavlovsk", name: "Petropavlovsk", lat: 53.02, lon: 158.65, nation: "russia", region: "north_pacific" },
+  { id: "sitka", name: "Sitka", lat: 57.05, lon: -135.33, nation: "russia", region: "north_pacific" },
+  { id: "guam", name: "Guam", lat: 13.47, lon: 144.75, nation: "spain", region: "north_pacific" },
+  { id: "honolulu", name: "Honolulu", lat: 21.31, lon: -157.86, nation: "hawaii", region: "north_pacific" },
+  { id: "galapagos", name: "Galápagos", lat: -0.9, lon: -89.6, nation: "pirates", region: "americas_pacific" },
 ];
 
 /** Named long-haul lanes (spec §6), in addition to each port's 4 nearest by sea. */
@@ -109,4 +146,12 @@ export const NAMED_LANES: [string, string][] = [
   ["callao", "panama"], // the Armada del Mar del Sur carrying Potosí silver north
   ["buenos_aires", "valparaiso"], // round Cape Horn
   ["rio_de_janeiro", "cape_town"], // across the South Atlantic to the Cape route
+  // New Horizons phase 2
+  ["london", "arkhangelsk"], // the Archangel convoy round North Cape (the Muscovy Company)
+  ["amsterdam", "st_petersburg"], // the Baltic trade through the Sound (timber, hemp, tar)
+  ["copenhagen", "reykjavik"], // the Danish Iceland trade monopoly
+  ["london", "york_factory"], // the Hudson's Bay Company ships through Hudson Strait
+  ["saint_malo", "quebec"], // New France's supply ships up the St. Lawrence
+  ["petropavlovsk", "sitka"], // Kamchatka to Russian America
+  ["acapulco", "guam"], // the Manila galleon's westbound landfall
 ];

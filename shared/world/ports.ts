@@ -18,7 +18,11 @@ import versions from "./versions.json";
 import { metricDistSq } from "./geo";
 import { PORT_INTERACTION_RADIUS } from "../gameConstants";
 
-export type PortNation = "england" | "spain" | "france" | "portugal" | "netherlands" | "pirates";
+export type PortNation =
+  | "england" | "spain" | "france" | "portugal" | "netherlands" | "pirates"
+  // New Horizons phase 2 (2026-10-24). Russia is a fighting NPC faction; the other three are display-only
+  // (their merchants sail as the Merchants' Guild: server/game/npc/population.ts portFaction).
+  | "russia" | "sweden" | "denmark_norway" | "hawaii";
 export type PortRegion =
   | "caribbean"
   | "north_atlantic"
@@ -27,7 +31,11 @@ export type PortRegion =
   | "indian_ocean"
   | "east_asia"
   | "americas_pacific"
-  | "south_atlantic";
+  | "south_atlantic"
+  // New Horizons phase 2 (2026-10-24)
+  | "baltic"
+  | "arctic"
+  | "north_pacific";
 
 export interface GamePort {
   /** Numeric id used on the wire and in Redis (1-based index in ports.json). */

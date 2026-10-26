@@ -6,6 +6,7 @@ import { useAudio } from '@/lib/stores/useAudio';
 import { SHIP_DIMENSIONS, SHIP_COLORS, SHIP_MAST_COUNTS, ShipType } from '@/lib/constants';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { factionFlagColors, npcNameplate } from '@/lib/world/factions';
+import { TRAILER_NAMEPLATES } from './useTrailerHooks';
 
 interface ShipProps {
   position: [number, number, number];
@@ -172,7 +173,7 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(
           </mesh>
         </group>
       )}
-      <Billboard position={[0, dims.height + 70, 0]} follow={true} lockX={false} lockY={false} lockZ={false} renderOrder={2}>
+      <Billboard visible={TRAILER_NAMEPLATES === "all" || (TRAILER_NAMEPLATES === "others" && !isPlayer)} position={[0, dims.height + 70, 0]} follow={true} lockX={false} lockY={false} lockZ={false} renderOrder={2}>
         <Text fontSize={12} color="#ffffff" anchorX="center" anchorY="bottom" outlineWidth={0.5} outlineColor="#000000" renderOrder={3}>
           {name} {isPlayer ? "(You)" : ""}
         </Text>

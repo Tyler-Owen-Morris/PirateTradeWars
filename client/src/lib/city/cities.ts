@@ -297,4 +297,109 @@ export const CITY_CUSTOM: Record<string, CityCustom> = {
     tweak: { walls: ["#f6f3ea", "#f4f1ea", "#efe8d8"], trees: "broadleaf", treeCount: 90 },
     note: "Madeira: a whitewashed town with tile roofs under green terraced hills; São Lourenço fort on the bay.",
   },
+  // --- New Horizons phase 2 (2026-10-24): the north -------------------------------------------
+  // The Baltic
+  st_petersburg: {
+    size: 1.25,
+    tweak: {
+      walls: ["#e8c86a", "#d8b85a", "#9ac0a8", "#e8e0cc", "#d89a7a", "#f2ecdc"], roofs: ["#4a5a5a", "#5a6a6a", "#3f444c"],
+      roofKinds: { hip: 0.7, gable: 0.3 }, pitch: 0.55, floors: [2, 3], landmark: "steeple", landmarkRoof: "#c9a640",
+      fort: "star", fortStone: "#9a8a72", shipsAtAnchor: 2,
+    },
+    fortScale: 1.3,
+    extras: [{ piece: "onion_church", where: "outskirts", scale: 0.8 }],
+    note: "Peter's new capital (1703): stucco palaces, the gilded spire of Peter and Paul over its star fortress, Kronstadt's men-of-war off.",
+  },
+  riga: {
+    style: "dutch",
+    tweak: { landmark: "steeple", landmarkRoof: "#4f7a6a" },
+    extras: [{ piece: "church_gothic_tower", where: "plaza", scale: 0.9 }],
+    note: "Hanseatic Riga under Swedish rule: stepped brick gables, St Peter's green spire, the Swedish bastions on the Daugava.",
+  },
+  stockholm: {
+    size: 1.15,
+    tweak: { walls: ["#d9a85a", "#c8973e", "#e8d8b0", "#b85a3a", "#efe6d2"], floors: [2, 4], roofKinds: { gable: 0.6, hip: 0.4 }, fort: "castle" },
+    note: "Gamla stan on its island: ochre and rust stucco houses, Riddarholmen's spire, Tre Kronor castle on the waterfront.",
+  },
+  copenhagen: {
+    size: 1.15,
+    tweak: {
+      walls: ["#8a4430", "#9d5236", "#c8973e", "#e8e0cc", "#b0653f"], roofKinds: { stepgable: 0.4, gable: 0.6 },
+      fort: "star", floors: [2, 3],
+    },
+    fortScale: 1.1,
+    extras: [{ piece: "round_tower", where: "plaza" }],
+    note: "Brick and stucco under copper spires; the Kastellet star fort guards the Sound; the Round Tower in town.",
+  },
+  // The northern seas
+  bergen: {
+    tweak: { warehouses: 7, warehouseWalls: ["#8e2f22", "#c8973e", "#e8e0cc", "#7a5a3a"], fort: "castle" },
+    note: "Bryggen: the Hanseatic wharf's row of gabled timber warehouses, Bergenhus fortress at the harbour mouth.",
+  },
+  arkhangelsk: {
+    tweak: { warehouses: 5, shipsAtAnchor: 2 },
+    fortScale: 1.1,
+    note: "Russia's only sea port before St. Petersburg: log houses, the Gostiny Dvor stores, a stockade, onion domes on the Dvina.",
+  },
+  reykjavik: {
+    size: 0.8,
+    tweak: { maxHouses: 14, warehouses: 2, fort: "none", landmark: "chapel", treeCount: 0, floors: [1, 1] },
+    note: "A handful of turf-and-timber houses and the Danish monopoly's stores; no trees, no fort.",
+  },
+  godthab: {
+    size: 0.9,
+    tweak: { maxHouses: 5, warehouses: 1, piers: 1, fort: "none", landmark: "chapel", treeCount: 0, floors: [1, 1], shipsAtAnchor: 0 },
+    note: "Hans Egede's mission and trading station (1728): a chapel, a few red houses on bare rock.",
+  },
+  // North America
+  st_johns: {
+    size: 0.85,
+    tweak: { boats: 6, trees: "conifer", treeCount: 50, walls: ["#e8e0cc", "#9a4b35", "#c8973e", "#5a7a8a"] },
+    note: "The Grand Banks fishery's harbour: clapboard houses in bright paint, fishing boats crowding the Narrows, Fort William.",
+  },
+  quebec: {
+    size: 1.1,
+    tweak: { cityWalls: true, trees: "conifer" },
+    fortWhere: "highpoint",
+    fortScale: 1.2,
+    note: "The capital of New France: stone houses with steep roofs inside the walls, the citadel high on Cap Diamant (the St. Lawrence is a carved channel up to here: docs/world/DATA_PIPELINE.md).",
+  },
+  york_factory: {
+    style: "trading_post",
+    fortScale: 1.2,
+    note: "The Hudson's Bay Company's post on the Hayes River: white-painted stores and houses inside a timber stockade.",
+  },
+  // The North Pacific and the mid-Pacific
+  okhotsk: {
+    size: 0.7,
+    note: "Russia's Pacific port of the 1700s: a stockade, log houses and a church on the spit.",
+  },
+  petropavlovsk: {
+    size: 0.6,
+    tweak: { fort: "bastion", fortStone: "#6a5a48" },
+    note: "Bering's harbour in Avacha Bay (1740): a few log houses, a church and an earth battery under the volcanoes.",
+  },
+  sitka: {
+    size: 0.75,
+    tweak: { treeCount: 90 },
+    fortWhere: "highpoint",
+    note: "Novo-Arkhangelsk, Russian America's capital: the governor's house on Castle Hill inside a stockade, rainforest behind.",
+  },
+  guam: {
+    size: 0.6,
+    tweak: { trees: "palm", fort: "bastion", maxHouses: 30 },
+    note: "Hagåtña: the galleons' watering stop, a church and a small Spanish battery under the palms.",
+  },
+  honolulu: {
+    size: 0.8,
+    note: "A village of thatched hale among coconut palms, outrigger canoes drawn up on the beach; no European fort.",
+  },
+  galapagos: {
+    size: 0.6,
+    tweak: {
+      maxHouses: 0, warehouses: 0, piers: 1, boats: 1, shipsAtAnchor: 1, fort: "none", landmark: "none",
+      trees: "broadleaf", treeCount: 12, extras: [{ piece: "careened_ship", where: "coast" }],
+    },
+    note: "A bare volcanic anchorage: no town at all, one pier, a buccaneer ship careened on the beach (the 1680s).",
+  },
 };
