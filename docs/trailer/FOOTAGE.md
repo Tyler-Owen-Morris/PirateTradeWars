@@ -40,3 +40,9 @@ capture runbook). Branch `worktree-agent-abeaf55e71f818c31`, from `origin/dev/20
   path from setPath with a hold, so the camera follows the ship from before the first recorded frame (no snap).
 - 2560x1440 realtime screencast runs at 35-40 fps captured (resampled to 30); frames mode works at any size.
 - Spawned merchants sit still (no rail); a "convoy" can only be a fleet we sail through. NPCs never despawn: restart.
+
+## Shot status (pack folder 03-06; ids in footage-shots.mjs)
+- 03 scenic done (2560x1440): orbit-carib, waterline-pass, bow-on-low, high-chase-islands, ice-sail, ships-passing,
+  aerial-bahamas, aerial-antilles, ice-cliff-dolly, ice-orbit-man-o-war, aerial-oresund, aerial-gulf-finland, reveal-havana.
+  merchant-fleet re-shot (sailShot `pre` holds W at full speed through settle: NPCs spawned < 1000 ahead get overrun).
+- 04 battles: batch running via scratchpad `takes.ps1` (one server restart per take).

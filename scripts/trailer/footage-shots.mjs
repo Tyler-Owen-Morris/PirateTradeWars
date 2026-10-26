@@ -313,7 +313,7 @@ const SCENIC = [
   },
   sailShot("sc-merchant-fleet", {
     dur: 10, lat: 14.0, lon: -67.5, r: WEST, duty: 0.35,
-    npcs: [{ a: "merchant", f: "england", ship: "brigantine", ahead: 300, beam: -170 }, { a: "merchant", f: "england", ship: "sloop", ahead: 520, beam: 150 }, { a: "merchant", f: "netherlands", ship: "brigantine", ahead: 760, beam: -110 }],
+    npcs: [{ a: "merchant", f: "england", ship: "brigantine", ahead: 1500, beam: -170 }, { a: "merchant", f: "england", ship: "sloop", ahead: 1750, beam: 150 }, { a: "merchant", f: "netherlands", ship: "brigantine", ahead: 2050, beam: -110 }],
     note: "Our galleon sails slowly through a gathering of merchantmen (spawned English and Dutch traders); low camera off the port quarter.",
     path: [
       { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: -150, y: 60, z: 220 }, look: { x: 20, y: 10, z: -300 } },
