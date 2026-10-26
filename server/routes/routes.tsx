@@ -12,6 +12,8 @@ import { SHIP_STATS, SHIP_TYPES, GOODS } from "@shared/gameConstants";
 import { portGoodView } from "@shared/market";
 import { HEARTBEAT_INTERVAL_MS } from "@shared/protocol";
 import { shipsFree } from "../config";
+import { registerAdminRoutes } from "../admin/routes";
+import { liveAdminDeps } from "../admin/live";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize ship types and game state
@@ -19,6 +21,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await initializeGameState();
 
   registerStripeRoutes(app)
+
+  // Admin dashboard API (/api/admin/*, docs/admin/README.md) + the landing beacon POST /api/visit.
+  // Disabled (404) unless ADMIN_PASSWORD_HASH and ADMIN_SESSION_SECRET are set.
+  registerAdminRoutes(app, liveAdminDeps);
 
   // API Routes
   app.get('/api/health', (req, res) => {
