@@ -120,3 +120,34 @@ small; realtime clips have ~5% repeated frames (screencast jitter, fine at 30 fp
   timelines (the `northern-seas` entry is a placeholder: replace its port keys and poses). Ice/snow towns: try a higher camera.
 - Re-run the full batch per aspect after a server restart; reuse the timelines, swap one port shot for a north one.
 - Consider a CSS-zoomed trade panel for 9:16 (find the right selector first) and a caption-safe leaderboard position.
+
+## Trailer 2 run log (2026-10-25, New Horizons phase 2 live: "North of everything")
+
+Resume notes (newest last). Worktree `agent-a0b64b43bd24fb3bf`, branch `worktree-agent-a0b64b43bd24fb3bf`, from main 92c09a4.
+Outputs (not in git): session scratchpad `trailer/v2/`.
+
+Setup done:
+- `node_modules` = junction to `.claude/worktrees/agent-abb70aea15b1777da/node_modules` (same package.json; has playwright).
+- Docker Desktop had to be started (`ptw-redis` was stopped). DB 11 seeded with the invented leaderboard (seed-1..10).
+- devtp.patch applied uncommitted. **devtp.patch now passes `f` (faction) to `devnpc`** (needed for a Russian Navy ship:
+  `{t:"devnpc", a:"navy", f:"russia"}`); the committed patch file was regenerated.
+- Server: as in the runbook, port 5150, `REDIS_CONN_STRING=redis://localhost:6379/11`. Restart + clean = kill the :5150
+  listener, delete `player:*`, `player_*`, `active_name*` in DB 11 (keeps the leaderboard).
+
+Owner feedback on trailer 1 (do not reuse as is): (1) sail-run floats at an empty island: sail purposefully, 3-4 s,
+INTO a living town / along the ice / past ships; (2) the trade screen lingered: 2.5-3 s, one purchase; (3) combat had
+one ship still and the other spinning: both ships moving, enemy (Russian Navy) on a crossing/passing course, short angles.
+
+Tooling changes:
+- `portShot`/`parkAtPort`: the seaward direction now scales world x by cos(lat) (`seaward()`); unscaled it was skewed
+  (fine at 18 N, badly off at 60 N).
+- `townShot(key, poses)`: like portShot but anchored on the TOWN (port point) - northern docks are far from their towns
+  (St. Petersburg 487 units, Stockholm 421, Arkhangelsk 428, Bergen 303). `--shot town-<key> --preview` surveys any port.
+- New shots: `stpete`, `arkhangelsk`, `sitka`, `bergen` (town frames), `arrive-north` (realtime, sailing into Bergen),
+  `ice-edge` (realtime, 71.8 N 38 E heading east), `trade-north` (Arkhangelsk, Furs x10, ~3 s), `world-map-north`,
+  `navy-pass` (Russian Navy ship on the opposite course, E as it comes abeam). The `northern-seas` placeholder is gone.
+- Heading convention: forward = (sin r, cos r) in (east, south): r 0 = south, PI = north, PI/2 = east.
+
+Survey (town-<key> preview): St. Petersburg (white church, painted houses) and Stockholm/Bergen read well from 250 out;
+Arkhangelsk is dark timber with ice floes on the beach (needs a high camera, it sits behind land); Sitka's end pose good.
+The north is green land like everywhere else (the game has no snow on land); ice shows as floes and the ice sheet at 72 N.

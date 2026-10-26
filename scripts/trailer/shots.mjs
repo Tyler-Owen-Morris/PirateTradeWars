@@ -42,6 +42,15 @@ export function push(anchor, from, to, dur, look = { x: 0, y: 10, z: 0 }, rot) {
   ];
 }
 
+const mxOf = (z) => Math.max(0.01, Math.cos(((90 - (z / 200000) * 180) * Math.PI) / 180));
+/** Unit seaward vector town -> dock in RENDER axes (world x scaled by cos(lat); unscaled it skews badly in the north). */
+function seaward(p) {
+  const mx = mxOf(p.dock.z);
+  let ux = (p.dock.x - p.x) * mx, uz = p.dock.z - p.z;
+  const l = Math.hypot(ux, uz) || 1;
+  return { ux: ux / l, uz: uz / l, rx: uz / l, rz: -ux / l, dist: l, mx };
+}
+
 /**
  * Port shot in the port's own "seaward" frame (so it works for any coast orientation): each pose is
  * { d: metres-ish render units out to sea from the dock, h: height, s: sideways (+ = right when looking at
@@ -52,14 +61,32 @@ export function portShot(key, poses, dur, posesPortrait) {
   return (h) => {
     if (h.aspect === "9x16" && posesPortrait) poses = posesPortrait; // portrait frames need their own poses
     const p = h.port(key);
-    let ux = p.dock.x - p.x, uz = p.dock.z - p.z;
-    const l = Math.hypot(ux, uz) || 1;
-    ux /= l; uz /= l; // seaward
-    const rx = uz, rz = -ux; // sideways axis (check the framing with --preview)
+    const { ux, uz, rx, rz } = seaward(p); // rx/rz: sideways axis (check the framing with --preview)
     const off = (d, hh, s) => ({ x: ux * d + rx * s, y: hh, z: uz * d + rz * s });
     return poses.map((q, i) => ({
       t: (dur * i) / (poses.length - 1),
       anchor: { port: key },
+      cam: off(q.d, q.h, q.s ?? 0),
+      look: off(q.ld ?? 0, q.lh ?? 10, q.ls ?? 0),
+      ease: q.ease ?? (poses.length > 2 ? "linear" : "smooth"),
+    }));
+  };
+}
+
+/**
+ * Like portShot but anchored on the TOWN (the port point, where the city is built) instead of the dock: d is
+ * measured out to sea from the town along town -> dock. Use it where the dock is far from the town (northern
+ * ports: St. Petersburg 487, Stockholm 421, Arkhangelsk 428 units). h.port(key) distances: see NOTES.md.
+ */
+export function townShot(key, poses, dur, posesPortrait) {
+  return (h) => {
+    if (h.aspect === "9x16" && posesPortrait) poses = posesPortrait;
+    const p = h.port(key);
+    const { ux, uz, rx, rz } = seaward(p);
+    const off = (d, hh, s) => ({ x: ux * d + rx * s, y: hh, z: uz * d + rz * s });
+    return poses.map((q, i) => ({
+      t: (dur * i) / (poses.length - 1),
+      anchor: { x: p.x, z: p.z },
       cam: off(q.d, q.h, q.s ?? 0),
       look: off(q.ld ?? 0, q.lh ?? 10, q.ls ?? 0),
       ease: q.ease ?? (poses.length > 2 ? "linear" : "smooth"),
@@ -75,11 +102,7 @@ export function parkAtPort(key, d, s, sPortrait = s) {
   return async (h) => {
     if (h.aspect === "9x16") s = sPortrait;
     const p = h.port(key);
-    let ux = p.dock.x - p.x, uz = p.dock.z - p.z;
-    const l = Math.hypot(ux, uz) || 1;
-    ux /= l; uz /= l;
-    const rx = uz, rz = -ux;
-    const mx = Math.max(0.01, Math.cos(((90 - (p.dock.z / 200000) * 180) * Math.PI) / 180));
+    const { ux, uz, rx, rz, mx } = seaward(p);
     const ox = ux * d + rx * s, oz = uz * d + rz * s;
     const r = Math.atan2(rx, rz);
     await h.tp(p.dock.x + ox / mx, p.dock.z + oz, r);
@@ -303,15 +326,177 @@ export const SHOTS = [
       await h.page.evaluate(() => window.__trackStop());
     },
   },
+  // ---- Trailer 2: "North of everything" (New Horizons phase 2). Survey with town-<key> / port-<key> first. ----
   {
-    id: "northern-seas",
+    id: "stpete",
     mode: "frames",
-    dur: 5,
+    dur: 4.5,
     ship: "galleon",
-    needs: "expansion",
-    note: "NEEDS EXPANSION. Baltic/Arctic: pack ice, a Russian/Baltic port under snow. Port keys are placeholders: replace with the merged ports.json ids (e.g. archangel, saint_petersburg, stockholm).",
-    setup: async (h) => h.tp(...h.dockNear(h.firstPort(["archangel", "saint_petersburg", "stockholm"]), 900), 0),
-    path: push({ port: "archangel" }, { x: 0, y: 60, z: 700 }, { x: 120, y: 170, z: 420 }, 5),
+    note: "St. Petersburg on the Neva: low truck past the church and the painted Baltic town (town-anchored).",
+    setup: parkAtPort("st_petersburg", 60, -150),
+    path: townShot("st_petersburg", [{ d: 250, h: 55, s: 190, lh: 10 }, { d: 235, h: 75, s: 95, lh: 4 }], 4.5,
+      [{ d: 300, h: 70, s: 150, lh: 10 }, { d: 280, h: 95, s: 80, lh: 4 }]),
+  },
+  {
+    id: "arkhangelsk",
+    mode: "frames",
+    dur: 4.5,
+    ship: "galleon",
+    note: "Arkhangelsk: dark Russian timber town and church, ice floes on the White Sea shore (high camera).",
+    setup: parkAtPort("arkhangelsk", 60, -150),
+    path: townShot("arkhangelsk", [{ d: 230, h: 75, s: 110, lh: 6 }, { d: 200, h: 100, s: -10, lh: 0 }], 4.5,
+      [{ d: 270, h: 85, s: 80, lh: 6 }, { d: 240, h: 110, s: 0, lh: 0 }]),
+  },
+  {
+    id: "sitka",
+    mode: "frames",
+    dur: 4.5,
+    ship: "galleon",
+    note: "Sitka, Russian America (North Pacific): timber town on the sound.",
+    setup: parkAtPort("sitka", 60, 200),
+    path: townShot("sitka", [{ d: 240, h: 70, s: -20, lh: 6 }, { d: 215, h: 85, s: -120, lh: 2 }], 4.5,
+      [{ d: 280, h: 80, s: -30, lh: 6 }, { d: 250, h: 100, s: -110, lh: 2 }]),
+  },
+  {
+    id: "bergen",
+    mode: "frames",
+    dur: 4.5,
+    ship: "galleon",
+    note: "Bergen: fort and wharf town (town-anchored).",
+    setup: parkAtPort("bergen", 60, -150),
+    path: townShot("bergen", [{ d: 260, h: 60, s: 150, lh: 8 }, { d: 245, h: 72, s: 80, lh: 4 }], 4.5,
+      [{ d: 300, h: 72, s: 120, lh: 8 }, { d: 285, h: 85, s: 60, lh: 4 }]),
+  },
+  {
+    id: "arrive-north",
+    mode: "realtime",
+    dur: 4,
+    ship: "galleon",
+    note: "Purposeful sailing (owner feedback on trailer 1): under full sail INTO a living northern port, town ahead past the bow. Ship-relative chase from the quarter.",
+    port: "bergen",
+    setup: async (h) => {
+      const key = h.shotPort ?? "bergen";
+      const p = h.port(key);
+      const mx = Math.cos((90 - (p.dock.z / 200000) * 180) * Math.PI / 180);
+      let ux = (p.dock.x - p.x) * mx, uz = p.dock.z - p.z;
+      const l = Math.hypot(ux, uz); ux /= l; uz /= l;
+      const back = h.arriveFrom ?? 260;
+      // heading toward the town: forward (sin r, cos r) = (-ux, -uz)
+      await h.tp(p.dock.x + (ux * back) / mx, p.dock.z + uz * back, Math.atan2(-ux, -uz));
+    },
+    pre: async (h) => h.keys.down("w"),
+    path: [
+      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: -95, y: 34, z: 70 }, look: { x: 0, y: 22, z: -200 } },
+      { t: 5, anchor: { ship: true }, rot: "ship", cam: { x: -55, y: 48, z: 150 }, look: { x: 0, y: 18, z: -260 } },
+    ],
+    run: async (h) => {
+      await h.mark("start");
+      await h.sleep(4600);
+      await h.mark("end");
+      await h.keys.up("w");
+    },
+  },
+  {
+    id: "ice-edge",
+    mode: "realtime",
+    dur: 4,
+    ship: "galleon",
+    note: "Running east along the 72 N ice edge in the Barents Sea, ice beyond the ship; camera low on the south side.",
+    setup: async (h) => h.tp(...h.at(71.82, 38.0), Math.PI / 2), // heading east
+    pre: async (h) => h.keys.down("w"),
+    path: [
+      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: 130, y: 30, z: 40 }, look: { x: 0, y: 26, z: -40 } },
+      { t: 5, anchor: { ship: true }, rot: "ship", cam: { x: 110, y: 42, z: -40 }, look: { x: 0, y: 26, z: -110 } },
+    ],
+    run: async (h) => {
+      await h.mark("start");
+      await h.sleep(4600);
+      await h.mark("end");
+      await h.keys.up("w");
+    },
+  },
+  {
+    id: "trade-north",
+    hud: true,
+    mode: "realtime",
+    dur: 3,
+    ship: "galleon",
+    note: "Owner feedback: ONE quick purchase. Docked at Arkhangelsk, the bill of goods already open and scrolled to the Northern group; Furs x10 signed.",
+    setup: async (h) => h.tp(...h.dockNear("arkhangelsk", 40), 0),
+    pre: async (h) => {
+      await h.sleep(800);
+      await h.keys.tap("t");
+      await h.sleep(1500);
+      await h.page.evaluate(() => document.querySelector('[aria-label^="Buy Furs at"]')?.scrollIntoView({ block: "center" }));
+      await h.page.mouse.move(h.viewport.width * 0.5, h.viewport.height * 0.5);
+    },
+    run: async (h) => {
+      const click = async (sel) => { const el = h.page.locator(sel).first(); const b = await el.boundingBox(); if (b) await h.page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 10 }); await el.click(); };
+      await h.sleep(300);
+      await h.mark("open");
+      await click('[aria-label^="Buy Furs at"]');
+      await h.sleep(450);
+      await click('[data-fk="q:10"]');
+      await h.sleep(450);
+      await h.mark("order");
+      await click("#tb-sign");
+      await h.mark("signed");
+      await h.sleep(1500);
+      await h.mark("end");
+    },
+  },
+  {
+    id: "world-map-north",
+    hud: true,
+    mode: "realtime",
+    dur: 4,
+    ship: "galleon",
+    note: "M in the Norwegian Sea; drag so the Baltic, North Cape and the Arctic ports slide through, all 60 ports on the chart.",
+    setup: async (h) => h.tp(...h.dockNear("bergen", 700), 0),
+    run: async (h) => {
+      await h.keys.tap("m");
+      await h.sleep(900);
+      await h.mark("open");
+      const { width: w, height: ht } = h.viewport;
+      await h.page.mouse.move(w * 0.7, ht * 0.45);
+      await h.page.mouse.down();
+      await h.page.mouse.move(w * 0.35, ht * 0.6, { steps: 110 });
+      await h.page.mouse.up();
+      await h.mark("dragged");
+      await h.sleep(1000);
+    },
+  },
+  {
+    id: "navy-pass",
+    hud: true,
+    plates: "others",
+    mode: "realtime",
+    dur: 12,
+    ship: "galleon",
+    note: "Owner feedback: both ships moving. Under sail in the Norwegian Sea; a RUSSIAN NAVY ship (devnpc f:russia) spawned ahead on the starboard bow on the opposite course; as it comes abeam, E (starboard broadside) then a turn and another. trackPair camera. Restart the server before each take.",
+    setup: async (h) => {
+      await h.tp(...h.at(66.0, 4.0), 0); // heading south
+      const me = await h.me();
+      const mx = Math.cos(66 * Math.PI / 180);
+      const ahead = h.ahead ?? 260, beam = h.beam ?? 70;
+      const fx = Math.sin(me.r), fz = Math.cos(me.r);      // forward (metric east, south)
+      const sx = Math.cos(me.r), sz = -Math.sin(me.r);     // starboard
+      await h.npc({ a: "navy", f: "russia", ship: h.enemy, x: me.x + (fx * ahead + sx * beam) / mx, z: me.z + fz * ahead + sz * beam, r: me.r + Math.PI });
+    },
+    pre: async (h) => h.keys.down("w"),
+    run: async (h) => {
+      await trackPair(h);
+      await h.mark("before");
+      for (let i = 0; i < 4; i++) {
+        await h.sleep(1500);
+        await h.keys.tap("e");
+        await h.mark("e" + i);
+        await h.sleep(1500);
+      }
+      await h.mark("end");
+      await h.keys.up("w");
+      await h.page.evaluate(() => window.__trackStop());
+    },
   },
   {
     id: "leaderboard",
@@ -342,4 +527,15 @@ const portSurvey = (key) => ({
   path: portShot(key, [{ d: 215, h: 28, s: 140, ld: -40, lh: 12 }, { d: 190, h: 48, s: -30, ld: -40, lh: 8 }], 4),
 });
 
-export const byId = (id) => SHOTS.find((s) => s.id === id) ?? (id.startsWith("port-") ? portSurvey(id.slice(5)) : undefined);
+/** "town-<key>" survey: townShot from 260 out, drifting sideways and rising (northern ports with a distant dock). */
+const townSurvey = (key) => ({
+  id: "town-" + key,
+  mode: "frames",
+  dur: 4,
+  ship: "galleon",
+  note: "Survey: town-anchored truck on " + key,
+  setup: parkAtPort(key, 40, 110),
+  path: townShot(key, [{ d: 260, h: 60, s: 150, lh: 8 }, { d: 220, h: 90, s: -60, lh: 0 }], 4),
+});
+
+export const byId = (id) => SHOTS.find((s) => s.id === id) ?? (id.startsWith("port-") ? portSurvey(id.slice(5)) : id.startsWith("town-") ? townSurvey(id.slice(5)) : undefined);
