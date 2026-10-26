@@ -18,6 +18,7 @@ build. RELEASED to production 2026-10-23 (main fc9c918, deploy run 40029362322) 
 | K. Kid-safe chat (library filter, drop tiers, PII/links, mutes, name check) | subagent `chat-safety` | `worktree-agent-a6ec272c6816ed76b` @193e7d0 | DONE, released (main 2c1fd9a, run 40032613343) | watch `[chat] dropped` log volume |
 | L. Dismissable in-port trade prompt (auto-hide + x) | subagent `trade-prompt` (sonnet) | `worktree-agent-a09c3d51e17342b06` @3d54b76 | DONE, released with K (main 2c1fd9a) | - |
 | N. Ship cards: Top Speed stat + `SHIPS_FREE` env toggle (strike-through prices, skip Stripe) | subagent `ships-free` (sonnet, worktree from origin/main) | released 2026-10-25 (main b3a48f2, run 40231472949) WITHOUT Phase 2; SHIPS_FREE=true set on EB | DONE, live (ships free) | toggle with the CLAUDE.md command |
+| O. Admin dashboard `/admin` (live captains, world chart, quick give HP/gold/upgrade, social source tracking) | main session | draft mockup https://claude.ai/artifact/5aL76y2dNjj9wNXykvkvyw | DRAFT, awaiting owner OK | owner reviews draft after trailer 2, then build |
 | M. Social trailer (16:9 ~45s + 9:16 ~30s) | subagent `trailer` (opus, worktree = origin/main + cherry-pick 6b8746a) | prep merged (6b8746a); trailer 1 (live game, no North) RECORDING 2026-10-25; outputs to scratchpad `trailer/v1/`; run log in `docs/trailer/NOTES.md` | IN PROGRESS (trailer 1) | owner order: trailer 1 -> release Phase 2 -> trailer 2 (same agent, with the North) |
 
 Each agent writes progress notes to `docs/proposals/2026-10-23-<card>-NOTES.md` in its worktree as it goes.
