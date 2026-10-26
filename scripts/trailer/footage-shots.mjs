@@ -1,11 +1,11 @@
 // Raw footage pack shots (docs/trailer/FOOTAGE.md). Same shot format as shots.mjs; capture.mjs looks here first.
 // Capture with --size 2560x1440 (16:9) or --aspect 9x16 (1080x1920). Ids: sc-* scenic, bt-* battles, pt-* ports, ui-*.
-// Heading convention (NOTES.md): forward = (-sin r, -cos r) in (east, south): r = PI sails north, r = 0 south,
+// Heading convention (NOTES.md): forward = (-sin r, -cos r) in (east, south): r = 0 sails north, r = PI south,
 // r = -PI/2 east, r = PI/2 west. Ship-relative path axes: -z ahead, +z astern, +x starboard. Paths should run ~1-2 s
 // longer than dur (the camera holds its last pose after the path ends).
 import { orbit, portShot, townShot, parkAtPort, trackPair } from "./shots.mjs";
 
-const NORTH = Math.PI, SOUTH = 0, EAST = -Math.PI / 2, WEST = Math.PI / 2;
+const NORTH = 0, SOUTH = Math.PI, EAST = -Math.PI / 2, WEST = Math.PI / 2; // forward = (-sin r, -cos r) in (east, south)
 const deg = Math.PI / 180;
 
 /** Hold W for `ms`, or pulse it (duty 0..1 of every 400 ms) for a slower, steady cruise. */
@@ -38,6 +38,7 @@ function sailShot(id, o) {
     ship: o.ship ?? "galleon",
     note: o.note,
     hud: !!o.hud,
+    fov: o.fov ?? 50, // tighter lens than the game camera (80): ships read bigger, less distortion
     lead: 3.3 + (o.preMs ?? 0) / 1000, // camera follows the ship through pre + settle (capture.mjs)
     setup: async (h) => {
       await h.tp(...h.at(o.lat, o.lon), o.r);
@@ -62,6 +63,7 @@ function aerial(id, o) {
     dur: o.dur,
     ship: "galleon",
     settleMs: o.settleMs ?? 7000,
+    fov: o.fov ?? 60,
     note: o.note,
     setup: async (h) => h.tp(...h.at(...(o.shipAt ?? [o.lat + 3, o.lon])), o.shipR ?? 0),
     path: (h) => {
@@ -206,6 +208,7 @@ function battle(id, o) {
     ship: o.ship ?? "galleon",
     hud: !!o.hud,
     plates: o.plates ?? false,
+    fov: o.fov ?? 60,
     note: o.note,
     settleMs: o.settleMs ?? 1500,
     setup: async (h) => {
@@ -248,7 +251,7 @@ const SCENIC = [
     ],
   }),
   sailShot("sc-high-chase-islands", {
-    dur: 10, lat: 22.2, lon: -74.4, r: NORTH, duty: 0.7,
+    dur: 10, lat: 22.2, lon: -74.4, r: -2.88, duty: 0.7, // bearing 165, clear of land (landcheck.ts)
     note: "High chase over the Bahamas banks: the galleon sails between sandy cays.",
     path: [
       { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: -120, y: 230, z: 330 }, look: { x: 0, y: 0, z: -150 } },
@@ -263,10 +266,10 @@ const SCENIC = [
   aerial("sc-aerial-antilles", {
     dur: 10, lat: 14.8, lon: -61.2,
     note: "Aerial drift along Martinique (Saint-Pierre) in the Lesser Antilles.",
-    keys: [{ cam: { x: -600, y: 380, z: 200 }, look: { x: -200, y: 0, z: -250 } }, { cam: { x: -350, y: 380, z: -350 }, look: { x: 50, y: 0, z: -600 } }],
+    keys: [{ cam: { x: -650, y: 520, z: 250 }, look: { x: -350, y: 0, z: -100 } }, { cam: { x: -350, y: 520, z: -250 }, look: { x: -50, y: 0, z: -600 } }],
   }),
   aerial("sc-ice-cliff-dolly", {
-    dur: 10, lat: 71.97, lon: 30.0,
+    dur: 10, lat: 71.97, lon: 30.0, shipAt: [71.0, 30.0],
     note: "Low dolly along the 72 N ice cliff in the Barents Sea (ice sheet to the north).",
     keys: [{ cam: { x: -350, y: 35, z: 170 }, look: { x: -150, y: 10, z: -60 } }, { cam: { x: 250, y: 45, z: 150 }, look: { x: 450, y: 10, z: -60 } }],
   }),
@@ -308,42 +311,40 @@ const SCENIC = [
     setup: parkAtPort("havana", 40, 110),
     path: portShot("havana", [{ d: 1300, h: 14, s: -120, ld: 0, lh: 30 }, { d: 600, h: 40, s: -60, ld: -20, lh: 15 }, { d: 230, h: 70, s: 10, ld: -50, lh: 0 }], 12),
   },
-  sailShot("sc-convoy-merchants", {
-    dur: 10, lat: 15.0, lon: -66.0, r: WEST, duty: 0.6,
-    npcs: [{ a: "merchant", f: "england", ship: "brigantine", ahead: 220, beam: -70 }, { a: "merchant", f: "england", ship: "sloop", ahead: 380, beam: 40 }, { a: "merchant", f: "england", ship: "brigantine", ahead: 520, beam: -40 }],
-    note: "Our galleon following a small English merchant convoy (spawned) across the Caribbean; high camera astern.",
+  sailShot("sc-merchant-fleet", {
+    dur: 10, lat: 14.0, lon: -67.5, r: WEST, duty: 0.35,
+    npcs: [{ a: "merchant", f: "england", ship: "brigantine", ahead: 300, beam: -170 }, { a: "merchant", f: "england", ship: "sloop", ahead: 520, beam: 150 }, { a: "merchant", f: "netherlands", ship: "brigantine", ahead: 760, beam: -110 }],
+    note: "Our galleon sails slowly through a gathering of merchantmen (spawned English and Dutch traders); low camera off the port quarter.",
     path: [
-      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: 60, y: 140, z: 260 }, look: { x: 0, y: 0, z: -320 } },
-      { t: 12, anchor: { ship: true }, rot: "ship", cam: { x: -80, y: 120, z: 230 }, look: { x: 0, y: 0, z: -360 } },
+      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: -150, y: 60, z: 220 }, look: { x: 20, y: 10, z: -300 } },
+      { t: 12, anchor: { ship: true }, rot: "ship", cam: { x: -190, y: 70, z: 40 }, look: { x: 60, y: 10, z: -220 } },
     ],
   }),
-  sailShot("sc-ships-passing", {
-    dur: 9, lat: 15.0, lon: -66.0, r: WEST, duty: 0.6,
-    npcs: [{ a: "navy", f: "england", ship: "man-o-war", ahead: 900, beam: 110, rel: Math.PI }],
-    note: "An English Navy man-o'-war passes close on the opposite course (no shots), camera low between the ships.",
-    path: [
-      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: 70, y: 18, z: 60 }, look: { x: 60, y: 22, z: -300 } },
-      { t: 11, anchor: { ship: true }, rot: "ship", cam: { x: 60, y: 22, z: 140 }, look: { x: 90, y: 22, z: 200 } },
-    ],
+  battle("sc-ships-passing", {
+    dur: 10, lat: 13.5, lon: -63.0, r: WEST, preMs: 300, fov: 55,
+    npcs: [{ a: "navy", f: "england", ship: "man-o-war", ahead: 1500, beam: 140, rel: Math.PI }],
+    note: "An English Navy man-o'-war passes close on the opposite course, no shots fired; two-shot camera.",
+    script: async (h) => { await sail(h, 10600, 0.5); await h.keys.up("w"); },
+    camera: (h) => trackPair(h, { high: 0.55 }),
   }),
 ];
 
 // Restart the server before each battle take (spawned NPCs never despawn).
 const BATTLES = [
   battle("bt-spanish-pass", {
-    dur: 11, lat: 15.5, lon: -70.0, r: NORTH, preMs: 600,
+    dur: 11, lat: 14.0, lon: -72.0, r: WEST, preMs: 600,
     npcs: [{ a: "navy", f: "spain", ship: "man-o-war", ahead: 700, beam: 200, rel: Math.PI }],
     note: "Spanish Navy man-o'-war on the opposite course; broadsides as it comes abeam, it returns fire. Two-shot tracker.",
     camera: (h) => trackPair(h),
   }),
   battle("bt-spanish-pass-wide", {
-    dur: 11, lat: 15.5, lon: -70.0, r: NORTH, preMs: 600,
+    dur: 11, lat: 14.0, lon: -72.0, r: WEST, preMs: 600,
     npcs: [{ a: "navy", f: "spain", ship: "man-o-war", ahead: 700, beam: 200, rel: Math.PI }],
     note: "Same action, wide high angle (slow group camera).",
     camera: (h) => trackGroup(h, { bearing: 250, high: 0.5, distK: 1.4, minD: 380, maxD: 750, k: 0.03 }),
   }),
   battle("bt-english-pass", {
-    dur: 11, lat: 49.6, lon: -4.0, r: EAST, preMs: 600,
+    dur: 11, lat: 49.8, lon: -3.5, r: WEST, preMs: 600,
     npcs: [{ a: "navy", f: "england", ship: "man-o-war", ahead: 700, beam: -200, rel: Math.PI }],
     note: "English Channel: English Navy man-o'-war passing to port, broadsides exchanged (we fire first).",
     camera: (h) => trackPair(h),
@@ -355,21 +356,21 @@ const BATTLES = [
     camera: (h) => trackPair(h, { portrait: true, high: 1.3 }),
   }),
   battle("bt-sink-sloop", {
-    dur: 12, lat: 18.5, lon: -66.5, r: WEST,
+    dur: 12, lat: 15.0, lon: -72.0, r: WEST,
     npcs: [{ a: "pirate", ship: "sloop", beam: 70 }],
     note: "Pirate sloop on the starboard beam: broadsides until she sinks (sink animation).",
     fight: { duty: 0.35, range: 300 },
     camera: (h) => trackPair(h),
   }),
   battle("bt-sink-close", {
-    dur: 12, lat: 18.5, lon: -66.5, r: WEST,
+    dur: 12, lat: 15.0, lon: -72.0, r: WEST,
     npcs: [{ a: "pirate", ship: "sloop", beam: 75 }],
     note: "Close on the pirate sloop from beyond her: splashes and hits, then she goes down; our galleon firing behind.",
     fight: { duty: 0.3, range: 300 },
     camera: (h) => trackEnemy(h, { dist: 80, height: 16, lookBias: 0.4, sideways: 30 }),
   }),
   battle("bt-brigantine-duel-close", {
-    dur: 12, lat: 18.5, lon: -66.5, r: WEST,
+    dur: 12, lat: 15.0, lon: -72.0, r: WEST,
     npcs: [{ a: "pirate", ship: "brigantine", beam: 80 }],
     note: "Pirate brigantine close aboard; low camera beside her, cannonball splashes and smoke close up.",
     fight: { duty: 0.4, range: 320 },
@@ -390,21 +391,21 @@ const BATTLES = [
     camera: (h) => trackPair(h, { portrait: true, high: 0.8 }),
   }),
   battle("bt-melee-3", {
-    dur: 14, lat: 18.0, lon: -66.0, r: WEST,
+    dur: 14, lat: 14.5, lon: -76.0, r: WEST,
     npcs: [{ a: "pirate", ship: "brigantine", beam: 160, ahead: 120 }, { a: "pirate", ship: "brigantine", beam: -170, ahead: 60 }, { a: "pirate", ship: "sloop", ahead: 300, beam: 30, rel: Math.PI }],
     note: "Melee: our galleon against three pirates (two brigantines, a sloop), broadsides both sides; slow orbiting wide camera.",
     fight: { duty: 0.5, range: 380, cool: 2000 },
     camera: (h) => trackGroup(h, { bearing: 160, spin: 5, high: 0.55, distK: 1.3, minD: 300, maxD: 650, k: 0.04 }),
   }),
   battle("bt-melee-3-low", {
-    dur: 14, lat: 18.0, lon: -66.0, r: WEST,
+    dur: 14, lat: 14.5, lon: -76.0, r: WEST,
     npcs: [{ a: "pirate", ship: "brigantine", beam: 160, ahead: 120 }, { a: "pirate", ship: "brigantine", beam: -170, ahead: 60 }, { a: "pirate", ship: "sloop", ahead: 300, beam: 30, rel: Math.PI }],
     note: "Melee, second angle: low two-shot on the nearest pirate.",
     fight: { duty: 0.5, range: 380, cool: 2000 },
     camera: (h) => trackPair(h, { high: 0.7 }),
   }),
   battle("bt-navy-vs-pirates", {
-    dur: 14, lat: 19.0, lon: -69.0, r: WEST,
+    dur: 14, lat: 13.5, lon: -70.0, r: WEST,
     npcs: [{ a: "navy", f: "spain", ship: "man-o-war", ahead: 0, beam: 650, rel: Math.PI / 2 }, { a: "pirate", ship: "brigantine", ahead: 260, beam: 650, rel: -Math.PI / 2 }, { a: "pirate", ship: "brigantine", ahead: -260, beam: 650, rel: -Math.PI / 2 }],
     note: "Spanish Navy man-o'-war against two pirate brigantines (NPC vs NPC, our ship hove to out of frame); wide group camera.",
     script: async (h) => { await h.sleep(14600); },
@@ -412,4 +413,251 @@ const BATTLES = [
   }),
 ];
 
-export const FOOTAGE = [...SCENIC, ...BATTLES];
+// ---------------------------------------------------------------- ports and towns (frames, town-anchored)
+const TOWN_WIDE = [{ d: 300, h: 55, s: 170, lh: 10 }, { d: 210, h: 85, s: -80, lh: 0 }];
+const TOWN_WIDE_V = [{ d: 330, h: 70, s: 90, lh: 10 }, { d: 250, h: 95, s: -40, lh: 0 }];
+const TOWN_LOW = [{ d: 360, h: 16, s: -60, lh: 18 }, { d: 190, h: 34, s: 20, lh: 10 }];
+const TOWN_HIGH = [{ d: 380, h: 150, s: 160, lh: 0 }, { d: 300, h: 170, s: -120, lh: 0 }];
+/** Town flyover: the own ship parked far out to sea behind the camera (`ship: [d, s]` to put it in the shot instead). */
+function town(id, key, poses, { dur = 10, posesV, ship = [1500, 0], dock = false, note } = {}) {
+  return {
+    id,
+    mode: "frames",
+    dur,
+    ship: "galleon",
+    settleMs: 8000,
+    note: note ?? `Town flyover: ${key}.`,
+    setup: parkAtPort(key, ship[0], ship[1]),
+    path: (dock ? portShot : townShot)(key, poses, dur, posesV),
+  };
+}
+
+/** Realtime: sail in to a port's dock from `from` units out and stop (arrive), or leave from the dock (depart). */
+function harbour(id, key, { arrive = true, from = 900, dur = 10, cam, note, duty = 0.45 }) {
+  const geo = (h) => {
+    const p = h.port(key);
+    const mx = Math.cos((90 - (p.dock.z / 200000) * 180) * deg);
+    let ux = (p.dock.x - p.x) * mx, uz = p.dock.z - p.z;
+    const l = Math.hypot(ux, uz) || 1;
+    ux /= l; uz /= l; // seaward, metric
+    return { p, mx, ux, uz };
+  };
+  return {
+    id,
+    mode: "realtime",
+    dur,
+    ship: "galleon",
+    note,
+    lead: 3.3,
+    setup: async (h) => {
+      const { p, mx, ux, uz } = geo(h);
+      // forward = (-sin r, -cos r): heading landward (-u) => r = atan2(ux, uz); seaward => r = atan2(-ux, -uz)
+      const d = arrive ? from : 60;
+      await h.tp(p.dock.x + (ux * d) / mx, p.dock.z + uz * d, arrive ? Math.atan2(ux, uz) : Math.atan2(-ux, -uz));
+    },
+    path: (h) => {
+      const { ux, uz } = geo(h);
+      const rx = uz, rz = -ux; // sideways (same axis as portShot)
+      const off = (d, hh, s) => ({ x: ux * d + rx * s, y: hh, z: uz * d + rz * s });
+      return cam.map((q, i) => ({ t: (dur + 2) * (i / (cam.length - 1)), anchor: { port: key }, cam: off(q.d, q.h, q.s), look: off(q.ld ?? 0, q.lh ?? 10, q.ls ?? 0) }));
+    },
+    run: async (h) => {
+      await h.mark("start");
+      await sail(h, (arrive ? 0.62 : 1) * dur * 1000, duty);
+      await h.keys.up("w");
+      if (arrive) { await h.keys.down("s"); await h.sleep(900); await h.keys.up("s"); await h.sleep(0.38 * dur * 1000 - 300); }
+      await h.mark("end");
+    },
+  };
+}
+
+const PORTS = [
+  town("pt-havana", "havana", TOWN_WIDE, { posesV: TOWN_WIDE_V, note: "Havana: Morro castle, quay and red-roofed town, drifting past and rising." }),
+  town("pt-havana-low", "havana", TOWN_LOW, { posesV: TOWN_LOW, note: "Havana from the water: low push in towards the harbour mouth." }),
+  town("pt-port-royal", "port_royal", TOWN_WIDE, { note: "Port Royal, Jamaica: English brick town on the spit, fort and wharves." }),
+  town("pt-cartagena", "cartagena", TOWN_WIDE, { posesV: TOWN_WIDE_V, note: "Cartagena de Indias: walled Spanish town on the bay." }),
+  town("pt-cartagena-low", "cartagena", TOWN_LOW, { note: "Cartagena from the water, low push in." }),
+  town("pt-amsterdam", "amsterdam", [{ d: 215, h: 32, s: 140, ld: -40, lh: 12 }, { d: 190, h: 60, s: -60, ld: -40, lh: 8 }], { dock: true, note: "Amsterdam: Dutch gables and windmills, sideways truck from the IJ." }),
+  town("pt-london", "london", TOWN_HIGH, { note: "London: high pass over the City and its domed cathedral on the Thames." }),
+  town("pt-lisbon", "lisbon", TOWN_WIDE, { note: "Lisbon on the Tagus: white houses, orange roofs, fort." }),
+  town("pt-cadiz", "cadiz", TOWN_WIDE, { posesV: TOWN_WIDE_V, note: "Cadiz: white Andalusian town and fort across the bay." }),
+  town("pt-st-petersburg", "st_petersburg", [{ d: 250, h: 55, s: 220, lh: 10 }, { d: 235, h: 80, s: 60, lh: 4 }], { posesV: [{ d: 300, h: 70, s: 150, lh: 10 }, { d: 280, h: 95, s: 60, lh: 4 }], note: "St. Petersburg on the Neva: church and painted Baltic town." }),
+  town("pt-stockholm", "stockholm", TOWN_WIDE, { posesV: TOWN_WIDE_V, note: "Stockholm: ochre and red houses, church spire, castle and quays." }),
+  town("pt-copenhagen", "copenhagen", TOWN_WIDE, { note: "Copenhagen: colourful harbour town and fortress on the Sound." }),
+  town("pt-bergen", "bergen", [{ d: 260, h: 60, s: 190, lh: 8 }, { d: 240, h: 75, s: 40, lh: 4 }], { note: "Bergen: fort and Hanseatic wharf town." }),
+  town("pt-arkhangelsk", "arkhangelsk", [{ d: 230, h: 85, s: 140, lh: 6 }, { d: 200, h: 110, s: -40, lh: 0 }], { note: "Arkhangelsk: dark timber town and church on the White Sea, ice floes on the shore." }),
+  town("pt-quebec", "quebec", TOWN_WIDE, { note: "Quebec: walled French town on the St. Lawrence." }),
+  town("pt-york-factory", "york_factory", TOWN_WIDE, { note: "York Factory: Hudson's Bay trading post among the spruce." }),
+  town("pt-sitka", "sitka", [{ d: 240, h: 70, s: 60, lh: 6 }, { d: 215, h: 85, s: -140, lh: 2 }], { note: "Sitka, Russian America: timber town on the sound." }),
+  town("pt-callao", "callao", [{ d: 215, h: 32, s: 140, ld: -40, lh: 12 }, { d: 190, h: 60, s: -60, ld: -40, lh: 8 }], { dock: true, note: "Callao: the Real Felipe star fort and the port of Lima." }),
+  town("pt-rio", "rio_de_janeiro", TOWN_WIDE, { note: "Rio de Janeiro: Portuguese town on Guanabara Bay." }),
+  town("pt-macau", "macau", TOWN_WIDE, { note: "Macau: Portuguese town and churches on the Pearl River estuary." }),
+  town("pt-batavia", "batavia", TOWN_WIDE, { note: "Batavia: Dutch East India Company town, fort and windmill." }),
+  town("pt-galapagos", "galapagos", [{ d: 260, h: 45, s: 160, lh: 6 }, { d: 200, h: 70, s: -60, lh: 0 }], { note: "Galapagos: a pirate outpost on a lonely sandbar, a pirate ship at anchor." }),
+  harbour("pt-havana-arrive", "havana", { arrive: true, from: 1100, dur: 10, note: "A galleon sails into Havana harbour and heaves to at the quay; fixed wide camera.",
+    cam: [{ d: 420, h: 70, s: 330, ld: 300, lh: 10, ls: -40 }, { d: 300, h: 75, s: 300, ld: 60, lh: 10, ls: -20 }] }),
+  harbour("pt-port-royal-depart", "port_royal", { arrive: false, dur: 10, duty: 0.55, note: "Leaving Port Royal: the galleon gets under way from the quay and heads out to sea.",
+    cam: [{ d: 120, h: 45, s: -230, ld: 150, lh: 10, ls: 0 }, { d: 260, h: 60, s: -260, ld: 600, lh: 10, ls: 0 }] }),
+];
+
+// ---------------------------------------------------------------- 06 UI and gameplay (HUD on, 1920x1080)
+const glide = async (h, sel) => {
+  const el = h.page.locator(sel).first();
+  await el.scrollIntoViewIfNeeded().catch(() => {});
+  const b = await el.boundingBox();
+  if (b) await h.page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 14 });
+  await el.click();
+};
+/** One purchase/sale on the open bill of goods: pick the cell, 10 (or Max if 10 is not allowed), sign. */
+async function order(h, side, good, { chip = "10" } = {}) {
+  await h.page.evaluate((sel) => document.querySelector(sel)?.scrollIntoView({ block: "center" }), `[aria-label^="${side} ${good} at"]`);
+  await h.sleep(500);
+  await glide(h, `[aria-label^="${side} ${good} at"]`);
+  await h.sleep(700);
+  const ten = chip === "10" ? await h.page.locator('[data-fk="q:10"]').first().isDisabled().catch(() => true) : true;
+  await glide(h, ten ? '[data-fk="q:max"]' : '[data-fk="q:10"]');
+  await h.sleep(800);
+  await h.mark(side + "-" + good);
+  await glide(h, "#tb-sign");
+  await h.sleep(1600);
+}
+const ui = (id, o) => ({ mode: "realtime", ship: "galleon", hud: true, plates: true, ...o, id });
+
+const UI = [
+  ui("ui-ship-select", {
+    lobby: true, dur: 10,
+    note: "Ship selection before joining: the captain's name, then each ship card in turn (all free).",
+    setup: async () => {},
+    run: async (h) => {
+      for (const s of ["sloop", "brigantine", "galleon", "man-o-war", "galleon"]) {
+        const el = h.page.locator(`[data-testid="cypress-${s}-card"]`);
+        const b = await el.boundingBox();
+        if (b) await h.page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 25 });
+        await el.click();
+        await h.sleep(1500);
+        await h.mark(s);
+      }
+      await h.sleep(800);
+    },
+  }),
+  ui("ui-sail-autosail", {
+    dur: 12,
+    note: "Sailing with the full HUD near Port Royal: double-tap W engages auto-sail (indicator), a turn to port, minimap and compass.",
+    setup: async (h) => h.tp(...h.dockNear("port_royal", 1400, 40), 0),
+    run: async (h) => {
+      await h.sleep(800);
+      await h.keys.tap("w"); await h.sleep(120); await h.keys.tap("w");
+      await h.mark("autosail");
+      await h.sleep(4000);
+      await h.keys.hold(["a"], 1400);
+      await h.sleep(5500);
+      await h.keys.tap("s");
+      await h.sleep(600);
+    },
+  }),
+  ui("ui-sail-hud-islands", {
+    dur: 12,
+    note: "Sailing among the Bahamas cays with the HUD (minimap, gold, hold, compass); weaving with A/D.",
+    setup: async (h) => h.tp(...h.at(22.2, -74.4), -2.88), // bearing 165, clear of land (landcheck.ts)
+    run: async (h) => {
+      await h.keys.down("w");
+      await h.sleep(3000);
+      await h.keys.hold(["d"], 900);
+      await h.sleep(3000);
+      await h.keys.hold(["a"], 1300);
+      await h.sleep(4200);
+      await h.keys.up("w");
+    },
+  }),
+  ui("ui-trade-buy-furs", {
+    dur: 9,
+    note: "Docked at Arkhangelsk: T opens the bill of goods; Furs bought (10) and signed.",
+    setup: async (h) => h.tp(...h.dockNear("arkhangelsk", 40), 0),
+    run: async (h) => {
+      await h.sleep(900);
+      await h.keys.tap("t");
+      await h.sleep(1600);
+      await h.mark("open");
+      await order(h, "Buy", "Furs");
+      await h.sleep(800);
+    },
+  }),
+  ui("ui-trade-sell-furs", {
+    dur: 9,
+    note: "Furs bought at Arkhangelsk (off camera), sold at London: T, the Furs sell cell, Max, sign.",
+    setup: async (h) => {
+      await h.tp(...h.dockNear("arkhangelsk", 40), 0);
+      await h.sleep(800);
+      await h.keys.tap("t");
+      await h.sleep(1800);
+      await order(h, "Buy", "Furs", { chip: "max" });
+      await h.page.evaluate(() => document.querySelector('[data-fk="close"]')?.click());
+      await h.sleep(800);
+      await h.tp(...h.dockNear("london", 40), 0);
+    },
+    run: async (h) => {
+      await h.sleep(900);
+      await h.keys.tap("t");
+      await h.sleep(1600);
+      await h.mark("open");
+      await order(h, "Sell", "Furs", { chip: "max" });
+      await h.sleep(800);
+    },
+  }),
+  ui("ui-trade-buy-silver", {
+    dur: 9,
+    note: "Docked at Callao: Silver bought on the bill of goods.",
+    setup: async (h) => h.tp(...h.dockNear("callao", 40), 0),
+    run: async (h) => {
+      await h.sleep(900);
+      await h.keys.tap("t");
+      await h.sleep(1600);
+      await h.mark("open");
+      await order(h, "Buy", "Silver", { chip: "max" });
+      await h.sleep(800);
+    },
+  }),
+  ui("ui-world-map", {
+    dur: 12,
+    note: "M opens the world chart: the whole world (60 ports), wheel-zoom into the Caribbean, drag to Europe, zoom back out.",
+    setup: async (h) => h.tp(...h.dockNear("havana", 700), 0),
+    run: async (h) => {
+      const { width: w, height: ht } = h.viewport;
+      await h.keys.tap("m");
+      await h.sleep(1800);
+      await h.mark("open");
+      await h.page.mouse.move(w * 0.5, ht * 0.5, { steps: 10 });
+      for (let i = 0; i < 14; i++) { await h.page.mouse.wheel(0, -60); await h.sleep(70); }
+      await h.sleep(1200);
+      await h.page.mouse.down();
+      await h.page.mouse.move(w * 0.2, ht * 0.45, { steps: 90 });
+      await h.page.mouse.up();
+      await h.mark("dragged");
+      await h.sleep(1200);
+      for (let i = 0; i < 14; i++) { await h.page.mouse.wheel(0, 60); await h.sleep(70); }
+      await h.sleep(1800);
+    },
+  }),
+  ui("ui-leaderboard", {
+    dur: 7,
+    note: "Tab: the gold leaderboard over open water (invented captains on a private test database).",
+    setup: async (h) => h.tp(...h.at(18.0, -62.0), 0),
+    run: async (h) => {
+      await h.sleep(1200);
+      await h.keys.down("Tab");
+      await h.sleep(800);
+      await h.mark("open");
+      await h.sleep(4200);
+      await h.keys.up("Tab");
+      await h.sleep(1000);
+    },
+  }),
+  ui("ui-combat-hud", {
+    dur: 12, plates: "others",
+    note: "Combat with the HUD: pirate brigantine on the beam, broadsides; enemy health bar and nameplate, reload gauges.",
+    setup: async (h) => { await h.tp(...h.at(15.0, -72.0), WEST); await spawnRel(h, { a: "pirate", ship: "brigantine", beam: 80 }); },
+    run: async (h) => fight(h, 12600, { duty: 0.4, range: 320 }),
+  }),
+];
+
+export const FOOTAGE = [...SCENIC, ...BATTLES, ...PORTS, ...UI];

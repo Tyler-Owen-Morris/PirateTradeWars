@@ -204,6 +204,7 @@ async function captureFrames(browser, shot, preview) {
   await shot.setup(h);
   const pth = typeof shot.path === "function" ? await shot.path(h) : shot.path;
   await page.evaluate(([p, hud]) => { window.__trailer.hud(hud); window.__trailer.setPath(p); window.__trailer.seek(0); }, [pth, !!shot.hud]);
+  if (shot.fov) await page.evaluate((f) => window.__trailer.fov(f), shot.fov); // lens (game default 80)
   // Let tiles / towns stream in on the REAL clock, then freeze time.
   await sleep(shot.settleMs ?? 5000);
   await page.evaluate(() => window.__clock.freeze());
@@ -233,6 +234,7 @@ async function captureRealtime(browser, shot, preview) {
   const h = makeHelpers(page, ports);
   await shot.setup(h);
   if (!shot.lobby) await page.evaluate((hud) => window.__trailer.hud(hud), !!shot.hud);
+  if (shot.fov && !shot.lobby) await page.evaluate((f) => window.__trailer.fov(f), shot.fov); // lens (game default 80)
   // Optional camera path in realtime: posed at t=0 now, played (real time) when the run starts. The path can
   // anchor on the own ship with rot:"ship" for a close chase/orbit that follows the ship as it sails.
   let pth = typeof shot.path === "function" ? await shot.path(h) : shot.path;
