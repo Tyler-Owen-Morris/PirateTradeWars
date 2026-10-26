@@ -120,9 +120,10 @@ export const LOGIN_MAX_FAILS_GLOBAL = 30;
 export type LoginGate = { ok: true } | { ok: false; scope: "ip" | "global"; retryAfterMs: number };
 
 /**
- * Sliding-window failure counter. `check(ip)` before verifying a password; `fail(ip)` after a wrong
- * one; `succeed(ip)` clears that IP's failures. While an IP (or everyone) is locked, even the right
- * password is refused, so a locked attacker learns nothing.
+ * Sliding-window failure counter. The login route calls `check(ip)`, then `fail(ip)` BEFORE verifying
+ * (every try is charged up front), then `succeed(ip)` if the password was right (clears the IP, refunds
+ * the global try). While an IP (or everyone) is locked, even the right password is refused, so a locked
+ * attacker learns nothing.
  */
 export class LoginLimiter {
   private readonly byIp = new Map<string, number[]>();
@@ -171,8 +172,11 @@ export class LoginLimiter {
     return Math.max(0, this.opts.perIp - list.length);
   }
 
+  /** A correct password: clear this IP's failures and refund the try the caller pre-charged with
+   *  `fail()` (the login route charges before verifying, so parallel guesses can't exceed the limit). */
   succeed(ip: string): void {
     this.byIp.delete(ip);
+    this.global.pop();
   }
 }
 

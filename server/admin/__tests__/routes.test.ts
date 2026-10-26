@@ -138,6 +138,13 @@ describe("admin routes", () => {
     expect(await locked.json()).toMatchObject({ error: "locked", scope: "ip" });
   });
 
+  it("a parallel burst can't get more than 5 guesses checked", async () => {
+    const t = await boot();
+    const codes = await Promise.all(Array.from({ length: 12 }, () => t.post("/api/admin/login", { password: "guess" }).then((r) => r.status)));
+    expect(codes.filter((c) => c === 401).length).toBeLessThanOrEqual(5);
+    expect(codes.filter((c) => c === 429).length).toBeGreaterThanOrEqual(7);
+  });
+
   it("POSTs need JSON and a same-host Origin (CSRF guard)", async () => {
     const t = await boot();
     const form = await t.req("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `password=${PASSWORD}` });

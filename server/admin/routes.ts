@@ -29,6 +29,8 @@ import type { AdminLogLine, AdminStateResponse } from "@shared/adminApi";
 
 export const ADMIN_COOKIE = "ptw_admin";
 export const ADMIN_LOG_SIZE = 50;
+/** Password checks allowed at once (scrypt N=16384 r=8 uses 16 MB each). */
+export const MAX_CONCURRENT_VERIFY = 2;
 
 export interface AdminWorldSnapshot {
   captains: AdminPlayerRow[];
@@ -89,6 +91,7 @@ export function registerAdminRoutes(app: Express, deps: AdminDeps): { enabled: b
   const limiter = new LoginLimiter(undefined, now);
   const visitLimiter = new VisitLimiter(undefined, undefined, now);
   const log: AdminLogLine[] = [];
+  let verifying = 0;
 
   const cookieAttrs = (maxAgeSec: number) =>
     `Path=/api/admin; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSec}${production ? "; Secure" : ""}`;
@@ -135,19 +138,28 @@ export function registerAdminRoutes(app: Express, deps: AdminDeps): { enabled: b
       console.log(`[admin] login locked ip=${ip} scope=${gate.scope}`);
       return res.status(429).json({ error: "locked", scope: gate.scope, retryAfterSec: Math.ceil(gate.retryAfterMs / 1000) });
     }
+    // Charge the try BEFORE the (async) scrypt, so a parallel burst can't slip past the limit, and cap
+    // concurrent verifications (each scrypt holds 16 MB): extra tries are refused, still charged.
+    const remaining = limiter.fail(ip);
+    if (verifying >= MAX_CONCURRENT_VERIFY) {
+      console.log(`[admin] login busy ip=${ip}`);
+      return res.status(429).json({ error: "busy", retryAfterSec: 2 });
+    }
     const password = (req.body ?? {}).password;
     let ok = false;
+    verifying++;
     try {
       ok = await verifyPassword(password, parsed!);
     } catch (err) {
       console.error("[admin] login verify error:", err);
+    } finally {
+      verifying--;
     }
     if (!ok) {
-      const remaining = limiter.fail(ip);
       console.log(`[admin] login fail ip=${ip} remaining=${remaining}`);
       return res.status(401).json({ error: "wrong", remaining });
     }
-    limiter.succeed(ip);
+    limiter.succeed(ip); // clears this IP and refunds the pre-charged global try
     console.log(`[admin] login ok ip=${ip}`);
     res.setHeader("Set-Cookie", `${ADMIN_COOKIE}=${signer!.issue()}; ${cookieAttrs(Math.floor(SESSION_TTL_MS / 1000))}`);
     res.json({ ok: true });
