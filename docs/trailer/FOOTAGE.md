@@ -53,3 +53,10 @@ capture runbook). Branch `worktree-agent-abeaf55e71f818c31`, from `origin/dev/20
   the sinking shows a ~1.2 s capture hitch when the gold coin first appears (shader compile, probably). Pursuit reverse angle
   dropped (pirate too far). `takes.ps1` bug: PowerShell variables are case-insensitive ($s shadowed $S): no restarts happened
   in batch 1.
+- **Frames mode + moving NPCs = flicker** (virtual page clock vs real-time server snapshots: NPC ships pop in/out and jump
+  between consecutive frames; seen at Havana). Ports, aerials and the reveal now run through `live()` (realtime, path
+  played from setPath with `lead`). 2560x1440 realtime renders only ~35-38 fps for towns (14% repeated frames = judder), so
+  **ports and aerials are 1920x1080** (57-59 fps captured, ~0-4 repeats). Ship and battle shots stay 2560 (39-59 fps).
+- 05 ports done (24 clips incl. sailing into Havana / out of Port Royal). 06 UI done at 1920x1080 (the UI is laid out for it).
+- Pack helpers (session scratchpad, not committed): `pack.mjs` (encode + 3-frame check strip), `strip.mjs` (1 frame/s
+  filmstrip), `stack.mjs`, `readme.mjs` + `clips.json`/`clips2.json` (README.txt), `takes.ps1`, `srv.ps1`.

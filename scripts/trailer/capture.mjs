@@ -258,7 +258,7 @@ async function captureRealtime(browser, shot, preview) {
     got.push({ ts: f.metadata.timestamp, file });
     fs.writeFile(file, Buffer.from(f.data, "base64"), () => {});
   });
-  if (!preview) await cdp.send("Page.startScreencast", { format: "jpeg", quality: 95, maxWidth: SIZE.width, maxHeight: SIZE.height, everyNthFrame: 1 });
+  if (!preview) await cdp.send("Page.startScreencast", { format: "jpeg", quality: Number(opt("jpeg", 95)), maxWidth: SIZE.width, maxHeight: SIZE.height, everyNthFrame: 1 });
   const t0 = Date.now() / 1000;
   const marks = [];
   h.mark = async (label) => {

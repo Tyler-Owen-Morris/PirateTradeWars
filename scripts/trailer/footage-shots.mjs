@@ -55,9 +55,20 @@ function sailShot(id, o) {
   };
 }
 
+/**
+ * Play a camera-only (frames-style) shot in REALTIME instead: frames mode runs the page on a virtual clock while the
+ * server streams NPC snapshots in real time, so moving NPC ships flicker and jump between frames (seen at Havana,
+ * 2026-10-25). Realtime keeps NPCs right; the path starts moving just before the recording (lead) and the recording
+ * stops just before the path ends.
+ */
+function live(shot) {
+  const settle = shot.settleMs ?? 8000;
+  return { ...shot, mode: "realtime", settleMs: settle, lead: settle / 1000 - 0.3, run: async (h) => { await h.mark("start"); await h.sleep(shot.dur * 1000 - 400); await h.mark("end"); } };
+}
+
 /** Frames: camera-only flight anchored on lat/lon (own ship parked out of frame unless `shipAt`). */
 function aerial(id, o) {
-  return {
+  return live({
     id,
     mode: "frames",
     dur: o.dur,
@@ -70,7 +81,7 @@ function aerial(id, o) {
       const ks = typeof o.keys === "function" ? o.keys(h) : o.keys;
       return ks.map((k, i) => ({ t: k.t ?? (o.dur * i) / (ks.length - 1), anchor: { lat: o.lat, lon: o.lon }, cam: k.cam, look: k.look ?? { x: 0, y: 0, z: 0 }, ease: k.ease ?? (ks.length > 2 ? "linear" : "smooth") }));
     },
-  };
+  });
 }
 
 // ---------------------------------------------------------------- combat helpers
@@ -298,7 +309,7 @@ const SCENIC = [
       { t: 11, anchor: { ship: true }, rot: "ship", cam: { x: 150, y: 50, z: -60 }, look: { x: -30, y: 25, z: 0 } },
     ],
   }),
-  {
+  live({
     id: "sc-ice-orbit-man-o-war",
     mode: "frames",
     dur: 10,
@@ -307,7 +318,7 @@ const SCENIC = [
     note: "Man-o'-war hove to under the 72 N ice cliff; slow low orbit.",
     setup: async (h) => h.tp(...h.at(71.93, 31.0), EAST),
     path: orbit({ ship: true }, { r: 175, h: 30, yaw0: 120, yaw1: 200, dur: 10, lookY: 34, n: 16 }),
-  },
+  }),
   aerial("sc-aerial-oresund", {
     dur: 10, lat: 55.95, lon: 12.65,
     note: "Aerial over the Oresund narrows (Helsingor / Helsingborg), Denmark to the west, Sweden to the east.",
@@ -318,7 +329,7 @@ const SCENIC = [
     note: "Aerial up the Gulf of Finland towards St. Petersburg.",
     keys: [{ cam: { x: -700, y: 420, z: 0 }, look: { x: 0, y: 0, z: 0 } }, { cam: { x: -200, y: 420, z: 0 }, look: { x: 500, y: 0, z: 0 } }],
   }),
-  {
+  live({
     id: "sc-reveal-havana",
     mode: "frames",
     dur: 12,
@@ -327,7 +338,7 @@ const SCENIC = [
     note: "Reveal: from open sea low over the water, the camera pushes in and rises until Havana and the Morro fill the frame.",
     setup: parkAtPort("havana", 40, 110),
     path: portShot("havana", [{ d: 1300, h: 14, s: -120, ld: 0, lh: 30 }, { d: 600, h: 40, s: -60, ld: -20, lh: 15 }, { d: 230, h: 70, s: 10, ld: -50, lh: 0 }], 12),
-  },
+  }),
   sailShot("sc-merchant-fleet", {
     dur: 10, lat: 14.0, lon: -67.5, r: WEST, duty: 0.35,
     npcs: [{ a: "merchant", f: "england", ship: "brigantine", ahead: 1500, beam: -170 }, { a: "merchant", f: "england", ship: "sloop", ahead: 1750, beam: 150 }, { a: "merchant", f: "netherlands", ship: "brigantine", ahead: 2050, beam: -110 }],
@@ -448,7 +459,7 @@ const TOWN_LOW = [{ d: 360, h: 16, s: -60, lh: 18 }, { d: 190, h: 34, s: 20, lh:
 const TOWN_HIGH = [{ d: 380, h: 150, s: 160, lh: 0 }, { d: 300, h: 170, s: -120, lh: 0 }];
 /** Town flyover: the own ship parked far out to sea behind the camera (`ship: [d, s]` to put it in the shot instead). */
 function town(id, key, poses, { dur = 10, posesV, ship = [1500, 0], dock = false, note } = {}) {
-  return {
+  return live({
     id,
     mode: "frames",
     dur,
@@ -457,7 +468,7 @@ function town(id, key, poses, { dur = 10, posesV, ship = [1500, 0], dock = false
     note: note ?? `Town flyover: ${key}.`,
     setup: parkAtPort(key, ship[0], ship[1]),
     path: (dock ? portShot : townShot)(key, poses, dur, posesV),
-  };
+  });
 }
 
 /** Realtime: sail in to a port's dock from `from` units out and stop (arrive), or leave from the dock (depart). */
@@ -545,7 +556,7 @@ async function order(h, side, good, { chip = "10" } = {}) {
   const ten = chip === "10" ? await h.page.locator('[data-fk="q:10"]').first().isDisabled().catch(() => true) : true;
   await glide(h, ten ? '[data-fk="q:max"]' : '[data-fk="q:10"]');
   await h.sleep(800);
-  await h.mark(side + "-" + good);
+  await h.mark?.(side + "-" + good);
   await glide(h, "#tb-sign");
   await h.sleep(1600);
 }
