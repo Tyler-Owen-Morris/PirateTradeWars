@@ -104,6 +104,9 @@ See `docs/netcode/PROTOCOL.md` for the exact contract and `docs/netcode/README.m
   Do not test against the Upstash Redis in `.env`.
 - Env var `SHIPS_FREE` (`true`/`1` = ships free, no Stripe charge; default unset = charge). Runtime-only, set on the EB
   environment (toggle command in `CLAUDE.md`); served to the client via `GET /api/config`.
+- Admin dashboard env vars `ADMIN_PASSWORD_HASH` / `ADMIN_SESSION_SECRET` (optional; unset = `/admin` is off),
+  `ADMIN_TZ`, `ADMIN_TRUSTED_PROXY_HOPS`: see `docs/admin/README.md`. For a local check, make a test hash with
+  `npm run admin:hash -- 'test password'` and any 64-hex-char secret.
 - Local server runs need a dummy `STRIPE_SECRET_KEY=sk_test_dummy` (the Stripe routes throw at import without it).
   `SEGMENT_WRITE_KEY` may be unset (no-op). `test:bots` injects the dummy keys itself.
 

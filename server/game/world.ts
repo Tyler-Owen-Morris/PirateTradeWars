@@ -191,6 +191,16 @@ export interface WorldPlayer extends PlayerState {
    *  sent to this player's client as a `standing` message (−1 = resend on next build). */
   standingVersion: number;
   standingSent: number;
+  // ---- Admin dashboard (server/admin/, docs/admin/README.md). Server-only, never sent or persisted. ----
+  /** Tick this ship last took a cannonball hit (with `firedAtTick`: the "in combat" signal). */
+  hitAtTick: number;
+  /** Wall ms of the last NON-neutral input (throttle, rudder or fire); the "idle" signal. */
+  lastActiveWall: number;
+  /** Wall ms this player joined or reconnected (set by the socket handler; "online for"). */
+  joinedAtWall?: number;
+  /** Where the player came from (shared/source.ts label) and its utm_campaign, from connect/reconnect. */
+  source?: string;
+  campaign?: string;
 }
 
 export interface CannonBall {
@@ -577,6 +587,8 @@ export class World {
       controller: "player",
       standingVersion: 0,
       standingSent: -1,
+      hitAtTick: -1e9,
+      lastActiveWall: this.wallClock(),
     };
     this.players.set(p.id, p);
     this.byEid.set(p.eid, p);
@@ -681,6 +693,7 @@ export class World {
     if (!p || !p.connected || p.dead || p.controller === "npc") return false; // NPC1
     if (input.s <= p.highestSeq) return false;
     p.highestSeq = input.s;
+    if (input.th || input.ru || input.f) p.lastActiveWall = this.wallClock(); // admin "idle" signal
     p.inputQueue.push(input);
     while (p.inputQueue.length > MAX_INPUT_QUEUE) {
       p.inputQueue.shift();
@@ -912,6 +925,7 @@ export class World {
     const armorFactor = 1 - armor / 100;
     const damage = Math.round(ball.damage * armorFactor);
     target.hp = Math.max(0, target.hp - damage);
+    target.hitAtTick = this.tick; // admin "in combat" signal
     this.events.push({ kind: "hit", targetEid: target.eid, ownerEid: ball.ownerEid, ball: ball.id, hp: target.hp, damage });
     if (target.hp <= 0 && !target.sunk) {
       target.sunk = true;

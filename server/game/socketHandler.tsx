@@ -31,6 +31,7 @@ import {
   type ClientMessage,
 } from "@shared/protocol";
 import { identifyPlayer, trackEvent } from "../segmentClient";
+import { dailyStats } from "../admin/counters";
 
 export function handleSocketConnection(ws: WebSocket) {
   let playerId: string | null = null;
@@ -138,6 +139,12 @@ export function handleSocketConnection(ws: WebSocket) {
     await redisStorage.addActiveName(addedPlayer.name, addedPlayer.id);
 
     playerId = addedPlayer.id;
+    // Admin dashboard: where this captain came from (sanitized by parseClientMessage; old clients = Direct).
+    const source = data.source ?? "Direct";
+    addedPlayer.source = source;
+    if (data.campaign) addedPlayer.campaign = data.campaign;
+    addedPlayer.joinedAtWall = Date.now();
+    dailyStats.count("captains", source);
 
     identifyPlayer(playerId, {
       name: data.name,
@@ -145,7 +152,9 @@ export function handleSocketConnection(ws: WebSocket) {
       gold: addedPlayer.gold,
       createdAt: new Date(),
     });
-    trackEvent(playerId, "Player Connected", { name: data.name, shipType: data.shipType });
+    trackEvent(playerId, "Player Connected", {
+      name: data.name, shipType: data.shipType, source, ...(data.campaign ? { campaign: data.campaign } : {}),
+    });
 
     // `connected` first, then attach: the first snapshot (next tick) delivers the world.
     send(ws, {
@@ -185,6 +194,10 @@ export function handleSocketConnection(ws: WebSocket) {
 
     playerId = data.id;
     await redisStorage.addActiveName(data.name, playerId);
+    // Admin dashboard: keep a known source; a reconnect is not a new captain (not counted).
+    if (data.source && (!existingPlayer.source || existingPlayer.source === "Direct")) existingPlayer.source = data.source;
+    if (data.campaign && !existingPlayer.campaign) existingPlayer.campaign = data.campaign;
+    existingPlayer.joinedAtWall = Date.now();
 
     trackEvent(playerId, "Player Reconnected", { name: existingPlayer.name, shipType: existingPlayer.shipType });
 
