@@ -60,3 +60,11 @@ capture runbook). Branch `worktree-agent-abeaf55e71f818c31`, from `origin/dev/20
 - 05 ports done (24 clips incl. sailing into Havana / out of Port Royal). 06 UI done at 1920x1080 (the UI is laid out for it).
 - Pack helpers (session scratchpad, not committed): `pack.mjs` (encode + 3-frame check strip), `strip.mjs` (1 frame/s
   filmstrip), `stack.mjs`, `readme.mjs` + `clips.json`/`clips2.json` (README.txt), `takes.ps1`, `srv.ps1`.
+
+## Result (2026-10-25)
+Pack at `C:\Users\theow\Videos\PirateTradeWars Raw Footage\`: 105 clips, 15.2 min, 1.29 GB on disk (README.txt lists
+every clip). 01 trailer 1 raw 18, 02 trailer 2 raw 19, 03 scenic 19 (14 x 16:9 + 5 vertical), 04 battles 13 (12 + 1
+vertical), 05 ports 27 (24 + 3 vertical), 06 UI 9. Audio (music, cannon, LICENCE.txt), Graphics (end cards, title and
+9 caption PNGs per aspect), `_contact.jpg` per clip folder. Dropped after review: pursuit reverse angle, vertical sloop
+sink (bad framing), frames-mode port/aerial takes (NPC flicker).
+Cleanup: server stopped, Redis DB 13 flushed, devtp.patch reverted (`ptw-redis` was already running before; left up).
