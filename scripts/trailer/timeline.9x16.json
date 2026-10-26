@@ -2,18 +2,18 @@
   "aspect": "9x16",
   "fps": 30,
   "xfade": 0.4,
-  "music": { "file": "docs/trailer/assets/music/pirates_orchestra.mp3", "start": 0, "fadeIn": 0.4, "fadeOut": 2.0, "gainDb": 0 },
-  "sfx": [
-    { "file": "docs/trailer/assets/sfx/cannon_fire.ogg", "at": 0.9, "gainDb": -2 }
-  ],
+  "_note": "Trailer 1 TikTok cut. Every clip captured natively at 1080x1920 (capture.mjs --aspect 9x16): no crops. Hook = broadside volley in the first second. Music from 82 s (the track's loudest stretch, 84-96 s).",
+  "music": { "file": "docs/trailer/assets/music/pirates_orchestra.mp3", "start": 82, "fadeIn": 0.3, "fadeOut": 2.5, "gainDb": 0 },
+  "sfx": [],
   "clips": [
-    { "src": "capture/16x9/broadside.mp4", "in": 6.2, "dur": 5, "cropX": 0.5, "caption": "Fire at will.", "capIn": 0.15, "capDur": 2.0, "_note": "HOOK: starts on the first Q broadside (muzzle flash in the first second). Pick `in` after the dry run." },
-    { "src": "capture/16x9/sail-run.mp4", "in": 1.2, "dur": 4.5, "cropX": 0.5 },
-    { "src": "capture/9x16/havana-approach", "dur": 4.5, "caption": "Trade where the price is right.", "capIn": 0.4, "capDur": 3.3 },
-    { "src": "capture/16x9/trade-screen.mp4", "in": 1.2, "dur": 4.5, "cropX": 0.5, "_note": "Prefer a native 9x16 recording of the trade screen if the bill of sale is cut off by the centre crop." },
-    { "src": "capture/9x16/northern-seas", "dur": 4.5, "caption": "Chart the frozen north.", "capIn": 0.4, "capDur": 3.3, "_needs": "expansion" },
-    { "src": "capture/16x9/world-map.mp4", "in": 1.2, "dur": 3.5, "cropX": 0.5 },
-    { "src": "capture/16x9/leaderboard.mp4", "in": 1.2, "dur": 3, "caption": "Climb the leaderboard.", "capIn": 0.3, "capDur": 2.3 }
+    { "src": "capture/9x16/broadside", "in": 0.3, "dur": 5.5, "caption": "Fire at will.", "capIn": 0.15, "capDur": 2.4, "sfx": [{ "src": 0.75, "gainDb": -3 }, { "src": 4.0, "gainDb": -6 }] },
+    { "src": "capture/9x16/sail-run", "in": 0.4, "dur": 3.6 },
+    { "src": "capture/9x16/havana-approach", "dur": 4.5, "caption": "Trade where the price is right.", "capIn": 0.4, "capDur": 3.4 },
+    { "src": "capture/9x16/trade-screen", "in": 1.6, "dur": 4.5 },
+    { "src": "capture/9x16/callao", "in": 1.0, "dur": 3.5 },
+    { "src": "capture/9x16/world-map", "in": 0.8, "dur": 3.4, "caption": "43 ports. One ocean.", "capIn": 0.3, "capDur": 2.7 },
+    { "src": "capture/9x16/hero-dawn", "dur": 2.6 },
+    { "src": "capture/9x16/leaderboard", "in": 0.9, "dur": 3.2 }
   ],
   "end": { "dur": 3.5, "title": "Pirate Trade Wars", "url": "piratetradewars.com", "tagline": "Free to play in your browser" }
 }

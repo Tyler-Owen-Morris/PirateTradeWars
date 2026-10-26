@@ -2,20 +2,20 @@
   "aspect": "16x9",
   "fps": 30,
   "xfade": 0.4,
-  "music": { "file": "docs/trailer/assets/music/pirates_orchestra.mp3", "start": 0, "fadeIn": 1, "fadeOut": 2.5, "gainDb": 0 },
-  "sfx": [
-    { "file": "docs/trailer/assets/sfx/cannon_fire.ogg", "at": 28.5, "gainDb": -4 }
-  ],
+  "_note": "Trailer 1 (live game, no northern expansion). Music starts at 74 s: the track's second high-energy section (74-106 s). Capture folders from scripts/trailer/capture.mjs; `in` skips seconds of a folder.",
+  "music": { "file": "docs/trailer/assets/music/pirates_orchestra.mp3", "start": 74, "fadeIn": 0.8, "fadeOut": 3.0, "gainDb": 0 },
+  "sfx": [],
   "clips": [
-    { "src": "capture/16x9/hero-dawn", "dur": 4.5, "caption": "Sail the known world.", "capIn": 0.7, "capDur": 3.0 },
-    { "src": "capture/16x9/sail-run.mp4", "in": 1.2, "dur": 6 },
-    { "src": "capture/16x9/havana-approach", "dur": 5, "caption": "Trade where the price is right.", "capIn": 0.6, "capDur": 3.6 },
-    { "src": "capture/16x9/trade-screen.mp4", "in": 1.2, "dur": 4.5 },
-    { "src": "capture/16x9/world-map.mp4", "in": 1.2, "dur": 3.5 },
-    { "src": "capture/16x9/amsterdam-dusk", "dur": 4 },
-    { "src": "capture/16x9/broadside.mp4", "in": 1.2, "dur": 9, "caption": "Give 'em a broadside.", "capIn": 0.5, "capDur": 3.5 },
-    { "src": "capture/16x9/northern-seas", "dur": 4.5, "caption": "Chart the frozen north.", "capIn": 0.6, "capDur": 3.2, "_needs": "expansion" },
-    { "src": "capture/16x9/leaderboard.mp4", "in": 1.2, "dur": 3, "caption": "Climb the gold leaderboard.", "capIn": 0.3, "capDur": 2.3 }
+    { "src": "capture/16x9/hero-dawn", "dur": 4.0, "caption": "Sail the known world.", "capIn": 0.6, "capDur": 3.0 },
+    { "src": "capture/16x9/ship-select", "in": 1.2, "dur": 3.5 },
+    { "src": "capture/16x9/sail-run", "in": 0.4, "dur": 5.5 },
+    { "src": "capture/16x9/havana-approach", "dur": 5.0, "caption": "Trade where the price is right.", "capIn": 0.6, "capDur": 3.6 },
+    { "src": "capture/16x9/trade-screen", "in": 0.6, "dur": 6.0 },
+    { "src": "capture/16x9/world-map", "in": 0.8, "dur": 3.6, "caption": "43 ports. One ocean.", "capIn": 0.4, "capDur": 2.8 },
+    { "src": "capture/16x9/callao", "in": 1.0, "dur": 3.5 },
+    { "src": "capture/16x9/broadside", "in": 0.3, "dur": 7.0, "caption": "Give 'em a broadside.", "capIn": 0.9, "capDur": 3.0, "sfx": [{ "src": 0.75, "gainDb": -4 }, { "src": 4.0, "gainDb": -6 }] },
+    { "src": "capture/16x9/amsterdam", "dur": 4.0 },
+    { "src": "capture/16x9/leaderboard", "in": 0.9, "dur": 3.4 }
   ],
-  "end": { "dur": 4, "title": "Pirate Trade Wars", "url": "piratetradewars.com", "tagline": "Free to play in your browser" }
+  "end": { "dur": 4.0, "title": "Pirate Trade Wars", "url": "piratetradewars.com", "tagline": "Free to play in your browser" }
 }

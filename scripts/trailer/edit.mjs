@@ -67,13 +67,17 @@ export async function build(tl, outFile, work) {
     else {
       const s = abs(c.src);
       if (!fs.existsSync(s)) throw new Error(`clip ${i}: missing source ${s}`);
-      if (fs.statSync(s).isDirectory()) inArgs.push("-framerate", String(c.srcFps || fps), "-start_number", "0", "-i", path.join(s, "%05d.png"));
+      if (fs.statSync(s).isDirectory()) {
+        // capture.mjs folders: frames mode writes 00000.png.., realtime (screencast) writes 00000.jpg..; "in" skips seconds
+        const ext = fs.existsSync(path.join(s, "00000.jpg")) ? "jpg" : "png";
+        inArgs.push("-framerate", String(c.srcFps || fps), "-start_number", String(Math.round((c.in || 0) * (c.srcFps || fps))), "-i", path.join(s, `%05d.${ext}`));
+      }
       else inArgs.push("-ss", String(c.in || 0), "-i", s);
     }
     const dur = c.dur;
     const cx = c.cropX ?? 0.5;
     const cy = c.cropY ?? 0.5;
-    let vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:(iw-${W})*${cx}:(ih-${H})*${cy},fps=${fps},setsar=1,format=yuv420p[v]`;
+    let vf = `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:(iw-${W})*${cx}:(ih-${H})*${cy},fps=${fps},setsar=1,scale=out_range=tv,format=yuv420p[v]`; // screencast JPGs are full range (yuvj): force TV range
     const args = [...inArgs];
     let map = "[v]";
     if (cards.captions[i]) {
@@ -110,7 +114,7 @@ export async function build(tl, outFile, work) {
       prev = `[x${i}]`;
       acc += durs[i] - xf;
     }
-    ff([...norm.flatMap((n) => ["-i", n]), "-filter_complex", filt.slice(0, -1), "-map", prev, "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-profile:v", "high", "-pix_fmt", "yuv420p", "-r", String(fps), silent]);
+    ff([...norm.flatMap((n) => ["-i", n]), "-filter_complex", filt.slice(0, -1), "-map", prev, "-an", "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-profile:v", "high", "-pix_fmt", "yuv420p", "-color_range", "tv", "-r", String(fps), silent]);
   }
 
   // 4. audio: music bed + sfx, then two-pass loudnorm
@@ -120,7 +124,18 @@ export async function build(tl, outFile, work) {
     const aargs = ["-ss", String(m.start || 0), "-i", abs(m.file)];
     let af = `[0:a]aloop=loop=-1:size=2e9,atrim=0:${total.toFixed(3)},asetpts=N/SR/TB,volume=${m.gainDb ?? 0}dB,afade=t=in:st=0:d=${m.fadeIn ?? 1},afade=t=out:st=${(total - (m.fadeOut ?? 2.5)).toFixed(3)}:d=${m.fadeOut ?? 2.5}[bed]`;
     const mix = ["[bed]"];
-    (tl.sfx || []).forEach((s, k) => {
+    // Clip-relative SFX: clip.sfx[].src = seconds in the SOURCE (same clock as `in`, e.g. a frames.json mark), so
+    // retiming a clip keeps its cannon shots in sync. Converted to timeline seconds here.
+    const sfxAll = [...(tl.sfx || [])];
+    let start = 0;
+    tl.clips.forEach((c, i) => {
+      for (const s of c.sfx || []) {
+        const at = start + (s.src - (c.in || 0));
+        if (at >= start && at < start + c.dur) sfxAll.push({ ...s, at, file: s.file ?? "docs/trailer/assets/sfx/cannon_fire.ogg" });
+      }
+      start += c.dur - xf;
+    });
+    sfxAll.forEach((s, k) => {
       aargs.push("-i", abs(s.file));
       const ms = Math.round((s.at || 0) * 1000);
       af += `;[${k + 1}:a]aformat=sample_rates=44100:channel_layouts=stereo,volume=${s.gainDb ?? 0}dB,adelay=${ms}|${ms}[s${k}]`;

@@ -48,15 +48,15 @@ export function push(anchor, from, to, dur, look = { x: 0, y: 10, z: 0 }, rot) {
  * the town from the sea), ld/lh/ls: the same for the look-at point (default: the dock, 10 up) }.
  * Returns a function of the capture helpers h (capture.mjs resolves `path` functions after setup).
  */
-export function portShot(key, poses, dur) {
+export function portShot(key, poses, dur, posesPortrait) {
   return (h) => {
+    if (h.aspect === "9x16" && posesPortrait) poses = posesPortrait; // portrait frames need their own poses
     const p = h.port(key);
     let ux = p.dock.x - p.x, uz = p.dock.z - p.z;
     const l = Math.hypot(ux, uz) || 1;
     ux /= l; uz /= l; // seaward
     const rx = uz, rz = -ux; // sideways axis (check the framing with --preview)
-    const k = h.aspect === "9x16" ? 0.5 : 1; // portrait frame: pull sideways offsets in towards the centre
-    const off = (d, hh, s) => ({ x: ux * d + rx * s * k, y: hh, z: uz * d + rz * s * k });
+    const off = (d, hh, s) => ({ x: ux * d + rx * s, y: hh, z: uz * d + rz * s });
     return poses.map((q, i) => ({
       t: (dur * i) / (poses.length - 1),
       anchor: { port: key },
@@ -71,19 +71,69 @@ export function portShot(key, poses, dur) {
  * Park the own ship in the same seaward frame as portShot: d out to sea, s sideways (same axis as portShot),
  * heading along the coast (broadside to a camera out at sea). World x is divided by cos(lat) like dockNear.
  */
-export function parkAtPort(key, d, s, flip = false) {
+export function parkAtPort(key, d, s, sPortrait = s) {
   return async (h) => {
+    if (h.aspect === "9x16") s = sPortrait;
     const p = h.port(key);
     let ux = p.dock.x - p.x, uz = p.dock.z - p.z;
     const l = Math.hypot(ux, uz) || 1;
     ux /= l; uz /= l;
     const rx = uz, rz = -ux;
     const mx = Math.max(0.01, Math.cos(((90 - (p.dock.z / 200000) * 180) * Math.PI) / 180));
-    const k = h.aspect === "9x16" ? 0.5 : 1; // same portrait squeeze as portShot
-    const ox = ux * d + rx * s * k, oz = uz * d + rz * s * k;
-    const r = Math.atan2(rx, rz) + (flip ? Math.PI : 0);
+    const ox = ux * d + rx * s, oz = uz * d + rz * s;
+    const r = Math.atan2(rx, rz);
     await h.tp(p.dock.x + ox / mx, p.dock.z + oz, r);
   };
+}
+
+/**
+ * Realtime "two-shot" camera for combat: every frame it frames the own ship AND the nearest NPC (they move,
+ * so a fixed ship-relative path loses the enemy within seconds). Landscape: camera off to the side of the
+ * line between them (ships side by side). Portrait: camera behind our ship along that line (ships stacked).
+ * Smoothed; keeps the camera on the same side. Runs in the page until window.__trackStop() is called.
+ */
+export async function trackPair(h, { portrait = h.aspect === "9x16" } = {}) {
+  await h.page.evaluate((portrait) => {
+    const net = window.__net;
+    let ax = null, az = null, ox = 0, oy = 0, oz = 0, side = 1, raf = 0, stop = false, lock = null; // lock = target eid
+    const tick = () => {
+      if (stop) return;
+      const me = net.getOwnRenderState();
+      const rt = net.remoteRenderTime();
+      // Lock onto the nearest NPC at the start (the spawned enemy) and stay on it; switching targets whips the camera.
+      let best = null;
+      for (const e of net.remote.renderable()) {
+        if (!e.meta?.npc || (lock !== null && e.eid !== lock)) continue;
+        const p = net.remote.sample(e.eid, rt);
+        if (!p) continue;
+        const d = Math.hypot(p.x - me.x, p.z - me.z);
+        if (d < 900 && (!best || d < best.d)) best = { x: p.x, z: p.z, d, eid: e.eid };
+      }
+      if (best && lock === null) lock = best.eid;
+      const mx = Math.cos(((90 - (me.z / 200000) * 180) * Math.PI) / 180);
+      const tx = best ? (me.x + best.x) / 2 : me.x, tz = best ? (me.z + best.z) / 2 : me.z;
+      let lx = best ? (best.x - me.x) * mx : 1, lz = best ? best.z - me.z : 0; // line us -> enemy (render units)
+      const sep = Math.hypot(lx, lz) || 1;
+      lx /= sep; lz /= sep;
+      const px = -lz, pz = lx; // perpendicular
+      const D = Math.min(portrait ? 300 : 260, Math.max(140, sep * (portrait ? 1.4 : 1.05)));
+      const want = (s) => portrait
+        ? [-lx * D * 0.75 + px * s * D * 0.35, -lz * D * 0.75 + pz * s * D * 0.35]
+        : [px * s * D - lx * D * 0.25, pz * s * D - lz * D * 0.25];
+      let [cx, cz] = want(side);
+      if ((ox || oz) && cx * ox + cz * oz < 0) { side = -side; [cx, cz] = want(side); } // stay on the same side
+      const cy = D * (portrait ? 0.55 : 0.42);
+      const k = ax === null ? 1 : 0.06;
+      ax = ax === null ? tx : ax + (tx - ax) * k;
+      az = az === null ? tz : az + (tz - az) * k;
+      ox += (cx - ox) * k; oy += (cy - oy) * k; oz += (cz - oz) * k;
+      window.__trailer.setPath([{ t: 0, anchor: { x: ax, z: az }, cam: { x: ox, y: oy, z: oz }, look: { x: 0, y: 8, z: 0 } }]);
+      window.__trailer.seek(0);
+      raf = requestAnimationFrame(tick);
+    };
+    window.__trackStop = () => { stop = true; cancelAnimationFrame(raf); };
+    tick();
+  }, portrait);
 }
 
 export const SHOTS = [
@@ -136,7 +186,7 @@ export const SHOTS = [
       { t: 7, anchor: { ship: true }, rot: "ship", cam: { x: -45, y: 55, z: 190 }, look: { x: 0, y: 30, z: -80 } },
     ],
     run: async (h) => {
-      await h.sleep(7000);
+      await h.sleep(6600); // path is 7 s; stop before the camera freezes at its last pose
       await h.keys.up("w");
     },
   },
@@ -146,8 +196,8 @@ export const SHOTS = [
     dur: 5,
     ship: "galleon",
     note: "Rise from the water towards Havana: Morro, quay, red roofs; own galleon anchored left of the docks.",
-    setup: parkAtPort("havana", 40, 110),
-    path: portShot("havana", [{ d: 230, h: 22, s: -70, ld: -20, lh: 14 }, { d: 195, h: 60, s: 15, ld: -50, lh: 0 }], 5),
+    setup: parkAtPort("havana", 40, 110, 35),
+    path: portShot("havana", [{ d: 230, h: 22, s: -70, ld: -20, lh: 14 }, { d: 195, h: 60, s: 15, ld: -50, lh: 0 }], 5, [{ d: 270, h: 30, s: -10, ld: -30, lh: 14, ls: 15 }, { d: 215, h: 70, s: 15, ld: -55, lh: 0, ls: 15 }]),
   },
   {
     id: "callao",
@@ -155,8 +205,8 @@ export const SHOTS = [
     dur: 4.5,
     ship: "galleon",
     note: "Americas expansion port (live): Callao and the Real Felipe star fort, sideways truck with the galleon at anchor.",
-    setup: parkAtPort("callao", 40, 110),
-    path: portShot("callao", [{ d: 215, h: 32, s: 140, ld: -40, lh: 12 }, { d: 190, h: 55, s: -30, ld: -40, lh: 8 }], 4.5),
+    setup: parkAtPort("callao", 40, 110, 35),
+    path: portShot("callao", [{ d: 215, h: 32, s: 140, ld: -40, lh: 12 }, { d: 190, h: 55, s: -30, ld: -40, lh: 8 }], 4.5, [{ d: 270, h: 30, s: -10, ld: -30, lh: 14, ls: 15 }, { d: 215, h: 70, s: 15, ld: -55, lh: 0, ls: 15 }]),
   },
   {
     id: "trade-screen",
@@ -218,8 +268,8 @@ export const SHOTS = [
     dur: 4,
     ship: "galleon",
     note: "European town for variety: gabled Dutch waterfront and windmills, sideways truck (the sky is fixed: no real dusk).",
-    setup: parkAtPort("amsterdam", 40, 110),
-    path: portShot("amsterdam", [{ d: 215, h: 32, s: 140, ld: -40, lh: 12 }, { d: 190, h: 55, s: -30, ld: -40, lh: 8 }], 4),
+    setup: parkAtPort("amsterdam", 40, 110, 35),
+    path: portShot("amsterdam", [{ d: 215, h: 32, s: 140, ld: -40, lh: 12 }, { d: 190, h: 55, s: -30, ld: -40, lh: 8 }], 4, [{ d: 270, h: 30, s: -10, ld: -30, lh: 14, ls: 15 }, { d: 215, h: 70, s: 15, ld: -55, lh: 0, ls: 15 }]),
   },
   {
     id: "broadside",
@@ -233,15 +283,15 @@ export const SHOTS = [
       await h.tp(...h.at(18.5, -75.5), 0);
       const me = await h.me();
       // Starboard of heading r is (cos r, -sin r) in world x/z (x scaled by cos(lat)); see docs/world/qa/scripts/n2.mjs.
-      const mx = Math.cos(18.5 * Math.PI / 180), d = h.beam ?? 75;
-      await h.npc({ a: "pirate", ship: "brigantine", x: me.x + (Math.cos(me.r) * d) / mx, z: me.z - Math.sin(me.r) * d, r: me.r });
+      const mx = Math.cos(18.5 * Math.PI / 180), d = h.beam ?? 65;
+      await h.npc({ a: "pirate", ship: h.enemy ?? "brigantine" /* tan sails read apart from our red galleon */, x: me.x + (Math.cos(me.r) * d) / mx, z: me.z - Math.sin(me.r) * d, r: me.r });
     },
-    path: [
-      { t: 0, anchor: { ship: true }, rot: "ship", cam: { x: -70, y: 60, z: 150 }, look: { x: 50, y: 5, z: -20 } },
-      { t: 14, anchor: { ship: true }, rot: "ship", cam: { x: -95, y: 75, z: 110 }, look: { x: 50, y: 5, z: -10 } },
-    ],
+    // Camera: trackPair() (two-shot that follows both ships; the enemy manoeuvres out of any fixed framing).
     run: async (h) => {
-      await h.sleep(1200);
+      // Fire at once: the spawned pirate starts stationary on the beam, but turns away within a few seconds.
+      // (Manually spawned NPCs are never despawned: restart the server before a final take, or the area fills up.)
+      await trackPair(h);
+      await h.sleep(500);
       await h.mark("before");
       for (let i = 0; i < 4; i++) {
         await h.keys.tap("e");
@@ -250,6 +300,7 @@ export const SHOTS = [
         await h.sleep(2200);
       }
       await h.mark("end");
+      await h.page.evaluate(() => window.__trackStop());
     },
   },
   {
@@ -265,7 +316,6 @@ export const SHOTS = [
   {
     id: "leaderboard",
     hud: true,
-    css: '.fixed.inset-0.z-\\[60\\] > * { zoom: 1.45; }', // enlarge the leaderboard panel (Leaderboard.tsx root)
     mode: "realtime",
     dur: 3,
     ship: "galleon",
@@ -275,7 +325,7 @@ export const SHOTS = [
       await h.keys.down("Tab");
       await h.sleep(1200);
       await h.mark("open");
-      await h.sleep(1300);
+      await h.sleep(3600);
       await h.keys.up("Tab");
     },
   },

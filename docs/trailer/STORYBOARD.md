@@ -4,6 +4,17 @@ Two cuts from the same shots (ids = `scripts/trailer/shots.mjs`; timelines = `sc
 All footage is real gameplay (dev server, `?trailer=1` only hides the HUD and moves the camera). Voice of the text:
 short, in-world, full stops. Fonts: Pirata One (captions), IM Fell English SC (URL), Alegreya (tagline).
 No narration; the music bed carries it, one real cannon SFX on the broadside.
+## Trailer 1 as cut (2026-10-25, live game, no expansion)
+
+The plan below was written before the first live run. What was actually cut (timelines in `scripts/trailer/timeline.*.json`):
+
+- **16:9, 45.5 s**: hero-dawn "Sail the known world." / ship-select (all ships "Free") / sail-run / havana-approach "Trade where
+  the price is right." / trade-screen (two real purchases) / world-map "43 ports. One ocean." / callao / broadside with HUD "Give 'em
+  a broadside." + 2 cannon SFX / amsterdam / leaderboard (invented captains) / end card. Music from 74 s.
+- **9:16, 31.1 s**, all native 1080x1920: broadside hook "Fire at will." (volley inside the first second) / sail-run / havana
+  (caption) / trade-screen / callao / world-map (caption) / hero-dawn / leaderboard / end card. Music from 82 s.
+- Dropped vs the plan: "Chart the frozen north." (trailer 2), the Amsterdam "dusk" (the game sky is fixed), captions on the
+  ship-select and leaderboard shots (they covered the UI).
 
 ## 16:9, 1920x1080, 30 fps, about 44 s
 
