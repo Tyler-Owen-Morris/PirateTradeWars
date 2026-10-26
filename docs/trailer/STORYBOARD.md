@@ -16,6 +16,22 @@ The plan below was written before the first live run. What was actually cut (tim
 - Dropped vs the plan: "Chart the frozen north." (trailer 2), the Amsterdam "dusk" (the game sky is fixed), captions on the
   ship-select and leaderboard shots (they covered the UI).
 
+## Trailer 2 as cut (2026-10-25, New Horizons phase 2 "North of everything")
+
+Timelines `scripts/trailer/timeline.v2.*.json`; owner feedback on trailer 1 applied (no empty sailing, one quick trade,
+both ships moving in combat, several short angles).
+
+- **16:9, 43.7 s** (music from 74 s): ice-edge along the 72 N ice cliff "Chart the frozen north." / arrive-north (under sail
+  up the Gulf of Finland past St. Petersburg) / stpete (church and painted Baltic town) / ship-select (t1, all "Free") /
+  hero-dawn (t1) / sitka "Furs, whale oil and timber." / trade-north (Arkhangelsk, Furs bought, Northern group on the
+  ledger, 2.9 s) / havana (t1) / world-map-north (whole world, zoom to the Baltic) "60 ports. One ocean." / navy-pass
+  (Russian Navy man-o-war on the opposite course, broadside abeam) "Mind the Russian Navy." / navy-pass-b (from astern,
+  it fires back) / bergen (fort, wharf town) / leaderboard (t1, invented names) / end card.
+- **9:16, 31.1 s** (music from 82 s), all native 1080x1920: navy-pass-b high two-shot, volley at ~0.7 s "Fire at will." /
+  ice-edge (caption) / arrive-north / stpete (onion-domed church behind) / sitka (caption) / trade-north x2 (1.6x zoom:
+  ledger, then the bill) / world-map-north (caption) / navy-pass / bergen / ship-select (1.5x zoom, "Free") / leaderboard /
+  end card.
+
 ## 16:9, 1920x1080, 30 fps, about 44 s
 
 Clips overlap by 0.4 s (crossfade), so cut lengths below are nominal.

@@ -1,6 +1,6 @@
 # Trailer: working notes and runbook
 
-State (2026-10-25): **trailer 1 (the live game, no northern expansion) is recorded and cut**, both aspects. The tooling has had
+State (2026-10-25): **trailer 1 and trailer 2 (the North) are recorded and cut**, both aspects (trailer 2: see "Trailer 2 run log" at the end). The tooling has had
 its first live run and the fixes are in (see "Trailer 1 run log" below). Trailer 2 (after the North ships) reuses all of it:
 add the north shots to `shots.mjs`, re-capture, re-cut.
 
@@ -120,3 +120,68 @@ small; realtime clips have ~5% repeated frames (screencast jitter, fine at 30 fp
   timelines (the `northern-seas` entry is a placeholder: replace its port keys and poses). Ice/snow towns: try a higher camera.
 - Re-run the full batch per aspect after a server restart; reuse the timelines, swap one port shot for a north one.
 - Consider a CSS-zoomed trade panel for 9:16 (find the right selector first) and a caption-safe leaderboard position.
+
+## Trailer 2 run log (2026-10-25, New Horizons phase 2 live: "North of everything")
+
+Resume notes (newest last). Worktree `agent-a0b64b43bd24fb3bf`, branch `worktree-agent-a0b64b43bd24fb3bf`, from main 92c09a4.
+Outputs (not in git): session scratchpad `trailer/v2/`.
+
+Setup done:
+- `node_modules` = junction to `.claude/worktrees/agent-abb70aea15b1777da/node_modules` (same package.json; has playwright).
+- Docker Desktop had to be started (`ptw-redis` was stopped). DB 11 seeded with the invented leaderboard (seed-1..10).
+- devtp.patch applied uncommitted. **devtp.patch now passes `f` (faction) to `devnpc`** (needed for a Russian Navy ship:
+  `{t:"devnpc", a:"navy", f:"russia"}`); the committed patch file was regenerated.
+- Server: as in the runbook, port 5150, `REDIS_CONN_STRING=redis://localhost:6379/11`. Restart + clean = kill the :5150
+  listener, delete `player:*`, `player_*`, `active_name*` in DB 11 (keeps the leaderboard).
+
+Owner feedback on trailer 1 (do not reuse as is): (1) sail-run floats at an empty island: sail purposefully, 3-4 s,
+INTO a living town / along the ice / past ships; (2) the trade screen lingered: 2.5-3 s, one purchase; (3) combat had
+one ship still and the other spinning: both ships moving, enemy (Russian Navy) on a crossing/passing course, short angles.
+
+Tooling changes:
+- `portShot`/`parkAtPort`: the seaward direction now scales world x by cos(lat) (`seaward()`); unscaled it was skewed
+  (fine at 18 N, badly off at 60 N).
+- `townShot(key, poses)`: like portShot but anchored on the TOWN (port point) - northern docks are far from their towns
+  (St. Petersburg 487 units, Stockholm 421, Arkhangelsk 428, Bergen 303). `--shot town-<key> --preview` surveys any port.
+- New shots: `stpete`, `arkhangelsk`, `sitka`, `bergen` (town frames), `arrive-north` (realtime, sailing into Bergen),
+  `ice-edge` (realtime, 71.8 N 38 E heading east), `trade-north` (Arkhangelsk, Furs x10, ~3 s), `world-map-north`,
+  `navy-pass` (Russian Navy ship on the opposite course, E as it comes abeam). The `northern-seas` placeholder is gone.
+- Heading convention: forward = (sin r, cos r) in (east, south): r 0 = south, PI = north, PI/2 = east.
+
+Survey (town-<key> preview): St. Petersburg (white church, painted houses) and Stockholm/Bergen read well from 250 out;
+Arkhangelsk is dark timber with ice floes on the beach (needs a high camera, it sits behind land); Sitka's end pose good.
+The north is green land like everywhere else (the game has no snow on land); ice shows as floes and the ice sheet at 72 N.
+
+Run 2 progress (later the same day):
+- **Ship speed**: a galleon under full sail covers ~950-1500 render units in 4.6 s (it is a big world). A sailing shot
+  must start ~2000+ units out; `pre` (W held through the 3 s settle) already moves it ~700.
+- **Ship-relative path axes** (rot:"ship", path.ts): -z = ahead of the bow, +z = astern, +x = starboard. Heading:
+  forward = (-sin r, -cos r) in (east, south) (the physics.ts comment reads the other way; this is what the game does).
+  r = -PI/2 sails east, r = PI/2 west, r = PI south. The broadside setup's starboard formula (cos r, -sin r) is right.
+- `arrive-north`: chase camera from the port quarter, start 60.0 N 26.8 E (mid Gulf of Finland) heading east; the town
+  slides past on the right at ~2-3 s. A start computed along the town->dock line from 2000 out landed on a shoal (grounded).
+- `ice-edge`: 71.9 N 38 E, r = PI/2 (west): the 72 N ice sheet is a grey cracked cliff to starboard. Camera ahead of the bow
+  looking back; portrait has its own path (look further to starboard or the ice is out of frame).
+- `navy-pass` / `navy-pass-b`: Russian Navy **man-o-war** forced (`ship`), spawned 750 ahead / 220 to starboard on the
+  opposite course; we sail at it with W and the script fires E or Q when it is abeam (|along| < 170), so both ships move
+  and the volley lands mid-frame. A rolled navy galleon had red sails and looked like us; at beam 120 the ships nearly
+  collided. b = second angle: trackPair from astern (16:9) / `high: 1.9` portrait (9:16; the side framing put both ships
+  at the frame edges). The navy returns fire after the first volley. Restart the server before every take (batch script).
+- `trade-north`: Furs at Arkhangelsk rise after each take (56 -> 89 g): the script falls back to the Max chip when 10 is
+  unaffordable (that was a 30 s click timeout).
+- `world-map-north`: wheel-zoom on Scandinavia after 1.2 s on the whole world; the zoom point differs per aspect.
+- `edit.mjs`: per-clip `zoom` (punch-in, lanczos) with cropX/cropY; used for the 9:16 trade (two 2 s beats: ledger with
+  the Northern group, then the bill) and the 9:16 ship cards, and a light 1.25 on the 16:9 trade.
+- Reused from trailer 1 (copied to `capture/t1/`): hero-dawn, ship-select (16:9), havana-approach, leaderboard (invented
+  names). Not reused (owner feedback): sail-run, trade-screen, broadside. New 9:16 ship-select capture.
+- Timelines: `scripts/trailer/timeline.v2.16x9.json`, `timeline.v2.9x16.json` (trailer-1 timelines kept).
+- Batch helper used (session scratchpad, not committed): clean = kill the :5150 listener + delete player keys in DB 11;
+  then start the server hidden, wait for /api/ports, run capture.mjs; one restart per shot group.
+
+Result: `ptw-trailer-v2-16x9.mp4` 43.7 s (35 MB), `ptw-trailer-v2-9x16.mp4` 31.1 s (24.5 MB), both -14 LUFS, H.264 High,
+yuv420p, AAC. Reviewed at 1 fps; contact sheets in the same folder. Cleanup done: server stopped, DB 11 flushed,
+socketHandler reverted, ptw-redis stopped.
+
+Known weaknesses: fixed noon sky; land in the north is as green as the tropics (no snow in the game); the 9:16 trade
+beats are a 1.6x upscale (slightly soft but legible); the 16:9 St. Petersburg truck ends over rooftops; realtime clips
+keep the HUD in combat (health bars and the "Russian Navy - Man-o'-War" plate are the point).

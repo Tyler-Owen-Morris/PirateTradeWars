@@ -1,8 +1,8 @@
 diff --git a/server/game/socketHandler.tsx b/server/game/socketHandler.tsx
-index 5d2af6b..5bab3f4 100644
+index 00d9c2d..9505d87 100644
 --- a/server/game/socketHandler.tsx
 +++ b/server/game/socketHandler.tsx
-@@ -27,6 +27,27 @@ export function handleSocketConnection(ws: WebSocket) {
+@@ -36,6 +36,27 @@ export function handleSocketConnection(ws: WebSocket) {
    let playerId: string | null = null;
  
    ws.on("message", (raw) => {
@@ -17,7 +17,7 @@ index 5d2af6b..5bab3f4 100644
 +        }
 +        // QA-only (F1 n3.mjs): spawn an active NPC, or set any ship's hp.
 +        if (m && m.t === "devnpc" && (gameState as any).npcs) {
-+          (gameState as any).npcs.spawnActive({ archetype: m.a ?? "pirate", x: m.x, z: m.z, shipType: m.ship, rotationY: m.r ?? 0 });
++          (gameState as any).npcs.spawnActive({ archetype: m.a ?? "pirate", x: m.x, z: m.z, shipType: m.ship, rotationY: m.r ?? 0, faction: m.f });
 +          return;
 +        }
 +        if (m && m.t === "devhp") {
