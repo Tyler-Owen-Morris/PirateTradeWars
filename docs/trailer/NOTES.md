@@ -1,6 +1,6 @@
 # Trailer: working notes and runbook
 
-State (2026-10-25): **trailer 1 and trailer 2 (the North) are recorded and cut**, both aspects (trailer 2: see "Trailer 2 run log" at the end). The tooling has had
+State (2026-10-25): **trailer 1 and trailer 2 (the North) are recorded and cut; a raw footage pack for editing is in `FOOTAGE.md`**, both aspects (trailer 2: see "Trailer 2 run log" at the end). The tooling has had
 its first live run and the fixes are in (see "Trailer 1 run log" below). Trailer 2 (after the North ships) reuses all of it:
 add the north shots to `shots.mjs`, re-capture, re-cut.
 

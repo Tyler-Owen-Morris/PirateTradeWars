@@ -10,12 +10,15 @@
  *   __trailer.stop()               // give the camera back to the chase camera
  *   __trailer.hud(false|true)      // hide / show every HUD element (everything after the canvas wrapper)
  *   __trailer.hide(["selector"])   // extra CSS selectors to hide (e.g. the minimap) - optional
+ *   __trailer.fov(deg)             // lens: vertical field of view (game default 80)
  *   __trailer.ship()               // own ship pose { x, z, rotationY } (for scripting)
  *   __trailer.ports()              // port keys, for path authoring
  * Camera control reuses the dev city camera (lib/world/cityDebug.ts): the render focus is the anchor, the
  * own ship stays visible (`cityDebug.showShip`), land tiles load around the anchor.
  */
 import { useEffect } from "react";
+import { useThree } from "@react-three/fiber";
+import type { PerspectiveCamera } from "three";
 import { useGameState } from "@/lib/stores/useGameState";
 import { net } from "@/lib/net";
 import { clientLand } from "@/lib/world/landTiles";
@@ -42,6 +45,7 @@ export const TRAILER_NAMEPLATES: "all" | "none" | "others" = (() => {
 })();
 
 export function useTrailerHooks(onExit: () => void): void {
+  const camera = useThree((st) => st.camera) as PerspectiveCamera;
   useEffect(() => {
     if (!TRAILER_ENABLED) return;
     const w = window as any;
@@ -118,6 +122,11 @@ export function useTrailerHooks(onExit: () => void): void {
       hide: (selectors: string[]) => {
         extraHide = selectors;
         renderCss();
+      },
+      /** Lens: vertical field of view in degrees (game default 80; ~45-55 reads more cinematic). */
+      fov: (deg: number) => {
+        camera.fov = deg;
+        camera.updateProjectionMatrix();
       },
       ship: () => ctx.ship(),
       ports: () => useGameState.getState().gameState.ports.map((p) => p.key),
