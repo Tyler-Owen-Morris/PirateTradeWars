@@ -7,37 +7,15 @@ import { SHIP_DISPLAY_NAMES, SHIP_UPGRADE_PATH, PORT_INTERACTION_RADIUS } from "
 import { latOf, lonOf } from "@shared/world/geo";
 import { PORTS, nearestDockPort, type GamePort } from "@shared/world/ports";
 import { isNpcId, TICK_MS, type World, type WorldPlayer } from "../game/world";
+import { ADMIN_ACTIONS, MAX_ADMIN_GOLD, type AdminActionName, type AdminPlayerRow, type AdminStatus } from "@shared/adminApi";
 
-export type AdminStatus = "combat" | "port" | "idle" | "sea";
+export type { AdminStatus, AdminPlayerRow, AdminActionName } from "@shared/adminApi";
+export { ADMIN_ACTIONS, MAX_ADMIN_GOLD } from "@shared/adminApi";
 
 /** Fired a broadside or took a hit within this long = "in combat". */
 export const COMBAT_WINDOW_MS = 15_000;
 /** No throttle/rudder/fire input for longer than this = "idle" (a hidden tab sends nothing). */
 export const IDLE_AFTER_MS = 60_000;
-export const MAX_ADMIN_GOLD = 1_000_000;
-
-export interface AdminPlayerRow {
-  id: string;
-  name: string;
-  shipType: string;
-  ship: string;
-  /** Display name of the next ship in the upgrade path; null at the top (Dreadnaught). */
-  nextShip: string | null;
-  status: AdminStatus;
-  /** Port name when docked (within the 300 interaction radius), else "Off <nearest port>". */
-  where: string;
-  lat: number;
-  lon: number;
-  hp: number;
-  maxHp: number;
-  gold: number;
-  cargoUsed: number;
-  cargoCapacity: number;
-  source: string;
-  campaign?: string;
-  /** Wall ms when this player joined (or last reconnected). */
-  onlineSince: number;
-}
 
 /** "The Man-o'-War" -> "Man-o'-War". */
 export function shipName(shipType: string): string {
@@ -118,8 +96,6 @@ export function npcShipCount(world: World): number {
 // Actions
 // ---------------------------------------------------------------------------------------------
 
-export const ADMIN_ACTIONS = ["repairFull", "repairQuarter", "gold", "upgrade"] as const;
-export type AdminActionName = (typeof ADMIN_ACTIONS)[number];
 export interface AdminActionRequest {
   playerId: string;
   action: AdminActionName;

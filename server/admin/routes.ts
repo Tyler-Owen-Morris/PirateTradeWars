@@ -24,7 +24,8 @@ import {
   type ParsedHash,
 } from "./auth";
 import { parseAdminAction, type AdminActionRequest, type AdminPlayerRow } from "./state";
-import { DailyStats, VisitLimiter, summarizeToday, type TodaySummary } from "./stats";
+import { DailyStats, VisitLimiter, summarizeToday } from "./stats";
+import type { AdminLogLine, AdminStateResponse } from "@shared/adminApi";
 
 export const ADMIN_COOKIE = "ptw_admin";
 export const ADMIN_LOG_SIZE = 50;
@@ -48,16 +49,7 @@ export interface AdminDeps {
   now?: () => number;
 }
 
-export interface AdminLogLine {
-  at: number;
-  text: string;
-}
-
-export interface AdminStateResponse extends AdminWorldSnapshot {
-  now: number;
-  today: TodaySummary;
-  log: AdminLogLine[];
-}
+export type { AdminLogLine, AdminStateResponse } from "@shared/adminApi";
 
 function readCookie(header: string | undefined, name: string): string | undefined {
   if (!header) return undefined;
