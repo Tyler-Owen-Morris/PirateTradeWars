@@ -24,7 +24,10 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { SHOTS, byId } from "./shots.mjs";
+import { SHOTS as TRAILER_SHOTS, byId as trailerById } from "./shots.mjs";
+import { FOOTAGE } from "./footage-shots.mjs"; // raw footage pack shots (docs/trailer/FOOTAGE.md)
+const SHOTS = [...TRAILER_SHOTS, ...FOOTAGE];
+const byId = (id) => FOOTAGE.find((s) => s.id === id) ?? trailerById(id);
 import { loadPlaywright } from "./lib.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -42,7 +45,11 @@ const BASE = opt("base", "http://localhost:5000");
 const OUT = path.resolve(opt("out", path.join(repo, "capture")));
 const FPS = Number(opt("fps", 30));
 const ASPECT = opt("aspect", "16x9");
-const SIZE = ASPECT === "9x16" ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 };
+// --size WxH overrides the viewport (e.g. 2560x1440 for the raw footage pack, docs/trailer/FOOTAGE.md). Camera paths
+// are in world units, so a bigger viewport frames the same picture at a higher resolution.
+const SIZE = typeof opt("size", null) === "string"
+  ? (([w, hh]) => ({ width: +w, height: +hh }))(opt("size").split("x"))
+  : ASPECT === "9x16" ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 };
 const NAME = opt("name", null);
 // Invented names only (a name already at sea cannot join twice, so each run picks one at random).
 const FIRST = ["Calico", "Black Bart", "Red Ned", "Mad Mary", "Long Tom", "Salty Bess", "Gentle Jonas", "One-Eyed Ezra", "Iron Anne", "Silver Silas", "Dread Molly", "Captain Kit"];
@@ -184,7 +191,7 @@ async function retire(page) {
 }
 
 const shotDir = (shot) => {
-  const dir = path.join(OUT, ASPECT, shot.id);
+  const dir = path.join(OUT, ASPECT + (opt("size", null) ? "-" + opt("size") : ""), shot.id);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   return dir;
@@ -228,8 +235,12 @@ async function captureRealtime(browser, shot, preview) {
   if (!shot.lobby) await page.evaluate((hud) => window.__trailer.hud(hud), !!shot.hud);
   // Optional camera path in realtime: posed at t=0 now, played (real time) when the run starts. The path can
   // anchor on the own ship with rot:"ship" for a close chase/orbit that follows the ship as it sails.
-  const pth = typeof shot.path === "function" ? await shot.path(h) : shot.path;
+  let pth = typeof shot.path === "function" ? await shot.path(h) : shot.path;
+  // shot.lead (s): play the path from NOW, holding its first pose for `lead` seconds. Ship-anchored paths then follow
+  // the ship through pre/settle, so the first recorded frame is already on the moving path (no frozen-camera snap).
+  if (pth && shot.lead) pth = [{ ...pth[0], t: 0, ease: "linear" }, ...pth.map((k) => ({ ...k, t: k.t + shot.lead }))];
   if (pth) await page.evaluate((p) => { window.__trailer.setPath(p); window.__trailer.seek(0); }, pth);
+  if (pth && shot.lead) page.evaluate(() => window.__trailer.play()).catch(() => {});
   if (shot.pre) await shot.pre(h); // e.g. get under way before the recording starts
   await sleep(shot.settleMs ?? 3000);
   const dir = shotDir(shot);
@@ -253,7 +264,7 @@ async function captureRealtime(browser, shot, preview) {
     marks.push({ label, t: Date.now() / 1000 - t0 });
   };
   if (preview) await h.mark("start");
-  if (pth) page.evaluate(() => window.__trailer.play()).catch(() => {});
+  if (pth && !shot.lead) page.evaluate(() => window.__trailer.play()).catch(() => {});
   await shot.run(h);
   if (preview) await h.mark("end");
   if (!preview) await cdp.send("Page.stopScreencast");
