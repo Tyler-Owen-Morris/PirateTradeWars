@@ -30,6 +30,17 @@ export const TRAILER_ENABLED: boolean = (() => {
   }
 })();
 
+/** Ship nameplates (name, NPC title, health bar): "all" normally. Trailer mode can ask `&plates=0` (none, cinematic
+ *  shots) or `&plates=others` (every ship but your own, e.g. combat with the enemy's health bar). Used by Ship.tsx. */
+export const TRAILER_NAMEPLATES: "all" | "none" | "others" = (() => {
+  try {
+    const v = TRAILER_ENABLED ? new URLSearchParams(window.location.search).get("plates") : null;
+    return v === "0" ? "none" : v === "others" ? "others" : "all";
+  } catch {
+    return "all";
+  }
+})();
+
 export function useTrailerHooks(onExit: () => void): void {
   useEffect(() => {
     if (!TRAILER_ENABLED) return;
@@ -41,8 +52,10 @@ export function useTrailerHooks(onExit: () => void): void {
     document.head.appendChild(styleEl);
     let hudOff = false;
     let extraHide: string[] = [];
+    queueMicrotask(() => renderCss());
     const renderCss = () => {
-      const rules: string[] = [];
+      // Global chat is ALWAYS hidden in trailer mode, HUD on or off (real players' names, kids play).
+      const rules: string[] = ['[data-testid="chat-panel"] { display: none !important; }'];
       // Everything rendered after the R3F canvas wrapper in App.tsx is HUD (GameUI, trade screen, ...).
       if (hudOff) rules.push("div:has(> div > canvas) ~ * { display: none !important; }");
       if (extraHide.length) rules.push(`${extraHide.join(", ")} { display: none !important; }`);

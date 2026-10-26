@@ -147,7 +147,7 @@ export default function ChatPanel() {
     : lines.slice(-COLLAPSED_LINES).filter((l) => now - l.receivedAt < FADE_AFTER_MS);
 
   return (
-    <div className="absolute left-2 bottom-36 sm:left-[16rem] sm:bottom-4 z-[55] w-[min(24rem,calc(100vw-1rem))] sm:w-[min(26rem,calc(100vw-18rem))] pointer-events-none text-[0.8rem] sm:text-base">
+    <div data-testid="chat-panel" className="absolute left-2 bottom-36 sm:left-[16rem] sm:bottom-4 z-[55] w-[min(24rem,calc(100vw-1rem))] sm:w-[min(26rem,calc(100vw-18rem))] pointer-events-none text-[0.8rem] sm:text-base">
       {open ? (
         <HudPanel className="mb-1.5 p-2 pointer-events-auto" data-testid="chat-log">
           <div className="flex items-baseline justify-between gap-2 pb-1 mb-1 border-b border-ptw-brass/40">
