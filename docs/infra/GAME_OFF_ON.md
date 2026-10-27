@@ -2,9 +2,9 @@
 
 Theo may say "turn the game off", "set the deployment to off", "park the site" (go to OFF), or "turn it back
 on", "relaunch the game" (go to ON). This doc defines both states and the exact steps between them.
-Planned 2026-10-16; **not executed yet**, so the first OFF run also builds the parked site (step 3).
+Planned 2026-10-16; first OFF run 2026-10-26, which built the parked site (step 3) and the `deploy.yml` guard.
 
-**Current state: ON** (update this line, and the log at the bottom, every time you switch).
+**Current state: OFF** (since 2026-10-26; relaunch with version label `422dcb02bdaf3f6dee64f79c116e363e19428543`) (update this line, and the log at the bottom, every time you switch).
 
 Both directions take a live, public site up or down. Confirm with Theo in the same conversation before
 starting, even if he asked earlier.
@@ -19,8 +19,9 @@ starting, even if he asked earlier.
 | Domain DNS | Route 53 hosted zone `Z08294463XUHSUXHY5VS` (piratetradewars.com). Registered elsewhere, not in Route 53 Domains. Only the apex `A` alias matters (no www record). Check the live nameservers before any DNS work: a Cloudflare zone also exists (see `SINGLE_INSTANCE_CUTOVER.md`, incident 2026-10-21). |
 | ALB HTTPS cert | ACM us-east-2 `arn:aws:acm:us-east-2:835677831294:certificate/73add82a-2aa2-4a1e-8eda-7424da554d03` (keep it; the saved template points at it) |
 | Data | Upstash Redis (`REDIS_CONN_STRING`, also in Secrets Manager `piratetradewars/redis-prod`). Outside AWS; it is never touched by OFF/ON, so the leaderboard and players survive. |
-| EB env vars | `REDIS_CONN_STRING`, `STRIPE_SECRET_KEY`, `STRIPE_*_PRICE_ID`, `VITE_STRIPE_PUBLISHABLE_KEY`, `SEGMENT_WRITE_KEY`, `PORT`, `DUMMY`. The values live only in the EB config; the saved template keeps them. Never print or commit them. |
+| EB env vars | `REDIS_CONN_STRING`, `STRIPE_SECRET_KEY`, `STRIPE_*_PRICE_ID`, `VITE_STRIPE_PUBLISHABLE_KEY`, `SEGMENT_WRITE_KEY`, `PORT`, `DUMMY`, `SHIPS_FREE`, `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET`. The values live only in the EB config; the saved template keeps them. Never print or commit them. |
 | Saved config template | `ptw-on-state` (created by OFF step 1) |
+| Parked site (built 2026-10-26, keep) | S3 `piratetradewars-parked` (us-east-1, private); CloudFront `E1NXN8M9W6RF63` = `d1oz40mh5gw1d2.cloudfront.net`, OAC `E2T908I3WKIL15`; ACM us-east-1 `arn:aws:acm:us-east-1:835677831294:certificate/03c23a28-ea6d-4bde-9a9c-0d40efd35fbf` (its validation CNAME stays in the hosted zone for renewals) |
 | Route 53 alias zone ids | EB us-east-2: `Z14LCN19Q5QHIC`; CloudFront: `Z2FDTNDATAQYW2` |
 
 ## State ON (about $45-50/mo)
@@ -43,7 +44,7 @@ starting, even if he asked earlier.
   `s3://elasticbeanstalk-us-east-2-835677831294/`), template `ptw-on-state`, the us-east-2 ACM cert, the
   secret, the hosted zone, Upstash.
 - Deploys are skipped: repo variable `GAME_OFF=1`, and the `deploy` job in `.github/workflows/deploy.yml` has
-  `if: vars.GAME_OFF != '1'` (add that guard on the first OFF run; it is not in the workflow yet). The test
+  `if: vars.GAME_OFF != '1'` (guard added 2026-10-26). The test
   job still runs.
 - Remaining cost: hosted zone $0.50 + secret $0.40 + S3/CloudFront pennies (free tier). Plus the domain
   renewal at the registrar, which is outside AWS.
@@ -106,3 +107,4 @@ starting, even if he asked earlier.
 | Date | Change | Version label | By |
 |---|---|---|---|
 | 2026-10-16 | Doc written; state ON. Running label `8d3388eb5ccbbc455f021fa78ab06d741e6041e9` before the NPC-halving deploy. | 8d3388e... | Claude |
+| 2026-10-26 | OFF. Template `ptw-on-state` saved (12 env vars, t4g.small, ASG 1/1, 443 cert, health `/api/health`); `GAME_OFF=1` + deploy guard; parked site built; apex A -> CloudFront; environment terminated; us-east-2 has no instances, LBs, EIPs or volumes left. | 422dcb02bdaf3f6dee64f79c116e363e19428543 | Claude |
