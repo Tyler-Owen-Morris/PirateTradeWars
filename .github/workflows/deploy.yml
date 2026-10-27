@@ -46,6 +46,8 @@ jobs:
         run: npm run test:bots --if-present
 
   deploy:
+    # Game OFF (docs/infra/GAME_OFF_ON.md): repo variable GAME_OFF=1 skips deploys.
+    if: vars.GAME_OFF != '1'
     needs: test
     runs-on: ubuntu-latest
     steps:
