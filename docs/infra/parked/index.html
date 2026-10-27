@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pirate Trade Wars - Docked</title>
+<meta name="description" content="Pirate Trade Wars is docked for now. The fleet will sail again.">
+<style>
+  :root { --sea:#0d2233; --deep:#081622; --parch:#ecdcb4; --ink:#3a2814; --gold:#c99a3c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% 30%, #17384f 0%, var(--sea) 45%, var(--deep) 100%);
+    color: var(--parch);
+    font-family: Georgia, "Times New Roman", serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px;
+  }
+  .notice {
+    max-width: 520px; width: 100%;
+    background: var(--parch); color: var(--ink);
+    padding: 40px 32px 32px;
+    border-radius: 3px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.55), inset 0 0 60px rgba(120,80,30,.35);
+    text-align: center;
+    transform: rotate(-0.6deg);
+    position: relative;
+  }
+  .notice::before, .notice::after {
+    content: ""; position: absolute; top: 14px; width: 12px; height: 12px; border-radius: 50%;
+    background: #6b4a24; box-shadow: inset -2px -2px 3px rgba(0,0,0,.5);
+  }
+  .notice::before { left: 16px; } .notice::after { right: 16px; }
+  .crest { font-size: 13px; letter-spacing: .3em; text-transform: uppercase; color: #7a5a2e; margin: 0 0 10px; }
+  h1 { font-size: clamp(30px, 8vw, 44px); margin: 0 0 6px; line-height: 1.05; font-weight: 700; }
+  .rule { width: 60%; height: 2px; margin: 18px auto; background: linear-gradient(90deg, transparent, var(--ink), transparent); opacity: .5; }
+  p { font-size: 18px; line-height: 1.55; margin: 0 0 12px; }
+  .sig { font-style: italic; margin-top: 22px; color: #5b4120; }
+  svg { display: block; margin: 0 auto 14px; }
+</style>
+</head>
+<body>
+  <main class="notice">
+    <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+      <g fill="none" stroke="#3a2814" stroke-width="3" stroke-linecap="round">
+        <circle cx="32" cy="12" r="5"/>
+        <path d="M32 17v38M20 26h24M10 40c2 10 12 16 22 16s20-6 22-16M10 40l-4 4M10 40l5 2M54 40l4 4M54 40l-5 2"/>
+      </g>
+    </svg>
+    <p class="crest">Notice to all captains</p>
+    <h1>Pirate Trade Wars<br>is docked for now</h1>
+    <div class="rule"></div>
+    <p>The fleet is in harbour and the ports are closed while we refit.</p>
+    <p>Your ships, gold and place on the leaderboard are safe in the ledger. We'll raise the sails again soon.</p>
+    <p class="sig">By order of the Harbour Master</p>
+  </main>
+</body>
+</html>
